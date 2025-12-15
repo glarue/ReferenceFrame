@@ -1,0 +1,19 @@
+{
+  "name": "ReferenceFrame",
+  "short_name": "ReferenceFrame",
+  "description": "Calculate picture frame dimensions, mat sizes, and material requirements",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#277da1",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='10' y='10' width='80' height='80' fill='none' stroke='%2390be6d' stroke-width='8'/><rect x='25' y='25' width='50' height='50' fill='none' stroke='%23f9844a' stroke-width='6'/></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["utilities", "productivity"]
+}

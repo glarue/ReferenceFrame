@@ -1,0 +1,25 @@
+# Claude-related files
+.claude/
+docs/CLAUDE.md
+
+# Development files
+dev/
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
