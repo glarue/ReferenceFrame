@@ -883,15 +883,15 @@
 
         # Import our existing code
         try:
-            from frame import FrameDesign, FrameSize
-            from conversions import format_value, inches_to_mm, mm_to_inches
-            from ui_helpers import input_to_inches, round_to_step, FIELD_IDS
-            from aspect_ratio import (
+            from src.frame import FrameDesign, FrameSize
+            from src.conversions import format_value, inches_to_mm, mm_to_inches
+            from src.ui_helpers import input_to_inches, round_to_step, FIELD_IDS
+            from src.aspect_ratio import (
                 get_aspect_ratio_display,
                 get_aspect_ratio_display_from_ratio,
                 AspectLockState,
             )
-            from defaults import (
+            from src.defaults import (
                 DEFAULT_ARTWORK_HEIGHT,
                 DEFAULT_ARTWORK_WIDTH,
                 DEFAULT_INCLUDE_MAT,
