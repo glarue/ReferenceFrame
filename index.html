@@ -882,34 +882,28 @@
         import json
 
         # Import our existing code
-        try:
-            from frame import FrameDesign, FrameSize
-            from conversions import format_value, inches_to_mm, mm_to_inches
-            from ui_helpers import input_to_inches, round_to_step, FIELD_IDS
-            from aspect_ratio import (
-                get_aspect_ratio_display,
-                get_aspect_ratio_display_from_ratio,
-                AspectLockState,
-            )
-            from defaults import (
-                DEFAULT_ARTWORK_HEIGHT,
-                DEFAULT_ARTWORK_WIDTH,
-                DEFAULT_INCLUDE_MAT,
-                DEFAULT_MAT_WIDTH,
-                DEFAULT_FRAME_MATERIAL_WIDTH,
-                DEFAULT_FRAME_THICKNESS,
-                DEFAULT_RABBET_DEPTH,
-                DEFAULT_GLAZING_THICKNESS,
-                DEFAULT_MATBOARD_THICKNESS,
-                DEFAULT_ARTWORK_THICKNESS,
-                DEFAULT_BACKING_THICKNESS,
-                DEFAULT_BLADE_WIDTH,
-            )
-        except Exception as e:
-            console.log(f'❌ Import failed: {e}')
-            app_status = document.getElementById("app-status")
-            app_status.textContent = "❌"
-            app_status.title = f"Failed to load: {e}"
+        from frame import FrameDesign, FrameSize
+        from conversions import format_value, inches_to_mm, mm_to_inches
+        from ui_helpers import input_to_inches, round_to_step, FIELD_IDS
+        from aspect_ratio import (
+            get_aspect_ratio_display,
+            get_aspect_ratio_display_from_ratio,
+            AspectLockState,
+        )
+        from defaults import (
+            DEFAULT_ARTWORK_HEIGHT,
+            DEFAULT_ARTWORK_WIDTH,
+            DEFAULT_INCLUDE_MAT,
+            DEFAULT_MAT_WIDTH,
+            DEFAULT_FRAME_MATERIAL_WIDTH,
+            DEFAULT_FRAME_THICKNESS,
+            DEFAULT_RABBET_DEPTH,
+            DEFAULT_GLAZING_THICKNESS,
+            DEFAULT_MATBOARD_THICKNESS,
+            DEFAULT_ARTWORK_THICKNESS,
+            DEFAULT_BACKING_THICKNESS,
+            DEFAULT_BLADE_WIDTH,
+        )
 
         # Application state
         app_state = {
