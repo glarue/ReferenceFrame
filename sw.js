@@ -1,19 +1,22 @@
 // Service Worker for ReferenceFrame PyScript PoC
 // Caches PyScript runtime, matplotlib, and app resources for fast subsequent loads
 
-const CACHE_NAME = 'referenceframe-pyscript-v4';
+const CACHE_NAME = 'referenceframe-pyscript-v5';
 const RUNTIME_CACHE = 'referenceframe-runtime-v2';
 
 // Resources to cache immediately on install
 const PRECACHE_URLS = [
     './',
     './index.html',
-    './frame.py',
-    './conversions.py',
-    './defaults.py',
-    './ui_helpers.py',
-    './aspect_ratio.py',
+    './styles.css',
+    './app.js',
     './manifest.json',
+    './src/main.py',
+    './src/frame.py',
+    './src/conversions.py',
+    './src/defaults.py',
+    './src/ui_helpers.py',
+    './src/aspect_ratio.py',
 ];
 
 // Install event - precache essential resources

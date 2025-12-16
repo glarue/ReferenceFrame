@@ -226,40 +226,25 @@
     <!-- Main PyScript Code -->
     <py-script src="./src/main.py"></py-script>
 
-    <!-- Service Worker Registration (disabled for development - uncomment for production)
+    <!-- Service Worker Registration for caching -->
     <script>
-        // Register service worker for caching PyScript and matplotlib
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
                     .then(registration => {
-                        console.log('Service Worker registered successfully:', registration.scope);
-
-                        // Show cache status on first load
-                        if (!navigator.serviceWorker.controller) {
-                            console.log('First visit - caching resources for faster future loads...');
-                        } else {
-                            console.log('Serving from cache - fast load!');
-                        }
-
-                        // Check for updates
+                        console.log('Service Worker registered:', registration.scope);
                         registration.addEventListener('updatefound', () => {
                             const newWorker = registration.installing;
-                            console.log('New Service Worker update found');
-
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    console.log('New version available! Refresh to update.');
+                                    console.log('New version available - refresh to update');
                                 }
                             });
                         });
                     })
-                    .catch(error => {
-                        console.log('Service Worker registration failed:', error);
-                    });
+                    .catch(error => console.log('SW registration failed:', error));
             });
         }
     </script>
-    -->
 </body>
 </html>
