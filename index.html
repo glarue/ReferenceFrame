@@ -1920,6 +1920,7 @@
             y = start_y
             left_col = 15
             right_col = 110  # Right column starts here
+            col_width = 90  # Maximum width for each column (prevents overlap)
 
             def add_section(text, x=left_col):
                 nonlocal y
@@ -1930,16 +1931,47 @@
                 pdf.setTextColor(*COLOR_BLACK)
                 y += 6
 
-            def add_line(text, x=left_col, indent=0, color=None):
+            def add_line(text, x=left_col, indent=0, color=None, max_width=None):
                 nonlocal y
                 pdf.setFontSize(11)
                 pdf.setFont("helvetica", "normal")
                 if color:
                     pdf.setTextColor(*color)
-                pdf.text(text, x + indent, y)
+
+                # Use column width if max_width not specified
+                if max_width is None:
+                    max_width = col_width
+
+                # Check if text fits within max_width
+                text_width = pdf.getTextWidth(text)
+                if text_width > max_width:
+                    # Split text into multiple lines
+                    words = text.split(' ')
+                    lines = []
+                    current_line = ''
+
+                    for word in words:
+                        test_line = current_line + (' ' if current_line else '') + word
+                        if pdf.getTextWidth(test_line) <= max_width:
+                            current_line = test_line
+                        else:
+                            if current_line:
+                                lines.append(current_line)
+                            current_line = word
+
+                    if current_line:
+                        lines.append(current_line)
+
+                    # Print each line
+                    for line in lines:
+                        pdf.text(line, x + indent, y)
+                        y += 5
+                else:
+                    pdf.text(text, x + indent, y)
+                    y += 5
+
                 if color:
                     pdf.setTextColor(*COLOR_BLACK)
-                y += 5
 
             def add_spacer(height=3):
                 nonlocal y
