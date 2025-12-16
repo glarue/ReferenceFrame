@@ -5,8 +5,9 @@ This module provides helper functions for converting between different measureme
 and formatting measurement values for display.
 """
 
+from __future__ import annotations
+
 from fractions import Fraction
-from typing import Optional, Tuple
 
 # Constants
 INCHES_TO_MM = 25.4  # Conversion factor from inches to millimeters
@@ -48,16 +49,16 @@ def round_half_up(x: float) -> int:
 
 def convert_decimal_to_tape_measure(
     value: float,
-    allowed_denoms: Tuple[int, ...] = (2, 4, 8, 16, 32),
+    allowed_denoms: tuple[int, ...] = (2, 4, 8, 16, 32),
     segments: bool = False,
-) -> Tuple[int, Optional[Fraction], Optional[Fraction]]:
+) -> tuple[int, Fraction | None, Fraction | None]:
     """
     Convert a decimal inch measurement to a tape-measure friendly mixed number.
 
     Args:
       value: float
          The measurement in inches.
-      allowed_denoms: Tuple[int, ...]
+      allowed_denoms: tuple[int, ...]
          Allowed denominators (e.g., (2, 4, 8, 16, 32)).
       segments: bool
          If False: returns a tuple (whole, fraction, None) where 'fraction' is a Fraction
@@ -69,8 +70,8 @@ def convert_decimal_to_tape_measure(
     Returns:
       A three-element tuple:
          - whole (int): whole-inch part.
-         - fraction (Optional[Fraction]): the main fractional component, or None if not needed.
-         - adjustment (Optional[Fraction]): the fine adjustment when segmentation is enabled;
+         - fraction (Fraction | None): the main fractional component, or None if not needed.
+         - adjustment (Fraction | None): the fine adjustment when segmentation is enabled;
            otherwise, None.
 
     Examples:
@@ -100,7 +101,7 @@ def convert_decimal_to_tape_measure(
         return (whole, forced_candidate, None)
 
     # --- Step 2: Determine the best candidate fraction from allowed_denoms ---
-    best_candidate: Optional[Fraction] = None
+    best_candidate: Fraction | None = None
     best_error = float("inf")
 
     for d in allowed_denoms:
@@ -137,7 +138,7 @@ def convert_decimal_to_tape_measure(
     if not coarser_denoms:
         return (whole, best_candidate, None)
 
-    best_base: Optional[Fraction] = None
+    best_base: Fraction | None = None
     best_base_error = float("inf")
     candidate_float = float(best_candidate)
 
@@ -185,7 +186,7 @@ def format_value(
     precision_mm: int = 1,
     use_tape_conversion: bool = True,
     segments: bool = True,
-    allowed_denoms: Tuple[int, ...] = (2, 4, 8, 16, 32),
+    allowed_denoms: tuple[int, ...] = (2, 4, 8, 16, 32),
 ) -> str:
     """
     Format a measurement value with the appropriate unit symbol.
@@ -213,7 +214,7 @@ def format_value(
             If True, use the tape-measure conversion for inch values.
         segments: bool
             If True, use segmented conversion (base + adjustment) when tape conversion is enabled.
-        allowed_denoms: Tuple[int, ...]
+        allowed_denoms: tuple[int, ...]
             Allowed denominators passed to the conversion function.
 
     Returns:

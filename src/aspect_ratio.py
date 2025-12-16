@@ -1,11 +1,11 @@
 """
-Aspect ratio utilities for the PyScript PoC.
+Aspect ratio utilities for ReferenceFrame.
 
 This module provides functions for calculating and displaying aspect ratios,
 as well as managing the aspect ratio lock state.
 """
 
-from typing import Tuple, Optional
+from __future__ import annotations
 
 # Common aspect ratios with their display names
 COMMON_RATIOS = [

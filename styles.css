@@ -1,0 +1,719 @@
+/* ReferenceFrame Styles */
+
+/* CSS Variables - Design System */
+:root {
+    /* Colors - Custom palette */
+    --rf-primary-blue: #277da1;        /* cerulean */
+    --rf-primary-blue-dark: #577590;   /* blue-slate */
+    --rf-bg-dark: #0e1117;
+    --rf-bg-section: #262730;
+    --rf-bg-input: #1a1d24;
+    --rf-text-light: #fafafa;
+    --rf-text-muted: #b0b0b0;
+    --rf-success-green: #90be6d;       /* willow-green */
+    --rf-warning-orange: #f9c74f;      /* tuscan-sun */
+    --rf-error-red: #f94144;           /* strawberry-red */
+
+    /* Extended palette */
+    --rf-atomic-tangerine: #f3722c;
+    --rf-carrot-orange: #f8961e;
+    --rf-coral-glow: #f9844a;
+    --rf-seagrass: #43aa8b;
+    --rf-dark-cyan: #4d908e;
+
+    /* Spacing (4px grid) */
+    --rf-space-2: 0.5rem;    /* 8px */
+    --rf-space-3: 0.75rem;   /* 12px */
+    --rf-space-4: 1rem;      /* 16px */
+    --rf-space-5: 1.5rem;    /* 24px */
+    --rf-space-6: 2rem;      /* 32px */
+
+    /* Typography */
+    --rf-font-size-sm: 0.875rem;   /* 14px */
+    --rf-font-size-base: 1rem;     /* 16px - prevents iOS zoom */
+    --rf-font-size-lg: 1.125rem;   /* 18px */
+    --rf-font-size-xl: 1.25rem;    /* 20px */
+    --rf-font-size-2xl: 1.5rem;    /* 24px */
+
+    /* Accessibility */
+    --rf-touch-target-min: 44px;   /* iOS HIG + WCAG */
+    --rf-border-radius: 6px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--rf-space-5);
+    background: var(--rf-bg-dark);
+    color: var(--rf-text-light);
+    line-height: 1.6;
+}
+
+h1 {
+    color: var(--rf-primary-blue);
+    border-bottom: 2px solid var(--rf-primary-blue);
+    padding-bottom: var(--rf-space-3);
+    font-size: var(--rf-font-size-2xl);
+    margin-top: 0;
+}
+
+h2 {
+    font-size: var(--rf-font-size-xl);
+    margin-top: 0;
+}
+
+.section {
+    background: var(--rf-bg-section);
+    padding: var(--rf-space-5);
+    margin: var(--rf-space-5) 0;
+    border-radius: var(--rf-border-radius);
+    border-left: 4px solid var(--rf-primary-blue);
+}
+
+.form-group {
+    margin: var(--rf-space-4) 0;
+}
+
+label {
+    display: block;
+    margin-bottom: var(--rf-space-2);
+    color: var(--rf-text-light);
+    font-weight: 500;
+    font-size: var(--rf-font-size-base);
+}
+
+input[type="number"],
+input[type="text"],
+select {
+    width: 100%;
+    max-width: 300px;
+    padding: var(--rf-space-3) var(--rf-space-4);
+    background: var(--rf-bg-dark);
+    border: 1px solid var(--rf-primary-blue);
+    border-radius: 4px;
+    color: var(--rf-text-light);
+    font-size: var(--rf-font-size-base);
+    min-height: var(--rf-touch-target-min);
+}
+
+input[type="radio"] {
+    width: auto;
+    min-height: auto;
+}
+
+button {
+    background: var(--rf-primary-blue);
+    color: white;
+    border: none;
+    padding: var(--rf-space-3) var(--rf-space-5);
+    border-radius: var(--rf-border-radius);
+    cursor: pointer;
+    font-size: var(--rf-font-size-base);
+    font-weight: bold;
+    margin: var(--rf-space-3) var(--rf-space-2);
+    min-height: var(--rf-touch-target-min);
+    transition: background 0.2s ease;
+}
+
+button:hover {
+    background: var(--rf-primary-blue-dark);
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+#results {
+    background: var(--rf-bg-input);
+    padding: var(--rf-space-4);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: var(--rf-font-size-sm);
+    line-height: 1.8;
+}
+
+.success {
+    color: var(--rf-success-green);
+    font-weight: bold;
+}
+
+.warning {
+    color: var(--rf-warning-orange);
+}
+
+#canvas-container {
+    background: white;
+    padding: var(--rf-space-5);
+    border-radius: var(--rf-border-radius);
+    margin: var(--rf-space-5) 0;
+}
+
+#matplotlib-canvas svg {
+    /* CSS override of inline SVG dimensions for responsive scaling */
+    display: block;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100%;
+}
+
+.loading {
+    color: var(--rf-primary-blue);
+    font-style: italic;
+}
+
+/* Logo - overlapping frames */
+.logo {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    position: relative;
+}
+
+.logo::before,
+.logo::after {
+    content: "";
+    position: absolute;
+    border: 2.5px solid;
+    border-radius: 2px;
+    box-sizing: border-box;
+}
+
+.logo::before {
+    width: 20px;
+    height: 20px;
+    top: 0;
+    left: 0;
+    border-color: var(--rf-success-green);
+}
+
+.logo::after {
+    width: 20px;
+    height: 20px;
+    bottom: 0;
+    right: 0;
+    border-color: var(--rf-warning-orange);
+}
+
+/* App status indicator - corner swap loader (landscape frame) */
+.app-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 16px;
+    position: relative;
+}
+
+.app-status.loading {
+    display: grid;
+}
+
+.app-status.loading::before,
+.app-status.loading::after {
+    content: "";
+    grid-area: 1/1;
+    border-top: 2px solid var(--rf-seagrass);
+    border-left: 2px solid var(--rf-seagrass);
+    width: 8px;
+    height: 6px;
+    animation: corner-swap-landscape 2s infinite;
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+.app-status.loading::after {
+    --sx: -1;
+    --sy: -1;
+}
+
+@keyframes corner-swap-landscape {
+    0%,
+    10%  { transform: scale(var(--sx, 1), var(--sy, 1)) translate(0, 0) rotate(0deg); }
+    33%  { transform: scale(var(--sx, 1), var(--sy, 1)) translate(12px, -8px) rotate(0deg); }
+    66%  { transform: scale(var(--sx, 1), var(--sy, 1)) translate(12px, -8px) rotate(180deg); }
+    90%,
+    100% { transform: scale(var(--sx, 1), var(--sy, 1)) translate(0, 0) rotate(180deg); }
+}
+
+.app-status.ready {
+    animation: none;
+    display: inline-block;
+    color: var(--rf-success-green);
+    font-size: 1.2rem;
+    text-align: center;
+    line-height: 18px;
+}
+
+.app-status.ready::before,
+.app-status.ready::after {
+    content: none;
+}
+
+/* Compact Unit Toggle */
+.unit-toggle {
+    display: inline-flex;
+    font-size: inherit;
+    align-items: baseline;
+}
+
+.unit-btn {
+    padding: 0;
+    border: none;
+    background: transparent !important;
+    color: #666;
+    cursor: pointer;
+    font-size: inherit;
+    font-weight: 400;
+}
+
+.unit-btn:hover,
+.unit-btn:focus {
+    background: transparent !important;
+    color: #666;
+    outline: none;
+}
+
+.unit-btn.active:hover,
+.unit-btn.active:focus {
+    color: var(--rf-primary-blue);
+}
+
+.unit-toggle .pipe {
+    color: #666;
+    line-height: 1;
+}
+
+.unit-btn.active {
+    color: var(--rf-primary-blue);
+    font-weight: 700;
+}
+
+/* Paired dimension inputs (H × W on same line) */
+.dimension-pair {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dimension-pair input {
+    flex: 1;
+    min-width: 70px;  /* Ensure inputs are wide enough to show values */
+}
+
+.dimension-pair .separator {
+    color: #888;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.dimension-pair .dim-label {
+    color: #888;
+    font-size: 12px;
+    flex-shrink: 0;
+    min-width: 14px;
+}
+
+/* Aspect ratio lock */
+.aspect-lock-btn {
+    padding: 0 4px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;  /* Remove mobile tap highlight */
+    outline: none;
+}
+
+.aspect-lock-btn svg {
+    width: 19px;
+    height: 19px;
+    fill: currentColor;
+    vertical-align: middle;
+}
+
+.aspect-lock-btn.unlocked {
+    color: var(--rf-success-green);
+}
+
+.aspect-lock-btn.locked {
+    color: var(--rf-error-red);
+}
+
+.aspect-lock-btn:hover,
+.aspect-lock-btn:focus,
+.aspect-lock-btn:active {
+    outline: none;
+    background: transparent;
+}
+
+.aspect-ratio {
+    color: #888;
+    font-size: 12px;
+    flex-shrink: 0;
+    min-width: 30px;
+}
+
+.aspect-ratio.locked {
+    color: var(--rf-primary-blue);
+}
+
+/* Orientation toggle */
+.orientation-btn {
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: inline-grid;
+    align-items: center;
+    justify-items: start;
+    margin-left: 6px;
+    align-self: center;
+}
+
+.orientation-icon {
+    grid-area: 1 / 1;
+    border: 2px solid;
+    border-radius: 1px;
+    box-sizing: border-box;
+}
+
+.orientation-icon.landscape-outline {
+    width: 24px;
+    height: 14px;
+    border-color: #444;
+}
+
+.orientation-icon.portrait-outline {
+    width: 14px;
+    height: 24px;
+    border-color: #444;
+}
+
+.orientation-btn.landscape .landscape-outline {
+    border-color: var(--rf-primary-blue);
+    z-index: 1;
+}
+
+.orientation-btn.portrait .portrait-outline {
+    border-color: var(--rf-primary-blue);
+    z-index: 1;
+}
+
+.orientation-btn:hover,
+.orientation-btn:focus,
+.orientation-btn:active {
+    outline: none;
+    background: transparent;
+}
+
+/* Disabled input state */
+input:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Two-column grid for advanced options */
+.options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 20px;
+}
+
+.options-grid .form-group {
+    margin-bottom: 0;
+}
+
+@media (max-width: 500px) {
+    .options-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Segmented toggle for size selector */
+.segmented-toggle {
+    display: inline-flex;
+    background: var(--rf-bg-dark);
+    border: 1px solid var(--rf-primary-blue);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.segmented-toggle button {
+    padding: 8px 16px;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--rf-text-muted);
+    font-weight: 500;
+    font-size: var(--rf-font-size-sm);
+    min-height: 36px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.segmented-toggle button:hover {
+    background: rgba(39, 125, 161, 0.2);
+}
+
+.segmented-toggle button.active {
+    background: var(--rf-primary-blue);
+    color: white;
+}
+
+.segmented-toggle button + button {
+    border-left: 1px solid var(--rf-primary-blue);
+}
+
+/* Size selector container */
+.size-selector-container {
+    background: var(--rf-bg-input);
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 12px;
+}
+
+.size-selector-container select {
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 10px;
+}
+
+/* Inline custom size creation */
+.custom-size-inline {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rf-bg-section);
+}
+
+.custom-size-inline input[type="number"] {
+    width: 80px;
+    max-width: 80px;
+    padding: 6px 10px;
+    min-height: 36px;
+}
+
+.custom-size-inline input[type="text"] {
+    flex: 1;
+    min-width: 140px;
+    max-width: 260px;
+    padding: 6px 10px;
+    min-height: 36px;
+}
+
+.custom-size-inline button {
+    padding: 6px 12px;
+    min-height: 36px;
+    margin: 0;
+}
+
+.custom-size-inline .dim-separator {
+    color: var(--rf-text-muted);
+    font-size: var(--rf-font-size-sm);
+}
+
+@media (max-width: 500px) {
+    .custom-size-inline {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .custom-size-inline input[type="number"] {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .custom-size-inline input[type="text"] {
+        max-width: 100%;
+    }
+}
+
+/* Mobile-First Responsive Styles */
+
+/* Mobile devices (< 768px) */
+/* Size selector grid - stack on mobile */
+.size-selector-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+@media (max-width: 768px) {
+    body {
+        padding: var(--rf-space-4);
+        max-width: 100%;
+    }
+
+    h1 {
+        font-size: var(--rf-font-size-xl);
+    }
+
+    h2 {
+        font-size: var(--rf-font-size-lg);
+    }
+
+    .section {
+        padding: var(--rf-space-4);
+        margin: var(--rf-space-4) 0;
+    }
+
+    /* Hide calculator grid on mobile - revert to single column */
+    .calculator-grid {
+        display: block;
+    }
+
+    input[type="number"],
+    input[type="text"],
+    select {
+        max-width: 100%;
+        font-size: var(--rf-font-size-base); /* Prevents iOS zoom */
+    }
+
+    /* Compact dimension inputs on mobile - flexible but compact */
+    .dimension-pair {
+        flex-wrap: nowrap;
+        gap: 6px;  /* Balanced gap */
+    }
+
+    .dimension-pair input[type="number"] {
+        width: 5ch;
+        min-width: 5ch;
+        flex: 1 1 5ch;
+        max-width: 8ch;
+        padding: 6px 4px;  /* Comfortable padding */
+        -moz-appearance: textfield;
+    }
+
+    /* Hide number input spinners to save space */
+    .dimension-pair input[type="number"]::-webkit-inner-spin-button,
+    .dimension-pair input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .dimension-pair .aspect-ratio,
+    .dimension-pair .dim-label {
+        min-width: auto;
+    }
+
+    .dimension-pair .separator {
+        margin: 0 2px;
+    }
+
+    button {
+        width: 100%;
+        margin: var(--rf-space-2) 0;
+    }
+
+    /* Except buttons inside dimension-pair - keep them compact */
+    .dimension-pair button {
+        width: auto;
+        margin: 0;
+        flex-shrink: 0;
+    }
+
+    /* Stack size selectors vertically on mobile */
+    .size-selector-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Stack unit selection vertically */
+    .section [style*="display: flex"] {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+    }
+
+    /* Make custom sizes buttons stack */
+    #saved-sizes-container [style*="display: flex"] {
+        flex-direction: column !important;
+    }
+
+    #saved-sizes-container button {
+        width: 100% !important;
+    }
+
+    #canvas-container {
+        padding: var(--rf-space-3);
+    }
+
+    /* Reduce results font size on mobile */
+    #results {
+        font-size: 0.75rem;
+    }
+}
+
+/* Tablet devices (640px - 1023px) */
+@media (min-width: 640px) and (max-width: 1023px) {
+    body {
+        padding: var(--rf-space-5);
+    }
+
+    .section {
+        padding: var(--rf-space-5);
+    }
+}
+
+/* Desktop devices (≥ 1024px) - Compact layout */
+@media (min-width: 1024px) {
+    body {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: var(--rf-space-5);
+    }
+
+    .section {
+        padding: var(--rf-space-5);
+    }
+
+    /* Two-column layout for calculator section */
+    .calculator-grid {
+        display: grid;
+        grid-template-columns: 450px 1fr;
+        gap: var(--rf-space-6);
+        align-items: start;
+    }
+
+    /* Compact input widths on desktop */
+    input[type="number"],
+    input[type="text"],
+    select {
+        max-width: 200px;
+    }
+
+    .dimension-pair input {
+        max-width: 100px;
+    }
+
+    /* Make advanced options grid 3 columns on desktop */
+    details .options-grid {
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px 12px;
+    }
+}
+
+/* PWA Standalone Mode (Notched devices) */
+@media (display-mode: standalone) {
+    body {
+        padding-top: max(var(--rf-space-5), env(safe-area-inset-top));
+        padding-bottom: max(var(--rf-space-5), env(safe-area-inset-bottom));
+        padding-left: max(var(--rf-space-4), env(safe-area-inset-left));
+        padding-right: max(var(--rf-space-4), env(safe-area-inset-right));
+    }
+}
+
+/* High DPI screens */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    button {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+}

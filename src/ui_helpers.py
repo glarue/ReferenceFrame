@@ -1,13 +1,18 @@
 """
-UI helper functions for the PyScript PoC.
+UI helper functions for ReferenceFrame.
 
 This module provides utilities for DOM manipulation, form value handling,
-and common UI patterns. It helps keep the main index.html cleaner by
-extracting reusable code.
+and common UI patterns.
 """
 
-from typing import Dict, Optional, Tuple, Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 from conversions import mm_to_inches
+
+if TYPE_CHECKING:
+    from frame import FrameDesign
 
 # Field IDs for form inputs (single source of truth)
 FIELD_IDS = {
@@ -110,7 +115,7 @@ def round_to_step(value: float, step: float) -> float:
     return round(value / step) * step
 
 
-def get_form_values_as_inches(document, current_unit: str) -> Optional[Dict[str, float]]:
+def get_form_values_as_inches(document, current_unit: str) -> dict[str, float | bool] | None:
     """
     Get all form values converted to inches for calculations.
 
@@ -166,6 +171,33 @@ def get_form_values_as_inches(document, current_unit: str) -> Optional[Dict[str,
         "blade_width": blade_width,
         "include_mat": include_mat,
     }
+
+
+def create_frame_design_from_values(values: dict[str, float | bool]) -> FrameDesign:
+    """
+    Create a FrameDesign instance from form values dict.
+
+    Args:
+        values: Dictionary from get_form_values_as_inches()
+
+    Returns:
+        Configured FrameDesign instance
+    """
+    from frame import FrameDesign
+
+    return FrameDesign(
+        artwork_height=values["artwork_height"],
+        artwork_width=values["artwork_width"],
+        mat_width_top_bottom=values["mat_width"],
+        mat_width_sides=values["mat_width"],
+        frame_material_width=values["frame_width"],
+        rabbet_depth=values["rabbet_depth"],
+        matboard_thickness=values["matboard_thickness"],
+        glazing_thickness=values["glazing_thickness"],
+        artwork_thickness=values["artwork_thickness"],
+        backing_thickness=values["backing_thickness"],
+        frame_material_depth=values["frame_depth"],
+    )
 
 
 def format_integer_if_whole(value: float) -> str:

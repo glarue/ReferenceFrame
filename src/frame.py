@@ -5,9 +5,10 @@ This module contains the core data models for frame sizes and designs,
 providing the foundation for calculations and visualizations.
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 from defaults import (
     DEFAULT_ARTWORK_HEIGHT,
@@ -72,7 +73,7 @@ class FrameDesign:
     mat_width_sides: float = DEFAULT_MAT_WIDTH
     rabbet_depth: float = DEFAULT_RABBET_DEPTH
     mat_overlap: float = DEFAULT_MAT_OVERLAP
-    frame_material_width: Optional[float] = DEFAULT_FRAME_MATERIAL_WIDTH
+    frame_material_width: float | None = DEFAULT_FRAME_MATERIAL_WIDTH
 
     # Material thicknesses (z-axis)
     matboard_thickness: float = DEFAULT_MATBOARD_THICKNESS
@@ -113,11 +114,11 @@ class FrameDesign:
 
     def _add_border(
         self, height: float, width: float, border: float
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """Add a border of specified width to both dimensions."""
         return height + (2 * border), width + (2 * border)
 
-    def get_visible_dimensions(self) -> Tuple[float, float]:
+    def get_visible_dimensions(self) -> tuple[float, float]:
         """
         Calculate the visible (face) dimensions of the frame opening.
 
@@ -138,11 +139,11 @@ class FrameDesign:
         return visible_height, visible_width
 
     @property
-    def inside_dimensions(self) -> Tuple[float, float]:
+    def inside_dimensions(self) -> tuple[float, float]:
         """The inside (cut) dimensions of the frame (height, width)."""
         return self.get_visible_dimensions()
 
-    def get_frame_inside_dimensions(self) -> Tuple[float, float]:
+    def get_frame_inside_dimensions(self) -> tuple[float, float]:
         """
         Calculate the inside (cut) dimensions of the frame.
 
@@ -153,7 +154,7 @@ class FrameDesign:
         """
         return self.inside_dimensions
 
-    def get_frame_outside_dimensions(self) -> Tuple[float, float]:
+    def get_frame_outside_dimensions(self) -> tuple[float, float]:
         """
         Calculate the outside dimensions of the frame.
 
@@ -187,7 +188,7 @@ class FrameDesign:
         total_margin = 4 * (saw_margin + error_margin)
         return base_length + total_margin
 
-    def get_matboard_dimensions(self) -> Tuple[float, float]:
+    def get_matboard_dimensions(self) -> tuple[float, float]:
         """
         Calculate the physical dimensions of the matboard.
 
@@ -198,7 +199,7 @@ class FrameDesign:
         """
         return self._add_border(*self.inside_dimensions, self.rabbet_depth)
 
-    def get_mat_opening_dimensions(self) -> Tuple[float, float]:
+    def get_mat_opening_dimensions(self) -> tuple[float, float]:
         """
         Calculate the dimensions of the opening cut in the matboard.
 
@@ -212,7 +213,7 @@ class FrameDesign:
             mat_opening_width = self.artwork_width - (2 * self.mat_overlap)
             return mat_opening_height, mat_opening_width
 
-    def get_matboard_cut_dimensions(self) -> Tuple[float, float]:
+    def get_matboard_cut_dimensions(self) -> tuple[float, float]:
         """
         Calculate the mat border cut width for top/bottom and sides.
 
@@ -253,7 +254,7 @@ class FrameDesign:
         # Calculate total with margin
         return sum(materials) + self.assembly_margin
 
-    def get_cut_list(self) -> Dict[str, List[Dict[str, float]]]:
+    def get_cut_list(self) -> dict[str, list[dict[str, float]]]:
         """
         Generate a cut list with dimensions for each frame piece.
 
@@ -282,11 +283,11 @@ class FrameDesign:
             ],
         }
 
-    def get_dimensions_in_mm(self) -> Dict[str, Tuple[float, float]]:
+    def get_dimensions_in_mm(self) -> dict[str, tuple[float, float]]:
         """Get all key dimensions in millimeters."""
         mm = 25.4  # conversion factor
 
-        def to_mm(dims: Tuple[float, float]) -> Tuple[float, float]:
+        def to_mm(dims: tuple[float, float]) -> tuple[float, float]:
             return (dims[0] * mm, dims[1] * mm)
 
         # Compute each dimension once
@@ -310,7 +311,7 @@ class FrameDesign:
         min_long_edge: float = 6.0,
         max_long_edge: float = 20.0,
         increment: float = 0.5,
-    ) -> List[FrameSize]:
+    ) -> list[FrameSize]:
         """
         Generate a list of standard frame sizes based on an aspect ratio.
         The sizes are expressed with height first then width.
@@ -343,44 +344,15 @@ class FrameDesign:
         return sizes
 
 
-def initialize_standard_sizes(
-    aspect_h: float = 4.0,
-    aspect_w: float = 6.0,
-    min_long_edge: float = 6.0,
-    max_long_edge: float = 20.0,
-    increment: float = 0.5,
-) -> List[FrameSize]:
-    """
-    Generate a list of standard frame sizes based on an aspect ratio.
-    The sizes are expressed with height first then width.
-
-    Note: This function is kept for backwards compatibility.
-    Use FrameDesign.initialize_standard_sizes() for new code.
-
-    Args:
-        aspect_h: Aspect ratio height part (default 4.0)
-        aspect_w: Aspect ratio width part (default 6.0)
-        min_long_edge: Minimum allowed long edge size in inches (default 6)
-        max_long_edge: Maximum allowed long edge size in inches (default 20)
-        increment: Scale increment factor (default 0.5)
-
-    Returns:
-        List of auto-generated FrameSize objects.
-    """
-    return FrameDesign.initialize_standard_sizes(
-        aspect_h, aspect_w, min_long_edge, max_long_edge, increment
-    )
-
-
 def calculate_visual_mat_width(
     design_or_height: FrameDesign | float,
-    width: Optional[float] = None,
+    width: float | None = None,
     artwork_ratio: float = 2 / 15,
     frame_ratio: float = 2.5 / 20,
     min_mat: float = 0.5,
     max_mat: float = 10,
     precision: float = 0.25,
-) -> Tuple[float, str]:
+) -> tuple[float, str]:
     """
     Calculate a visual mat width based on both frame and artwork dimensions.
     Chooses whichever calculation results in the larger mat width, and rounds
