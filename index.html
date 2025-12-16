@@ -2075,7 +2075,7 @@
                                 text_start_y = 5 + img_height + 6
                                 generate_pdf_content(pdf, start_y=text_start_y)
                                 pdf.save("frame_design_summary.pdf")
-                                status_div.innerHTML = '<span class="success">✅ PDF downloaded (vector)!</span>'
+                                status_div.innerHTML = '<span class="success">✅ PDF downloaded!</span>'
                             else:
                                 # Fallback to Python-only PDF (no diagram)
                                 console.log("JS PDF creation failed, falling back to text-only")
