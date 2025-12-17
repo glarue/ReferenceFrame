@@ -1880,36 +1880,12 @@ def render_visualization():
         outside_text = f"Outside: {format_value(frame_outer_h, current_unit, 2)} × {format_value(frame_outer_w, current_unit, 2)}"
         frame_width_text = f"Frame: {format_value(frame_width, current_unit, 2)}"
 
-        # Estimate label widths (rough approximation: 0.6 * font_size per character in data units)
-        # We'll use a proportion of frame width as spacing
-        char_width_approx = frame_outer_w * 0.012  # Approximate character width in data units
-        outside_label_width = len(outside_text) * char_width_approx
-        frame_label_width = len(frame_width_text) * char_width_approx
-        label_gap = frame_outer_w * 0.08  # Gap between the two labels (increased to prevent overlap)
+        # Approximate character width in data units for label width estimation
+        char_width_approx = frame_outer_w * 0.012
 
-        # Calculate total width and center position for the label pair
-        total_label_width = outside_label_width + label_gap + frame_label_width
-        pair_center_x = frame_outer_w / 2
-
-        # Position Outside label aligned to left edge of frame
-        outside_label_half_width = len(outside_text) * char_width_approx / 2
-        outside_x = outside_label_half_width + margin * 0.1  # Left-aligned with small margin
-
-        # Horizontal offset from label center (configurable)
-        ARROW_HORIZONTAL_OFFSET_FACTOR = 0.08  # Adjust this value to change arrow horizontal offset
+        # Horizontal offset from label center for arrow positioning
+        ARROW_HORIZONTAL_OFFSET_FACTOR = 0.08
         horizontal_offset = frame_outer_w * ARROW_HORIZONTAL_OFFSET_FACTOR
-
-        # Outside label - arrow points to top edge of frame, slightly RIGHT of label center
-        outside_arrow_x = max(0, min(frame_outer_w, outside_x + horizontal_offset))
-        ax.annotate(
-            outside_text,
-            xy=(outside_arrow_x, frame_outer_h),  # Arrow tip AT frame top edge
-            xytext=(outside_x, top_label_y),  # Label position
-            arrowprops=dict(arrowstyle='->', lw=0.7, color='black'),
-            ha='center', va='center',
-            fontsize=font_size,
-            bbox=dict(boxstyle='round,pad=0.25', fc='#FFF3E0', ec='gray', alpha=0.85)
-        )
 
         # Frame width annotation (top section)
         # Drafting-style dimension with arrows and callout
@@ -1961,44 +1937,47 @@ def render_visualization():
         ax.plot([frame_dim_right, frame_dim_right], [frame_bracket_y - font_size * 0.15, frame_bracket_y + font_size * 0.05],
                color='#D2691E', lw=0.8, linestyle='--', dashes=[3, 2], alpha=0.8)
 
-        # Label positioning algorithm with priority order:
-        # 1. Try to center on dimension line
-        # 2. If that extends past right tick, align right edge with right tick
-        # 3. If either would overlap Outside label, shift right to avoid overlap
+        # Label positioning algorithm:
+        # Default: Outside left-aligned, Frame right-aligned with frame edges
+        # If they would overlap, shift apart to maintain minimum gap (may extend past frame)
 
         # Estimate label widths in data coordinates (inches)
-        # Use character count as fraction of frame width (works for any size)
         char_width_fraction = 0.005  # Each character is roughly 0.5% of frame width
         frame_label_half_width = len(frame_width_text) * char_width_fraction * frame_outer_w
         outside_label_half_width = len(outside_text) * char_width_fraction * frame_outer_w
-        gap = 0.15  # minimum gap between labels in inches
+        min_gap = 0.15  # minimum gap between labels in inches
 
-        # Step 1: Try centered position
-        centered_x = (frame_dim_left + frame_dim_right) / 2
+        # Default positions: left-aligned and right-aligned with frame edges
+        outside_x_default = outside_label_half_width + margin * 0.1
+        frame_x_default = frame_outer_w - frame_label_half_width - margin * 0.1
 
-        # Step 2: Check if right edge would extend past right tick
-        # Add a safety margin (10% of label width) to account for bbox padding
-        safety_margin = frame_label_half_width * 0.1
-        if centered_x + frame_label_half_width > frame_dim_right - safety_margin:
-            # Shift left to align right edge with right tick (with margin)
-            candidate_x = frame_dim_right - frame_label_half_width - safety_margin
+        # Check for overlap
+        outside_right_edge = outside_x_default + outside_label_half_width
+        frame_left_edge = frame_x_default - frame_label_half_width
+        overlap = outside_right_edge + min_gap - frame_left_edge
+
+        if overlap > 0:
+            # Labels would overlap - shift each outward by half the overlap
+            shift = overlap / 2
+            outside_x = outside_x_default - shift
+            frame_label_x = frame_x_default + shift
         else:
-            candidate_x = centered_x
+            outside_x = outside_x_default
+            frame_label_x = frame_x_default
 
-        # Step 3: Check if left edge would overlap with Outside label
-        outside_right_edge = outside_x + outside_label_half_width
-        left_edge_of_frame_label = candidate_x - frame_label_half_width
-        if left_edge_of_frame_label < outside_right_edge + gap:
-            # Shift right to avoid overlap (may extend past right tick)
-            frame_label_x = outside_right_edge + gap + frame_label_half_width
-        else:
-            frame_label_x = candidate_x
+        # Outside label - arrow points to top edge of frame
+        outside_arrow_x = max(0, min(frame_outer_w, outside_x + horizontal_offset))
+        ax.annotate(
+            outside_text,
+            xy=(outside_arrow_x, frame_outer_h),  # Arrow tip AT frame top edge
+            xytext=(outside_x, top_label_y),  # Label position
+            arrowprops=dict(arrowstyle='->', lw=0.7, color='black'),
+            ha='center', va='center',
+            fontsize=font_size,
+            bbox=dict(boxstyle='round,pad=0.25', fc='#FFF3E0', ec='gray', alpha=0.85)
+        )
 
-        # Final constraint: ensure right edge stays within frame boundary
-        max_allowed_x = frame_outer_w - frame_label_half_width - safety_margin
-        if frame_label_x > max_allowed_x:
-            frame_label_x = max_allowed_x
-
+        # Frame label
         ax.text(
             frame_label_x,
             top_label_y,  # Same Y as Outside label
@@ -2048,10 +2027,29 @@ def render_visualization():
         mat_label_width = len(mat_width_text) * char_width_approx
         rabbet_label_width = len(rabbet_text) * char_width_approx
         rabbet_label_half_width = rabbet_label_width / 2
+        inside_label_half_width = inside_label_width / 2
 
-        # Position Rabbet label aligned to left edge
-        rabbet_label_x = rabbet_label_half_width + margin * 0.1
+        # Bottom label positioning: same algorithm as top labels
+        # Default: Rabbet left-aligned, Inside right-aligned with frame edges
+        # If they would overlap, shift apart to maintain minimum gap (may extend past frame)
+        rabbet_x_default = rabbet_label_half_width + margin * 0.1
+        inside_x_default = frame_outer_w - inside_label_half_width - margin * 0.1
 
+        # Check for overlap
+        rabbet_right_edge = rabbet_x_default + rabbet_label_half_width
+        inside_left_edge = inside_x_default - inside_label_half_width
+        bottom_overlap = rabbet_right_edge + min_gap - inside_left_edge
+
+        if bottom_overlap > 0:
+            # Labels would overlap - shift each outward by half the overlap
+            bottom_shift = bottom_overlap / 2
+            rabbet_label_x = rabbet_x_default - bottom_shift
+            inside_x = inside_x_default + bottom_shift
+        else:
+            rabbet_label_x = rabbet_x_default
+            inside_x = inside_x_default
+
+        # Rabbet label
         ax.text(
             rabbet_label_x,
             bottom_label_y,  # Same Y as other bottom labels
@@ -2060,10 +2058,6 @@ def render_visualization():
             fontsize=font_size - 1,
             bbox=dict(boxstyle='round,pad=0.2', fc='#E0F2F1', ec=rabbet_color, alpha=0.9, linewidth=1.5)
         )
-
-        # Position Inside label to the right of Rabbet label
-        inside_label_half_width = len(inside_text) * char_width_approx / 2
-        inside_x = rabbet_label_x + rabbet_label_half_width + label_gap + inside_label_half_width
 
         # Inside label - arrow points to visible opening edge (at visible_y)
         inside_edge_y = visible_y  # The visible opening is at frame_width from the edge
