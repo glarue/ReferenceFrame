@@ -4,6 +4,8 @@ A browser-based picture frame calculator that runs entirely client-side using Py
 
 **Status**: ✅ Production Ready - Fully functional web application
 
+**Live web app instance**: https://glarue.github.io/ReferenceFrame
+
 ## Features
 
 ✅ **Core frame calculations**
