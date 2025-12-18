@@ -44,6 +44,11 @@
     box-sizing: border-box;
 }
 
+/* Hide PyScript configuration from display */
+py-config {
+    display: none !important;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     max-width: 900px;
