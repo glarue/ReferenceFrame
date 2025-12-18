@@ -1,5 +1,6 @@
 # Claude-related files
 .claude/
+CLAUDE.md
 docs/CLAUDE.md
 
 # Development files
