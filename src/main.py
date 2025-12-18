@@ -292,6 +292,10 @@ def apply_custom_size(index):
             document.getElementById("artwork-height").value = str(round(height_display, 2))
             document.getElementById("artwork-width").value = str(round(width_display, 2))
 
+            # Clear any warning message
+            msg_div = document.getElementById("add-size-message")
+            msg_div.innerHTML = ""
+
             console.log(f"Applied custom size: {size.name}")
 
             # Automatically render visualization with new dimensions
@@ -355,8 +359,8 @@ def handle_apply_saved_size(event):
         idx = int(selected_value)
         apply_custom_size(idx)
     else:
-        results_div = document.getElementById("results")
-        results_div.innerHTML = '<div class="warning">⚠️ Please select a size first</div>'
+        msg_div = document.getElementById("add-size-message")
+        msg_div.innerHTML = '<div class="warning">⚠️ Please select a size first</div>'
 
 # Event handler: Delete saved size button
 @when("click", "#delete-saved-size")
