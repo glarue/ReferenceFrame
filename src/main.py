@@ -190,6 +190,9 @@ def apply_standard_size(height, width):
         document.getElementById("artwork-height").value = str(height)
         document.getElementById("artwork-width").value = str(width)
 
+    # Update orientation icon to match new dimensions
+    update_orientation_icon()
+
     # Auto-render visualization
     render_visualization()
 
@@ -295,6 +298,9 @@ def apply_custom_size(index):
             # Clear any warning message
             msg_div = document.getElementById("add-size-message")
             msg_div.innerHTML = ""
+
+            # Update orientation icon to match new dimensions
+            update_orientation_icon()
 
             console.log(f"Applied custom size: {size.name}")
 
