@@ -7,6 +7,7 @@ picture frame calculator web app.
 
 from pyscript import document, when
 from js import localStorage, console
+from pyodide.ffi import create_proxy
 import json
 
 # Import our existing code
@@ -750,23 +751,33 @@ def restore_settings():
         return False
 
 def reset_to_defaults():
-    """Reset all form fields to default values."""
+    """Reset all form fields to default values, respecting current unit mode."""
     defaults = get_default_settings()
-    document.getElementById("artwork-height").value = defaults["artwork_height"]
-    document.getElementById("artwork-width").value = defaults["artwork_width"]
+    current_unit = get_current_unit()
+
+    # Convert defaults to display unit if in mm mode
+    # Defaults are stored in inches
+    def to_display(val_str):
+        val = float(val_str)
+        if current_unit == "mm":
+            return str(round(inches_to_mm(val), 2))
+        return val_str
+
+    document.getElementById("artwork-height").value = to_display(defaults["artwork_height"])
+    document.getElementById("artwork-width").value = to_display(defaults["artwork_width"])
     # Reset mat toggle
     document.getElementById("include-mat").checked = defaults["include_mat"]
     mat_input = document.getElementById("mat-width")
-    mat_input.value = defaults["mat_width"]
+    mat_input.value = to_display(defaults["mat_width"])
     mat_input.disabled = not defaults["include_mat"]
-    document.getElementById("frame-width").value = defaults["frame_width"]
-    document.getElementById("glazing-thickness").value = defaults["glazing_thickness"]
-    document.getElementById("matboard-thickness").value = defaults["matboard_thickness"]
-    document.getElementById("artwork-thickness").value = defaults["artwork_thickness"]
-    document.getElementById("backing-thickness").value = defaults["backing_thickness"]
-    document.getElementById("rabbet-depth").value = defaults["rabbet_depth"]
-    document.getElementById("frame-depth").value = defaults["frame_depth"]
-    document.getElementById("blade-width").value = defaults["blade_width"]
+    document.getElementById("frame-width").value = to_display(defaults["frame_width"])
+    document.getElementById("glazing-thickness").value = to_display(defaults["glazing_thickness"])
+    document.getElementById("matboard-thickness").value = to_display(defaults["matboard_thickness"])
+    document.getElementById("artwork-thickness").value = to_display(defaults["artwork_thickness"])
+    document.getElementById("backing-thickness").value = to_display(defaults["backing_thickness"])
+    document.getElementById("rabbet-depth").value = to_display(defaults["rabbet_depth"])
+    document.getElementById("frame-depth").value = to_display(defaults["frame_depth"])
+    document.getElementById("blade-width").value = to_display(defaults["blade_width"])
     # Clear from localStorage
     localStorage.removeItem("frame_designer_settings")
     console.log("Reset to default settings")
@@ -821,6 +832,60 @@ def reset_settings_handler(event):
         console.log(f"Auto-render after reset skipped: {e}")
 
 # ===== Export Functions =====
+
+def generate_shareable_url():
+    """Generate a compact shareable URL encoding all frame settings.
+
+    Binary format (28 bytes → ~38 chars base64 → 81 char URL):
+        5 × uint24: h, w, mw, fw, fd (×10000 for 4 decimal precision)
+        6 × uint16: gt, mt, at, bt, rd, bw (×10000 for 4 decimal precision)
+        1 × byte: flags (bit 0 = mat, bit 1 = unit_mm)
+
+    All values stored in inches internally.
+    """
+    import struct
+    import base64
+
+    current_unit = get_current_unit()
+    values = get_form_values_as_inches(document, current_unit)
+    if values is None:
+        return None
+
+    include_mat = document.getElementById("include-mat").checked
+    unit_mm = (current_unit == "mm")
+
+    def pack_uint24(val):
+        """Pack a value as big-endian uint24 (3 bytes)."""
+        v = int(val * 10000)
+        return bytes([(v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF])
+
+    # Build binary data
+    packed = b''
+
+    # uint24 fields: h, w, mw, fw, fd
+    packed += pack_uint24(values["artwork_height"])
+    packed += pack_uint24(values["artwork_width"])
+    packed += pack_uint24(values["mat_width"])
+    packed += pack_uint24(values["frame_width"])
+    packed += pack_uint24(values["frame_depth"])
+
+    # uint16 fields: gt, mt, at, bt, rd, bw
+    for key in ["glazing_thickness", "matboard_thickness", "artwork_thickness",
+                "backing_thickness", "rabbet_depth", "blade_width"]:
+        v = int(values[key] * 10000)
+        packed += struct.pack('>H', v)
+
+    # Flags byte
+    flags = (1 if include_mat else 0) | ((1 if unit_mm else 0) << 1)
+    packed += bytes([flags])
+
+    # Base64 encode (URL-safe, no padding)
+    b64 = base64.urlsafe_b64encode(packed).decode().rstrip('=')
+
+    # Build full URL
+    base_url = "https://glarue.github.io/ReferenceFrame/"
+    return f"{base_url}?d={b64}"
+
 
 def generate_text_summary():
     """Generate a text/markdown summary of the current frame design."""
@@ -1150,7 +1215,16 @@ def generate_pdf_content(pdf, start_y=20):
 
 @when("click", "#export-pdf")
 def handle_export_pdf(event):
-    """Export frame design as PDF with vector diagram at top, details below (single page)."""
+    """Export frame design as PDF with vector diagram at top, details below, QR code in corner.
+
+    The PDF includes:
+    - Vector diagram of the frame design (top)
+    - Detailed specifications in two columns (middle)
+    - QR code in bottom-right corner linking to shareable URL
+
+    The QR code encodes a compact binary URL (~81 chars) that captures all frame
+    settings, allowing the design to be recreated by scanning or visiting the URL.
+    """
     from js import jspdf, window
     from pyodide.ffi import create_proxy
 
@@ -1158,6 +1232,9 @@ def handle_export_pdf(event):
 
     try:
         status_div.innerHTML = '<span style="color: #888;">Generating PDF...</span>'
+
+        # Generate shareable URL for QR code
+        shareable_url = generate_shareable_url()
 
         # Check if SVG exists
         svg_elem = document.querySelector("#matplotlib-canvas svg")
@@ -1187,15 +1264,24 @@ def handle_export_pdf(event):
                         # Add text content below the diagram
                         text_start_y = 5 + img_height + 6
                         generate_pdf_content(pdf, start_y=text_start_y)
-                        pdf.save("frame_design_summary.pdf")
-                        status_div.innerHTML = '<span class="success">✅ PDF downloaded!</span>'
+
+                        # Add QR code to bottom-right corner, then save
+                        if shareable_url:
+                            add_qr_code_to_pdf(pdf, shareable_url, status_div)
+                        else:
+                            pdf.save("frame_design_summary.pdf")
+                            status_div.innerHTML = '<span class="success">✅ PDF downloaded!</span>'
                     else:
                         # Fallback to Python-only PDF (no diagram)
                         console.log("JS PDF creation failed, falling back to text-only")
                         fallback_pdf = jspdf.jsPDF.new()
                         generate_pdf_content(fallback_pdf, start_y=20)
-                        fallback_pdf.save("frame_design_summary.pdf")
-                        status_div.innerHTML = '<span class="success">✅ PDF downloaded (no diagram)</span>'
+
+                        if shareable_url:
+                            add_qr_code_to_pdf(fallback_pdf, shareable_url, status_div)
+                        else:
+                            fallback_pdf.save("frame_design_summary.pdf")
+                            status_div.innerHTML = '<span class="success">✅ PDF downloaded (no diagram)</span>'
                 except Exception as e:
                     console.log(f"Error in PDF completion: {e}")
                     import traceback
@@ -1210,8 +1296,12 @@ def handle_export_pdf(event):
             # No SVG, just save the text PDF
             pdf = jspdf.jsPDF.new()
             generate_pdf_content(pdf, start_y=20)
-            pdf.save("frame_design_summary.pdf")
-            status_div.innerHTML = '<span class="success">✅ PDF downloaded!</span>'
+
+            if shareable_url:
+                add_qr_code_to_pdf(pdf, shareable_url, status_div)
+            else:
+                pdf.save("frame_design_summary.pdf")
+                status_div.innerHTML = '<span class="success">✅ PDF downloaded!</span>'
 
     except Exception as e:
         import traceback
@@ -1219,6 +1309,81 @@ def handle_export_pdf(event):
         console.log(traceback.format_exc())
         status_div = document.getElementById("export-status")
         status_div.innerHTML = f'<span class="warning">❌ PDF export error: {e}</span>'
+
+
+def add_qr_code_to_pdf(pdf, url, status_div):
+    """Add QR code to bottom-right corner of PDF with label and URL, then save.
+
+    The QR code is positioned in the bottom-right corner (A4 page) with a small
+    label and the shortened URL underneath. After adding the QR code, the PDF
+    is saved automatically.
+
+    Args:
+        pdf: jsPDF instance
+        url: The shareable URL to encode in the QR code
+        status_div: DOM element to update with status messages
+    """
+    from js import window
+    from pyodide.ffi import create_proxy
+
+    console.log(f"add_qr_code_to_pdf called with URL: {url}")
+
+    # QR code dimensions and position (bottom-right corner)
+    # A4 page: 210mm x 297mm, with 10mm margins
+    qr_size = 25  # 25mm square - large enough to scan reliably
+    margin = 10
+    page_width = 210
+    x_pos = page_width - margin - qr_size  # QR positioned at right margin
+    y_pos = 297 - margin - qr_size - 3  # Bottom edge minus margin, QR size, and small gap
+
+    def on_qr_generated(data_url):
+        console.log(f"on_qr_generated callback fired, data_url exists: {bool(data_url)}")
+        try:
+            if data_url:
+                # Add text above QR code
+                # Calculate text widths and position to right-align within margins
+
+                # Label text (above QR)
+                label_text = "Scan to recreate this design"
+                pdf.setFontSize(7)
+                pdf.setTextColor(128, 128, 128)  # Gray
+                label_width = pdf.getTextWidth(label_text)
+                label_x = page_width - margin - label_width
+                label_y = y_pos - 3  # 3mm above QR code
+                pdf.text(label_text, label_x, label_y)
+
+                console.log(f"Adding QR image at ({x_pos}, {y_pos}), size {qr_size}")
+                # Add QR code image
+                pdf.addImage(data_url, 'PNG', x_pos, y_pos, qr_size, qr_size)
+
+                # URL text (below QR)
+                pdf.setFontSize(5)
+                pdf.setTextColor(128, 128, 128)  # Same gray as label
+                url_width = pdf.getTextWidth(url)
+                url_x = page_width - margin - url_width
+                url_y = y_pos + qr_size + 3
+                pdf.text(url, url_x, url_y)
+
+                console.log("QR code added to PDF successfully")
+            else:
+                console.log("QR code generation returned null, saving PDF without QR")
+
+            # Save PDF (with or without QR code)
+            console.log("Saving PDF...")
+            pdf.save("frame_design_summary.pdf")
+            status_div.innerHTML = '<span class="success">✅ PDF downloaded!</span>'
+
+        except Exception as e:
+            console.log(f"Error adding QR code to PDF: {e}")
+            import traceback
+            console.log(traceback.format_exc())
+            # Still try to save the PDF
+            pdf.save("frame_design_summary.pdf")
+            status_div.innerHTML = '<span class="success">✅ PDF downloaded!</span>'
+
+    # Generate QR code asynchronously
+    promise = window.generateQrCodeDataUrl(url)
+    promise.then(create_proxy(on_qr_generated))
 
 # ===== Named Configurations Management =====
 
@@ -1369,6 +1534,194 @@ def save_config_handler(event):
             console.log(f"Configuration '{name}' saved successfully")
     except Exception as e:
         console.error(f"Error in save_config_handler: {e}")
+
+# ===== Data Export/Import Functions =====
+
+def export_all_data():
+    """Export all localStorage data as JSON file."""
+    from js import localStorage, document, Blob, URL, console
+    from datetime import datetime
+    import json
+
+    try:
+        # Get current form state (use get_current_config which reads from form directly)
+        current_settings = get_current_config()
+
+        # Gather all localStorage data
+        export_data = {
+            "version": "1.0",  # For future compatibility
+            "exported_at": datetime.now().isoformat(),
+            "saved_configs": load_saved_configs(),
+            "custom_sizes": json.loads(localStorage.getItem("frame_designer_custom_sizes") or "[]"),
+            "current_settings": current_settings,  # Current form state, not localStorage
+            "unit": localStorage.getItem("frame_designer_unit") or "inches"
+        }
+
+        # Create JSON blob and download
+        json_str = json.dumps(export_data, indent=2)
+        blob = Blob.new([json_str], {"type": "application/json"})
+        url = URL.createObjectURL(blob)
+
+        # Create download link with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        a = document.createElement("a")
+        a.href = url
+        a.download = f"referenceframe_backup_{timestamp}.json"
+        a.click()
+        URL.revokeObjectURL(url)
+
+        console.log("Exported all data successfully")
+    except Exception as e:
+        console.error(f"Error exporting data: {e}")
+
+
+def import_data(file_content, merge_mode):
+    """Import localStorage data from JSON.
+
+    Args:
+        file_content: JSON string from uploaded file
+        merge_mode: "merge" or "replace"
+
+    Returns:
+        True if successful, False otherwise
+    """
+    from js import localStorage, console
+    import json
+
+    try:
+        data = json.loads(file_content)
+
+        # Validate structure
+        if "version" not in data:
+            console.error("Invalid backup file format - missing version")
+            return False
+
+        if merge_mode == "replace":
+            # Clear existing data
+            localStorage.removeItem("frame_designer_saved_configs")
+            localStorage.removeItem("frame_designer_custom_sizes")
+            localStorage.removeItem("frame_designer_settings")
+            localStorage.removeItem("frame_designer_unit")
+
+        # Import saved configs
+        if "saved_configs" in data:
+            if merge_mode == "merge":
+                existing = load_saved_configs()
+                existing_names = {c["name"] for c in existing}
+                for config in data["saved_configs"]:
+                    if config["name"] not in existing_names:
+                        existing.append(config)
+                    else:
+                        # Update existing config with same name
+                        for i, c in enumerate(existing):
+                            if c["name"] == config["name"]:
+                                existing[i] = config
+                                break
+                localStorage.setItem("frame_designer_saved_configs", json.dumps(existing))
+            else:
+                localStorage.setItem("frame_designer_saved_configs", json.dumps(data["saved_configs"]))
+
+        # Import custom sizes
+        if "custom_sizes" in data:
+            if merge_mode == "merge":
+                existing = json.loads(localStorage.getItem("frame_designer_custom_sizes") or "[]")
+                # Merge unique sizes (avoid duplicates by height×width)
+                existing_sizes = {(s["height"], s["width"]) for s in existing}
+                for size in data["custom_sizes"]:
+                    if (size["height"], size["width"]) not in existing_sizes:
+                        existing.append(size)
+                localStorage.setItem("frame_designer_custom_sizes", json.dumps(existing))
+            else:
+                localStorage.setItem("frame_designer_custom_sizes", json.dumps(data["custom_sizes"]))
+
+        # Import current settings
+        if "current_settings" in data:
+            localStorage.setItem("frame_designer_settings", json.dumps(data["current_settings"]))
+
+        # Import unit preference
+        if "unit" in data:
+            localStorage.setItem("frame_designer_unit", data["unit"])
+
+        # Refresh UI and apply imported settings
+        render_saved_configs()
+        render_custom_sizes()
+        restore_settings()  # Apply current_settings to form fields
+
+        # Update visualization with imported settings
+        try:
+            calculate_frame()
+            render_visualization()
+        except Exception as e:
+            console.error(f"Error updating visualization after import: {e}")
+
+        console.log(f"Imported data successfully (mode: {merge_mode})")
+        return True
+
+    except Exception as e:
+        console.error(f"Import failed: {e}")
+        import traceback
+        console.error(traceback.format_exc())
+        return False
+
+
+def handle_file_upload(event):
+    """Handle file input change event."""
+    from js import FileReader, console
+    from pyodide.ffi import create_proxy
+
+    # Access the first file using .item() method for JsProxy objects
+    file = event.target.files.item(0)
+    if not file:
+        return
+
+    reader = FileReader.new()
+
+    def on_load(e):
+        content = e.target.result
+        # Show merge/replace dialog
+        show_import_dialog(content)
+
+    reader.onload = create_proxy(on_load)
+    reader.readAsText(file)
+
+    console.log(f"Reading file: {file.name}")
+
+
+def show_import_dialog(file_content):
+    """Show dialog asking user to merge or replace."""
+    from js import document
+    from pyodide.ffi import create_proxy
+
+    # Update status message with buttons
+    status_div = document.getElementById("import-status")
+    status_div.innerHTML = '''
+        <div style="background: #2a2d35; padding: 10px; border-radius: 4px;">
+            <p style="margin: 0 0 10px 0;">Import mode:</p>
+            <button id="import-merge" style="margin-right: 8px; background-color: #2a7d2e;">
+                Merge (keep existing + add new)
+            </button>
+            <button id="import-replace" style="background-color: #dc3545;">
+                Replace (clear existing)
+            </button>
+        </div>
+    '''
+
+    # Attach handlers
+    def do_merge(e):
+        if import_data(file_content, "merge"):
+            status_div.innerHTML = '<span style="color: #4caf50;">✓ Data imported (merged)</span>'
+        else:
+            status_div.innerHTML = '<span style="color: #f44336;">✗ Import failed - check console</span>'
+
+    def do_replace(e):
+        if import_data(file_content, "replace"):
+            status_div.innerHTML = '<span style="color: #4caf50;">✓ Data imported (replaced)</span>'
+        else:
+            status_div.innerHTML = '<span style="color: #f44336;">✗ Import failed - check console</span>'
+
+    document.getElementById("import-merge").onclick = create_proxy(do_merge)
+    document.getElementById("import-replace").onclick = create_proxy(do_replace)
+
 
 # Event handler: Add Custom Size button
 @when("click", "#add-custom-size")
@@ -1942,9 +2295,11 @@ def render_visualization():
         )
 
         # Perpendicular tick marks at ends (asymmetric - shorter on top to make room for label)
-        ax.plot([frame_dim_left, frame_dim_left], [frame_bracket_y - font_size * 0.15, frame_bracket_y + font_size * 0.05],
+        # Use frame-relative tick length (3% of frame height) instead of font_size
+        tick_len = frame_outer_h * 0.03
+        ax.plot([frame_dim_left, frame_dim_left], [frame_bracket_y - tick_len * 3, frame_bracket_y + tick_len],
                color='#D2691E', lw=0.8, linestyle='--', dashes=[3, 2], alpha=0.8)
-        ax.plot([frame_dim_right, frame_dim_right], [frame_bracket_y - font_size * 0.15, frame_bracket_y + font_size * 0.05],
+        ax.plot([frame_dim_right, frame_dim_right], [frame_bracket_y - tick_len * 3, frame_bracket_y + tick_len],
                color='#D2691E', lw=0.8, linestyle='--', dashes=[3, 2], alpha=0.8)
 
         # Label positioning algorithm:
@@ -2026,10 +2381,11 @@ def render_visualization():
         )
 
         # Perpendicular tick marks at ends (shorter for compact appearance)
-        tick_height = font_size * 0.10
-        ax.plot([rabbet_dim_left, rabbet_dim_left], [rabbet_bracket_y - tick_height * 0.3, rabbet_bracket_y + tick_height],
+        # Use frame-relative tick height (2% of frame height)
+        rabbet_tick_height = frame_outer_h * 0.02
+        ax.plot([rabbet_dim_left, rabbet_dim_left], [rabbet_bracket_y - rabbet_tick_height * 0.3, rabbet_bracket_y + rabbet_tick_height],
                color=rabbet_color, lw=0.6, linestyle='--', dashes=[2, 1.5], alpha=0.8)
-        ax.plot([rabbet_dim_right, rabbet_dim_right], [rabbet_bracket_y - tick_height * 0.3, rabbet_bracket_y + tick_height],
+        ax.plot([rabbet_dim_right, rabbet_dim_right], [rabbet_bracket_y - rabbet_tick_height * 0.3, rabbet_bracket_y + rabbet_tick_height],
                color=rabbet_color, lw=0.6, linestyle='--', dashes=[2, 1.5], alpha=0.8)
 
         # Estimate label widths
@@ -2105,9 +2461,11 @@ def render_visualization():
             )
 
             # Perpendicular tick marks at ends (horizontal for vertical dimension)
-            ax.plot([mat_bracket_x - font_size * 0.15, mat_bracket_x + font_size * 0.15], [mat_dim_bottom, mat_dim_bottom],
+            # Use frame-relative tick length (3% of frame width)
+            mat_tick_len = frame_outer_w * 0.03
+            ax.plot([mat_bracket_x - mat_tick_len, mat_bracket_x + mat_tick_len], [mat_dim_bottom, mat_dim_bottom],
                    color='#666666', lw=0.8, linestyle='--', dashes=[3, 2], alpha=0.8)
-            ax.plot([mat_bracket_x - font_size * 0.15, mat_bracket_x + font_size * 0.15], [mat_dim_top, mat_dim_top],
+            ax.plot([mat_bracket_x - mat_tick_len, mat_bracket_x + mat_tick_len], [mat_dim_top, mat_dim_top],
                    color='#666666', lw=0.8, linestyle='--', dashes=[3, 2], alpha=0.8)
 
             # Label positioned to the left of dimension line with gap (no callout line)
@@ -2227,6 +2585,15 @@ restore_settings()
 render_saved_configs()
 update_aspect_ratio_display()
 update_orientation_icon()
+
+# Setup export/import event handlers
+export_btn = document.getElementById("export-all-data")
+if export_btn:
+    export_btn.onclick = create_proxy(lambda e: export_all_data())
+
+import_input = document.getElementById("import-data-file")
+if import_input:
+    import_input.onchange = create_proxy(handle_file_upload)
 
 # Auto-calculate and render on page load
 try:

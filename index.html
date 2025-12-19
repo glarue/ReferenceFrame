@@ -24,6 +24,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- svg2pdf.js for vector SVG embedding (try jsdelivr) -->
     <script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js"></script>
+    <!-- QRCode.js for generating QR codes (browser build with global QRCode) -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 
     <!-- Application JavaScript -->
     <script src="./app.js"></script>
@@ -129,6 +131,27 @@
                 <button id="save-config" style="background-color: #2a7d2e;">Save Current Configuration</button>
                 <div id="saved-configs-list" style="margin-top: 15px;">
                     <!-- Saved configurations will be rendered here -->
+                </div>
+
+                <!-- Backup & Restore -->
+                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #3a3d45;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #b0b0b0;">Backup & Restore</h4>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button id="export-all-data" style="flex: 1; min-width: 140px; background-color: #1976d2;">
+                            📥 Export All Data
+                        </button>
+                        <label for="import-data-file" style="flex: 1; min-width: 140px;">
+                            <input type="file" id="import-data-file" accept=".json" style="display: none;">
+                            <button type="button" style="width: 100%; background-color: #2a7d2e;"
+                                    onclick="document.getElementById('import-data-file').click();">
+                                📤 Import Data
+                            </button>
+                        </label>
+                    </div>
+                    <div id="import-status" style="margin-top: 8px; font-size: 13px;"></div>
+                    <p style="margin: 8px 0 0 0; font-size: 12px; color: #888;">
+                        Backs up all saved configurations, custom sizes, and settings
+                    </p>
                 </div>
             </div>
         </details>
