@@ -821,6 +821,9 @@ def reset_settings_handler(event):
     """Reset all settings to defaults."""
     reset_to_defaults()
     console.log("Settings reset to defaults")
+    # Update UI indicators
+    update_orientation_icon()
+    update_aspect_ratio_display()
     # Auto-update calculations and visualization with default values
     try:
         calculate_frame()
