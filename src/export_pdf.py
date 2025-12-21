@@ -4,8 +4,7 @@ This module handles generation and export of PDF summaries with
 vector diagrams and QR codes for design recreation.
 """
 
-from ui_helpers import get_form_values_as_inches
-from frame_design import create_frame_design_from_values
+from ui_helpers import get_form_values_as_inches, create_frame_design_from_values
 from conversions import format_value
 
 

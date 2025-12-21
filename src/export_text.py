@@ -4,8 +4,7 @@ This module handles generation and export of text-based summaries
 of frame designs.
 """
 
-from ui_helpers import get_form_values_as_inches
-from frame_design import create_frame_design_from_values
+from ui_helpers import get_form_values_as_inches, create_frame_design_from_values
 from conversions import format_value
 
 
