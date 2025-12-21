@@ -24,11 +24,26 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- svg2pdf.js for vector SVG embedding (try jsdelivr) -->
     <script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js"></script>
-    <!-- QRCode.js for generating QR codes (browser build with global QRCode) -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <!-- qrcode-generator library (browser build with global qrcode function) -->
+    <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 
     <!-- Application JavaScript -->
     <script src="./app.js"></script>
+
+    <!-- Diagnostic: Check if libraries loaded -->
+    <script>
+        window.addEventListener('load', () => {
+            console.log('Library check:');
+            console.log('- jsPDF:', typeof window.jspdf?.jsPDF);
+            console.log('- svg2pdf:', typeof window.svg2pdf);
+            console.log('- qrcode:', typeof qrcode);
+            if (typeof qrcode === 'undefined') {
+                console.error('⚠️ qrcode library failed to load!');
+            } else {
+                console.log('✅ qrcode library loaded successfully');
+            }
+        });
+    </script>
 
     <!-- Application Styles -->
     <link rel="stylesheet" href="./styles.css">

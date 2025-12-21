@@ -1,8 +1,8 @@
 // Service Worker for ReferenceFrame PyScript PoC
 // Caches PyScript runtime, matplotlib, and app resources for fast subsequent loads
 
-const CACHE_NAME = 'referenceframe-pyscript-v5';
-const RUNTIME_CACHE = 'referenceframe-runtime-v2';
+const CACHE_NAME = 'referenceframe-pyscript-v6';
+const RUNTIME_CACHE = 'referenceframe-runtime-v3';
 
 // Resources to cache immediately on install
 const PRECACHE_URLS = [
@@ -76,7 +76,7 @@ self.addEventListener('fetch', event => {
     }
 
     // Cache strategy for CDN resources (PyScript, Pyodide, jsPDF, etc.)
-    if (url.hostname === 'cdn.jsdelivr.net' || url.hostname === 'pyscript.net' || url.hostname === 'cdnjs.cloudflare.com') {
+    if (url.hostname === 'cdn.jsdelivr.net' || url.hostname === 'pyscript.net' || url.hostname === 'cdnjs.cloudflare.com' || url.hostname === 'unpkg.com') {
         event.respondWith(
             caches.open(RUNTIME_CACHE).then(cache => {
                 return cache.match(event.request).then(cachedResponse => {

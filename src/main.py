@@ -1205,14 +1205,15 @@ def generate_pdf_content(pdf, start_y=20):
         add_line(f"SHORT BY {format_value(shortfall, current_unit)}!", right_col, 0, COLOR_ERROR)
     else:
         clearance = frame_depth - required_depth
-        add_line(f"OK (+{format_value(clearance, current_unit)})", right_col, 0, COLOR_SUCCESS)
+        add_line(f"Margin: {format_value(clearance, current_unit)}", right_col, 0, COLOR_SUCCESS)
     add_spacer()
 
     # Specs
     add_section("Specs", right_col)
     add_line(f"Frame width: {format_value(frame_width, current_unit)}", right_col)
     add_line(f"Rabbet: {format_value(rabbet_depth, current_unit)}", right_col)
-    add_line(f"Mat overlap: {format_value(design.mat_overlap, current_unit)}", right_col)
+    if design.has_mat:
+        add_line(f"Mat overlap: {format_value(design.mat_overlap, current_unit)}", right_col)
 
     return max(y, left_col_end_y)
 

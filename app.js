@@ -186,6 +186,14 @@ window.createPdfWithVectorSvg = async function(x, y, width, height) {
  */
 window.generateQrCodeSvg = async function(url) {
     try {
+        // Wait for library to load (important on mobile with slower connections)
+        const loaded = await waitForQrCodeLibrary();
+        if (!loaded) {
+            console.error("qrcode library not loaded - check if CDN script loaded correctly");
+            console.log("Available globals:", Object.keys(window).filter(k => k.toLowerCase().includes('qr')));
+            return null;
+        }
+
         // qrcode-generator: type 0 = auto-detect size, 'M' = medium error correction
         const qr = qrcode(0, 'M');
         qr.addData(url);
@@ -200,6 +208,24 @@ window.generateQrCodeSvg = async function(url) {
 };
 
 /**
+ * Wait for qrcode library to load (with timeout)
+ * @param {number} timeoutMs - Maximum time to wait in milliseconds
+ * @returns {Promise<boolean>} - True if loaded, false if timeout
+ */
+async function waitForQrCodeLibrary(timeoutMs = 5000) {
+    const startTime = Date.now();
+    while (typeof qrcode === 'undefined') {
+        if (Date.now() - startTime > timeoutMs) {
+            console.error("Timeout waiting for qrcode library");
+            return false;
+        }
+        // Wait 50ms before checking again
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return true;
+}
+
+/**
  * Generate QR code as PNG data URL for PDF embedding
  *
  * Uses qrcode-generator library to create a data URL suitable for jsPDF.
@@ -209,6 +235,14 @@ window.generateQrCodeSvg = async function(url) {
  */
 window.generateQrCodeDataUrl = async function(url) {
     try {
+        // Wait for library to load (important on mobile with slower connections)
+        const loaded = await waitForQrCodeLibrary();
+        if (!loaded) {
+            console.error("qrcode library not loaded - check if CDN script loaded correctly");
+            console.log("Available globals:", Object.keys(window).filter(k => k.toLowerCase().includes('qr')));
+            return null;
+        }
+
         // qrcode-generator: type 0 = auto-detect size, 'M' = medium error correction
         const qr = qrcode(0, 'M');
         qr.addData(url);
