@@ -37,6 +37,26 @@ from defaults import (
     DEFAULT_BLADE_WIDTH,
 )
 
+# Import refactored modules
+from shareable_url import generate_shareable_url as generate_url
+from export_text import generate_text_summary, download_file
+from export_pdf import generate_pdf_content, add_qr_code_to_pdf, handle_export_pdf as export_pdf_impl
+from data_backup import (
+    export_all_data as export_data_impl,
+    import_data as import_data_impl,
+    handle_file_upload as file_upload_impl,
+    show_import_dialog as show_dialog_impl
+)
+from config_manager import (
+    get_current_config as get_config,
+    load_saved_configs as load_configs,
+    save_config_to_storage as save_config,
+    delete_config as del_config,
+    load_config as apply_config,
+    render_saved_configs as render_configs,
+    handle_save_config as save_config_handler_impl
+)
+
 # Application state
 app_state = {
     "current_unit": "inches",  # Current display unit
@@ -839,193 +859,19 @@ def reset_settings_handler(event):
 def generate_shareable_url():
     """Generate a compact shareable URL encoding all frame settings.
 
-    Binary format (28 bytes → ~38 chars base64 → 81 char URL):
-        5 × uint24: h, w, mw, fw, fd (×10000 for 4 decimal precision)
-        6 × uint16: gt, mt, at, bt, rd, bw (×10000 for 4 decimal precision)
-        1 × byte: flags (bit 0 = mat, bit 1 = unit_mm)
-
-    All values stored in inches internally.
+    Wrapper for shareable_url module function.
     """
-    import struct
-    import base64
-
     current_unit = get_current_unit()
-    values = get_form_values_as_inches(document, current_unit)
-    if values is None:
-        return None
-
     include_mat = document.getElementById("include-mat").checked
-    unit_mm = (current_unit == "mm")
+    return generate_url(document, current_unit, include_mat)
 
-    def pack_uint24(val):
-        """Pack a value as big-endian uint24 (3 bytes)."""
-        v = int(val * 10000)
-        return bytes([(v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF])
-
-    # Build binary data
-    packed = b''
-
-    # uint24 fields: h, w, mw, fw, fd
-    packed += pack_uint24(values["artwork_height"])
-    packed += pack_uint24(values["artwork_width"])
-    packed += pack_uint24(values["mat_width"])
-    packed += pack_uint24(values["frame_width"])
-    packed += pack_uint24(values["frame_depth"])
-
-    # uint16 fields: gt, mt, at, bt, rd, bw
-    for key in ["glazing_thickness", "matboard_thickness", "artwork_thickness",
-                "backing_thickness", "rabbet_depth", "blade_width"]:
-        v = int(values[key] * 10000)
-        packed += struct.pack('>H', v)
-
-    # Flags byte
-    flags = (1 if include_mat else 0) | ((1 if unit_mm else 0) << 1)
-    packed += bytes([flags])
-
-    # Base64 encode (URL-safe, no padding)
-    b64 = base64.urlsafe_b64encode(packed).decode().rstrip('=')
-
-    # Build full URL
-    base_url = "https://glarue.github.io/ReferenceFrame/"
-    return f"{base_url}?d={b64}"
-
-
-def generate_text_summary():
-    """Generate a text/markdown summary of the current frame design."""
-    current_unit = get_current_unit()
-    values = get_form_values_as_inches(document, current_unit)
-    if values is None:
-        return "Error: Required fields are empty"
-
-    design = create_frame_design_from_values(values)
-
-    # Extract commonly used values for readability
-    height = values["artwork_height"]
-    width = values["artwork_width"]
-    mat_width = values["mat_width"]
-    frame_width = values["frame_width"]
-    rabbet_depth = values["rabbet_depth"]
-    frame_depth = values["frame_depth"]
-    blade_width = values["blade_width"]
-    glazing_thick = values["glazing_thickness"]
-    matboard_thick = values["matboard_thickness"]
-    artwork_thick = values["artwork_thickness"]
-    backing_thick = values["backing_thickness"]
-
-    # Get calculations
-    frame_inside = design.get_frame_inside_dimensions()
-    frame_outside = design.get_frame_outside_dimensions()
-    cut_list = design.get_cut_list()
-    required_depth = design.get_rabbet_z_depth_required()
-    total_wood_length = design.get_total_wood_length(saw_margin=blade_width)
-
-    # Build summary
-    lines = []
-    lines.append("=" * 50)
-    lines.append("FRAME DESIGN SUMMARY")
-    lines.append("=" * 50)
-    lines.append("")
-
-    # Artwork
-    lines.append("ARTWORK DIMENSIONS")
-    lines.append("-" * 30)
-    lines.append(f"  Height: {format_value(height, current_unit)}")
-    lines.append(f"  Width:  {format_value(width, current_unit)}")
-    lines.append("")
-
-    # Cut List
-    lines.append("CUT LIST")
-    lines.append("-" * 30)
-    for category, pieces in cut_list.items():
-        category_name = "Top & Bottom" if "horizontal" in category else "Left & Right"
-        for piece_spec in pieces:
-            qty = piece_spec.get('quantity', 1)
-            inside = piece_spec.get('inside_length', 0)
-            outside = piece_spec.get('outside_length', 0)
-            lines.append(f"  {category_name}: {qty}x {format_value(outside, current_unit)} (inside: {format_value(inside, current_unit)})")
-    lines.append("")
-
-    # Material Requirements
-    lines.append("MATERIAL REQUIREMENTS")
-    lines.append("-" * 30)
-    lines.append(f"  Total Wood Length: {format_value(total_wood_length, current_unit)}")
-    lines.append(f"    (includes {format_value(blade_width, current_unit)} blade kerf + 1/16\" error margin per piece)")
-    lines.append("")
-
-    # Frame Dimensions
-    lines.append("FRAME DIMENSIONS")
-    lines.append("-" * 30)
-    lines.append(f"  Inside:  {format_value(frame_inside[0], current_unit)} H x {format_value(frame_inside[1], current_unit)} W")
-    lines.append(f"  Outside: {format_value(frame_outside[0], current_unit)} H x {format_value(frame_outside[1], current_unit)} W")
-    lines.append("")
-
-    # Matboard (if applicable)
-    if design.has_mat:
-        matboard_dims = design.get_matboard_dimensions()
-        mat_opening = design.get_mat_opening_dimensions()
-        mat_cut_width = mat_width + rabbet_depth
-
-        lines.append("MATBOARD DETAILS")
-        lines.append("-" * 30)
-        lines.append(f"  Matboard Size: {format_value(matboard_dims[0], current_unit)} H x {format_value(matboard_dims[1], current_unit)} W")
-        lines.append(f"  Mat Opening:   {format_value(mat_opening[0], current_unit)} H x {format_value(mat_opening[1], current_unit)} W")
-        lines.append(f"  Visual Mat Width: {format_value(mat_width, current_unit)}")
-        lines.append(f"  Mat Border Cut Width: {format_value(mat_cut_width, current_unit)} (visual + {format_value(rabbet_depth, current_unit)} rabbet)")
-        lines.append("")
-
-    # Depth Requirements
-    lines.append("DEPTH REQUIREMENTS (Z-AXIS)")
-    lines.append("-" * 30)
-    lines.append(f"  Required Depth: {format_value(required_depth, current_unit)}")
-    lines.append(f"  Available Depth: {format_value(frame_depth, current_unit)}")
-    if required_depth > frame_depth:
-        shortfall = required_depth - frame_depth
-        lines.append(f"  *** WARNING: Frame is {format_value(shortfall, current_unit)} too shallow! ***")
-    else:
-        clearance = frame_depth - required_depth
-        lines.append(f"  Clearance: {format_value(clearance, current_unit)}")
-    lines.append("")
-
-    # Specifications
-    lines.append("SPECIFICATIONS")
-    lines.append("-" * 30)
-    lines.append(f"  Frame Material Width: {format_value(frame_width, current_unit)}")
-    lines.append(f"  Frame Material Depth: {format_value(frame_depth, current_unit)}")
-    lines.append(f"  Rabbet Depth (x/y): {format_value(rabbet_depth, current_unit)}")
-    lines.append(f"  Mat Overlap: {format_value(design.mat_overlap, current_unit)}")
-    lines.append("")
-    lines.append("  Material Thicknesses:")
-    lines.append(f"    Glazing:  {format_value(glazing_thick, current_unit)}")
-    lines.append(f"    Matboard: {format_value(matboard_thick, current_unit)}")
-    lines.append(f"    Artwork:  {format_value(artwork_thick, current_unit)}")
-    lines.append(f"    Backing:  {format_value(backing_thick, current_unit)}")
-    lines.append("")
-    lines.append("=" * 50)
-
-    return "\n".join(lines)
-
-def download_file(content, filename, mime_type):
-    """Trigger a file download in the browser."""
-    from js import Blob, URL, document as js_document
-
-    # Create blob and download link
-    blob = Blob.new([content], {"type": mime_type})
-    url = URL.createObjectURL(blob)
-
-    # Create temporary link and click it
-    link = js_document.createElement("a")
-    link.href = url
-    link.download = filename
-    link.click()
-
-    # Clean up
-    URL.revokeObjectURL(url)
 
 @when("click", "#export-text")
 def handle_export_text(event):
     """Export frame design as text file."""
     try:
-        summary = generate_text_summary()
+        current_unit = get_current_unit()
+        summary = generate_text_summary(document, current_unit)
         download_file(summary, "frame_design_summary.txt", "text/plain")
         status_div = document.getElementById("export-status")
         status_div.innerHTML = '<span class="success">✅ Text summary downloaded!</span>'
@@ -1392,152 +1238,35 @@ def add_qr_code_to_pdf(pdf, url, status_div):
 # ===== Named Configurations Management =====
 
 def get_current_config():
-    """Get current form values as a configuration object."""
-    return {
-        "artwork_height": document.getElementById("artwork-height").value,
-        "artwork_width": document.getElementById("artwork-width").value,
-        "mat_width": document.getElementById("mat-width").value,
-        "frame_width": document.getElementById("frame-width").value,
-        "glazing_thickness": document.getElementById("glazing-thickness").value,
-        "matboard_thickness": document.getElementById("matboard-thickness").value,
-        "artwork_thickness": document.getElementById("artwork-thickness").value,
-        "backing_thickness": document.getElementById("backing-thickness").value,
-        "rabbet_depth": document.getElementById("rabbet-depth").value,
-        "frame_depth": document.getElementById("frame-depth").value,
-        "blade_width": document.getElementById("blade-width").value
-    }
+    """Get current form values as a configuration object. Wrapper for config_manager module."""
+    return get_config(document)
 
 def load_saved_configs():
-    """Load saved configurations from localStorage."""
-    try:
-        configs_json = localStorage.getItem("frame_designer_saved_configs")
-        if configs_json:
-            return json.loads(configs_json)
-        return []
-    except Exception as e:
-        console.error(f"Error loading saved configs: {e}")
-        return []
+    """Load saved configurations from localStorage. Wrapper for config_manager module."""
+    return load_configs(localStorage, console)
 
 def save_config_to_storage(name, config):
-    """Save a named configuration to localStorage."""
-    try:
-        configs = load_saved_configs()
-        # Check for duplicate name
-        existing = [c for c in configs if c["name"] == name]
-        if existing:
-            console.log(f"Configuration '{name}' already exists, updating...")
-            configs = [c for c in configs if c["name"] != name]
-
-        configs.append({"name": name, "config": config})
-        localStorage.setItem("frame_designer_saved_configs", json.dumps(configs))
-        console.log(f"Saved configuration: {name}")
-        return True
-    except Exception as e:
-        console.error(f"Error saving config: {e}")
-        return False
+    """Save a named configuration to localStorage. Wrapper for config_manager module."""
+    return save_config(name, config, localStorage, console, load_saved_configs)
 
 def delete_config(name):
-    """Delete a named configuration from localStorage."""
-    try:
-        configs = load_saved_configs()
-        configs = [c for c in configs if c["name"] != name]
-        localStorage.setItem("frame_designer_saved_configs", json.dumps(configs))
-        console.log(f"Deleted configuration: {name}")
-        render_saved_configs()
-    except Exception as e:
-        console.error(f"Error deleting config: {e}")
+    """Delete a named configuration from localStorage. Wrapper for config_manager module."""
+    del_config(name, localStorage, console, load_saved_configs, render_saved_configs)
 
 def load_config(config):
-    """Load a configuration into the form fields."""
-    try:
-        document.getElementById("artwork-height").value = config.get("artwork_height", "10")
-        document.getElementById("artwork-width").value = config.get("artwork_width", "8")
-        document.getElementById("mat-width").value = config.get("mat_width", "2")
-        document.getElementById("frame-width").value = config.get("frame_width", "1.5")
-        document.getElementById("glazing-thickness").value = config.get("glazing_thickness", "0.093")
-        document.getElementById("matboard-thickness").value = config.get("matboard_thickness", "0.055")
-        document.getElementById("artwork-thickness").value = config.get("artwork_thickness", "0.008")
-        document.getElementById("backing-thickness").value = config.get("backing_thickness", "0.125")
-        document.getElementById("rabbet-depth").value = config.get("rabbet_depth", "0.375")
-        document.getElementById("frame-depth").value = config.get("frame_depth", "0.75")
-        document.getElementById("blade-width").value = config.get("blade_width", "0.125")
-        # Also save to current settings
-        save_current_settings()
-        # Auto-update visualization with loaded config
-        try:
-            render_visualization()
-        except Exception as e:
-            console.log(f"Auto-render after config load skipped: {e}")
-    except Exception as e:
-        console.error(f"Error loading config: {e}")
+    """Load a configuration into the form fields. Wrapper for config_manager module."""
+    apply_config(config, document, save_current_settings, render_visualization, console)
 
 def render_saved_configs():
-    """Render the list of saved configurations."""
-    from pyodide.ffi import create_proxy
-
-    configs = load_saved_configs()
-    container = document.getElementById("saved-configs-list")
-
-    if not configs:
-        container.innerHTML = '<p style="color: #888; font-style: italic;">No saved configurations yet.</p>'
-        return
-
-    html = '<div style="display: grid; gap: 10px;">'
-    for config_data in configs:
-        name = config_data["name"]
-        config = config_data["config"]
-        # Create a card for each configuration
-        html += f'''
-        <div style="background: #2a2d35; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: bold;">{name}</span>
-            <div style="display: flex; gap: 5px;">
-                <button class="load-config-btn" data-name="{name}" style="background-color: #4a7c8a; padding: 5px 10px; font-size: 12px;">Load</button>
-                <button class="delete-config-btn" data-name="{name}" style="background-color: #8a4a4a; padding: 5px 10px; font-size: 12px;">Delete</button>
-            </div>
-        </div>
-        '''
-    html += '</div>'
-    container.innerHTML = html
-
-    # Attach event listeners to buttons using create_proxy for proper callback handling
-    def make_load_handler(cfg):
-        def handler(e):
-            load_config(cfg)
-        return create_proxy(handler)
-
-    def make_delete_handler(config_name):
-        def handler(e):
-            delete_config(config_name)
-        return create_proxy(handler)
-
-    for btn in document.querySelectorAll(".load-config-btn"):
-        config_name = btn.getAttribute("data-name")
-        config_data = [c for c in configs if c["name"] == config_name][0]
-        btn.addEventListener("click", make_load_handler(config_data["config"]))
-
-    for btn in document.querySelectorAll(".delete-config-btn"):
-        config_name = btn.getAttribute("data-name")
-        btn.addEventListener("click", make_delete_handler(config_name))
+    """Render the list of saved configurations. Wrapper for config_manager module."""
+    render_configs(document, load_saved_configs, load_config, delete_config)
 
 # Event handler: Save Configuration button
 @when("click", "#save-config")
 def save_config_handler(event):
     """Save the current configuration with a name."""
-    try:
-        name_input = document.getElementById("config-name")
-        name = name_input.value.strip()
-
-        if not name:
-            console.log("Please enter a configuration name")
-            return
-
-        config = get_current_config()
-        if save_config_to_storage(name, config):
-            name_input.value = ""  # Clear input
-            render_saved_configs()
-            console.log(f"Configuration '{name}' saved successfully")
-    except Exception as e:
-        console.error(f"Error in save_config_handler: {e}")
+    save_config_handler_impl(event, document, console, get_current_config,
+                             save_config_to_storage, render_saved_configs)
 
 # ===== Data Export/Import Functions =====
 
