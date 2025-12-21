@@ -1815,7 +1815,15 @@ def draw_visualization(event):
 
 # Initialize auto-save and restore settings
 setup_auto_save()
-restore_settings()
+
+# Only restore from localStorage if NOT loaded from URL
+# (JS sets form values from URL params, we don't want to overwrite them)
+from js import window
+if not (hasattr(window, 'rfLoadedFromUrl') and window.rfLoadedFromUrl):
+    restore_settings()
+else:
+    console.log("Skipping localStorage restore - using URL parameters instead")
+
 render_saved_configs()
 update_aspect_ratio_display()
 update_orientation_icon()
