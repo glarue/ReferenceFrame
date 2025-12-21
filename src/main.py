@@ -1839,6 +1839,24 @@ try:
 except Exception as e:
     console.log(f"Initial render skipped: {e}")
 
+# Check if loaded from URL params after a short delay
+# (JS sets form values via DOMContentLoaded, this ensures they're applied)
+from js import window, setTimeout
+from pyodide.ffi import create_proxy
+
+def check_url_params():
+    """Check if page loaded from URL and recalculate if needed."""
+    if hasattr(window, 'rfLoadedFromUrl') and window.rfLoadedFromUrl:
+        console.log("Detected URL params - recalculating visualization")
+        try:
+            calculate_frame()
+            render_visualization()
+        except Exception as e:
+            console.log(f"URL param recalculation error: {e}")
+
+# Delay by 100ms to ensure JS DOMContentLoaded has fired
+setTimeout(create_proxy(check_url_params), 100)
+
 # Mark app as ready
 app_status = document.getElementById("app-status")
 app_status.textContent = "✓"
