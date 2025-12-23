@@ -123,7 +123,8 @@ class FrameDesign:
         Calculate the visible (face) dimensions of the frame opening.
 
         With mat, this is the mat opening plus the visible mat borders.
-        Without mat, this is just the artwork dimensions.
+        Without mat, the artwork sits in the rabbet, so the frame opening
+        is smaller than the artwork by the rabbet depth on all sides.
 
         Returns:
             Tuple of (height, width) in inches.
@@ -134,8 +135,9 @@ class FrameDesign:
             visible_height = mat_opening_height + (2 * self.mat_width_top_bottom)
             visible_width = mat_opening_width + (2 * self.mat_width_sides)
         else:
-            visible_height = self.artwork_height
-            visible_width = self.artwork_width
+            # Without mat, artwork sits directly in rabbet - frame overlaps by rabbet_depth
+            visible_height = self.artwork_height - (2 * self.rabbet_depth)
+            visible_width = self.artwork_width - (2 * self.rabbet_depth)
         return visible_height, visible_width
 
     @property
