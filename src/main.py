@@ -329,7 +329,8 @@ def apply_custom_size(index):
 
             console.log(f"Applied custom size: {size.name}")
 
-            # Automatically render visualization with new dimensions
+            # Recalculate frame dimensions and render visualization
+            calculate_frame()
             render_visualization()
     except Exception as e:
         console.log(f"Error applying custom size: {e}")
@@ -920,7 +921,7 @@ def delete_config(name):
 
 def load_config(config):
     """Load a configuration into the form fields. Wrapper for config_manager module."""
-    apply_config(config, document, save_current_settings, render_visualization, console)
+    apply_config(config, document, save_current_settings, calculate_frame, render_visualization, console)
 
 def render_saved_configs():
     """Render the list of saved configurations. Wrapper for config_manager module."""

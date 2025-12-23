@@ -104,13 +104,14 @@ def delete_config(name: str, localStorage, console,
 
 
 def load_config(config: dict, document, save_current_settings_fn,
-                render_visualization_fn, console):
+                calculate_frame_fn, render_visualization_fn, console):
     """Load a configuration into the form fields.
 
     Args:
         config: Configuration dictionary
         document: PyScript document object
         save_current_settings_fn: Function to save current settings
+        calculate_frame_fn: Function to recalculate frame dimensions
         render_visualization_fn: Function to update visualization
         console: JS console object
     """
@@ -128,11 +129,12 @@ def load_config(config: dict, document, save_current_settings_fn,
         document.getElementById("blade-width").value = config.get("blade_width", "0.125")
         # Also save to current settings
         save_current_settings_fn()
-        # Auto-update visualization with loaded config
+        # Recalculate frame dimensions and update visualization
         try:
+            calculate_frame_fn()
             render_visualization_fn()
         except Exception as e:
-            console.log(f"Auto-render after config load skipped: {e}")
+            console.log(f"Auto-update after config load skipped: {e}")
     except Exception as e:
         console.error(f"Error loading config: {e}")
 
