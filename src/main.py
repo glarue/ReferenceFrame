@@ -1394,11 +1394,14 @@ def render_visualization():
                 ))
         else:
             # No mat - draw artwork directly inside frame
-            # Artwork extends under the frame's rabbet lip
+            # Artwork is positioned to extend under the frame's rabbet lip on all sides
+            # The frame's inside opening is smaller than the artwork by rabbet on all sides
+            art_x = visible_x - rabbet  # Artwork extends beyond visible opening
+            art_y = visible_y - rabbet
             ax.add_patch(mpatches.Rectangle(
-                (content_x, content_y),
-                artwork_width + 2 * rabbet,  # Extended to go under frame on both sides
-                artwork_height + 2 * rabbet,
+                (art_x, art_y),
+                artwork_width,  # Actual artwork dimensions
+                artwork_height,
                 facecolor='#5B9BD5',
                 edgecolor=None,
                 linewidth=1,
@@ -1410,8 +1413,8 @@ def render_visualization():
 
             # Bottom rabbet overlap
             ax.add_patch(mpatches.Rectangle(
-                (content_x, content_y),
-                artwork_width + 2 * rabbet,
+                (art_x, art_y),
+                artwork_width,
                 rabbet,
                 facecolor='#8B6F47',
                 edgecolor=None,
@@ -1419,8 +1422,8 @@ def render_visualization():
             ))
             # Top rabbet overlap
             ax.add_patch(mpatches.Rectangle(
-                (content_x, visible_y + artwork_height),
-                artwork_width + 2 * rabbet,
+                (art_x, art_y + artwork_height - rabbet),
+                artwork_width,
                 rabbet,
                 facecolor='#8B6F47',
                 edgecolor=None,
@@ -1428,18 +1431,18 @@ def render_visualization():
             ))
             # Left rabbet overlap
             ax.add_patch(mpatches.Rectangle(
-                (content_x, content_y + rabbet),
+                (art_x, art_y + rabbet),
                 rabbet,
-                artwork_height,
+                artwork_height - 2 * rabbet,
                 facecolor='#8B6F47',
                 edgecolor=None,
                 alpha=overlap_alpha
             ))
             # Right rabbet overlap
             ax.add_patch(mpatches.Rectangle(
-                (visible_x + artwork_width, content_y + rabbet),
+                (art_x + artwork_width - rabbet, art_y + rabbet),
                 rabbet,
-                artwork_height,
+                artwork_height - 2 * rabbet,
                 facecolor='#8B6F47',
                 edgecolor=None,
                 alpha=overlap_alpha
