@@ -34,6 +34,10 @@ def generate_pdf_content(pdf, document, current_unit: str, start_y: float = 20) 
     rabbet_depth = values["rabbet_depth"]
     frame_depth = values["frame_depth"]
     blade_width = values["blade_width"]
+    glazing_thick = values["glazing_thickness"]
+    matboard_thick = values["matboard_thickness"]
+    artwork_thick = values["artwork_thickness"]
+    backing_thick = values["backing_thickness"]
 
     # Colors from UI theme (RGB values)
     COLOR_PRIMARY = (39, 125, 161)      # cerulean #277da1
@@ -197,6 +201,21 @@ def generate_pdf_content(pdf, document, current_unit: str, start_y: float = 20) 
     add_line(f"Rabbet: {format_value(rabbet_depth, current_unit)}", right_col)
     if design.has_mat:
         add_line(f"Mat overlap: {format_value(design.mat_overlap, current_unit)}", right_col)
+    add_line(f"Assembly margin: {format_value(design.assembly_margin, current_unit)}", right_col)
+    add_line(f"Blade width: {format_value(blade_width, current_unit)}", right_col)
+    add_spacer(1)
+    pdf.setFontSize(10)
+    pdf.setFont("helvetica", "bold")
+    pdf.setTextColor(*COLOR_GRAY)
+    pdf.text("Material Thicknesses", right_col, y)
+    pdf.setTextColor(*COLOR_BLACK)
+    y += 5
+    pdf.setFontSize(11)
+    pdf.setFont("helvetica", "normal")
+    add_line(f"Glazing: {format_value(glazing_thick, current_unit)}", right_col)
+    add_line(f"Matboard: {format_value(matboard_thick, current_unit)}", right_col)
+    add_line(f"Artwork: {format_value(artwork_thick, current_unit)}", right_col)
+    add_line(f"Backing: {format_value(backing_thick, current_unit)}", right_col)
 
     return max(y, left_col_end_y)
 

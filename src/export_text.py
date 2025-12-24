@@ -118,6 +118,8 @@ def generate_text_summary(document, current_unit: str) -> str:
     lines.append(f"  Frame Material Depth: {format_value(frame_depth, current_unit)}")
     lines.append(f"  Rabbet Depth (x/y): {format_value(rabbet_depth, current_unit)}")
     lines.append(f"  Mat Overlap: {format_value(design.mat_overlap, current_unit)}")
+    lines.append(f"  Assembly Margin: {format_value(design.assembly_margin, current_unit)}")
+    lines.append(f"  Blade Width (kerf): {format_value(blade_width, current_unit)}")
     lines.append("")
     lines.append("  Material Thicknesses:")
     lines.append(f"    Glazing:  {format_value(glazing_thick, current_unit)}")
