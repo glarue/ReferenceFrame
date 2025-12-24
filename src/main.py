@@ -444,6 +444,8 @@ def switch_unit(new_unit):
     artwork_t_input = document.getElementById("artwork-thickness")
     backing_input = document.getElementById("backing-thickness")
     rabbet_input = document.getElementById("rabbet-depth")
+    frame_depth_input = document.getElementById("frame-depth")
+    blade_width_input = document.getElementById("blade-width")
 
     # Convert values
     if new_unit == "mm":
@@ -459,6 +461,8 @@ def switch_unit(new_unit):
         artwork_t_input.value = str(round(inches_to_mm(float(artwork_t_input.value)), 2))
         backing_input.value = str(round(inches_to_mm(float(backing_input.value)), 2))
         rabbet_input.value = str(round(inches_to_mm(float(rabbet_input.value)), 2))
+        frame_depth_input.value = str(round(inches_to_mm(float(frame_depth_input.value)), 2))
+        blade_width_input.value = str(round(inches_to_mm(float(blade_width_input.value)), 2))
 
         # Update step sizes for mm
         height_input.step = "1"
@@ -470,6 +474,8 @@ def switch_unit(new_unit):
         artwork_t_input.step = "0.1"
         backing_input.step = "0.1"
         rabbet_input.step = "1"
+        frame_depth_input.step = "0.1"
+        blade_width_input.step = "0.1"
 
         # Update labels
         document.getElementById("label-artwork-unit").textContent = "(mm)"
@@ -494,6 +500,8 @@ def switch_unit(new_unit):
         artwork_t_input.value = str(round_to_step(mm_to_inches(float(artwork_t_input.value)), 0.01))
         backing_input.value = str(round_to_step(mm_to_inches(float(backing_input.value)), 0.01))
         rabbet_input.value = str(round_to_step(mm_to_inches(float(rabbet_input.value)), 0.125))
+        frame_depth_input.value = str(round_to_step(mm_to_inches(float(frame_depth_input.value)), 0.01))
+        blade_width_input.value = str(round_to_step(mm_to_inches(float(blade_width_input.value)), 0.01))
 
         # Update step sizes for inches
         height_input.step = "0.25"
@@ -505,6 +513,8 @@ def switch_unit(new_unit):
         artwork_t_input.step = "0.01"
         backing_input.step = "0.01"
         rabbet_input.step = "0.125"
+        frame_depth_input.step = "0.125"
+        blade_width_input.step = "0.03125"
 
         # Update labels
         document.getElementById("label-artwork-unit").textContent = "(inches)"
