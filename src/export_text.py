@@ -7,6 +7,10 @@ of frame designs.
 from ui_helpers import get_form_values_as_inches, create_frame_design_from_values
 from conversions import format_value
 
+# Constants
+# Error margin for wood cutting (1/16" per piece)
+ERROR_MARGIN_INCHES = 0.0625
+
 
 def generate_text_summary(document, current_unit: str) -> str:
     """Generate a text/markdown summary of the current frame design.
@@ -74,7 +78,7 @@ def generate_text_summary(document, current_unit: str) -> str:
     lines.append("MATERIAL REQUIREMENTS")
     lines.append("-" * 30)
     lines.append(f"  Total Wood Length: {format_value(total_wood_length, current_unit)}")
-    lines.append(f"    (includes {format_value(blade_width, current_unit)} blade kerf + 1/16\" error margin per piece)")
+    lines.append(f"    (includes {format_value(blade_width, current_unit)} blade kerf + {format_value(ERROR_MARGIN_INCHES, current_unit)} error margin per piece)")
     lines.append("")
 
     # Frame Dimensions

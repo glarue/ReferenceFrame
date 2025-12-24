@@ -61,6 +61,10 @@ from config_manager import (
     handle_save_config as save_config_handler_impl
 )
 
+# Constants
+# Error margin for wood cutting (1/16" per piece)
+ERROR_MARGIN_INCHES = 0.0625
+
 # Application state
 app_state = {
     "current_unit": "inches",  # Current display unit
@@ -536,6 +540,10 @@ def switch_unit(new_unit):
     # Re-render standard and custom sizes to show in new unit
     render_standard_sizes()
     render_custom_sizes()
+
+    # Trigger recalculation and visualization update to show new unit
+    calculate_frame()
+    render_visualization()
 
 @when("click", "#unit-inches")
 def handle_unit_inches(event):
@@ -1105,7 +1113,7 @@ def calculate_frame(event=None):
         results_html += '<strong>📦 Material Requirements:</strong>'
         results_html += '<ul style="margin: 4px 0 12px 0; padding-left: 20px;">'
         results_html += f'<li>Total Wood Length: <strong style="color: #3b9cff;">{format_value(total_wood_length, current_unit)}</strong>'
-        results_html += f'<br><small style="color: #888;">Includes saw blade kerf ({format_value(blade_width, current_unit)}) and error margin (1/16") per piece</small></li>'
+        results_html += f'<br><small style="color: #888;">Includes saw blade kerf ({format_value(blade_width, current_unit)}) and error margin ({format_value(ERROR_MARGIN_INCHES, current_unit)}) per piece</small></li>'
         results_html += '</ul>'
 
         # === Frame Dimensions ===
