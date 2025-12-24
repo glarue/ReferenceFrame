@@ -5,7 +5,7 @@ Unit tests for aspect ratio utilities.
 
 import pytest
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, 'src')
 
 from aspect_ratio import (
     get_aspect_ratio_display_from_ratio,

@@ -5,7 +5,7 @@ Unit tests for UI helper functions.
 
 import pytest
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, 'src')
 
 from ui_helpers import (
     input_to_inches,

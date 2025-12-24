@@ -9,7 +9,7 @@ which are critical for displaying dimensions correctly to users.
 import pytest
 from fractions import Fraction
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, 'src')
 
 from conversions import (
     convert_decimal_to_tape_measure,

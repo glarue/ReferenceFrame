@@ -8,7 +8,7 @@ which are the heart of the application.
 
 import pytest
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, 'src')
 
 from frame import FrameDesign, FrameSize, calculate_visual_mat_width
 
