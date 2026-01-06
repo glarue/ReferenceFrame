@@ -22,218 +22,180 @@ ReferenceFrame uses a **shared Rust core** architecture to support multiple plat
 - **Deployment:** GitHub Pages (static site)
 
 ### Characteristics
-- **Payload:** ~220 KB (50-100× smaller than PyScript)
-- **First load:** <100ms (cached)
+- **Payload:** ~314 KB WASM binary (50-100× smaller than PyScript's ~30 MB)
+- **First load:** <100ms (cached after initial build)
 - **Performance:** Near-native (no interpreter overhead)
 - **Platforms:** Web browser (desktop/mobile browsers)
-- **Code sharing:** 79% shared with mobile platforms
+- **Code sharing:** 90%+ shared with future mobile platforms
+
+### Deployment Details
+- **URL:** https://glarue.github.io/ReferenceFrame
+- **CI/CD:** GitHub Actions automatically builds and deploys on push to `main`
+- **Build Process:**
+  1. Sets up Rust toolchain and wasm-pack
+  2. Compiles Rust core to WASM (~45 seconds)
+  3. Deploys static files (HTML, CSS, JS, WASM) to GitHub Pages
+- **No server required:** Fully static site, zero hosting costs
 
 ### Features
-- ✅ Full frame calculations
-- ✅ Interactive visualizations with dimension callouts
-- ✅ Vector PDF export (SVG embedded via svg2pdf.js)
-- ✅ Text export
-- ✅ Shareable URLs
+- ✅ Full frame calculations (dimensions, cut list, depth analysis)
+- ✅ Interactive visualizations with dimension callouts (plan + section views)
+- ✅ Professional PDF export with embedded vector SVG diagrams and QR codes
+- ✅ Text export for cut lists
+- ✅ Shareable URLs (28-byte base64-encoded designs)
 - ✅ Saved custom sizes (localStorage)
-- ✅ Aspect ratio locking
-- ✅ Unit conversion (inches/mm)
-- ✅ Progressive Web App (installable)
+- ✅ Aspect ratio locking with orientation toggle
+- ✅ Unit conversion (inches ↔ mm)
+- ✅ Responsive design (desktop + mobile browsers)
 
 ### Maintenance Strategy
-**Keep as-is** - This is the proven, working implementation. No plans to replace or deprecate. Continue bug fixes and minor improvements as needed.
+**Active development** - Continue adding features and improvements. This is the primary implementation going forward.
 
 ---
 
-## 2. Rust Multi-Platform (Development)
+## 2. Mobile Platforms (Planned)
 
-**Location:** `/rust-flutter/` directory
+**Location:** `platforms/mobile/` directory
 
-**Status:** 🚧 **Development** - Core complete, platform implementations in progress
+**Status:** 📋 **Planned** - Core library complete, mobile UI not yet started
 
-### Technology Stack
-- **Core Library:** Rust (compiled to native/WASM)
-- **Visualization:** Pure SVG generation in Rust
-- **Web:** WASM + TypeScript
-- **iOS:** Swift + Rust FFI
-- **Android:** Kotlin + Rust FFI
+### Approach
 
-### Code Sharing Architecture
+**Shared Rust Core** (`core/` directory):
+- ✅ All business logic: calculations, validation, SVG generation
+- ✅ 100+ tests passing
+- ✅ Platform-agnostic (no dependencies on web, mobile, etc.)
+- ✅ Already powering the web app
+
+**Platform-Specific UI** (future work):
+- iOS: Native Swift app using Rust via FFI
+- Android: Native Kotlin app using Rust via FFI
+- Or: Single Flutter app for both platforms
+
+**Code Sharing Estimate:** 90%+ (core logic) + 10% (platform UI/integration)
+
+### Benefits
+- Same calculations and visualization across web and mobile
+- Native mobile performance (no hybrid web wrapper)
+- Smaller app size (no embedded browser engine)
+- Offline-first design
+- Professional PDF export on mobile devices
+
+### Next Steps
+1. Choose mobile framework (Native Swift/Kotlin vs Flutter)
+2. Generate FFI bindings to Rust core
+3. Implement mobile UI (forms, results, visualization rendering)
+4. Add platform-specific features (share sheets, file access, etc.)
+5. App Store / Play Store submission
+
+---
+
+## 3. Architecture Philosophy
+
+### Shared Rust Core Pattern
+
+The project uses a **platform-agnostic core library** (`core/`) containing all business logic:
 
 ```
-┌─────────────────────────────────────┐
-│   Rust Core Library (~2,400 LOC)   │
-│  ✅ All calculations                │
-│  ✅ Unit conversions                │
-│  ✅ URL encoding/decoding           │
-│  ✅ Aspect ratio management         │
-│  ✅ SVG visualization generation    │
-└─────────────────────────────────────┘
-           │           │           │
-    ┌──────┴────┐  ┌───┴────┐  ┌──┴─────┐
-    │   Web     │  │  iOS   │  │Android │
-    │(WASM +    │  │(Swift +│  │(Kotlin+│
-    │TypeScript)│  │ FFI)   │  │  FFI)  │
-    │~400 LOC   │  │~400 LOC│  │~400 LOC│
-    │UI/render  │  │UI/render│ │UI/render│
-    └───────────┘  └────────┘  └────────┘
+core/                           # Platform-agnostic Rust library
+├── src/
+│   ├── frame.rs               # Frame design calculations
+│   ├── conversions.rs         # Unit conversion (inches ↔ mm)
+│   ├── input_parser.rs        # Parse fractional dimensions ("12 3/4")
+│   ├── validation.rs          # Input validation rules
+│   ├── aspect_ratio.rs        # Aspect ratio utilities
+│   ├── shareable_url.rs       # URL encoding/decoding
+│   └── visualization/         # SVG generation
+│       ├── geometry.rs        # Layout calculations
+│       ├── svg.rs             # SVG rendering
+│       └── callouts.rs        # Dimension arrows & labels
+└── Cargo.toml
+
+platforms/web/                  # Web-specific UI (10% of code)
+├── wasm_bindings/             # Thin wrapper for WASM
+├── index.html                 # Web UI
+└── styles.css
+
+platforms/mobile/               # Future: Mobile UI (10% of code)
+└── (iOS/Android apps using core via FFI)
 ```
 
-**Code Sharing:** ~79% (core logic) + 21% (platform UI)
+**Key Principles:**
+1. **Business logic in Rust** - All calculations, validation, and visualization in `core/`
+2. **Platform-specific UI only** - HTML/CSS for web, Swift/Kotlin for mobile
+3. **No duplication** - Same calculations across all platforms
+4. **Easy testing** - Core library tested independently (100+ tests)
 
-### Characteristics
-- **Payload (Web):** ~220 KB (50-100× smaller than PyScript)
-- **Load time (Web):** <100ms (cached)
-- **Performance:** Near-native (no Python interpreter overhead)
-- **Platforms:** Web (WASM), iOS (native), Android (native)
+### Why Rust + WASM?
 
-### Implementation Status
+**Replaced PyScript (Jan 2026) due to:**
+- **50-100× smaller payload** (~314 KB vs ~30 MB)
+- **Faster load times** (<100ms vs 10-30s first load)
+- **Better performance** (no Python interpreter overhead)
+- **Mobile path** (same core can power native iOS/Android apps via FFI)
+- **Maintained parity** (all PyScript features ported, verified via regression tests)
 
-#### Phase 1: Rust Core Library ✅ COMPLETE
-- **Status:** 108 tests passing
-- **Modules:**
-  - `defaults.rs` - Constants
-  - `conversions.rs` - Unit conversion/formatting
-  - `frame.rs` - Frame calculations
-  - `aspect_ratio.rs` - Aspect ratio utilities
-  - `shareable_url.rs` - URL encoding/decoding
-  - `visualization/` - SVG generation (56 tests)
-- **Location:** `/rust-flutter/rust_core/`
-
-#### Phase 2: Web (WASM) ✅ COMPLETE
-- **Status:** Built, tested, demo working
-- **Output:** ~220 KB WASM binary
-- **Demo:** `/web-wasm/demo.html`
-- **Integration:** Documented in `/web-wasm/INTEGRATION_OPTIONS.md`
-- **Deployment:** Ready (separate from PyScript app)
-
-#### Phase 3: Mobile (Flutter) ⏸️ MOCKUP READY
-- **Status:** FFI bindings complete, Flutter SDK setup pending
-- **FFI Tests:** 3/3 passing
-- **Mockup:** `/rust-flutter/flutter_mockup/`
-- **Blocker:** Flutter SDK installation needed
-- **Setup Guide:** `/rust-flutter/FLUTTER_SETUP.md`
-
-### Development Strategy
-Build **separate apps** for each platform that share the Rust core:
-- **Web:** WASM-based app (deploy separately from PyScript)
-- **iOS:** Native Swift app using Rust via FFI
-- **Android:** Native Kotlin app using Rust via FFI
-
-**No migration planned** - These are new implementations, not replacements.
+**PyScript preserved as reference** in `legacy/pyscript/` directory.
 
 ---
 
-## Why Two Implementations?
+## 4. Future Roadmap
 
-### PyScript Advantages
-- ✅ **Proven and deployed** - Production-ready, working now
-- ✅ **Python ecosystem** - Direct use of matplotlib, familiar language
-- ✅ **Rapid development** - Python in browser, no compilation
-- ✅ **Zero server costs** - Static deployment
-- ✅ **Already works** - No need to fix what isn't broken
+### Web App (Current Focus)
+- ✅ Deployed and production-ready (Jan 2026)
+- 🔄 Ongoing improvements and feature additions
+- 📋 Potential additions:
+  - Saved configurations UI (data model already exists)
+  - Standard artwork sizes picker
+  - Print-optimized visualization layouts
+  - Advanced mat calculations (multiple mats, v-groove)
 
-### Rust Multi-Platform Advantages
-- ✅ **Cross-platform** - Web + iOS + Android from single codebase
-- ✅ **Performance** - Near-native speed, minimal overhead
-- ✅ **Payload size** - 50-100× smaller for web (220 KB vs 30 MB)
-- ✅ **Code sharing** - 79% shared across all platforms
-- ✅ **Native mobile** - True iOS/Android apps, not web wrappers
-- ✅ **Battery efficient** - No interpreter overhead on mobile
+### Mobile Apps (Planned)
+**Timeline:** TBD (depends on demand and resources)
 
-### Use Case Fit
+**Approach:**
+1. Choose platform: Native (Swift/Kotlin) vs Flutter
+2. Generate FFI bindings to Rust core
+3. Build mobile UI (~2-3 weeks per platform)
+4. Add platform-specific features (share sheets, camera integration)
+5. Submit to App Store / Play Store
 
-| Use Case | Best Implementation |
-|----------|-------------------|
-| Quick web calculator | PyScript (already deployed) |
-| Mobile app (iOS/Android) | Rust (only option) |
-| Offline-first web app | PyScript (service worker ready) |
-| Performance-critical web app | Rust WASM (faster, smaller) |
-| Embedded in other web apps | Rust WASM (tiny payload) |
+**Effort estimate:** 2-3 weeks for iOS-only (Swift), 3-4 weeks for iOS + Android (Flutter)
 
 ---
 
-## Relationship Between Implementations
+## 5. Documentation
 
-### Shared
-- ✅ **Core algorithms** - Identical calculations (validated via tests)
-- ✅ **Default values** - Same constants
-- ✅ **Unit conventions** - All calculations in inches internally
-- ✅ **Output format** - Same fractional display (12 3/4")
-
-### Independent
-- **Codebases** - No code dependencies between implementations
-- **Deployment** - Separate sites/apps
-- **Updates** - Can evolve independently
-- **Features** - May diverge based on platform needs
-
-### Validation
-- **Regression tests** - Rust has 26 regression tests against Python behavior
-- **Algorithm parity** - Verified identical calculations
-- **No drift** - Core logic locked via tests
+- **Project README:** `/README.md` - Quick start and overview
+- **Architecture:** `/ARCHITECTURE.md` - Detailed technical architecture
+- **Deployment Guide:** `/DEPLOYMENT_AND_IOS_REVIEW.md` - Deployment options and iOS planning
+- **Session Notes:** `/CLAUDE.md` - Development session history
+- **Legacy PyScript:** `/legacy/pyscript/README.md` - Archived implementation reference
 
 ---
 
-## Future Roadmap
-
-### PyScript App (Short-term)
-- Continue minor improvements and bug fixes
-- Maintain as primary web offering
-- No major architectural changes
-
-### Rust Multi-Platform (Medium-term)
-
-**Web WASM:**
-- Deploy demo as alternative web calculator
-- Gather performance metrics
-- Optional: Offer as "lightweight mode" alongside PyScript
-
-**Mobile Apps:**
-1. Install Flutter SDK
-2. Complete iOS app
-3. Complete Android app
-4. Deploy to App Store / Play Store
-
-**Long-term:**
-- Maintain both implementations indefinitely
-- Users choose based on needs (web-only vs mobile)
-- Possible convergence if WASM clearly superior for web
-
----
-
-## Documentation References
-
-### PyScript App
-- **Main README:** `/README.md`
-- **User Guide:** `/docs/`
-- **Development Guide:** `/CLAUDE.md`
-- **Deployment:** `/docs/DEPLOYMENT.md`
-
-### Rust Multi-Platform
-- **Core Library:** `/rust-flutter/README.md`
-- **Implementation Status:** `/rust-flutter/IMPLEMENTATION_STATUS.md`
-- **Implementation Complete:** `/rust-flutter/IMPLEMENTATION_COMPLETE.md`
-- **Visualization Design:** `/rust-flutter/VISUALIZATION_PLAN.md`
-- **Web Integration:** `/web-wasm/INTEGRATION_OPTIONS.md`
-- **Flutter Setup:** `/rust-flutter/FLUTTER_SETUP.md`
-
----
-
-## Decision History
+## 6. Decision History
 
 ### December 2024
-- ✅ Decided to keep PyScript app as-is (production)
-- ✅ Decided to build separate Rust implementation for multi-platform
-- ✅ Completed Rust core library
-- ✅ Completed WASM build and demo
-- ✅ Completed visualization system in Rust
-- ⏸️ Paused mobile development (Flutter SDK needed)
+- ✅ Built Rust core library (frame calculations, validation, SVG generation)
+- ✅ Created WASM web implementation
+- ✅ Verified feature parity with PyScript via regression tests
+- ⏸️ Paused mobile development (prioritized web deployment)
 
-### Pending Decisions
-- [ ] Deploy WASM demo publicly?
-- [ ] Invest in Flutter SDK for mobile development?
-- [ ] Eventually deprecate PyScript in favor of WASM? (no current plans)
+### January 2026
+- ✅ **Deployed WASM web app** to production (https://glarue.github.io/ReferenceFrame)
+- ✅ **Replaced PyScript** as primary implementation
+- ✅ **Archived PyScript** to `legacy/pyscript/` (preserved as reference)
+- ✅ **Enhanced PDF export** with professional layout, embedded vector diagrams, QR codes
+- ✅ **Automated deployment** via GitHub Actions (builds WASM on every push)
+- 📋 Mobile development remains planned (pending demand/resources)
+
+### Key Decisions
+- **Why replace PyScript?** 50-100× smaller payload, faster load, mobile path via shared core
+- **Why not parallel deployment?** WASM provides same features with better UX, no need for both
+- **Why preserve PyScript?** Algorithm reference, educational value, migration validation
 
 ---
 
-**Last Updated:** 2025-12-31  
-**Status:** Two parallel implementations, both functional, serving different platforms
+**Last Updated:** 2026-01-06
+**Status:** Production WASM web app deployed, mobile platforms planned

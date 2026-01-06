@@ -88,18 +88,40 @@ wasm-pack build --target web --out-dir ../pkg
 ## 🔧 Tech Stack
 
 - **Core**: Rust (pure, no platform dependencies)
-- **Web**: Rust → WASM via wasm-bindgen (~220 KB payload)
+- **Web**: Rust → WASM via wasm-bindgen (~314 KB payload, 50-100× smaller than PyScript)
 - **Mobile** (planned): Rust → FFI via flutter_rust_bridge
-- **Visualization**: SVG generation in Rust
+- **Visualization**: Pure SVG generation in Rust (vector graphics, crisp at any zoom)
+- **PDF Export**: jsPDF + svg2pdf.js with embedded vector diagrams
+
+## ✨ Web App Features
+
+- ✅ Full frame design calculations (dimensions, cut list, depth analysis)
+- ✅ Interactive SVG visualizations (plan + section views)
+- ✅ Professional PDF export with embedded vector diagrams and QR codes
+- ✅ Text export for cut lists
+- ✅ Unit conversion (inches ↔ mm)
+- ✅ Shareable URLs (28-byte encoded designs)
+- ✅ Saved configurations (localStorage)
+- ✅ Aspect ratio locking
+- ✅ Responsive design (desktop + mobile)
 
 ## 🚢 Deployment
 
 **Web App:** Automatically deployed to GitHub Pages on push to `main` branch
-- Deploys from: `platforms/web/`
+
+**Deployment Process:**
+1. GitHub Actions checks out code
+2. Sets up Rust toolchain and wasm-pack
+3. Builds WASM binaries from `platforms/web/wasm_bindings/`
+4. Deploys static files (HTML, CSS, JS, WASM) to GitHub Pages
+
+**Key Details:**
 - URL: https://glarue.github.io/ReferenceFrame
 - Workflow: `.github/workflows/deploy.yml`
+- Build time: ~45 seconds
+- No server required (fully static)
 
-**Legacy PyScript Version:** Archived in `legacy/pyscript/` (reference only)
+**Legacy PyScript Version:** Archived in `legacy/pyscript/` (reference implementation, replaced by WASM in Jan 2026)
 
 ## 📄 License
 
