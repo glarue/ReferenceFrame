@@ -24,3 +24,25 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Rust build artifacts
+target/
+*/target/
+Cargo.lock
+**/.cargo/
+
+# WASM build outputs
+platforms/web/pkg/
+platforms/web/wasm_bindings/pkg/
+*.wasm
+*.wasm.d.ts
+
+# Experimental directories (moved to legacy/experiments/)
+# These should NEVER be committed
+rust-flutter/
+web-wasm/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig

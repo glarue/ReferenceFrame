@@ -1,0 +1,2695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReferenceFrame</title>
+    <link rel="stylesheet" href="./styles.css?v=20260105-dimension-controls-inline">
+
+    <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+            integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"></script>
+    <!-- Try unpkg for svg2pdf which might have better UMD support -->
+    <script src="https://unpkg.com/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js"
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"></script>
+    <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"></script>
+
+    <!-- Storage module for saved configurations -->
+    <script src="storage.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header-row">
+            <h1>
+                <span class="logo"></span>
+                ReferenceFrame
+            </h1>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="unit-toggle">
+                    <button id="btn-inches" class="active" onclick="setUnit('inches')">in</button>
+                    <button id="btn-mm" onclick="setUnit('mm')">mm</button>
+                </div>
+                <button class="share-btn" onclick="shareDesign()">Share</button>
+                <button class="settings-btn" onclick="openSettingsModal()" title="Validation Settings">⚙️</button>
+            </div>
+        </div>
+
+        <div class="main-layout">
+            <!-- Left Column: Inputs -->
+            <div class="inputs-column">
+                <!-- Artwork Dimensions -->
+                <div class="section">
+                    <h2>Artwork</h2>
+
+                    <!-- Size selectors in a compact row -->
+                    <div class="size-selectors-row">
+                        <div class="size-selector-col">
+                            <label for="standard-sizes">Standard</label>
+                            <select id="standard-sizes" class="size-select-compact">
+                                <option value="">-- Select --</option>
+                            </select>
+                        </div>
+                        <div class="size-selector-col">
+                            <label for="custom-sizes">Saved</label>
+                            <div class="custom-size-controls">
+                                <select id="custom-sizes" class="size-select-compact">
+                                    <option value="">-- Select --</option>
+                                </select>
+                                <button id="delete-custom-size" class="btn-icon-small" title="Delete selected size">🗑️</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manual Dimensions -->
+                    <div class="input-group">
+                        <label id="label-artwork">Dimensions <span class="text-muted">(inches)</span></label>
+                        <div class="dimension-pair">
+                            <div class="dimension-inputs">
+                                <span class="dim-label">H</span>
+                                <input type="text" id="artwork-height" value="12.5" inputmode="decimal" placeholder="e.g. 12.5 or 12 1/2">
+                                <span class="separator">×</span>
+                                <span class="dim-label">W</span>
+                                <input type="text" id="artwork-width" value="18.75" inputmode="decimal" placeholder="e.g. 18.75 or 18 3/4">
+                            </div>
+                            <div class="dimension-controls">
+                                <button type="button" id="orientation-toggle" class="orientation-btn landscape" title="Toggle orientation" onclick="toggleOrientation()">
+                                    <span class="orientation-icon landscape-outline"></span>
+                                    <span class="orientation-icon portrait-outline"></span>
+                                    <span class="orientation-icon square-outline"></span>
+                                </button>
+                                <span id="aspect-ratio" class="aspect-ratio">3:2</span>
+                                <button type="button" id="aspect-lock" class="aspect-lock-btn unlocked" title="Lock aspect ratio" onclick="toggleAspectLock()">
+                                    <svg viewBox="0 0 24 24"><path id="lock-icon-path" d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Save Current Size - compact button -->
+                    <div class="save-size-row">
+                        <button id="save-current-size" class="btn-save-size-compact">💾 Save Size</button>
+                    </div>
+                </div>
+
+                <!-- Mat & Frame Settings -->
+                <div class="section">
+                    <h2 class="section-header-with-checkbox">
+                        <input type="checkbox" id="include-mat" class="header-checkbox" checked>
+                        <span class="checkbox-controlled-text" id="mat-label">Mat</span>
+                        <span class="header-text-muted">&</span>
+                        <span>Frame</span>
+                    </h2>
+                    <div class="inline-fields-row">
+                        <div class="field" id="mat-settings">
+                            <label id="label-mat-width">Mat Width</label>
+                            <input type="text" id="mat-width" value="2" inputmode="decimal" placeholder="e.g. 2.25 or 2 1/4">
+                        </div>
+                        <div class="field" id="mat-overlap-field">
+                            <label id="label-mat-overlap">Overlap</label>
+                            <input type="text" id="mat-overlap" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+                        </div>
+                    </div>
+                    <div class="inline-fields-row">
+                        <div class="field">
+                            <label id="label-frame-width">Frame W</label>
+                            <input type="text" id="frame-width" value="0.75" inputmode="decimal" placeholder="e.g. 1.5 or 1 1/2">
+                            <small id="range-frame-width">Typical: 3/4" - 4"</small>
+                        </div>
+                        <div class="field">
+                            <label id="label-frame-depth">Frame D</label>
+                            <input type="text" id="frame-depth" value="0.75" inputmode="decimal" placeholder="e.g. 0.75 or 3/4">
+                            <small id="range-frame-depth">Typical: 1/2" - 2"
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Options -->
+                <div class="section">
+                    <h2 class="collapsible-header" id="advanced-header">
+                        Advanced Options
+                        <span class="toggle-icon">▶</span>
+                    </h2>
+                    <div class="collapsible-content" id="advanced-content">
+                        <div class="advanced-grid">
+                            <div>
+                                <div class="section-subtitle">Material Thicknesses</div>
+                                <div class="input-group">
+                                    <label for="glazing-thickness">Glazing</label>
+                                    <input type="text" class="input-small" id="glazing-thickness" value="0.09375" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+                                    <small id="range-glazing-thickness">Typical: 1/16" - 1/4"</small>
+                                </div>
+                                <div class="input-group">
+                                    <label for="matboard-thickness">Matboard</label>
+                                    <input type="text" class="input-small" id="matboard-thickness" value="0.0625" inputmode="decimal" placeholder="e.g. 0.0625 or 1/16">
+                                    <small id="range-matboard-thickness">Typical: 1/16" - 3/16"</small>
+                                </div>
+                                <div class="input-group">
+                                    <label for="artwork-thickness">Artwork</label>
+                                    <input type="text" class="input-small" id="artwork-thickness" value="0.008" inputmode="decimal" placeholder="e.g. 0.01">
+                                    <small id="range-artwork-thickness">Typical: 0.01" - 1/4"</small>
+                                </div>
+                                <div class="input-group">
+                                    <label for="backing-thickness">Backing</label>
+                                    <input type="text" class="input-small" id="backing-thickness" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+                                    <small id="range-backing-thickness">Typical: 1/16" - 1/4"</small>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="section-subtitle">Rabbet Settings</div>
+                                <div class="input-group">
+                                    <label for="rabbet-width">Rabbet Width</label>
+                                    <input type="text" class="input-small" id="rabbet-width" value="0.375" inputmode="decimal" placeholder="e.g. 0.375 or 3/8">
+                                    <small id="range-rabbet-width">Typical: 3/8" - 1/2"</small>
+                                </div>
+                                <div class="input-group">
+                                    <label for="rabbet-depth">Rabbet Depth</label>
+                                    <input type="text" class="input-small" id="rabbet-depth" value="0.375" inputmode="decimal" placeholder="e.g. 0.375 or 3/8">
+                                    <small id="range-rabbet-depth">Typical: 5/16" - 3/8"
+                                </div>
+                                <div class="section-subtitle">Assembly & Cutting</div>
+                                <div class="input-group">
+                                    <label for="assembly-margin">Assembly Margin</label>
+                                    <input type="text" class="input-small" id="assembly-margin" value="0.0625" inputmode="decimal" placeholder="e.g. 0.0625 or 1/16">
+                                    <small id="range-assembly-margin">Typical: 0" - 1/16"
+                                </div>
+                                <div class="input-group">
+                                    <label for="blade-width">Blade Width (kerf)</label>
+                                    <input type="text" class="input-small" id="blade-width" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+                                    <small>Saw blade width</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Saved Configurations -->
+                <div class="section">
+                    <h2 class="collapsible-header" id="configs-header">
+                        💾 Saved Configurations
+                        <span class="toggle-icon">▶</span>
+                    </h2>
+                    <div class="collapsible-content" id="configs-content">
+                        <!-- Load saved configuration -->
+                        <div class="config-load-section">
+                            <div class="input-group">
+                                <label for="config-select">Load Configuration</label>
+                                <div class="config-select-wrapper">
+                                    <select id="config-select" class="config-select">
+                                        <option value="">-- Select --</option>
+                                    </select>
+                                    <button id="delete-selected-config" class="btn-icon-small" title="Delete selected configuration">🗑️</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Save current configuration -->
+                        <div class="configs-save-section">
+                            <div class="input-group">
+                                <label for="config-name">Save Configuration As</label>
+                                <input type="text" id="config-name" placeholder="e.g., Standard Print">
+                            </div>
+                            <button id="save-config" class="btn-primary-compact">Save</button>
+                        </div>
+
+                        <!-- Backup & Restore -->
+                        <div class="backup-section">
+                            <h3>Backup & Restore</h3>
+                            <div class="backup-buttons">
+                                <button id="export-data" class="btn-secondary">
+                                    📥 Export All Data
+                                </button>
+                                <label for="import-file" class="btn-secondary file-label">
+                                    📤 Import Data
+                                    <input type="file" id="import-file" accept=".json" style="display: none;">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- View Toggle -->
+                <div class="section">
+                    <h2>View</h2>
+                    <div class="view-toggle">
+                        <button id="btn-plan" onclick="setView('plan')">Plan</button>
+                        <button id="btn-section" onclick="setView('section')">Section</button>
+                        <button id="btn-both" class="active" onclick="setView('both')">Combined</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Visualization + Results -->
+            <div class="results-column">
+                <!-- Validation Messages -->
+                <div class="section validation-section" id="validation-section" style="display: none;">
+                    <div class="validation-messages" id="validation-messages"></div>
+                </div>
+
+                <!-- Visualization -->
+                <div class="section">
+                    <div class="svg-container" id="svg-container">
+                        <span class="text-muted">Generating visualization...</span>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div class="section">
+                    <h2>
+                        <span>Results</span>
+                        <div>
+                            <button class="reset-btn" onclick="loadDefaults()">Reset</button>
+                            <button class="reset-btn" onclick="exportPdf()" id="export-pdf-btn">Export PDF</button>
+                        </div>
+                    </h2>
+                    <div class="results" id="results">
+                        <span class="text-muted">Calculating...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="performance" id="performance">
+            WASM module loading...
+        </div>
+
+        <!-- Share Modal -->
+        <div class="modal-overlay" id="share-modal" onclick="closeShareModal(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+                <h3>Share This Design</h3>
+                <p style="font-size: 12px; color: var(--rf-text-muted); margin-bottom: 12px;">
+                    Copy this URL to share your frame design:
+                </p>
+                <div class="modal-url" id="share-url"></div>
+                <div class="modal-buttons">
+                    <span class="copy-success" id="copy-success" style="display: none;">Copied!</span>
+                    <button class="secondary" onclick="closeShareModal()">Close</button>
+                    <button onclick="copyShareUrl()">Copy URL</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div class="modal-overlay" id="settings-modal" onclick="closeSettingsModal(event)">
+            <div class="modal settings-modal" onclick="event.stopPropagation()">
+                <div class="settings-header">
+                    <h3>Validation Settings</h3>
+                    <div class="settings-unit-toggle">
+                        <button id="cfg-btn-inches" class="active" onclick="switchSettingsUnit('inches')">in</button>
+                        <button id="cfg-btn-mm" onclick="switchSettingsUnit('mm')">mm</button>
+                    </div>
+                </div>
+                <p class="modal-description">Configure validation limits. Changes are saved automatically.</p>
+                
+                <div class="settings-tabs">
+                    <button class="settings-tab active" data-tab="structural" onclick="switchSettingsTab('structural')">Structural</button>
+                    <button class="settings-tab" data-tab="dimensions" onclick="switchSettingsTab('dimensions')">Dimensions</button>
+                    <button class="settings-tab" data-tab="materials" onclick="switchSettingsTab('materials')">Materials</button>
+                    <button class="settings-tab" data-tab="warnings" onclick="switchSettingsTab('warnings')">Warnings</button>
+                </div>
+                
+                <div class="settings-content" id="settings-content">
+                    <!-- Structural Tab -->
+                    <div class="settings-panel active" id="panel-structural">
+                        <div class="settings-group">
+                            <label>Minimum Lip Width (after rabbet)</label>
+                            <input type="number" id="cfg-min-lip-width" step="0.0625" min="0">
+                            <small>Prevents weak frame edges</small>
+                        </div>
+                        <div class="settings-group">
+                            <label>Minimum Face Depth (after rabbet)</label>
+                            <input type="number" id="cfg-min-face-depth" step="0.0625" min="0">
+                            <small>Ensures structural integrity</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Dimensions Tab -->
+                    <div class="settings-panel" id="panel-dimensions">
+                        <div class="settings-row">
+                            <div class="settings-group">
+                                <label>Min Frame Width</label>
+                                <input type="number" id="cfg-min-frame-width" step="0.25" min="0">
+                            </div>
+                            <div class="settings-group">
+                                <label>Max Frame Width</label>
+                                <input type="number" id="cfg-max-frame-width" step="0.25" min="0">
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-group">
+                                <label>Min Frame Depth</label>
+                                <input type="number" id="cfg-min-frame-depth" step="0.25" min="0">
+                            </div>
+                            <div class="settings-group">
+                                <label>Max Frame Depth</label>
+                                <input type="number" id="cfg-max-frame-depth" step="0.25" min="0">
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-group">
+                                <label>Min Opening</label>
+                                <input type="number" id="cfg-min-opening" step="0.25" min="0">
+                            </div>
+                            <div class="settings-group">
+                                <label>Max Opening</label>
+                                <input type="number" id="cfg-max-opening" step="1" min="0">
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-group">
+                                <label>Min Rabbet</label>
+                                <input type="number" id="cfg-min-rabbet" step="0.0625" min="0">
+                            </div>
+                            <div class="settings-group">
+                                <label>Max Rabbet</label>
+                                <input type="number" id="cfg-max-rabbet" step="0.25" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Materials Tab -->
+                    <div class="settings-panel" id="panel-materials">
+                        <div class="settings-row">
+                            <div class="settings-group">
+                                <label>Min Glazing</label>
+                                <input type="number" id="cfg-min-glazing" step="0.001" min="0">
+                            </div>
+                            <div class="settings-group">
+                                <label>Max Glazing</label>
+                                <input type="number" id="cfg-max-glazing" step="0.001" min="0">
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-group">
+                                <label>Min Matboard</label>
+                                <input type="number" id="cfg-min-matboard" step="0.001" min="0">
+                            </div>
+                            <div class="settings-group">
+                                <label>Max Matboard</label>
+                                <input type="number" id="cfg-max-matboard" step="0.001" min="0">
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-group">
+                                <label>Min Artwork</label>
+                                <input type="number" id="cfg-min-artwork" step="0.001" min="0">
+                            </div>
+                            <div class="settings-group">
+                                <label>Max Artwork</label>
+                                <input type="number" id="cfg-max-artwork" step="0.001" min="0">
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-group">
+                                <label>Min Backing</label>
+                                <input type="number" id="cfg-min-backing" step="0.001" min="0">
+                            </div>
+                            <div class="settings-group">
+                                <label>Max Backing</label>
+                                <input type="number" id="cfg-max-backing" step="0.001" min="0">
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-group">
+                                <label>Min Assembly Margin</label>
+                                <input type="number" id="cfg-min-margin" step="0.001" min="0">
+                            </div>
+                            <div class="settings-group">
+                                <label>Max Assembly Margin</label>
+                                <input type="number" id="cfg-max-margin" step="0.001" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Warnings Tab -->
+                    <div class="settings-panel" id="panel-warnings">
+                        <div class="settings-group">
+                            <label>Artwork-Opening Overlap Warning</label>
+                            <input type="number" id="cfg-warn-overlap" step="0.0625" min="0">
+                            <small>Warn if artwork extends less than this past opening</small>
+                        </div>
+                        <div class="settings-group">
+                            <label>Extreme Aspect Ratio Warning</label>
+                            <input type="number" id="cfg-warn-aspect" step="0.5" min="1">
+                            <small>Warn if ratio exceeds this (e.g., 10:1)</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button class="secondary" onclick="resetValidationConfig()">Reset to Defaults</button>
+                    <button onclick="closeSettingsModal()">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        console.log('Script module starting...');
+
+        import init, {
+            WasmFrameDesign,
+            formatValue,
+            formatValueWithDecimal,
+            inchesToMm,
+            mmToInches,
+            getDefaults,
+            generatePlanViewSvg,
+            generateSectionViewSvg,
+            generateCombinedViewSvg,
+            generateCombinedViewSvgForPdf,
+            generateShareableUrl,
+            decodeShareableUrl,
+            getWasmVersion,
+            ValidationConfig,
+            TypicalRanges,
+            validateDesign,
+            DimensionInput,
+            decimalToFraction
+        } from './pkg/referenceframe_wasm.js?v=20260105-qr-fix';
+
+        console.log('WASM imports successful');
+
+        // Expose version check globally for debugging
+        window.getWasmVersion = () => getWasmVersion();
+
+        // Log library availability for debugging
+        console.log('PDF Libraries check:', {
+            jspdf: typeof window.jspdf,
+            jsPDF: typeof window.jsPDF,
+            svg2pdf: typeof window.svg2pdf,
+            'svg2pdf.svg2pdf': typeof window.svg2pdf?.svg2pdf,
+            qrcode: typeof window.qrcode
+        });
+
+        // Check if svg() method gets added to jsPDF and manually extend if needed
+        setTimeout(() => {
+            if (window.jspdf?.jsPDF || window.jsPDF) {
+                const jsPDFConstructor = window.jspdf?.jsPDF || window.jsPDF;
+                const testInstance = new jsPDFConstructor();
+                console.log('jsPDF instance has .svg() method:', typeof testInstance.svg);
+
+                // If svg2pdf loaded but didn't extend jsPDF, manually add it
+                if (typeof testInstance.svg !== 'function' && typeof window.svg2pdf?.svg2pdf === 'function') {
+                    console.log('Manually adding svg() method to jsPDF prototype');
+                    jsPDFConstructor.prototype.svg = async function(svgElement, options) {
+                        return await window.svg2pdf.svg2pdf(svgElement, this, options);
+                    };
+                    console.log('Manual extension complete. Testing:', typeof (new jsPDFConstructor()).svg);
+                }
+            }
+        }, 1000);
+
+        let wasmLoaded = false;
+        let loadTime = 0;
+        let currentView = 'both';  // Default to combined view
+        let currentDesign = null;  // Store current design for PDF export
+        let currentUnit = 'inches';
+        let aspectLocked = false;
+        let lockedRatio = null;
+        let validationConfig = null;
+        let typicalRanges = null;
+        let settingsUnit = 'inches';  // Unit for displaying settings values
+
+        // localStorage keys
+        const STORAGE_KEY_CONFIG = 'referenceframe_validation_config';
+        const STORAGE_KEY_SETTINGS_UNIT = 'referenceframe_settings_unit';
+
+        // Map of input IDs to DimensionInput instances
+        const dimensions = {};
+        
+        // All dimension input field IDs
+        const dimensionInputIds = [
+            'artwork-height', 'artwork-width', 'mat-width', 'mat-overlap',
+            'frame-width', 'frame-depth', 'glazing-thickness', 'matboard-thickness',
+            'artwork-thickness', 'backing-thickness', 'rabbet-width', 'rabbet-depth',
+            'assembly-margin', 'blade-width'
+        ];
+
+        // Range subtitle fields mapping
+        const rangeFields = {
+            'range-frame-width': 'frame_width',
+            'range-frame-depth': 'frame_depth',
+            'range-rabbet-width': 'rabbet_width',
+            'range-rabbet-depth': 'rabbet_depth',
+            'range-glazing-thickness': 'glazing_thickness',
+            'range-matboard-thickness': 'matboard_thickness',
+            'range-artwork-thickness': 'artwork_thickness',
+            'range-backing-thickness': 'backing_thickness',
+            'range-assembly-margin': 'assembly_margin'
+        };
+
+        // Load validation config from localStorage or use defaults
+        function loadValidationConfig() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY_CONFIG);
+                if (stored) {
+                    validationConfig = ValidationConfig.fromJson(stored);
+                } else {
+                    validationConfig = new ValidationConfig();
+                }
+            } catch (e) {
+                console.warn('Failed to load validation config, using defaults:', e);
+                validationConfig = new ValidationConfig();
+            }
+            typicalRanges = new TypicalRanges();
+            
+            // Load settings unit preference
+            const storedUnit = localStorage.getItem(STORAGE_KEY_SETTINGS_UNIT);
+            if (storedUnit === 'mm' || storedUnit === 'inches') {
+                settingsUnit = storedUnit;
+            }
+        }
+
+        // Save validation config to localStorage
+        function saveValidationConfig() {
+            try {
+                const json = validationConfig.toJson();
+                localStorage.setItem(STORAGE_KEY_CONFIG, json);
+            } catch (e) {
+                console.error('Failed to save validation config:', e);
+            }
+        }
+
+        // Initialize DimensionInput instances for all dimension fields
+        function initDimensionInputs() {
+            for (const id of dimensionInputIds) {
+                const el = document.getElementById(id);
+                if (el) {
+                    // Create DimensionInput from current value
+                    dimensions[id] = new DimensionInput(el.value);
+                }
+            }
+        }
+
+        // Get value from a dimension field (in inches, for calculations)
+        function getDimensionValue(id) {
+            const dim = dimensions[id];
+            if (!dim) return 0;
+            
+            // Sync from input element first
+            const el = document.getElementById(id);
+            if (el) {
+                dim.parse(el.value);
+            }
+            
+            // Convert to inches if in mm mode
+            return currentUnit === 'mm' ? mmToInches(dim.value) : dim.value;
+        }
+
+        // Set a dimension field value (from inches)
+        function setDimensionValue(id, valueInInches) {
+            const dim = dimensions[id];
+            const el = document.getElementById(id);
+            if (!dim || !el) return;
+
+            // Store the inch value
+            dim.value = valueInInches;
+
+            // Display in current unit
+            if (currentUnit === 'mm') {
+                el.value = inchesToMm(valueInInches).toFixed(2);
+            } else {
+                // Display as decimal, removing unnecessary trailing zeros
+                el.value = parseFloat(valueInInches.toFixed(4));
+            }
+        }
+
+        // Update display for all dimension fields based on current unit
+        function updateDimensionDisplays() {
+            for (const id of dimensionInputIds) {
+                const dim = dimensions[id];
+                const el = document.getElementById(id);
+                if (!dim || !el) continue;
+
+                if (currentUnit === 'mm') {
+                    el.value = inchesToMm(dim.value).toFixed(2);
+                } else {
+                    // Display as decimal, removing unnecessary trailing zeros
+                    el.value = parseFloat(dim.value.toFixed(4));
+                }
+            }
+        }
+
+        // Sync dimension from input element (call on input/blur)
+        function syncDimension(id) {
+            const dim = dimensions[id];
+            const el = document.getElementById(id);
+            if (!dim || !el) return;
+            
+            const rawValue = el.value.trim();
+            if (!rawValue) {
+                dim.value = 0;
+                return;
+            }
+            
+            if (currentUnit === 'mm') {
+                // In mm mode, parse as decimal then convert to inches for storage
+                const mmValue = parseFloat(rawValue) || 0;
+                dim.value = mmToInches(mmValue);
+            } else {
+                // In inches mode, parse using DimensionInput (handles fractions)
+                dim.parse(rawValue);
+            }
+        }
+
+        // Normalize fractional input on blur (clean up spacing, reduce fractions)
+        function normalizeFractionalInput(event) {
+            const el = event.target;
+            const id = el.id;
+            const dim = dimensions[id];
+            if (!dim) return;
+
+            // Sync the value first
+            syncDimension(id);
+
+            // Only format as fraction if user entered it as a fraction
+            // Otherwise preserve decimal format
+            if (currentUnit === 'inches' && dim.isValid && dim.wasFractional) {
+                el.value = dim.asFraction(64);
+            }
+            // If decimal was entered, leave it as-is (already in el.value)
+        }
+
+        // Initialize WASM
+        const startTime = performance.now();
+        try {
+            await init();
+            loadTime = performance.now() - startTime;
+            wasmLoaded = true;
+
+            // Initialize dimension inputs after WASM is ready
+            initDimensionInputs();
+
+            // Load validation config after WASM is ready
+            loadValidationConfig();
+            setupSettingsListeners();
+            updateLabels();
+            updateRangeSubtitles();
+
+            const version = getWasmVersion();
+            console.log('WASM version:', version);
+        } catch (error) {
+            console.error('WASM initialization failed:', error);
+            document.getElementById('performance').innerHTML =
+                `<span style="color: red;">❌ WASM load failed: ${error.message}</span>`;
+            document.getElementById('results').innerHTML =
+                `<span class="text-warning">Error loading WASM module. Check browser console for details.</span>`;
+        }
+
+        // Mat toggle visibility
+        function updateMatVisibility() {
+            const includeMat = document.getElementById('include-mat').checked;
+            const matSettings = document.getElementById('mat-settings');
+            const matOverlap = document.getElementById('mat-overlap-field');
+            const matLabel = document.getElementById('mat-label');
+            const style = includeMat ? '' : 'opacity: 0.4; pointer-events: none;';
+            matSettings.style.cssText = style;
+            matOverlap.style.cssText = style;
+            matLabel.classList.toggle('disabled', !includeMat);
+        }
+
+        document.getElementById('include-mat').addEventListener('change', () => {
+            updateMatVisibility();
+            calculate();
+        });
+        
+        // Allow clicking on "Mat" text to toggle checkbox
+        document.getElementById('mat-label').addEventListener('click', () => {
+            const checkbox = document.getElementById('include-mat');
+            checkbox.checked = !checkbox.checked;
+            updateMatVisibility();
+            calculate();
+        });
+        
+        updateMatVisibility();
+
+        // Collapsible Advanced Options
+        document.getElementById('advanced-header').addEventListener('click', () => {
+            const header = document.getElementById('advanced-header');
+            const content = document.getElementById('advanced-content');
+            header.classList.toggle('expanded');
+            content.classList.toggle('expanded');
+        });
+
+        // Aspect ratio helpers
+        function gcd(a, b) {
+            a = Math.abs(Math.round(a * 100));
+            b = Math.abs(Math.round(b * 100));
+            while (b) { [a, b] = [b, a % b]; }
+            return a / 100;
+        }
+
+        function updateAspectRatio() {
+            const h = getDimensionValue('artwork-height');
+            const w = getDimensionValue('artwork-width');
+            const display = document.getElementById('aspect-ratio');
+
+            if (h <= 0 || w <= 0) {
+                display.textContent = '-';
+                return;
+            }
+
+            const ratio = w / h;
+            let text;
+
+            // Common ratios
+            const commonRatios = [
+                [4, 3], [3, 2], [16, 9], [5, 4], [1, 1],
+                [3, 4], [2, 3], [9, 16], [4, 5]
+            ];
+
+            for (const [rw, rh] of commonRatios) {
+                if (Math.abs(ratio - rw / rh) < 0.02) {
+                    text = w >= h ? `${rw}:${rh}` : `${rh}:${rw}`;
+                    break;
+                }
+            }
+
+            if (!text) {
+                const g = gcd(w, h);
+                const rw = Math.round(w / g);
+                const rh = Math.round(h / g);
+                if (rw <= 20 && rh <= 20) {
+                    text = `${rw}:${rh}`;
+                } else {
+                    text = ratio >= 1 ? `${ratio.toFixed(2)}:1` : `1:${(1/ratio).toFixed(2)}`;
+                }
+            }
+
+            display.textContent = text;
+            display.classList.toggle('locked', aspectLocked);
+        }
+
+        function updateOrientation() {
+            const h = getDimensionValue('artwork-height');
+            const w = getDimensionValue('artwork-width');
+            const btn = document.getElementById('orientation-toggle');
+
+            btn.classList.remove('landscape', 'portrait', 'square');
+            
+            if (Math.abs(w - h) < 0.001) {
+                btn.classList.add('square');
+            } else if (w > h) {
+                btn.classList.add('landscape');
+            } else {
+                btn.classList.add('portrait');
+            }
+        }
+
+        // Orientation toggle
+        window.toggleOrientation = function() {
+            const hInput = document.getElementById('artwork-height');
+            const wInput = document.getElementById('artwork-width');
+
+            // Swap values - preserve display format
+            const tempH = hInput.value;
+            hInput.value = wInput.value;
+            wInput.value = tempH;
+
+            // Sync the swapped values into dimensions
+            syncDimension('artwork-height');
+            syncDimension('artwork-width');
+
+            if (aspectLocked && lockedRatio) {
+                lockedRatio = 1 / lockedRatio;
+            }
+
+            updateOrientation();
+            updateAspectRatio();
+            calculate();
+        };
+
+        // Aspect lock toggle
+        window.toggleAspectLock = function() {
+            aspectLocked = !aspectLocked;
+            const btn = document.getElementById('aspect-lock');
+            const lockPath = document.getElementById('lock-icon-path');
+
+            btn.classList.toggle('locked', aspectLocked);
+            btn.classList.toggle('unlocked', !aspectLocked);
+
+            if (aspectLocked) {
+                const h = getDimensionValue('artwork-height') || 1;
+                const w = getDimensionValue('artwork-width') || 1;
+                lockedRatio = w / h;
+                // Closed lock icon
+                lockPath.setAttribute('d', 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z');
+            } else {
+                lockedRatio = null;
+                // Open lock icon
+                lockPath.setAttribute('d', 'M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z');
+            }
+
+            updateAspectRatio();
+        };
+
+        // Handle aspect ratio locked input changes
+        document.getElementById('artwork-height').addEventListener('input', (e) => {
+            syncDimension('artwork-height');
+            if (aspectLocked && lockedRatio) {
+                const h = getDimensionValue('artwork-height');
+                if (h > 0) {
+                    const newW = h * lockedRatio;
+                    setDimensionValue('artwork-width', newW);
+                }
+            }
+            updateOrientation();
+            updateAspectRatio();
+        });
+
+        document.getElementById('artwork-width').addEventListener('input', (e) => {
+            syncDimension('artwork-width');
+            if (aspectLocked && lockedRatio) {
+                const w = getDimensionValue('artwork-width');
+                if (w > 0) {
+                    const newH = w / lockedRatio;
+                    setDimensionValue('artwork-height', newH);
+                }
+            }
+            updateOrientation();
+            updateAspectRatio();
+        });
+
+        // Display validation messages in the UI
+        function displayValidationMessages(validationResult) {
+            const section = document.getElementById('validation-section');
+            const container = document.getElementById('validation-messages');
+            
+            const hasErrors = validationResult.hasErrors();
+            const hasWarnings = validationResult.hasWarnings();
+            
+            if (!hasErrors && !hasWarnings) {
+                section.style.display = 'none';
+                // Clear any field highlighting
+                clearFieldHighlights();
+                return;
+            }
+            
+            section.style.display = 'block';
+            
+            let html = '';
+            
+            // Parse the JSON issues
+            const issuesJson = validationResult.toJson();
+            const result = JSON.parse(issuesJson);
+            
+            // Group by severity
+            const errors = result.issues.filter(i => i.severity === 'Error');
+            const warnings = result.issues.filter(i => i.severity === 'Warning');
+            
+            // Highlight fields with issues
+            highlightFields(result.issues);
+            
+            if (errors.length > 0) {
+                html += '<div class="validation-errors">';
+                html += `<div class="validation-header validation-error-header">❌ ${errors.length} Error${errors.length > 1 ? 's' : ''}</div>`;
+                html += '<ul class="validation-list">';
+                for (const err of errors) {
+                    html += `<li class="validation-item validation-error" data-field="${err.field}">`;
+                    html += `<strong>${err.message}</strong>`;
+                    if (err.details) {
+                        html += `<br><span class="validation-details">${err.details}</span>`;
+                    }
+                    html += '</li>';
+                }
+                html += '</ul></div>';
+            }
+            
+            if (warnings.length > 0) {
+                html += '<div class="validation-warnings">';
+                html += `<div class="validation-header validation-warning-header">⚠️ ${warnings.length} Warning${warnings.length > 1 ? 's' : ''}</div>`;
+                html += '<ul class="validation-list">';
+                for (const warn of warnings) {
+                    html += `<li class="validation-item validation-warning" data-field="${warn.field}">`;
+                    html += `${warn.message}`;
+                    if (warn.details) {
+                        html += `<br><span class="validation-details">${warn.details}</span>`;
+                    }
+                    html += '</li>';
+                }
+                html += '</ul></div>';
+            }
+            
+            container.innerHTML = html;
+            
+            // Add click handlers to focus on relevant fields
+            container.querySelectorAll('.validation-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const field = item.dataset.field;
+                    focusField(field);
+                });
+            });
+        }
+        
+        // Map validation field names to input IDs
+        const fieldToInputId = {
+            'frame_material_width': 'frame-width',
+            'frame_material_depth': 'frame-depth',
+            'rabbet_width': 'rabbet-width',
+            'rabbet_depth': 'rabbet-depth',
+            'artwork_width': 'artwork-width',
+            'artwork_height': 'artwork-height',
+            'glazing_thickness': 'glazing-thickness',
+            'matboard_thickness': 'matboard-thickness',
+            'artwork_thickness': 'artwork-thickness',
+            'backing_thickness': 'backing-thickness',
+            'assembly_margin': 'assembly-margin',
+            'artwork': 'artwork-height', // Generic artwork issues
+        };
+        
+        function highlightFields(issues) {
+            clearFieldHighlights();
+            for (const issue of issues) {
+                const inputId = fieldToInputId[issue.field];
+                if (inputId) {
+                    const input = document.getElementById(inputId);
+                    if (input) {
+                        input.classList.add(issue.severity === 'Error' ? 'input-error' : 'input-warning');
+                    }
+                }
+            }
+        }
+        
+        function clearFieldHighlights() {
+            document.querySelectorAll('.input-error, .input-warning').forEach(el => {
+                el.classList.remove('input-error', 'input-warning');
+            });
+        }
+        
+        function focusField(field) {
+            const inputId = fieldToInputId[field];
+            if (inputId) {
+                const input = document.getElementById(inputId);
+                if (input) {
+                    input.focus();
+                    input.select();
+                    // Scroll into view if needed
+                    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+        // Main calculate function
+        window.calculate = function() {
+            if (!wasmLoaded) {
+                alert('WASM not loaded yet');
+                return;
+            }
+
+            const calcStart = performance.now();
+
+            try {
+                const unitMm = currentUnit === 'mm';
+
+                // Get input values (always in inches for calculations)
+                const artworkHeight = getDimensionValue('artwork-height');
+                const artworkWidth = getDimensionValue('artwork-width');
+                const includeMat = document.getElementById('include-mat').checked;
+                const matWidth = includeMat ? getDimensionValue('mat-width') : 0;
+                const matOverlap = includeMat ? getDimensionValue('mat-overlap') : 0;
+                const frameWidth = getDimensionValue('frame-width');
+                const frameDepth = getDimensionValue('frame-depth');
+
+                // Advanced settings
+                const glazingThickness = getDimensionValue('glazing-thickness');
+                const matboardThickness = getDimensionValue('matboard-thickness');
+                const artworkThickness = getDimensionValue('artwork-thickness');
+                const backingThickness = getDimensionValue('backing-thickness');
+                const rabbetWidth = getDimensionValue('rabbet-width');
+                const rabbetDepth = getDimensionValue('rabbet-depth');
+                const assemblyMargin = getDimensionValue('assembly-margin');
+                const bladeWidth = getDimensionValue('blade-width');
+
+                // Free old design if it exists
+                if (currentDesign) {
+                    currentDesign.free();
+                    currentDesign = null;
+                }
+
+                // Create design
+                const design = new WasmFrameDesign(artworkHeight, artworkWidth);
+                design.matWidthTopBottom = matWidth;
+                design.matWidthSides = matWidth;
+                design.matOverlap = matOverlap;
+                design.frameWidth = frameWidth;
+                design.frameDepth = frameDepth;
+                design.glazingThickness = glazingThickness;
+                design.matboardThickness = matboardThickness;
+                design.artworkThickness = artworkThickness;
+                design.backingThickness = backingThickness;
+                design.rabbet_width = rabbetWidth;
+                design.rabbet_depth = rabbetDepth;
+                design.assemblyMargin = assemblyMargin;
+
+                design.validate();
+
+                // Store globally for PDF export (will be kept alive, not freed)
+                currentDesign = design;
+
+                // Run validation against config
+                const validationResult = validateDesign(design, validationConfig);
+                const hasErrors = validationResult.hasErrors();
+                const hasWarnings = validationResult.hasWarnings();
+                
+                // Display validation messages
+                displayValidationMessages(validationResult);
+                
+                // If there are hard errors, block visualization
+                if (hasErrors) {
+                    const container = document.getElementById('svg-container');
+                    container.innerHTML = `
+                        <div class="validation-blocked">
+                            <span class="validation-blocked-icon">⚠️</span>
+                            <span class="validation-blocked-text">Fix validation errors to see visualization</span>
+                        </div>
+                    `;
+                    document.getElementById('results').innerHTML =
+                        '<span class="text-warning">Cannot calculate - fix validation errors above</span>';
+                    validationResult.free();
+                    design.free();
+                    currentDesign = null;  // Clear since validation failed
+                    return;
+                }
+                
+                validationResult.free();
+
+                // Get dimensions
+                const [visH, visW] = design.getVisibleDimensions();
+                const [insideH, insideW] = design.getFrameInsideDimensions();
+                const [outsideH, outsideW] = design.getFrameOutsideDimensions();
+                const [matH, matW] = design.getMatboardDimensions();
+                const [matOpenH, matOpenW] = design.getMatOpeningDimensions();
+                const depthRequired = design.getRabbetZDepthRequired();
+                const errorMargin = 0.0625;
+                const totalWood = design.getTotalWoodLength(bladeWidth, errorMargin);
+
+                // Get cut list
+                const cutListJson = design.getCutListJson();
+                const cutList = JSON.parse(cutListJson);
+
+                const calcTime = performance.now() - calcStart;
+
+                // Build enhanced results HTML
+                let html = '';
+
+                // Artwork
+                html += `<strong>📐 Artwork:</strong>`;
+                html += `<ul><li>${formatValueWithDecimal(artworkHeight, unitMm)} H × ${formatValueWithDecimal(artworkWidth, unitMm)} W</li></ul>`;
+
+                // Cut List
+                html += `<strong>🪚 Cut List:</strong>`;
+                html += `<ul>`;
+                if (cutList.horizontal_pieces && cutList.horizontal_pieces.length > 0) {
+                    const p = cutList.horizontal_pieces[0];
+                    html += `<li>Top & Bottom: ${p.quantity}× <span class="dim-outside">${formatValueWithDecimal(p.outside_length, unitMm)}</span>`;
+                    html += ` <span class="dim-inside">(inside: ${formatValueWithDecimal(p.inside_length, unitMm)})</span></li>`;
+                }
+                if (cutList.vertical_pieces && cutList.vertical_pieces.length > 0) {
+                    const p = cutList.vertical_pieces[0];
+                    html += `<li>Left & Right: ${p.quantity}× <span class="dim-outside">${formatValueWithDecimal(p.outside_length, unitMm)}</span>`;
+                    html += ` <span class="dim-inside">(inside: ${formatValueWithDecimal(p.inside_length, unitMm)})</span></li>`;
+                }
+                html += `</ul>`;
+
+                // Material
+                html += `<strong>📦 Material:</strong>`;
+                html += `<ul><li>Total Wood: <strong class="highlight-blue">${formatValueWithDecimal(totalWood, unitMm)}</strong>`;
+                html += ` <span class="text-muted">(+kerf +${formatValueWithDecimal(errorMargin, unitMm)}/piece)</span></li></ul>`;
+
+                // Frame dimensions
+                html += `<strong>🖼️ Frame:</strong>`;
+                html += `<ul>`;
+                html += `<li>Inside: ${formatValueWithDecimal(insideH, unitMm)} × ${formatValueWithDecimal(insideW, unitMm)}</li>`;
+                html += `<li>Outside: ${formatValueWithDecimal(outsideH, unitMm)} × ${formatValueWithDecimal(outsideW, unitMm)}</li>`;
+                html += `</ul>`;
+
+                // Matboard (reuse already-declared variable: matOverlap)
+                if (includeMat) {
+                    const matCut = matWidth + matOverlap;
+                    html += `<strong>🎨 Matboard:</strong>`;
+                    html += `<ul>`;
+                    html += `<li>Size: ${formatValueWithDecimal(matH, unitMm)} × ${formatValueWithDecimal(matW, unitMm)}</li>`;
+                    html += `<li>Opening: ${formatValueWithDecimal(matOpenH, unitMm)} × ${formatValueWithDecimal(matOpenW, unitMm)}</li>`;
+                    html += `<li>Visual Width: ${formatValueWithDecimal(matWidth, unitMm)}</li>`;
+                    html += `<li>Cut Width: ${formatValueWithDecimal(matCut, unitMm)} <span class="text-muted">(+overlap)</span></li>`;
+                    html += `</ul>`;
+                }
+
+                // Depth check
+                html += `<strong>📏 Depth:</strong>`;
+                html += `<ul>`;
+
+                // Format values, removing redundant decimals when fraction = decimal
+                const formatNonRedundant = (value, isUnitMm) => {
+                    const formatted = formatValueWithDecimal(value, isUnitMm);
+                    // Remove redundant decimal: "0.35 (0.35")" -> "0.35""
+                    // Works for both decimals and fractions: "3/8 (3/8")" -> "3/8""
+                    return formatted.replace(/^(.+?) \(\1([^)]*)\)$/, '$1$2');
+                };
+
+                html += `<li>Required: ${formatNonRedundant(depthRequired, unitMm)} | Available: ${formatNonRedundant(rabbetDepth, unitMm)}</li>`;
+
+                if (depthRequired > rabbetDepth) {
+                    const shortfall = depthRequired - rabbetDepth;
+                    html += `<li class="text-warning">⚠️ ${formatValueWithDecimal(shortfall, unitMm)} too shallow!</li>`;
+                } else {
+                    const clearance = rabbetDepth - depthRequired;
+                    html += `<li class="text-success">✅ OK (${formatValueWithDecimal(clearance, unitMm)} clearance)</li>`;
+                }
+                html += `</ul>`;
+
+                // Specs (reuse already-declared variables: assemblyMargin, bladeWidth, rabbetWidth, rabbetDepth)
+                html += `<strong>⚙️ Specs:</strong>`;
+                html += `<ul>`;
+                html += `<li>Frame Material: ${formatValueWithDecimal(frameWidth, unitMm)} × ${formatValueWithDecimal(frameDepth, unitMm)}</li>`;
+                html += `<li>Rabbet: ${formatValueWithDecimal(rabbetWidth, unitMm)} × ${formatValueWithDecimal(rabbetDepth, unitMm)}</li>`;
+                html += `<li>Assembly Margin: ${formatValueWithDecimal(assemblyMargin, unitMm)}</li>`;
+                html += `<li>Blade Width (kerf): ${formatValueWithDecimal(bladeWidth, unitMm)}</li>`;
+                html += `</ul>`;
+
+                // Material Thicknesses (reuse already-declared variables)
+                html += `<strong>📦 Material Thicknesses:</strong>`;
+                html += `<ul>`;
+                html += `<li>Glazing: ${formatValueWithDecimal(glazingThickness, unitMm)}</li>`;
+                if (includeMat) {
+                    html += `<li>Matboard: ${formatValueWithDecimal(matboardThickness, unitMm)}</li>`;
+                }
+                html += `<li>Artwork: ${formatValueWithDecimal(artworkThickness, unitMm)}</li>`;
+                html += `<li>Backing: ${formatValueWithDecimal(backingThickness, unitMm)}</li>`;
+                html += `</ul>`;
+
+                document.getElementById('results').innerHTML = html;
+
+                document.getElementById('performance').textContent =
+                    `WASM: ${loadTime.toFixed(1)}ms | Calc: ${calcTime.toFixed(2)}ms`;
+
+                updateVisualization(design, unitMm);
+
+                // Auto-save current settings to localStorage
+                try {
+                    const currentSettings = getCurrentConfig();
+                    saveCurrentSettings(currentSettings);
+                } catch (saveError) {
+                    console.warn('Auto-save failed:', saveError);
+                }
+
+                // Don't free design - we keep it in currentDesign for PDF export
+            } catch (e) {
+                console.error('Calculation error:', e);
+                document.getElementById('results').innerHTML =
+                    `<span class="text-warning">Error: ${e.message}</span>`;
+            }
+        };
+
+        window.loadDefaults = function() {
+            if (currentUnit !== 'inches') {
+                currentUnit = 'inches';
+                document.getElementById('btn-inches').classList.add('active');
+                document.getElementById('btn-mm').classList.remove('active');
+                updateLabels();
+            }
+
+            const defaults = JSON.parse(getDefaults());
+            
+            // Set all values using setDimensionValue (stores in inches, displays per unit)
+            setDimensionValue('artwork-height', defaults.artworkHeight);
+            setDimensionValue('artwork-width', defaults.artworkWidth);
+            setDimensionValue('mat-width', defaults.matWidth);
+            setDimensionValue('mat-overlap', defaults.matOverlap);
+            setDimensionValue('frame-width', defaults.frameWidth);
+            setDimensionValue('frame-depth', defaults.frameDepth);
+            setDimensionValue('glazing-thickness', defaults.glazingThickness);
+            setDimensionValue('matboard-thickness', defaults.matboardThickness);
+            setDimensionValue('artwork-thickness', defaults.artworkThickness);
+            setDimensionValue('backing-thickness', defaults.backingThickness);
+            setDimensionValue('rabbet-width', defaults.rabbet_width);
+            setDimensionValue('rabbet-depth', defaults.rabbet_depth);
+            setDimensionValue('assembly-margin', defaults.assemblyMargin);
+            setDimensionValue('blade-width', defaults.bladeWidth);
+            
+            document.getElementById('include-mat').checked = true;
+            updateMatVisibility();
+            updateOrientation();
+            updateAspectRatio();
+            calculate();
+        };
+
+        window.setUnit = function(unit) {
+            if (unit === currentUnit) return;
+
+            // Sync all dimensions from current inputs before switching
+            for (const id of dimensionInputIds) {
+                syncDimension(id);
+            }
+
+            currentUnit = unit;
+            document.getElementById('btn-inches').classList.toggle('active', unit === 'inches');
+            document.getElementById('btn-mm').classList.toggle('active', unit === 'mm');
+
+            // Update all displays for new unit
+            updateDimensionDisplays();
+
+            updateLabels();
+            updateRangeSubtitles();
+            calculate();
+        };
+
+        function updateLabels() {
+            const unit = currentUnit === 'mm' ? 'mm' : 'inches';
+            const labels = {
+                'label-artwork': `Dimensions <span class="text-muted">(${unit})</span>`,
+                'label-mat-width': `Mat Width <span class="text-muted">(${unit})</span>`,
+                'label-mat-overlap': `Mat Overlap <span class="text-muted">(${unit})</span>`,
+                'label-frame-width': `Frame Width <span class="text-muted">(${unit})</span>`,
+                'label-frame-depth': `Frame Depth <span class="text-muted">(${unit})</span>`,
+            };
+
+            for (const [id, html] of Object.entries(labels)) {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = html;
+            }
+        }
+
+        function updateVisualization(design, unitMm = false) {
+            const container = document.getElementById('svg-container');
+
+            // Calculate responsive canvas width based on available space
+            // Get padding from CSS variable (--svg-container-padding)
+            const computedStyle = getComputedStyle(container);
+            const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+            const paddingRight = parseFloat(computedStyle.paddingRight) || 0;
+            const totalPadding = paddingLeft + paddingRight;
+
+            const availableWidth = container.clientWidth - totalPadding;
+            // Clamp between 600px (mobile minimum) and 1200px (desktop maximum)
+            const canvasWidth = Math.max(600, Math.min(1200, availableWidth));
+            const canvasHeight = currentView === 'both' ? 700 : 500;
+
+
+            let svg;
+            const vizStart = performance.now();
+
+            try {
+                if (currentView === 'plan') {
+                    svg = generatePlanViewSvg(design, canvasWidth, canvasHeight, unitMm);
+                } else if (currentView === 'section') {
+                    svg = generateSectionViewSvg(design, canvasWidth, canvasHeight, unitMm);
+                } else {
+                    svg = generateCombinedViewSvg(design, canvasWidth, canvasHeight, unitMm, false);
+                }
+            } catch (e) {
+                console.error('SVG error:', e);
+                container.innerHTML = `<span class="text-warning">SVG Error: ${e.message}</span>`;
+                return;
+            }
+
+            const vizTime = performance.now() - vizStart;
+            container.innerHTML = svg;
+
+            const svgEl = container.querySelector('svg');
+            if (svgEl) {
+                const viewBox = svgEl.getAttribute('viewBox');
+                if (viewBox) {
+                    const [, , vbWidth, vbHeight] = viewBox.split(' ').map(Number);
+                    const aspectRatio = vbHeight / vbWidth;
+                    svgEl.setAttribute('width', '100%');
+                    svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                    container.style.position = 'relative';
+                    container.style.paddingBottom = (aspectRatio * 100) + '%';
+                    container.style.height = '0';
+                    svgEl.style.position = 'absolute';
+                    svgEl.style.top = '0';
+                    svgEl.style.left = '0';
+                    svgEl.style.width = '100%';
+                    svgEl.style.height = '100%';
+                }
+            }
+
+            const perfEl = document.getElementById('performance');
+            perfEl.textContent = perfEl.textContent.replace(/\| Viz:.*$/, '') + ` | Viz: ${vizTime.toFixed(2)}ms`;
+        }
+
+        window.setView = function(view) {
+            currentView = view;
+            document.getElementById('btn-plan').classList.toggle('active', view === 'plan');
+            document.getElementById('btn-section').classList.toggle('active', view === 'section');
+            document.getElementById('btn-both').classList.toggle('active', view === 'both');
+            calculate();
+        };
+
+        // Share functionality
+        window.shareDesign = function() {
+            const unitMm = currentUnit === 'mm';
+            const includeMat = document.getElementById('include-mat').checked;
+
+            // Get all values in inches using getDimensionValue
+            const params = {
+                artwork_height: getDimensionValue('artwork-height'),
+                artwork_width: getDimensionValue('artwork-width'),
+                mat_width: includeMat ? getDimensionValue('mat-width') : 0,
+                frame_width: getDimensionValue('frame-width'),
+                frame_depth: getDimensionValue('frame-depth'),
+                glazing_thickness: getDimensionValue('glazing-thickness'),
+                matboard_thickness: getDimensionValue('matboard-thickness'),
+                artwork_thickness: getDimensionValue('artwork-thickness'),
+                backing_thickness: getDimensionValue('backing-thickness'),
+                rabbet_width: getDimensionValue('rabbet-width'),
+                rabbet_depth: getDimensionValue('rabbet-depth'),
+                blade_width: getDimensionValue('blade-width'),
+                include_mat: includeMat,
+                unit_mm: unitMm
+            };
+
+            try {
+                const url = generateShareableUrl(JSON.stringify(params));
+                document.getElementById('share-url').textContent = url;
+                document.getElementById('share-modal').classList.add('visible');
+                document.getElementById('copy-success').style.display = 'none';
+            } catch (e) {
+                console.error('Share error:', e);
+                alert('Error: ' + e.message);
+            }
+        };
+
+        window.closeShareModal = function(event) {
+            if (!event || event.target.id === 'share-modal') {
+                document.getElementById('share-modal').classList.remove('visible');
+            }
+        };
+
+        window.copyShareUrl = function() {
+            const url = document.getElementById('share-url').textContent;
+            navigator.clipboard.writeText(url).then(() => {
+                document.getElementById('copy-success').style.display = 'inline';
+                setTimeout(() => {
+                    document.getElementById('copy-success').style.display = 'none';
+                }, 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+            });
+        };
+
+        // Settings modal functions
+        window.openSettingsModal = function() {
+            updateSettingsUnitButtons();
+            populateSettingsModal();
+            document.getElementById('settings-modal').classList.add('visible');
+        };
+        
+        window.switchSettingsUnit = function(unit) {
+            if (unit === settingsUnit) return;
+            settingsUnit = unit;
+            localStorage.setItem(STORAGE_KEY_SETTINGS_UNIT, unit);
+            updateSettingsUnitButtons();
+            populateSettingsModal();
+        };
+        
+        function updateSettingsUnitButtons() {
+            document.getElementById('cfg-btn-inches').classList.toggle('active', settingsUnit === 'inches');
+            document.getElementById('cfg-btn-mm').classList.toggle('active', settingsUnit === 'mm');
+        }
+
+        window.closeSettingsModal = function(event) {
+            if (!event || event.target.id === 'settings-modal') {
+                document.getElementById('settings-modal').classList.remove('visible');
+            }
+        };
+
+        window.switchSettingsTab = function(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.settings-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === tabName);
+            });
+            // Update panels
+            document.querySelectorAll('.settings-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.id === `panel-${tabName}`);
+            });
+        };
+
+        function populateSettingsModal() {
+            if (!validationConfig) {
+                console.error('validationConfig is null');
+                return;
+            }
+
+            console.log('Populating settings modal with config:', validationConfig);
+
+            const useMm = settingsUnit === 'mm';
+            const toDisplay = useMm ? inchesToMm : (v) => v;
+            // Format: mm uses 2 decimals, inches strips trailing zeros
+            const fmt = (v) => {
+                if (v === undefined || v === null) {
+                    console.warn('Undefined/null value for config field:', v);
+                    return '0';  // Default to 0 instead of empty string
+                }
+                const displayValue = toDisplay(v);
+                return useMm ? displayValue.toFixed(2) : parseFloat(displayValue.toFixed(4));
+            };
+
+            // Structural
+            document.getElementById('cfg-min-lip-width').value = fmt(validationConfig.minLipWidth);
+            document.getElementById('cfg-min-face-depth').value = fmt(validationConfig.minFaceDepth);
+
+            // Dimensions
+            document.getElementById('cfg-min-frame-width').value = fmt(validationConfig.minFrameWidth);
+            document.getElementById('cfg-max-frame-width').value = fmt(validationConfig.maxFrameWidth);
+            document.getElementById('cfg-min-frame-depth').value = fmt(validationConfig.minFrameDepth);
+            document.getElementById('cfg-max-frame-depth').value = fmt(validationConfig.maxFrameDepth);
+            document.getElementById('cfg-min-opening').value = fmt(validationConfig.minOpening);
+            document.getElementById('cfg-max-opening').value = fmt(validationConfig.maxOpening);
+            document.getElementById('cfg-min-rabbet').value = fmt(validationConfig.minRabbet);
+            document.getElementById('cfg-max-rabbet').value = fmt(validationConfig.maxRabbet);
+
+            // Materials
+            document.getElementById('cfg-min-glazing').value = fmt(validationConfig.minGlazing);
+            document.getElementById('cfg-max-glazing').value = fmt(validationConfig.maxGlazing);
+            document.getElementById('cfg-min-matboard').value = fmt(validationConfig.minMatboard);
+            document.getElementById('cfg-max-matboard').value = fmt(validationConfig.maxMatboard);
+            document.getElementById('cfg-min-artwork').value = fmt(validationConfig.minArtwork);
+            document.getElementById('cfg-max-artwork').value = fmt(validationConfig.maxArtwork);
+            document.getElementById('cfg-min-backing').value = fmt(validationConfig.minBacking);
+            document.getElementById('cfg-max-backing').value = fmt(validationConfig.maxBacking);
+            document.getElementById('cfg-min-margin').value = fmt(validationConfig.minMargin);
+            document.getElementById('cfg-max-margin').value = fmt(validationConfig.maxMargin);
+
+            // Warnings (overlap is a dimension, aspect ratio is unitless)
+            document.getElementById('cfg-warn-overlap').value = fmt(validationConfig.warnArtworkOpeningOverlap);
+            document.getElementById('cfg-warn-aspect').value = validationConfig.warnExtremeAspectRatio;
+        }
+
+        function updateConfigFromModal() {
+            if (!validationConfig) return;
+            
+            const useMm = settingsUnit === 'mm';
+            const toInternal = useMm ? mmToInches : (v) => v;
+            const getVal = (id) => toInternal(parseFloat(document.getElementById(id).value) || 0);
+
+            // Structural
+            validationConfig.minLipWidth = getVal('cfg-min-lip-width');
+            validationConfig.minFaceDepth = getVal('cfg-min-face-depth');
+
+            // Dimensions
+            validationConfig.minFrameWidth = getVal('cfg-min-frame-width');
+            validationConfig.maxFrameWidth = getVal('cfg-max-frame-width');
+            validationConfig.minFrameDepth = getVal('cfg-min-frame-depth');
+            validationConfig.maxFrameDepth = getVal('cfg-max-frame-depth');
+            validationConfig.minOpening = getVal('cfg-min-opening');
+            validationConfig.maxOpening = getVal('cfg-max-opening');
+            validationConfig.minRabbet = getVal('cfg-min-rabbet');
+            validationConfig.maxRabbet = getVal('cfg-max-rabbet');
+
+            // Materials
+            validationConfig.minGlazing = getVal('cfg-min-glazing');
+            validationConfig.maxGlazing = getVal('cfg-max-glazing');
+            validationConfig.minMatboard = getVal('cfg-min-matboard');
+            validationConfig.maxMatboard = getVal('cfg-max-matboard');
+            validationConfig.minArtwork = getVal('cfg-min-artwork');
+            validationConfig.maxArtwork = getVal('cfg-max-artwork');
+            validationConfig.minBacking = getVal('cfg-min-backing');
+            validationConfig.maxBacking = getVal('cfg-max-backing');
+            validationConfig.minMargin = getVal('cfg-min-margin');
+            validationConfig.maxMargin = getVal('cfg-max-margin');
+
+            // Warnings (overlap is a dimension, aspect ratio is unitless)
+            validationConfig.warnArtworkOpeningOverlap = getVal('cfg-warn-overlap');
+            validationConfig.warnExtremeAspectRatio = parseFloat(document.getElementById('cfg-warn-aspect').value) || 1;
+            
+            saveValidationConfig();
+            calculate();
+        }
+
+        window.resetValidationConfig = function() {
+            if (validationConfig) {
+                validationConfig.free();
+            }
+            validationConfig = new ValidationConfig();
+            saveValidationConfig();
+            populateSettingsModal();
+            calculate();
+        };
+
+        // Add change listeners to settings inputs
+        function setupSettingsListeners() {
+            const settingsInputs = document.querySelectorAll('#settings-modal input');
+            settingsInputs.forEach(input => {
+                input.addEventListener('change', updateConfigFromModal);
+            });
+        }
+
+        // Update range subtitles based on current unit
+        function updateRangeSubtitles() {
+            if (!typicalRanges) return;
+            const useMm = currentUnit === 'mm';
+            
+            for (const [elementId, fieldName] of Object.entries(rangeFields)) {
+                const el = document.getElementById(elementId);
+                if (el) {
+                    const hint = typicalRanges.getRangeHint(fieldName, useMm);
+                    if (hint) {
+                        el.textContent = hint;
+                    }
+                }
+            }
+        }
+
+        // Load from URL parameters
+        function loadFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const dataParam = urlParams.get('d');
+            if (!dataParam) return false;
+
+            try {
+                const fullUrl = `https://glarue.github.io/ReferenceFrame/?d=${dataParam}`;
+                const paramsJson = decodeShareableUrl(fullUrl);
+                const params = JSON.parse(paramsJson);
+
+                const targetUnit = params.unit_mm ? 'mm' : 'inches';
+                if (targetUnit !== currentUnit) {
+                    currentUnit = targetUnit;
+                    document.getElementById('btn-inches').classList.toggle('active', !params.unit_mm);
+                    document.getElementById('btn-mm').classList.toggle('active', params.unit_mm);
+                    updateLabels();
+                }
+
+                // Set all values using setDimensionValue (values from URL are in inches)
+                setDimensionValue('artwork-height', params.artwork_height);
+                setDimensionValue('artwork-width', params.artwork_width);
+                setDimensionValue('mat-width', params.mat_width);
+                setDimensionValue('frame-width', params.frame_width);
+                setDimensionValue('frame-depth', params.frame_depth);
+                setDimensionValue('glazing-thickness', params.glazing_thickness);
+                setDimensionValue('matboard-thickness', params.matboard_thickness);
+                setDimensionValue('artwork-thickness', params.artwork_thickness);
+                setDimensionValue('backing-thickness', params.backing_thickness);
+                setDimensionValue('rabbet-width', params.rabbet_width);
+                setDimensionValue('rabbet-depth', params.rabbet_depth);
+                setDimensionValue('blade-width', params.blade_width);
+
+                document.getElementById('include-mat').checked = params.include_mat;
+                updateMatVisibility();
+
+                return true;
+            } catch (e) {
+                console.error('URL load error:', e);
+                return false;
+            }
+        }
+
+        // Initialize
+        if (!loadFromUrl()) {
+            // Sync all dimension inputs from HTML default values
+            for (const id of dimensionInputIds) {
+                syncDimension(id);
+            }
+            calculate();
+        } else {
+            calculate();
+        }
+
+        updateOrientation();
+        updateAspectRatio();
+
+        // Auto-calculate on input change (and sync dimensions)
+        document.querySelectorAll('input').forEach(input => {
+            if (input.type !== 'checkbox') {
+                input.addEventListener('input', () => {
+                    if (dimensionInputIds.includes(input.id)) {
+                        syncDimension(input.id);
+                    }
+                    calculate();
+                });
+            }
+        });
+
+        // Add blur handlers to normalize fractional inputs (inches mode only)
+        dimensionInputIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('blur', normalizeFractionalInput);
+            }
+        });
+
+        // ============================================================================
+        // PDF EXPORT FUNCTIONALITY
+        // ============================================================================
+
+        // Wait for PDF libraries to load from CDN
+        async function waitForPdfLibraries() {
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    console.error('PDF libraries timeout. Available:', {
+                        jspdf: typeof window.jspdf,
+                        jsPDF: typeof window.jsPDF,
+                        svg2pdf: typeof window.svg2pdf
+                    });
+                    reject(new Error('PDF libraries timeout - please refresh the page'));
+                }, 10000);
+
+                const checkInterval = setInterval(() => {
+                    // jsPDF can be at window.jspdf.jsPDF or just window.jsPDF
+                    // svg2pdf adds .svg() method to jsPDF prototype, so we just need jsPDF
+                    const jsPDFAvailable = (typeof window.jspdf !== 'undefined' && window.jspdf.jsPDF) ||
+                                          (typeof window.jsPDF !== 'undefined');
+
+                    if (jsPDFAvailable) {
+                        clearInterval(checkInterval);
+                        clearTimeout(timeout);
+                        console.log('PDF libraries loaded successfully');
+                        resolve();
+                    }
+                }, 100);
+
+                // If already loaded, resolve immediately
+                const jsPDFAvailable = (typeof window.jspdf !== 'undefined' && window.jspdf.jsPDF) ||
+                                      (typeof window.jsPDF !== 'undefined');
+                if (jsPDFAvailable) {
+                    clearTimeout(timeout);
+                    console.log('PDF libraries already loaded');
+                    resolve();
+                }
+            });
+        }
+
+        // Wait for QR code library to load
+        async function waitForQrCodeLibrary() {
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('QR code library timeout')), 5000);
+                const checkInterval = setInterval(() => {
+                    if (typeof qrcode !== 'undefined') {
+                        clearInterval(checkInterval);
+                        clearTimeout(timeout);
+                        resolve();
+                    }
+                }, 50);
+            });
+        }
+
+        // Generate QR code as PNG data URL
+        async function generateQrCodeDataUrl(url) {
+            await waitForQrCodeLibrary();
+            const qr = qrcode(0, 'M'); // Auto-detect size, medium error correction
+            qr.addData(url);
+            qr.make();
+            return qr.createDataURL(10, 4); // cellSize=10, margin=4
+        }
+
+        // Main PDF export function
+        window.exportPdf = async function() {
+            try {
+                // Disable button and show loading state
+                const exportBtn = document.getElementById('export-pdf-btn');
+                const originalText = exportBtn.textContent;
+                exportBtn.disabled = true;
+                exportBtn.textContent = 'Loading libraries...';
+
+                // Wait for libraries to load from CDN
+                await waitForPdfLibraries();
+
+                exportBtn.textContent = 'Generating PDF...';
+
+                // Check if we have a design calculated
+                if (!currentDesign) {
+                    throw new Error('No design calculated. Please enter dimensions first.');
+                }
+
+                // Generate SVG diagram with PDF-optimized styling (larger fonts)
+                // Use square canvas (1:1) to maximize use of portrait PDF page
+                const unitMm = currentUnit === 'mm';
+                let svgString = generateCombinedViewSvgForPdf(currentDesign, 1200, 1200, unitMm, false, true);
+
+                // Fix font issues for PDF rendering - svg2pdf.js has trouble with custom fonts
+                // Replace font-family with just "Helvetica" (standard PDF font, no fallbacks)
+                svgString = svgString.replace(
+                    /font-family="[^"]+"/g,
+                    'font-family="Helvetica"'
+                );
+
+                // Remove any letter-spacing or word-spacing attributes that could cause spacing issues
+                svgString = svgString.replace(/letter-spacing="[^"]*"/g, '');
+                svgString = svgString.replace(/word-spacing="[^"]*"/g, '');
+
+                // Round font-size values to 1 decimal place (svg2pdf.js has issues with high precision)
+                svgString = svgString.replace(/font-size="(\d+\.\d+)(\d*)"/g, (match, base, extra) => {
+                    const rounded = Math.round(parseFloat(base + extra) * 10) / 10;
+                    return `font-size="${rounded}"`;
+                });
+
+                // SVG now contains inline polygon arrowheads (generated by Rust)
+                // No JavaScript conversion needed - svg2pdf.js will render them directly
+
+                // Debug: Check if polygons are in the SVG
+                const polygonCount = (svgString.match(/<polygon/g) || []).length;
+                const arrowCount = (svgString.match(/data-arrow="true"/g) || []).length;
+                console.log(`SVG contains ${polygonCount} polygon elements, ${arrowCount} are arrows`);
+
+                // Debug: Show first polygon if it exists
+                const polygonMatch = svgString.match(/<polygon[^>]+>/);
+                if (polygonMatch) {
+                    console.log('First polygon:', polygonMatch[0]);
+                }
+
+                // Debug: Show first arrow polygon if it exists
+                const arrowMatch = svgString.match(/<polygon[^>]*data-arrow="true"[^>]*>/);
+                if (arrowMatch) {
+                    console.log('First arrow polygon:', arrowMatch[0]);
+                } else {
+                    console.warn('WARNING: No arrow polygons found in SVG!');
+                }
+
+                // Create temporary container to parse SVG
+                const container = document.createElement('div');
+                container.style.position = 'absolute';
+                container.style.visibility = 'hidden';
+                container.innerHTML = svgString;
+                document.body.appendChild(container);
+                const svgElement = container.querySelector('svg');
+
+                if (!svgElement) {
+                    throw new Error('Failed to generate SVG diagram');
+                }
+
+                // Extract SVG dimensions from viewBox
+                const viewBox = svgElement.getAttribute('viewBox');
+                const [vbX, vbY, vbWidth, vbHeight] = viewBox ? viewBox.split(' ').map(Number) : [0, 0, 800, 600];
+                console.log(`SVG viewBox: "${viewBox}" (${vbWidth}×${vbHeight})`);
+
+                // Check actual content bounds (bounding box of all visible elements)
+                const bbox = svgElement.getBBox();
+                console.log(`SVG content bbox: x=${bbox.x.toFixed(1)}, y=${bbox.y.toFixed(1)}, w=${bbox.width.toFixed(1)}, h=${bbox.height.toFixed(1)}`);
+                const paddingLeft = bbox.x - vbX;
+                const paddingRight = (vbX + vbWidth) - (bbox.x + bbox.width);
+                const paddingTop = bbox.y - vbY;
+                const paddingBottom = (vbY + vbHeight) - (bbox.y + bbox.height);
+                console.log(`  Internal padding: left=${paddingLeft.toFixed(1)}, right=${paddingRight.toFixed(1)}, top=${paddingTop.toFixed(1)}, bottom=${paddingBottom.toFixed(1)}`);
+
+                // Adjust viewBox to include any overflow (content drawing outside bounds)
+                // If content extends beyond canvas, expand viewBox to capture it
+                const buffer = 10; // Small buffer to prevent edge clipping
+                const newVbX = Math.min(vbX, bbox.x - buffer);
+                const newVbY = Math.min(vbY, bbox.y - buffer);
+                const newVbMaxX = Math.max(vbX + vbWidth, bbox.x + bbox.width + buffer);
+                const newVbMaxY = Math.max(vbY + vbHeight, bbox.y + bbox.height + buffer);
+                const newVbWidth = newVbMaxX - newVbX;
+                const newVbHeight = newVbMaxY - newVbY;
+
+                console.log(`  Adjusted viewBox: "${newVbX.toFixed(1)} ${newVbY.toFixed(1)} ${newVbWidth.toFixed(1)} ${newVbHeight.toFixed(1)}"`);
+                svgElement.setAttribute('viewBox', `${newVbX} ${newVbY} ${newVbWidth} ${newVbHeight}`);
+
+                const aspectRatio = newVbWidth / newVbHeight;
+
+                // ===================================================================
+                // PRINCIPLED PDF LAYOUT
+                // ===================================================================
+                // A4 page: 210mm × 297mm
+                // Layout from top to bottom:
+                //   - Top margin
+                //   - Diagram (maximize this)
+                //   - Gap
+                //   - Text (3 columns, fixed height)
+                //   - Gap
+                //   - QR code
+                //   - Bottom margin
+
+                const PDF_WIDTH = 210;
+                const PDF_HEIGHT = 297;
+
+                // Define fixed spacing (minimize to maximize diagram)
+                const margin = 3;          // Page margins (all sides)
+                const textHeight = 30;     // 3-column text block
+                const qrHeight = 25;       // QR code
+                const gapAfterDiagram = 6; // Space between diagram and text
+                const gapBeforeQr = 2;     // Space between text and QR
+
+                // Calculate available space for diagram
+                const maxDiagramHeight = PDF_HEIGHT - (2 * margin) - textHeight - qrHeight - gapAfterDiagram - gapBeforeQr;
+                // = 297 - 6 - 30 - 25 - 6 - 2 = 228mm
+
+                const maxDiagramWidth = PDF_WIDTH - (2 * margin);
+                // = 210 - 6 = 204mm
+
+                // Size diagram to fit available space (constrained by aspect ratio)
+                let diagramHeight = maxDiagramHeight;
+                let diagramWidth = diagramHeight * aspectRatio;
+
+                // Check if width-constrained
+                if (diagramWidth > maxDiagramWidth) {
+                    diagramWidth = maxDiagramWidth;
+                    diagramHeight = diagramWidth / aspectRatio;
+                }
+
+                // Center diagram horizontally, place at top margin vertically
+                const diagramX = (PDF_WIDTH - diagramWidth) / 2;
+                const diagramY = margin;
+
+                console.log(`PDF Layout: diagram=${diagramWidth.toFixed(1)}×${diagramHeight.toFixed(1)}mm at (${diagramX.toFixed(1)}, ${diagramY})`);
+
+                // Create PDF - handle both window.jspdf.jsPDF and window.jsPDF
+                const jsPDFConstructor = window.jspdf?.jsPDF || window.jsPDF;
+                if (!jsPDFConstructor) {
+                    throw new Error('jsPDF constructor not found');
+                }
+                const pdf = new jsPDFConstructor({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                // Embed diagram as vector SVG (markers converted to inline polygons)
+                console.log('Embedding vector SVG in PDF...');
+                if (typeof pdf.svg === 'function') {
+                    await pdf.svg(svgElement, {
+                        x: diagramX,
+                        y: diagramY,
+                        width: diagramWidth,
+                        height: diagramHeight
+                    });
+                } else if (typeof window.svg2pdf !== 'undefined' && window.svg2pdf.svg2pdf) {
+                    await window.svg2pdf.svg2pdf(svgElement, pdf, {
+                        x: diagramX,
+                        y: diagramY,
+                        width: diagramWidth,
+                        height: diagramHeight
+                    });
+                } else {
+                    throw new Error('svg2pdf library not available');
+                }
+
+                // Clean up temporary container
+                document.body.removeChild(container);
+
+                // Add text content below diagram
+                const textStartY = diagramY + diagramHeight + gapAfterDiagram;
+                console.log(`  Text starts at: ${textStartY.toFixed(1)}mm`);
+                await addTextContent(pdf, textStartY);
+
+                // Generate and add QR code
+                await addQrCode(pdf);
+
+                // Download PDF
+                const timestamp = new Date().toISOString().slice(0, 10);
+                pdf.save(`frame_design_${timestamp}.pdf`);
+
+                // Success!
+                exportBtn.textContent = '✓ PDF Downloaded';
+                setTimeout(() => {
+                    exportBtn.textContent = originalText;
+                    exportBtn.disabled = false;
+                }, 2000);
+
+            } catch (error) {
+                console.error('PDF export error:', error);
+                const exportBtn = document.getElementById('export-pdf-btn');
+                exportBtn.textContent = '✗ Export Failed';
+                exportBtn.disabled = false;
+                setTimeout(() => {
+                    exportBtn.textContent = 'Export PDF';
+                }, 3000);
+                alert(`PDF export failed: ${error.message}`);
+            }
+        };
+
+        // Add text content to PDF with compact 3-column layout
+        async function addTextContent(pdf, startY) {
+            // Colors (RGB) - Match CSS palette (--rf-* variables)
+            const colors = {
+                cerulean: [39, 125, 161],    // --rf-blue (#277da1)
+                black: [0, 0, 0],
+                gray: [128, 128, 128],       // --rf-gray (#808080)
+                darkgray: [64, 64, 64],      // --rf-gray-dark (#404040)
+                orange: [248, 150, 30],      // --rf-orange (#f8961e)
+                green: [144, 190, 109],      // --rf-green (#90be6d)
+                red: [249, 65, 68]           // --rf-red (#f94144)
+            };
+
+            // COMPACT LAYOUT: 3 columns, small font, tight spacing
+            const fontSize = 8;
+            const headerSize = 9;
+            const lineHeight = 1.1;
+
+            // 3-column layout (60mm each with 5mm gutters)
+            const col1X = 15;
+            const col2X = 80;
+            const col3X = 145;
+            const colWidth = 60;
+
+            let col1Y = startY;
+            let col2Y = startY;
+            let col3Y = startY;
+
+            // Helper to add section header
+            function addHeader(text, column, color = 'darkgray') {
+                const x = column === 1 ? col1X : (column === 2 ? col2X : col3X);
+                const y = column === 1 ? col1Y : (column === 2 ? col2Y : col3Y);
+
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(headerSize);
+                pdf.setTextColor(...colors[color]);
+                pdf.text(text, x, y);
+
+                const newY = y + headerSize * lineHeight * 0.35;
+                if (column === 1) col1Y = newY;
+                else if (column === 2) col2Y = newY;
+                else col3Y = newY;
+            }
+
+            // Helper to add body text
+            function addText(text, column, color = 'black', bold = false) {
+                const x = column === 1 ? col1X : (column === 2 ? col2X : col3X);
+                const y = column === 1 ? col1Y : (column === 2 ? col2Y : col3Y);
+
+                pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+                pdf.setFontSize(fontSize);
+                pdf.setTextColor(...colors[color]);
+                pdf.text(text, x, y);
+
+                const newY = y + fontSize * lineHeight * 0.35;
+                if (column === 1) col1Y = newY;
+                else if (column === 2) col2Y = newY;
+                else col3Y = newY;
+            }
+
+            // Helper to add label-value pair with right-aligned value
+            function addLabelValue(label, value, column, color = 'black', bold = false) {
+                const x = column === 1 ? col1X : (column === 2 ? col2X : col3X);
+                const y = column === 1 ? col1Y : (column === 2 ? col2Y : col3Y);
+                const rightEdge = x + colWidth;
+
+                pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+                pdf.setFontSize(fontSize);
+                pdf.setTextColor(...colors[color]);
+
+                // Draw label on left
+                pdf.text(label, x, y);
+
+                // Draw value right-aligned
+                pdf.text(value, rightEdge, y, { align: 'right' });
+
+                const newY = y + fontSize * lineHeight * 0.35;
+                if (column === 1) col1Y = newY;
+                else if (column === 2) col2Y = newY;
+                else col3Y = newY;
+            }
+
+            // Helper to add spacing
+            function addSpace(column, mm = 1.5) {
+                if (column === 1) col1Y += mm;
+                else if (column === 2) col2Y += mm;
+                else col3Y += mm;
+            }
+
+            // Get current unit
+            const useMm = currentUnit === 'mm';
+            const unit = useMm ? 'mm' : '"';
+            const bladeWidth = getDimensionValue('blade-width');
+            const includesMat = document.getElementById('include-mat').checked;
+
+            // === COLUMN 1: Artwork, Frame, Cut List, Material (12 lines) ===
+            addHeader('Artwork', 1);
+            const artHeight = formatValueWithDecimal(currentDesign.artworkHeight, useMm);
+            const artWidth = formatValueWithDecimal(currentDesign.artworkWidth, useMm);
+            addText(`${artHeight}${unit} × ${artWidth}${unit}`, 1);
+            addSpace(1);
+
+            addHeader('Frame', 1);
+            const [outsideH, outsideW] = currentDesign.getFrameOutsideDimensions();
+            const [insideH, insideW] = currentDesign.getFrameInsideDimensions();
+            addLabelValue('Outside:', `${formatValueWithDecimal(outsideH, useMm)} × ${formatValueWithDecimal(outsideW, useMm)}${unit}`, 1);
+            addLabelValue('Inside:', `${formatValueWithDecimal(insideH, useMm)} × ${formatValueWithDecimal(insideW, useMm)}${unit}`, 1);
+            addLabelValue('Frame Material:', `${formatValueWithDecimal(currentDesign.frameWidth, useMm)} × ${formatValueWithDecimal(currentDesign.frameDepth, useMm)}${unit}`, 1);
+            addSpace(1);
+
+            addHeader('Cut List', 1);
+            const cutListJson = currentDesign.getCutListJson();
+            const cutList = JSON.parse(cutListJson);
+            if (cutList.horizontal_pieces && cutList.horizontal_pieces.length > 0) {
+                const p = cutList.horizontal_pieces[0];
+                addLabelValue('Top/Bottom:', `${formatValueWithDecimal(p.outside_length, useMm)}${unit} (×${p.quantity})`, 1, 'orange', true);
+            }
+            if (cutList.vertical_pieces && cutList.vertical_pieces.length > 0) {
+                const p = cutList.vertical_pieces[0];
+                addLabelValue('Left/Right:', `${formatValueWithDecimal(p.outside_length, useMm)}${unit} (×${p.quantity})`, 1, 'orange', true);
+            }
+            addSpace(1);
+
+            addHeader('Material', 1);
+            const errorMargin = 0.0625;
+            const totalWood = currentDesign.getTotalWoodLength(bladeWidth, errorMargin);
+            addLabelValue('Total:', `${formatValueWithDecimal(totalWood, useMm)}${unit}`, 1, 'cerulean', true);
+            addText(`(w/ blade width)`, 1, 'gray');
+
+            // === COLUMN 2: Matboard, Rabbet, Specs (12 lines with mat, 6 without) ===
+
+            if (includesMat) {
+                addHeader('Matboard', 2);
+                const [matH, matW] = currentDesign.getMatboardDimensions();
+                const [matOpenH, matOpenW] = currentDesign.getMatOpeningDimensions();
+                const matWidth = getDimensionValue('mat-width');
+                const matOverlap = getDimensionValue('mat-overlap');
+                const matCutSides = matWidth + matOverlap;
+                const matCutTopBottom = matWidth + matOverlap;
+                addLabelValue('Full Size:', `${formatValueWithDecimal(matH, useMm)} × ${formatValueWithDecimal(matW, useMm)}${unit}`, 2);
+                addLabelValue('Opening:', `${formatValueWithDecimal(matOpenH, useMm)} × ${formatValueWithDecimal(matOpenW, useMm)}${unit}`, 2);
+                addLabelValue('Visual Width:', `${formatValueWithDecimal(matWidth, useMm)}${unit}`, 2);
+                addLabelValue('Cut Width:', `${formatValueWithDecimal(matCutSides, useMm)}${unit}`, 2);
+                addLabelValue('Overlap:', `${formatValueWithDecimal(matOverlap, useMm)}${unit}`, 2);
+                addSpace(2);
+            }
+
+            addHeader('Rabbet', 2);
+            addLabelValue('Width (x-axis):', `${formatValueWithDecimal(currentDesign.rabbet_width, useMm)}${unit}`, 2);
+            addLabelValue('Depth (z-axis):', `${formatValueWithDecimal(currentDesign.rabbet_depth, useMm)}${unit}`, 2);
+            addSpace(2);
+
+            addHeader('Specs', 2);
+            const assemblyMargin = getDimensionValue('assembly-margin');
+            addLabelValue('Assembly Margin:', `${formatValueWithDecimal(assemblyMargin, useMm)}${unit}`, 2);
+            addLabelValue('Blade Width:', `${formatValueWithDecimal(bladeWidth, useMm)}${unit}`, 2);
+
+            // === COLUMN 3: Depth ===
+            addHeader('Depth', 3);
+            const depthRequired = currentDesign.getRabbetZDepthRequired();
+            const depthAvailable = currentDesign.rabbet_depth;
+            addLabelValue('Required:', `${formatValueWithDecimal(depthRequired, useMm)}${unit}`, 3, 'black', true);
+            addLabelValue('Available:', `${formatValueWithDecimal(depthAvailable, useMm)}${unit}`, 3);
+            if (depthRequired <= depthAvailable) {
+                const clearance = depthAvailable - depthRequired;
+                addLabelValue('Clearance:', `${formatValueWithDecimal(clearance, useMm)}${unit}`, 3, 'green', true);
+            } else {
+                const shortfall = depthRequired - depthAvailable;
+                addLabelValue('Shortfall:', `${formatValueWithDecimal(shortfall, useMm)}${unit}`, 3, 'red', true);
+            }
+            addLabelValue('Glazing:', `${formatValueWithDecimal(currentDesign.glazingThickness, useMm)}${unit}`, 3);
+            if (includesMat) {
+                addLabelValue('Matboard:', `${formatValueWithDecimal(currentDesign.matboardThickness, useMm)}${unit}`, 3);
+            }
+            addLabelValue('Artwork:', `${formatValueWithDecimal(currentDesign.artworkThickness, useMm)}${unit}`, 3);
+            addLabelValue('Backing:', `${formatValueWithDecimal(currentDesign.backingThickness, useMm)}${unit}`, 3);
+        }
+
+        // Add QR code to PDF
+        async function addQrCode(pdf) {
+            try {
+                // Build ShareableParams JSON from current design
+                // The generateShareableUrl WASM function expects a JSON string, not a FrameDesign object
+                const includeMat = document.getElementById('include-mat').checked;
+                const shareableParams = {
+                    artwork_height: currentDesign.artworkHeight,
+                    artwork_width: currentDesign.artworkWidth,
+                    mat_width: includeMat ? getDimensionValue('mat-width') : 0,
+                    frame_width: currentDesign.frameWidth,
+                    frame_depth: currentDesign.frameDepth,
+                    glazing_thickness: currentDesign.glazingThickness,
+                    matboard_thickness: currentDesign.matboardThickness,
+                    artwork_thickness: currentDesign.artworkThickness,
+                    backing_thickness: currentDesign.backingThickness,
+                    rabbet_width: currentDesign.rabbet_width,
+                    rabbet_depth: currentDesign.rabbet_depth,
+                    blade_width: getDimensionValue('blade-width'),
+                    include_mat: includeMat,
+                    unit_mm: currentUnit === 'mm'
+                };
+
+                // Generate shareable URL with JSON string
+                let encoded;
+                try {
+                    encoded = generateShareableUrl(JSON.stringify(shareableParams));
+                } catch (wasmError) {
+                    console.warn('WASM error generating shareable URL:', wasmError);
+                    console.warn('ShareableParams:', shareableParams);
+                    // Skip QR code if URL generation fails
+                    return;
+                }
+
+                const fullUrl = `${window.location.origin}${window.location.pathname}?d=${encoded}`;
+
+                // Generate QR code
+                const qrDataUrl = await generateQrCodeDataUrl(fullUrl);
+
+                // Position in bottom-right corner
+                const qrSize = 25;
+                const qrX = 175;
+                const qrY = 264;
+
+                // Add label above QR code
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(7);
+                pdf.setTextColor(100, 100, 100);
+                pdf.text('Scan to recreate this design', qrX + qrSize / 2, qrY - 3, { align: 'center' });
+
+                // Add QR code image
+                pdf.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+
+                // Add URL text below QR code (full URL, clickable)
+                pdf.setFontSize(5);
+                pdf.setTextColor(0, 0, 255); // Blue for clickable link
+
+                // Calculate text dimensions and position
+                const urlWidth = pdf.getTextWidth(fullUrl);
+                const idealCenterX = qrX + qrSize / 2;
+                const urlY = qrY + qrSize + 3;
+
+                // Page bounds (A4: 210mm wide, 10mm margins)
+                const leftMargin = 10;
+                const rightMargin = 200; // 210 - 10
+
+                // Try to center, but shift left if it would overflow the right edge
+                let urlX = idealCenterX - urlWidth / 2;
+                if (urlX + urlWidth > rightMargin) {
+                    urlX = rightMargin - urlWidth;
+                }
+                // Also ensure we don't overflow the left edge
+                if (urlX < leftMargin) {
+                    urlX = leftMargin;
+                }
+
+                // Add clickable link
+                pdf.textWithLink(fullUrl, urlX, urlY, { url: fullUrl });
+
+            } catch (error) {
+                console.warn('QR code generation failed:', error);
+                // Continue without QR code - not critical
+            }
+        }
+
+        // ===================================================================
+        // Configuration Management Functions
+        // ===================================================================
+
+        /**
+         * Get current form configuration (EXCLUDES artwork dimensions)
+         */
+        function getCurrentConfig() {
+            return {
+                // NOTE: artwork_height and artwork_width are NOT included
+                // Those are managed separately as custom sizes
+                mat_width: getDimensionValue('mat-width'),
+                frame_width: getDimensionValue('frame-width'),
+                frame_depth: getDimensionValue('frame-depth'),
+                glazing_thickness: getDimensionValue('glazing-thickness'),
+                matboard_thickness: getDimensionValue('matboard-thickness'),
+                artwork_thickness: getDimensionValue('artwork-thickness'),
+                backing_thickness: getDimensionValue('backing-thickness'),
+                rabbet_width: getDimensionValue('rabbet-width'),
+                rabbet_depth: getDimensionValue('rabbet-depth'),
+                assembly_margin: getDimensionValue('assembly-margin'),
+                blade_width: getDimensionValue('blade-width'),
+                mat_overlap: getDimensionValue('mat-overlap'),
+                include_mat: document.getElementById('include-mat').checked
+            };
+        }
+
+        /**
+         * Load configuration into form (DOES NOT change artwork dimensions)
+         */
+        function loadConfigIntoForm(config) {
+            // NOTE: artwork dimensions are NOT loaded from configs
+            // Use custom sizes for that instead
+            setDimensionValue('mat-width', config.mat_width);
+            setDimensionValue('frame-width', config.frame_width);
+            setDimensionValue('frame-depth', config.frame_depth);
+            setDimensionValue('glazing-thickness', config.glazing_thickness);
+            setDimensionValue('matboard-thickness', config.matboard_thickness);
+            setDimensionValue('artwork-thickness', config.artwork_thickness);
+            setDimensionValue('backing-thickness', config.backing_thickness);
+            setDimensionValue('rabbet-width', config.rabbet_width);
+            setDimensionValue('rabbet-depth', config.rabbet_depth);
+            setDimensionValue('assembly-margin', config.assembly_margin);
+            setDimensionValue('blade-width', config.blade_width);
+            setDimensionValue('mat-overlap', config.mat_overlap);
+            document.getElementById('include-mat').checked = config.include_mat !== false;
+
+            // Trigger recalculation
+            window.calculate();
+        }
+
+        /**
+         * Render saved configurations dropdown
+         */
+        function renderSavedConfigs() {
+            const configs = loadSavedConfigs();
+            const select = document.getElementById('config-select');
+            const deleteBtn = document.getElementById('delete-selected-config');
+
+            if (!select) return;
+
+            // Clear existing options (except first "Select..." option)
+            select.innerHTML = '<option value="">-- Select a configuration --</option>';
+
+            // Add each config as an option
+            configs.forEach(({ name }) => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+
+            // Disable delete button if no configs
+            if (deleteBtn) {
+                deleteBtn.disabled = configs.length === 0;
+            }
+
+            console.log(`Rendered ${configs.length} configurations in dropdown`);
+        }
+
+        /**
+         * Handle configuration selection change
+         */
+        function handleConfigSelect() {
+            const select = document.getElementById('config-select');
+            const selectedName = select.value;
+
+            if (!selectedName) {
+                return; // No selection or "Select..." option chosen
+            }
+
+            const config = getConfigByName(selectedName);
+            if (config) {
+                loadConfigIntoForm(config);
+                console.log(`Loaded configuration: ${selectedName}`);
+            }
+        }
+
+        /**
+         * Handle delete selected configuration
+         */
+        function handleDeleteSelectedConfig() {
+            const select = document.getElementById('config-select');
+            const selectedName = select.value;
+
+            if (!selectedName) {
+                alert('Please select a configuration to delete');
+                return;
+            }
+
+            if (confirm(`Delete configuration "${selectedName}"?`)) {
+                deleteConfig(selectedName);
+                renderSavedConfigs();
+                // Reset selection
+                select.value = '';
+            }
+        }
+
+        /**
+         * Handle save configuration button click
+         */
+        function handleSaveConfig() {
+            const nameInput = document.getElementById('config-name');
+            const name = nameInput.value.trim();
+
+            if (!name) {
+                alert('Please enter a configuration name');
+                return;
+            }
+
+            // Check if name already exists
+            const existing = getConfigByName(name);
+            if (existing) {
+                if (!confirm(`Configuration "${name}" already exists. Overwrite?`)) {
+                    return;
+                }
+            }
+
+            const config = getCurrentConfig();
+            if (saveConfig(name, config)) {
+                nameInput.value = ''; // Clear input
+                renderSavedConfigs();
+
+                // Auto-select the newly saved config in dropdown
+                const select = document.getElementById('config-select');
+                if (select) {
+                    select.value = name;
+                }
+
+                alert(`Configuration "${name}" saved successfully`);
+            } else {
+                alert('Failed to save configuration');
+            }
+        }
+
+        /**
+         * Handle export all data
+         */
+        function handleExportData() {
+            const currentSettings = getCurrentConfig();
+            const jsonData = exportAllData(currentSettings, currentUnit);
+
+            // Create blob and download
+            const blob = new Blob([jsonData], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `referenceframe_backup_${timestamp}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            console.log('Exported all data successfully');
+        }
+
+        /**
+         * Handle import data
+         */
+        async function handleImportData(file) {
+            try {
+                const text = await file.text();
+
+                // Prompt for merge or replace
+                const mode = confirm(
+                    'Merge with existing data?\n\n' +
+                    'OK = Merge (keep existing configs, add new ones)\n' +
+                    'Cancel = Replace (delete all existing data)'
+                ) ? 'merge' : 'replace';
+
+                const result = importData(text, mode);
+
+                if (result.success) {
+                    alert(result.message);
+                    renderSavedConfigs();
+
+                    // Restore unit preference if changed
+                    const data = JSON.parse(text);
+                    if (data.unit && data.unit !== currentUnit) {
+                        // Update unit toggle
+                        toggleUnit();
+                    }
+                } else {
+                    alert(`Import failed: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('Import error:', error);
+                alert(`Import failed: ${error.message}`);
+            }
+        }
+
+        // ===================================================================
+        // Artwork Size Management
+        // ===================================================================
+
+        // Standard sizes (Height × Width in inches)
+        const STANDARD_SIZES = [
+            { name: "4×6", height: 4.0, width: 6.0 },
+            { name: "5×7", height: 5.0, width: 7.0 },
+            { name: "8×10", height: 8.0, width: 10.0 },
+            { name: "8.5×11", height: 8.5, width: 11.0 },  // Letter
+            { name: "11×14", height: 11.0, width: 14.0 },
+            { name: "12×16", height: 12.0, width: 16.0 },
+            { name: "16×20", height: 16.0, width: 20.0 },
+            { name: "20×30", height: 20.0, width: 30.0 }
+        ];
+
+        /**
+         * Render standard sizes dropdown
+         */
+        function renderStandardSizes() {
+            const select = document.getElementById('standard-sizes');
+            if (!select) return;
+
+            // Clear existing options except first
+            select.innerHTML = '<option value="">-- Select a size --</option>';
+
+            STANDARD_SIZES.forEach((size, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${size.name}" (${size.height}" × ${size.width}")`;
+                select.appendChild(option);
+            });
+        }
+
+        /**
+         * Apply standard size to inputs
+         */
+        function applyStandardSize(height, width) {
+            setDimensionValue('artwork-height', height);
+            setDimensionValue('artwork-width', width);
+            window.calculate();
+        }
+
+        /**
+         * Handle standard size selection
+         */
+        function handleStandardSizeSelect() {
+            const select = document.getElementById('standard-sizes');
+            const index = parseInt(select.value);
+
+            if (isNaN(index)) return;
+
+            const size = STANDARD_SIZES[index];
+            if (size) {
+                applyStandardSize(size.height, size.width);
+            }
+        }
+
+        /**
+         * Render custom saved sizes dropdown
+         */
+        function renderCustomSizes() {
+            const sizes = loadCustomSizes();
+            const select = document.getElementById('custom-sizes');
+            const deleteBtn = document.getElementById('delete-custom-size');
+
+            if (!select) return;
+
+            // Clear existing options except first
+            select.innerHTML = '<option value="">-- Select a saved size --</option>';
+
+            sizes.forEach(({ name, height, width }) => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = `${name} (${height}" × ${width}")`;
+                select.appendChild(option);
+            });
+
+            // Disable delete button if no custom sizes
+            if (deleteBtn) {
+                deleteBtn.disabled = sizes.length === 0;
+            }
+
+            console.log(`Rendered ${sizes.length} custom sizes`);
+        }
+
+        /**
+         * Get custom size by name
+         */
+        function getCustomSizeByName(name) {
+            const sizes = loadCustomSizes();
+            return sizes.find(s => s.name === name);
+        }
+
+        /**
+         * Handle custom size selection
+         */
+        function handleCustomSizeSelect() {
+            const select = document.getElementById('custom-sizes');
+            const name = select.value;
+
+            if (!name) return;
+
+            const size = getCustomSizeByName(name);
+            if (size) {
+                applyStandardSize(size.height, size.width);
+                console.log(`Applied custom size: ${name}`);
+            }
+        }
+
+        /**
+         * Handle delete custom size
+         */
+        function handleDeleteCustomSize() {
+            const select = document.getElementById('custom-sizes');
+            const name = select.value;
+
+            if (!name) {
+                alert('Please select a custom size to delete');
+                return;
+            }
+
+            if (confirm(`Delete custom size "${name}"?`)) {
+                deleteCustomSize(name);
+                renderCustomSizes();
+                select.value = '';
+            }
+        }
+
+        /**
+         * Handle save current size
+         */
+        function handleSaveCurrentSize() {
+            const height = getDimensionValue('artwork-height');
+            const width = getDimensionValue('artwork-width');
+
+            if (!height || !width) {
+                alert('Please enter artwork dimensions first');
+                return;
+            }
+
+            // Generate default name
+            const defaultName = `${height}" × ${width}"`;
+            const name = prompt('Enter a name for this size:', defaultName);
+
+            if (!name || !name.trim()) {
+                return;
+            }
+
+            const trimmedName = name.trim();
+
+            // Check if exists
+            const existing = getCustomSizeByName(trimmedName);
+            if (existing) {
+                if (!confirm(`Size "${trimmedName}" already exists. Overwrite?`)) {
+                    return;
+                }
+            }
+
+            if (saveCustomSize(trimmedName, height, width)) {
+                renderCustomSizes();
+                // Auto-select the newly saved size
+                const select = document.getElementById('custom-sizes');
+                if (select) {
+                    select.value = trimmedName;
+                }
+                console.log(`Saved custom size: ${trimmedName}`);
+            } else {
+                alert('Failed to save custom size');
+            }
+        }
+
+        // ===================================================================
+        // Initialize Configuration Management
+        // ===================================================================
+
+        // Initialize immediately (script is at end of body, DOM is ready)
+        function initializeConfigManagement() {
+            console.log('Initializing configuration and size management...');
+
+            // Render standard and custom sizes
+            renderStandardSizes();
+            renderCustomSizes();
+
+            // Wire up standard sizes dropdown
+            const standardSizesSelect = document.getElementById('standard-sizes');
+            if (standardSizesSelect) {
+                standardSizesSelect.addEventListener('change', handleStandardSizeSelect);
+                console.log('Standard sizes dropdown wired up');
+            }
+
+            // Wire up custom sizes dropdown
+            const customSizesSelect = document.getElementById('custom-sizes');
+            if (customSizesSelect) {
+                customSizesSelect.addEventListener('change', handleCustomSizeSelect);
+                console.log('Custom sizes dropdown wired up');
+            }
+
+            // Wire up delete custom size button
+            const deleteCustomSizeBtn = document.getElementById('delete-custom-size');
+            if (deleteCustomSizeBtn) {
+                deleteCustomSizeBtn.addEventListener('click', handleDeleteCustomSize);
+                console.log('Delete custom size button wired up');
+            }
+
+            // Wire up save current size button
+            const saveCurrentSizeBtn = document.getElementById('save-current-size');
+            if (saveCurrentSizeBtn) {
+                saveCurrentSizeBtn.addEventListener('click', handleSaveCurrentSize);
+                console.log('Save current size button wired up');
+            }
+
+            // Render saved configurations
+            renderSavedConfigs();
+
+            // Wire up config select dropdown
+            const configSelect = document.getElementById('config-select');
+            if (configSelect) {
+                configSelect.addEventListener('change', handleConfigSelect);
+                console.log('Config select dropdown wired up');
+            } else {
+                console.error('config-select dropdown not found!');
+            }
+
+            // Wire up delete selected config button
+            const deleteBtn = document.getElementById('delete-selected-config');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', handleDeleteSelectedConfig);
+                console.log('Delete button wired up');
+            } else {
+                console.error('delete-selected-config button not found!');
+            }
+
+            // Wire up save button
+            const saveBtn = document.getElementById('save-config');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', handleSaveConfig);
+                console.log('Save config button wired up');
+            } else {
+                console.error('save-config button not found!');
+            }
+
+            // Wire up export button
+            const exportBtn = document.getElementById('export-data');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', handleExportData);
+                console.log('Export button wired up');
+            } else {
+                console.error('export-data button not found!');
+            }
+
+            // Wire up import file input
+            const importInput = document.getElementById('import-file');
+            if (importInput) {
+                importInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        handleImportData(file);
+                        e.target.value = ''; // Reset file input
+                    }
+                });
+                console.log('Import input wired up');
+            } else {
+                console.error('import-file input not found!');
+            }
+
+            // Make configs section collapsible (matches existing pattern for Advanced Options)
+            const configsHeader = document.getElementById('configs-header');
+            const configsContent = document.getElementById('configs-content');
+            if (configsHeader && configsContent) {
+                configsHeader.addEventListener('click', () => {
+                    configsHeader.classList.toggle('expanded');
+                    configsContent.classList.toggle('expanded');
+                    console.log('Configs section toggled, expanded:', configsHeader.classList.contains('expanded'));
+                });
+                console.log('Configs header click listener attached');
+            } else {
+                console.error('configs-header or configs-content not found!', {
+                    header: configsHeader,
+                    content: configsContent
+                });
+            }
+
+            // Restore last settings on page load
+            setTimeout(() => {
+                if (wasmLoaded) {
+                    const lastSettings = loadCurrentSettings();
+                    if (lastSettings) {
+                        console.log('Restoring last settings...');
+                        loadConfigIntoForm(lastSettings);
+                    }
+                }
+            }, 500); // Wait for WASM to fully initialize
+        }
+
+        // Run initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeConfigManagement);
+        } else {
+            // DOM already loaded, run immediately
+            initializeConfigManagement();
+        }
+
+    </script>
+</body>
+</html>

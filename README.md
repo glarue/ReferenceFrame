@@ -1,163 +1,106 @@
 # ReferenceFrame
 
-A browser-based picture frame calculator that runs entirely client-side using PyScript/Pyodide. Calculate frame dimensions, mat sizes, material requirements, and generate detailed diagrams - all with zero server costs and complete privacy.
+A cross-platform picture frame design calculator with support for Web, iOS, and Android.
 
-**Status**: ✅ Production Ready - Fully functional web application
+## 🏗️ Architecture
 
-**Live web app instance**: https://glarue.github.io/ReferenceFrame
-
-## Features
-
-✅ **Core frame calculations**
-- Calculate frame dimensions for any artwork size
-- Support for custom mat widths (including asymmetric mats)
-- Material thickness accounting (glazing, matboard, backing)
-- Rabbet depth validation
-
-✅ **Native browser storage**
-- Settings persist automatically via localStorage
-- Custom sizes saved locally
-- No server required - 100% private
-
-✅ **Interactive visualizations**
-- Client-side matplotlib rendering
-- Frame/matboard/artwork display
-- Dimension annotations
-- Vector PDF export
-
-✅ **Progressive Web App**
-- Installable on mobile/desktop
-- Offline support via service worker
-- Fast subsequent loads (cached assets)
-
-## How to Run
-
-### Option 1: Local Development Server
-
-```bash
-python3 -m http.server 8000
-
-# Open browser to:
-http://localhost:8000/
-```
-
-### Option 2: Deploy to GitHub Pages
-
-See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment instructions.
-
-## Performance
-
-**Expected load times**:
-- First visit: 10-15 seconds (downloads Pyodide runtime)
-- Subsequent visits: <1 second (cached)
-- matplotlib first render: 30-60 seconds (downloads packages)
-- matplotlib cached: instant
-
-## File Structure
+ReferenceFrame uses a **shared Rust core** architecture for maximum code reuse across platforms:
 
 ```
 ReferenceFrame/
-├── index.html          # Main application
-├── manifest.json       # PWA manifest
-├── sw.js              # Service worker (offline support)
-├── src/               # Python modules
-│   ├── frame.py           # Core calculations
-│   ├── conversions.py     # Unit formatting
-│   ├── defaults.py        # Default values
-│   ├── ui_helpers.py      # UI utilities
-│   └── aspect_ratio.py    # Aspect ratio logic
-├── tests/             # Unit tests
-└── docs/              # Documentation
+├── core/                      # 🎯 Pure Rust business logic (platform-agnostic)
+│   ├── src/                   # Frame calculations, validation, SVG generation
+│   └── Cargo.toml
+│
+├── platforms/
+│   ├── web/                   # 🌐 Web app (WASM)
+│   │   ├── wasm_bindings/     # Thin WASM wrapper
+│   │   ├── index.html         # Web UI
+│   │   ├── styles.css
+│   │   ├── pkg/               # Generated WASM output
+│   │   └── build.sh           # Build script
+│   │
+│   └── mobile/                # 📱 Flutter app (iOS + Android) - Planned
+│       └── README.md
+│
+└── legacy/                    # Archived code
+    └── pyscript/              # Original PyScript version
 ```
 
-## Browser Console Output
+## 🚀 Quick Start
 
-Check DevTools → Console for initialization status:
-```
-✅ PyScript initialized successfully!
-✅ ReferenceFrame modules loaded
-✅ Settings restored from localStorage
-```
+### Web App (Production)
 
-## Unit Support
+**Live URL:** https://glarue.github.io/ReferenceFrame
 
-- **Inches** (default)
-- **Millimeters** (toggle in UI)
-- Auto-conversion between units
-- Precision formatting for both systems
-
-## Technical Stack
-
-- **PyScript 2024.6.2** - Python in the browser
-- **Pyodide 0.26.2** - Python runtime via WebAssembly
-- **matplotlib** - Client-side visualization
-- **jsPDF + svg2pdf.js** - Vector PDF export
-- **Service Worker** - Offline support and caching
-
-## Browser Compatibility
-
-Tested and working on:
-- Chrome/Edge (recommended)
-- Firefox
-- Safari (iOS and macOS)
-
-Requires modern browser with WebAssembly support.
-
-## Privacy & Offline Use
-
-- **100% client-side** - No data sent to servers
-- **Offline capable** - Works without internet after first load
-- **Local storage only** - All settings stored in browser
-- **No tracking** - Zero analytics or telemetry
-
-## Documentation
-
-- [DEPLOYMENT.md](docs/DEPLOYMENT.md) - Deployment guide (GitHub Pages, Cloudflare, etc.)
-- [VALIDATION_STATUS.md](docs/VALIDATION_STATUS.md) - Feature status and testing
-- [SETUP_NOTES.md](docs/SETUP_NOTES.md) - Technical implementation details
-- [PERFORMANCE_OPTIMIZATION_PLAN.md](docs/PERFORMANCE_OPTIMIZATION_PLAN.md) - Load time optimizations
-
-## Development
-
-### Running Tests
-
+**Local Development:**
 ```bash
-# Python tests
-pytest tests/
-
-# Browser-based testing
-python3 -m http.server 8000
-# Open browser DevTools and check console output
+cd platforms/web
+./build.sh              # Build WASM bindings
+python serve.py         # Start local server
+# Open http://localhost:8887
 ```
 
-### Project Structure
+### Development
 
-The application is built as a single-page app with modular Python code:
-- Core logic in `src/` is imported by PyScript
-- UI state managed via vanilla JavaScript + Python
-- No build process required - deploy static files directly
+**Core Library** (platform-agnostic Rust):
+```bash
+cd core
+cargo build
+cargo test
+```
 
-## Troubleshooting
+**WASM Bindings** (web platform):
+```bash
+cd platforms/web/wasm_bindings
+wasm-pack build --target web --out-dir ../pkg
+```
 
-**"Failed to fetch" errors**:
-- Must serve via HTTP server (not `file://`)
-- Use `python3 -m http.server 8000`
+## 📦 What's Where
 
-**Long load times**:
-- First load downloads Pyodide (~10-15 seconds)
-- matplotlib adds another 30-60 seconds first time
-- This is normal - subsequent loads are instant
+- **`core/`** - All business logic in pure Rust (no platform dependencies)
+  - Frame design calculations
+  - Input parsing (fractional dimensions)
+  - Validation rules
+  - SVG visualization generation
 
-**Calculations don't work**:
-- Check browser console for Python errors
-- Verify HTTP server is running
-- Try hard refresh (Cmd+Shift+R / Ctrl+Shift+F5)
+- **`platforms/web/`** - Web application
+  - `wasm_bindings/` - Thin wrapper adding `#[wasm_bindgen]` to core types
+  - `index.html` - Web UI
+  - `pkg/` - Generated WASM (created by build script)
 
-**matplotlib doesn't render**:
-- Wait 60+ seconds on first load
-- Check console for "matplotlib loaded!" message
-- Subsequent renders are instant after packages download
+- **`platforms/mobile/`** - Future Flutter app (iOS + Android)
 
-## License
+## 🎯 Key Benefits
 
-[Add your license here]
+1. **Maximum Code Sharing**: 90%+ of code in platform-agnostic `core/`
+2. **Consistent Logic**: Same calculations across web and mobile
+3. **Easy Testing**: Core logic tested independently of UI
+4. **Future-Proof**: Easy to add new platforms (desktop, CLI, etc.)
+
+## 📝 Development Workflow
+
+1. Make changes to **core logic** in `core/src/`
+2. Run tests: `cd core && cargo test`
+3. **For web**: Rebuild WASM with `cd platforms/web && ./build.sh`
+4. **For mobile** (future): Regenerate FFI bindings
+
+## 🔧 Tech Stack
+
+- **Core**: Rust (pure, no platform dependencies)
+- **Web**: Rust → WASM via wasm-bindgen (~220 KB payload)
+- **Mobile** (planned): Rust → FFI via flutter_rust_bridge
+- **Visualization**: SVG generation in Rust
+
+## 🚢 Deployment
+
+**Web App:** Automatically deployed to GitHub Pages on push to `main` branch
+- Deploys from: `platforms/web/`
+- URL: https://glarue.github.io/ReferenceFrame
+- Workflow: `.github/workflows/deploy.yml`
+
+**Legacy PyScript Version:** Archived in `legacy/pyscript/` (reference only)
+
+## 📄 License
+
+MIT OR Apache-2.0
