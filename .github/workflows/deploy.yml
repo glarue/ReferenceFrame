@@ -25,6 +25,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM bindings
+        run: |
+          cd platforms/web/wasm_bindings
+          wasm-pack build --target web --out-dir ../pkg
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
