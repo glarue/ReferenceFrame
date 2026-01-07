@@ -776,6 +776,7 @@ input::placeholder {
     letter-spacing: 0.06em;
     color: var(--rf-gray);
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .depth-label .label-value {
@@ -783,6 +784,7 @@ input::placeholder {
     font-weight: 700;
     font-family: var(--font-mono);
     color: var(--rf-text);
+    white-space: nowrap;
 }
 
 /* Required label: positioned at left */
