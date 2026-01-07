@@ -1044,11 +1044,36 @@ input::placeholder {
     margin-bottom: 16px;
 }
 
+.section-header-with-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
 .section-label {
     font-size: 14px;
     font-weight: 600;
     color: var(--rf-text);
-    margin-bottom: 4px;
+}
+
+.toggle-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle-checkbox-label input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+}
+
+.toggle-text {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--rf-text-muted);
 }
 
 .mat-borders-grid {
