@@ -1372,30 +1372,53 @@ button:active {
 .collapsible-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 10px;
     cursor: pointer;
     user-select: none;
-    transition: color var(--md-duration-short3) var(--md-easing-standard);
-    /* Match h2 styling for consistency */
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 10px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--rf-border);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    background: var(--md-surface-container);
+    border: 1px solid var(--rf-border);
+    border-radius: 8px;
+    transition: all var(--md-duration-short3) var(--md-easing-standard);
 }
 
 .collapsible-header:hover {
+    background: var(--md-surface-container-high);
+    border-color: var(--rf-primary-blue);
+}
+
+.collapsible-header.expanded {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-bottom: 0;
+    border-bottom-color: transparent;
+}
+
+.collapsible-header .header-icon {
+    font-size: 20px;
     color: var(--rf-primary-blue);
+    flex-shrink: 0;
+}
+
+.collapsible-header .header-title {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--rf-text);
 }
 
 .collapsible-header .toggle-icon {
-    font-size: 11px;
+    font-size: 20px;
     transition: transform var(--md-duration-short4) var(--md-easing-emphasized);
     color: var(--rf-text-muted);
+    flex-shrink: 0;
 }
 
 .collapsible-header.expanded .toggle-icon {
-    transform: rotate(90deg);
+    transform: rotate(180deg);
     color: var(--rf-primary-blue);
 }
 
@@ -1403,13 +1426,22 @@ button:active {
     max-height: 0;
     overflow: hidden;
     transition: max-height var(--md-duration-medium2) var(--md-easing-emphasized),
-                opacity var(--md-duration-medium1) var(--md-easing-emphasized);
+                opacity var(--md-duration-medium1) var(--md-easing-emphasized),
+                padding var(--md-duration-medium1) var(--md-easing-emphasized);
     opacity: 0;
+    padding: 0 12px;
+    background: var(--md-surface-container);
 }
 
 .collapsible-content.expanded {
     max-height: 800px;
     opacity: 1;
+    padding: 16px 12px;
+    border: 1px solid var(--rf-border);
+    border-top: none;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    margin-bottom: 12px;
 }
 
 /* Advanced options grid */
