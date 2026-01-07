@@ -803,23 +803,26 @@ input::placeholder {
     overflow: hidden;
 }
 
-/* Fill shows required depth (green if fits, orange if exceeds) */
+/* Fill shows required depth */
 .depth-fill {
     position: absolute;
-    left: 0;
     top: 0;
     height: 100%;
     transition: width var(--md-motion-duration-medium) var(--md-easing-emphasized),
-                background-color var(--md-motion-duration-short) ease;
+                left var(--md-motion-duration-medium) var(--md-easing-emphasized);
+}
+
+/* Green fill: always shows up to available capacity */
+.depth-fill-green {
+    left: 0;
+    background: var(--rf-success-green);
     border-radius: 3px 0 0 3px;
 }
 
-.depth-fill.within-limit {
-    background: var(--rf-success-green);
-}
-
-.depth-fill.over-limit {
+/* Orange/red overflow fill: shows excess beyond capacity */
+.depth-fill-overflow {
     background: var(--rf-warning-orange);
+    border-radius: 0 3px 3px 0;
 }
 
 /* Marker line showing rabbet depth capacity */

@@ -14,7 +14,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><rect x='30' y='30' width='120' height='120' fill='none' stroke='%2390be6d' stroke-width='12'/><rect x='50' y='50' width='80' height='80' fill='none' stroke='%23f9844a' stroke-width='9'/></svg>">
 
-    <link rel="stylesheet" href="./styles.css?v=20260107-depth-gauge-refined">
+    <link rel="stylesheet" href="./styles.css?v=20260107-split-gauge-fill">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -1361,8 +1361,14 @@
                 // Filling gauge bar
                 html += `<div class="depth-bar-container">`;
                 html += `<div class="depth-bar">`;
-                // Fill from left to required depth (green if within, orange if over)
-                html += `<div class="depth-fill ${hasShortfall ? 'over-limit' : 'within-limit'}" style="width: ${requiredPercent}%"></div>`;
+                // Green fill: always goes up to the available depth threshold
+                const greenFillPercent = Math.min(requiredPercent, rabbetPercent);
+                html += `<div class="depth-fill depth-fill-green" style="width: ${greenFillPercent}%"></div>`;
+                // Orange/red overflow fill: only if required exceeds available
+                if (hasShortfall) {
+                    const overflowPercent = requiredPercent - rabbetPercent;
+                    html += `<div class="depth-fill depth-fill-overflow" style="left: ${rabbetPercent}%; width: ${overflowPercent}%"></div>`;
+                }
                 // Marker line at rabbet depth (capacity limit)
                 html += `<div class="depth-capacity-marker" style="left: ${rabbetPercent}%"></div>`;
                 html += `</div>`;
