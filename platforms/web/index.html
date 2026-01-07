@@ -14,7 +14,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><rect x='30' y='30' width='120' height='120' fill='none' stroke='%2390be6d' stroke-width='12'/><rect x='50' y='50' width='80' height='80' fill='none' stroke='%23f9844a' stroke-width='9'/></svg>">
 
-    <link rel="stylesheet" href="./styles.css?v=20260107-alert-cards">
+    <link rel="stylesheet" href="./styles.css?v=20260107-cut-list-table">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -1111,25 +1111,42 @@
                 html += `<strong>📐 Artwork:</strong>`;
                 html += `<ul><li>${formatValueWithDecimal(artworkHeight, unitMm)} H × ${formatValueWithDecimal(artworkWidth, unitMm)} W</li></ul>`;
 
-                // Cut List
+                // Cut List (table format)
                 html += `<strong>🪚 Cut List:</strong>`;
-                html += `<ul>`;
+                html += `<div class="cut-list-table">`;
+
+                // Header
+                html += `<div class="cut-list-header">`;
+                html += `<span>Qty</span>`;
+                html += `<span>Component</span>`;
+                html += `<span>Length</span>`;
+                html += `</div>`;
+
+                // Data rows
                 if (cutList.horizontal_pieces && cutList.horizontal_pieces.length > 0) {
                     const p = cutList.horizontal_pieces[0];
-                    html += `<li>Top & Bottom: ${p.quantity}× <span class="dim-outside">${formatValueWithDecimal(p.outside_length, unitMm)}</span>`;
-                    html += ` <span class="dim-inside">(inside: ${formatValueWithDecimal(p.inside_length, unitMm)})</span></li>`;
+                    html += `<div class="cut-list-row">`;
+                    html += `<span>${p.quantity}</span>`;
+                    html += `<span>Top & Bottom</span>`;
+                    html += `<span>${formatValueWithDecimal(p.outside_length, unitMm)}</span>`;
+                    html += `</div>`;
                 }
                 if (cutList.vertical_pieces && cutList.vertical_pieces.length > 0) {
                     const p = cutList.vertical_pieces[0];
-                    html += `<li>Left & Right: ${p.quantity}× <span class="dim-outside">${formatValueWithDecimal(p.outside_length, unitMm)}</span>`;
-                    html += ` <span class="dim-inside">(inside: ${formatValueWithDecimal(p.inside_length, unitMm)})</span></li>`;
+                    html += `<div class="cut-list-row">`;
+                    html += `<span>${p.quantity}</span>`;
+                    html += `<span>Left & Right</span>`;
+                    html += `<span>${formatValueWithDecimal(p.outside_length, unitMm)}</span>`;
+                    html += `</div>`;
                 }
-                html += `</ul>`;
 
-                // Material
-                html += `<strong>📦 Material:</strong>`;
-                html += `<ul><li>Total Wood: <strong class="highlight-blue">${formatValueWithDecimal(totalWood, unitMm)}</strong>`;
-                html += ` <span class="text-muted">(+kerf +${formatValueWithDecimal(errorMargin, unitMm)}/piece)</span></li></ul>`;
+                // Footer with total
+                html += `<div class="cut-list-footer">`;
+                html += `<span>Total Wood Length</span>`;
+                html += `<span>${formatValueWithDecimal(totalWood, unitMm)}</span>`;
+                html += `</div>`;
+
+                html += `</div>`; // Close cut-list-table
 
                 // Frame dimensions
                 html += `<strong>🖼️ Frame:</strong>`;
