@@ -798,7 +798,7 @@
         updateMatVisibility();
 
         // Mat border stepper controls
-        function adjustMatWidth(side, delta) {
+        window.adjustMatWidth = function(side, delta) {
             const inputId = `mat-width-${side}`;
             const currentValue = getDimensionValue(inputId);
             const newValue = Math.max(0, currentValue + delta);
@@ -807,7 +807,7 @@
         }
 
         // Mat symmetry helper functions
-        function makeMatSymmetric(mode) {
+        window.makeMatSymmetric = function(mode) {
             const top = getDimensionValue('mat-width-top');
             const bottom = getDimensionValue('mat-width-bottom');
             const left = getDimensionValue('mat-width-left');
@@ -840,7 +840,7 @@
         }
 
         // Toggle between single and separate mat border inputs
-        function toggleMatBorderMode() {
+        window.toggleMatBorderMode = function() {
             const separateModeEnabled = document.getElementById('separate-mat-borders').checked;
             const singleField = document.getElementById('mat-width-single-field');
             const separateContainer = document.getElementById('mat-width-separate-container');
