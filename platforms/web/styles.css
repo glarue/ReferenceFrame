@@ -1326,29 +1326,32 @@ button:active {
 /* Unit toggle - Segmented control */
 .unit-toggle {
     display: flex;
-    gap: 2px;
-    padding: 3px;
-    border-radius: var(--md-shape-small);
-    background: var(--md-surface-container-low);
+    gap: 3px;
+    padding: 4px;
+    border-radius: 8px;
+    background: var(--md-surface-container-high);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .unit-toggle button {
-    padding: 5px 12px;
+    padding: 6px 14px;
     border: none;
     background: transparent;
     color: var(--rf-text-muted);
-    font: var(--md-typescale-label-medium);
-    letter-spacing: var(--md-tracking-wide);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     cursor: pointer;
-    transition: background-color var(--md-duration-short3) var(--md-easing-standard),
-                color var(--md-duration-short3) var(--md-easing-standard),
-                box-shadow var(--md-duration-short3) var(--md-easing-standard);
-    min-height: 28px;
-    border-radius: var(--md-shape-extra-small);
+    transition: all var(--md-duration-short3) var(--md-easing-emphasized);
+    min-height: 30px;
+    border-radius: 6px;
+    position: relative;
 }
 
 .unit-toggle button:hover:not(.active) {
     background: var(--md-surface-container);
+    color: var(--rf-text);
 }
 
 .unit-toggle button::before {
@@ -1356,9 +1359,11 @@ button:active {
 }
 
 .unit-toggle button.active {
-    background: var(--rf-primary-blue);
-    color: white;
-    box-shadow: var(--md-elevation-1);
+    background: white;
+    color: var(--rf-primary-blue);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1),
+                0 0 0 1px rgba(39, 124, 160, 0.15);
+    font-weight: 700;
 }
 
 /* Share button */
