@@ -758,9 +758,10 @@ input::placeholder {
 
 .depth-labels-container {
     position: relative;
-    width: 70%;
+    width: 50%;
     min-height: 44px; /* Accommodate label height */
     margin-bottom: 6px;
+    overflow: visible; /* Allow labels to extend beyond container */
 }
 
 .depth-label {
@@ -804,7 +805,7 @@ input::placeholder {
 }
 
 .depth-bar-container {
-    width: 70%;
+    width: 50%;
     padding: 4px 0;
 }
 
