@@ -129,50 +129,32 @@
                             <input type="text" id="mat-width-single" value="2" inputmode="decimal" placeholder="e.g. 2.0 or 2 1/4">
                         </div>
 
-                        <!-- 4 separate inputs (shown when toggle enabled) -->
+                        <!-- 2 separate inputs (shown when toggle enabled) -->
                         <div id="mat-width-separate-container" style="display: none;">
                             <div class="mat-borders-grid">
                                 <div class="field field-stepper">
-                                    <label class="field-label-small">Top</label>
+                                    <label class="field-label-small">Top/Bottom</label>
                                     <div class="input-stepper">
-                                        <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('top', -0.125)">−</button>
-                                        <input type="text" id="mat-width-top" value="2" inputmode="decimal" placeholder="2.0">
-                                        <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('top', 0.125)">+</button>
+                                        <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('tb', -0.125)">−</button>
+                                        <input type="text" id="mat-width-tb" value="2" inputmode="decimal" placeholder="2.0">
+                                        <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('tb', 0.125)">+</button>
                                     </div>
                                 </div>
                                 <div class="field field-stepper">
-                                    <label class="field-label-small">Bottom</label>
+                                    <label class="field-label-small">Left/Right</label>
                                     <div class="input-stepper">
-                                        <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('bottom', -0.125)">−</button>
-                                        <input type="text" id="mat-width-bottom" value="2" inputmode="decimal" placeholder="2.0">
-                                        <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('bottom', 0.125)">+</button>
-                                    </div>
-                                </div>
-                                <div class="field field-stepper">
-                                    <label class="field-label-small">Left</label>
-                                    <div class="input-stepper">
-                                        <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('left', -0.125)">−</button>
-                                        <input type="text" id="mat-width-left" value="2" inputmode="decimal" placeholder="2.0">
-                                        <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('left', 0.125)">+</button>
-                                    </div>
-                                </div>
-                                <div class="field field-stepper">
-                                    <label class="field-label-small">Right</label>
-                                    <div class="input-stepper">
-                                        <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('right', -0.125)">−</button>
-                                        <input type="text" id="mat-width-right" value="2" inputmode="decimal" placeholder="2.0">
-                                        <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('right', 0.125)">+</button>
+                                        <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('lr', -0.125)">−</button>
+                                        <input type="text" id="mat-width-lr" value="2" inputmode="decimal" placeholder="2.0">
+                                        <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('lr', 0.125)">+</button>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Symmetry helper buttons -->
-                            <div class="mat-symmetry-controls">
-                                <button type="button" class="btn-symmetry" onclick="makeMatSymmetric('all')" title="All sides equal">All =</button>
-                                <button type="button" class="btn-symmetry" onclick="makeMatSymmetric('tb-lr')" title="Top/Bottom equal, Left/Right equal">TB|LR</button>
-                                <button type="button" class="btn-symmetry" onclick="makeMatSymmetric('tb')" title="Top = Bottom">T=B</button>
-                                <button type="button" class="btn-symmetry" onclick="makeMatSymmetric('lr')" title="Left = Right">L=R</button>
-                            </div>
+                            <!-- Hidden inputs for backwards compatibility - synced with tb/lr -->
+                            <input type="hidden" id="mat-width-top" value="2">
+                            <input type="hidden" id="mat-width-bottom" value="2">
+                            <input type="hidden" id="mat-width-left" value="2">
+                            <input type="hidden" id="mat-width-right" value="2">
                         </div>
                     </div>
 
@@ -592,7 +574,7 @@
         // All dimension input field IDs
         const dimensionInputIds = [
             'artwork-height', 'artwork-width',
-            'mat-width-single', 'mat-width-top', 'mat-width-bottom', 'mat-width-left', 'mat-width-right',
+            'mat-width-single', 'mat-width-tb', 'mat-width-lr', 'mat-width-top', 'mat-width-bottom', 'mat-width-left', 'mat-width-right',
             'mat-overlap',
             'frame-width', 'frame-depth', 'glazing-thickness', 'matboard-thickness',
             'artwork-thickness', 'backing-thickness', 'rabbet-width', 'rabbet-depth',
@@ -803,40 +785,21 @@
             const currentValue = getDimensionValue(inputId);
             const newValue = Math.max(0, currentValue + delta);
             setDimensionValue(inputId, newValue);
+
+            // Sync hidden individual inputs
+            syncMatWidthInputs();
             calculate();
         }
 
-        // Mat symmetry helper functions
-        window.makeMatSymmetric = function(mode) {
-            const top = getDimensionValue('mat-width-top');
-            const bottom = getDimensionValue('mat-width-bottom');
-            const left = getDimensionValue('mat-width-left');
-            const right = getDimensionValue('mat-width-right');
+        // Sync hidden individual mat inputs from tb/lr visible inputs
+        function syncMatWidthInputs() {
+            const tbValue = getDimensionValue('mat-width-tb');
+            const lrValue = getDimensionValue('mat-width-lr');
 
-            switch(mode) {
-                case 'all':
-                    // Use top value for all
-                    setDimensionValue('mat-width-bottom', top);
-                    setDimensionValue('mat-width-left', top);
-                    setDimensionValue('mat-width-right', top);
-                    break;
-                case 'tb-lr':
-                    // Top=Bottom, Left=Right (preserves both pairs)
-                    setDimensionValue('mat-width-bottom', top);
-                    setDimensionValue('mat-width-right', left);
-                    break;
-                case 'tb':
-                    // Top = Bottom only
-                    setDimensionValue('mat-width-bottom', top);
-                    break;
-                case 'lr':
-                    // Left = Right only
-                    setDimensionValue('mat-width-right', left);
-                    break;
-            }
-
-            // Trigger recalculation
-            calculate();
+            setDimensionValue('mat-width-top', tbValue);
+            setDimensionValue('mat-width-bottom', tbValue);
+            setDimensionValue('mat-width-left', lrValue);
+            setDimensionValue('mat-width-right', lrValue);
         }
 
         // Toggle between single and separate mat border inputs
@@ -846,24 +809,29 @@
             const separateContainer = document.getElementById('mat-width-separate-container');
 
             if (separateModeEnabled) {
-                // Switching to separate mode - populate all 4 inputs with current single value
+                // Switching to separate mode - populate tb/lr inputs with current single value
                 const singleValue = getDimensionValue('mat-width-single');
-                setDimensionValue('mat-width-top', singleValue);
-                setDimensionValue('mat-width-bottom', singleValue);
-                setDimensionValue('mat-width-left', singleValue);
-                setDimensionValue('mat-width-right', singleValue);
+                setDimensionValue('mat-width-tb', singleValue);
+                setDimensionValue('mat-width-lr', singleValue);
+
+                // Sync hidden individual inputs
+                syncMatWidthInputs();
 
                 // Show separate inputs, hide single input
                 singleField.style.display = 'none';
                 separateContainer.style.display = 'block';
             } else {
-                // Switching to single mode - use average of 4 inputs
-                const top = getDimensionValue('mat-width-top');
-                const bottom = getDimensionValue('mat-width-bottom');
-                const left = getDimensionValue('mat-width-left');
-                const right = getDimensionValue('mat-width-right');
-                const average = (top + bottom + left + right) / 4;
+                // Switching to single mode - use average of tb and lr
+                const tb = getDimensionValue('mat-width-tb');
+                const lr = getDimensionValue('mat-width-lr');
+                const average = (tb + lr) / 2;
                 setDimensionValue('mat-width-single', average);
+
+                // Sync all hidden inputs to single value
+                setDimensionValue('mat-width-top', average);
+                setDimensionValue('mat-width-bottom', average);
+                setDimensionValue('mat-width-left', average);
+                setDimensionValue('mat-width-right', average);
 
                 // Show single input, hide separate inputs
                 singleField.style.display = 'block';
@@ -874,17 +842,27 @@
             calculate();
         }
 
-        // When single mat width changes, sync all 4 separate inputs (when in single mode)
+        // When single mat width changes, sync all hidden inputs (when in single mode)
         document.getElementById('mat-width-single').addEventListener('input', () => {
             const separateModeEnabled = document.getElementById('separate-mat-borders').checked;
             if (!separateModeEnabled) {
                 const singleValue = getDimensionValue('mat-width-single');
-                // Keep the 4 separate inputs in sync (even though they're hidden)
+                // Keep tb/lr and hidden individual inputs in sync
+                setDimensionValue('mat-width-tb', singleValue);
+                setDimensionValue('mat-width-lr', singleValue);
                 setDimensionValue('mat-width-top', singleValue);
                 setDimensionValue('mat-width-bottom', singleValue);
                 setDimensionValue('mat-width-left', singleValue);
                 setDimensionValue('mat-width-right', singleValue);
             }
+        });
+
+        // When tb/lr inputs change, sync hidden individual inputs
+        document.getElementById('mat-width-tb').addEventListener('input', () => {
+            syncMatWidthInputs();
+        });
+        document.getElementById('mat-width-lr').addEventListener('input', () => {
+            syncMatWidthInputs();
         });
 
         // Collapsible Advanced Options
@@ -2449,6 +2427,9 @@
                 // Those are managed separately as custom sizes
                 separate_mat_borders: document.getElementById('separate-mat-borders').checked,
                 mat_width_single: getDimensionValue('mat-width-single'),
+                mat_width_tb: getDimensionValue('mat-width-tb'),
+                mat_width_lr: getDimensionValue('mat-width-lr'),
+                // Keep individual values for backwards compatibility
                 mat_width_top: getDimensionValue('mat-width-top'),
                 mat_width_bottom: getDimensionValue('mat-width-bottom'),
                 mat_width_left: getDimensionValue('mat-width-left'),
@@ -2476,34 +2457,46 @@
             // Use custom sizes for that instead
 
             // Load mat width values (handle multiple format versions)
-            if (config.mat_width_single !== undefined) {
-                // Newest format with single + 4 separate + checkbox
+            if (config.mat_width_tb !== undefined && config.mat_width_lr !== undefined) {
+                // Newest format with single + tb/lr + checkbox
                 setDimensionValue('mat-width-single', config.mat_width_single);
-                setDimensionValue('mat-width-top', config.mat_width_top);
-                setDimensionValue('mat-width-bottom', config.mat_width_bottom);
-                setDimensionValue('mat-width-left', config.mat_width_left);
-                setDimensionValue('mat-width-right', config.mat_width_right);
+                setDimensionValue('mat-width-tb', config.mat_width_tb);
+                setDimensionValue('mat-width-lr', config.mat_width_lr);
+                // Sync hidden individual inputs
+                setDimensionValue('mat-width-top', config.mat_width_tb);
+                setDimensionValue('mat-width-bottom', config.mat_width_tb);
+                setDimensionValue('mat-width-left', config.mat_width_lr);
+                setDimensionValue('mat-width-right', config.mat_width_lr);
                 document.getElementById('separate-mat-borders').checked = config.separate_mat_borders || false;
             } else if (config.mat_width_top !== undefined) {
-                // Previous format with 4 separate values
-                const avg = (config.mat_width_top + config.mat_width_bottom + config.mat_width_left + config.mat_width_right) / 4;
-                setDimensionValue('mat-width-single', avg);
+                // Previous format with 4 separate values - convert to tb/lr
+                const tbAvg = (config.mat_width_top + config.mat_width_bottom) / 2;
+                const lrAvg = (config.mat_width_left + config.mat_width_right) / 2;
+                const overallAvg = (config.mat_width_top + config.mat_width_bottom + config.mat_width_left + config.mat_width_right) / 4;
+
+                setDimensionValue('mat-width-single', overallAvg);
+                setDimensionValue('mat-width-tb', tbAvg);
+                setDimensionValue('mat-width-lr', lrAvg);
                 setDimensionValue('mat-width-top', config.mat_width_top);
                 setDimensionValue('mat-width-bottom', config.mat_width_bottom);
                 setDimensionValue('mat-width-left', config.mat_width_left);
                 setDimensionValue('mat-width-right', config.mat_width_right);
-                // Default to separate mode if values differ
-                const allSame = config.mat_width_top === config.mat_width_bottom &&
-                               config.mat_width_top === config.mat_width_left &&
-                               config.mat_width_top === config.mat_width_right;
-                document.getElementById('separate-mat-borders').checked = !allSame;
-            } else if (config.mat_width !== undefined) {
+
+                // Enable separate mode if tb or lr pairs differ
+                const tbDiffers = Math.abs(config.mat_width_top - config.mat_width_bottom) > 0.001;
+                const lrDiffers = Math.abs(config.mat_width_left - config.mat_width_right) > 0.001;
+                const pairsDiffer = Math.abs(tbAvg - lrAvg) > 0.001;
+                document.getElementById('separate-mat-borders').checked = pairsDiffer || tbDiffers || lrDiffers;
+            } else if (config.mat_width !== undefined || config.mat_width_single !== undefined) {
                 // Old format with single value
-                setDimensionValue('mat-width-single', config.mat_width);
-                setDimensionValue('mat-width-top', config.mat_width);
-                setDimensionValue('mat-width-bottom', config.mat_width);
-                setDimensionValue('mat-width-left', config.mat_width);
-                setDimensionValue('mat-width-right', config.mat_width);
+                const singleValue = config.mat_width || config.mat_width_single;
+                setDimensionValue('mat-width-single', singleValue);
+                setDimensionValue('mat-width-tb', singleValue);
+                setDimensionValue('mat-width-lr', singleValue);
+                setDimensionValue('mat-width-top', singleValue);
+                setDimensionValue('mat-width-bottom', singleValue);
+                setDimensionValue('mat-width-left', singleValue);
+                setDimensionValue('mat-width-right', singleValue);
                 document.getElementById('separate-mat-borders').checked = false;
             }
 
