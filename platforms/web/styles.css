@@ -751,21 +751,24 @@ input::placeholder {
     color: var(--rf-error-red);
 }
 
-/* Depth Comparison Progress Bars */
-.depth-comparison {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+/* Depth Analysis Bar */
+.depth-analysis {
     margin: 12px 0;
 }
 
-.depth-metric {
+.depth-labels {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    justify-content: space-between;
+    margin-bottom: 8px;
 }
 
-.depth-metric label {
+.depth-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.depth-label .label-text {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -773,34 +776,64 @@ input::placeholder {
     font-weight: 700;
 }
 
-.depth-metric .value {
-    font-size: 18px;
+.depth-label .label-value {
+    font-size: 16px;
     font-weight: 700;
     font-family: var(--font-mono);
     color: var(--rf-text);
 }
 
-.progress-bar {
+.depth-bar-container {
     width: 100%;
-    height: 6px;
-    background: var(--md-surface-container-high);
-    border-radius: 3px;
-    overflow: hidden;
+    padding: 4px 0;
+}
+
+.depth-bar {
     position: relative;
+    width: 100%;
+    height: 24px;
+    background: var(--md-surface-container-high);
+    border-radius: 4px;
+    overflow: visible;
 }
 
-.progress-fill {
+.depth-fill {
     height: 100%;
-    background: var(--rf-gray);
-    transition: width var(--md-motion-duration-medium) var(--md-easing-emphasized);
+    transition: width var(--md-motion-duration-medium) var(--md-easing-emphasized),
+                background-color var(--md-motion-duration-short) ease;
+    border-radius: 4px;
 }
 
-.progress-bar.warning .progress-fill {
+/* Available depth is sufficient */
+.depth-bar.sufficient .depth-fill {
+    background: var(--rf-success-green);
+}
+
+/* Available depth is insufficient */
+.depth-bar.insufficient .depth-fill {
     background: var(--rf-warning-orange);
 }
 
-.progress-bar.success .progress-fill {
+/* Indicator marker for required depth */
+.depth-indicator {
+    position: absolute;
+    top: -4px;
+    height: 32px;
+    width: 3px;
+    margin-left: -1.5px;
+    transition: left var(--md-motion-duration-medium) var(--md-easing-emphasized),
+                background-color var(--md-motion-duration-short) ease;
+    border-radius: 2px;
+}
+
+.depth-indicator.within-limit {
     background: var(--rf-success-green);
+    box-shadow: 0 0 4px rgba(144, 190, 109, 0.5);
+}
+
+.depth-indicator.over-limit {
+    background: var(--rf-error-red);
+    box-shadow: 0 0 4px rgba(249, 65, 68, 0.5);
 }
 
 /* Buttons - Material Design 3 */

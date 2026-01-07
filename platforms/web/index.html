@@ -1150,7 +1150,7 @@
                     html += `</ul>`;
                 }
 
-                // Depth check with visual progress bars
+                // Depth check with visual progress bar
                 html += `<strong>📏 Depth:</strong>`;
 
                 // Format values, removing redundant decimals when fraction = decimal
@@ -1161,34 +1161,39 @@
                     return formatted.replace(/^(.+?) \(\1([^)]*)\)$/, '$1$2');
                 };
 
-                // Calculate percentage for progress bars (relative to package depth)
-                const packagePercent = 100;
-                const rabbetPercent = Math.min(100, (rabbetDepth / depthRequired) * 100);
+                // Calculate percentages (relative to max of rabbet or required depth)
+                const maxDepth = Math.max(rabbetDepth, depthRequired);
+                const rabbetPercent = (rabbetDepth / maxDepth) * 100;
+                const requiredPercent = (depthRequired / maxDepth) * 100;
                 const hasShortfall = depthRequired > rabbetDepth;
 
-                html += `<div class="depth-comparison">`;
+                html += `<div class="depth-analysis">`;
 
-                // Package Depth (required)
-                html += `<div class="depth-metric">`;
-                html += `<label>Package Depth</label>`;
-                html += `<span class="value">${formatNonRedundant(depthRequired, unitMm)}</span>`;
-                html += `<div class="progress-bar">`;
-                html += `<div class="progress-fill" style="width: ${packagePercent}%"></div>`;
+                // Labels above bar
+                html += `<div class="depth-labels">`;
+                html += `<div class="depth-label">`;
+                html += `<span class="label-text">Available</span>`;
+                html += `<span class="label-value">${formatNonRedundant(rabbetDepth, unitMm)}</span>`;
+                html += `</div>`;
+                html += `<div class="depth-label">`;
+                html += `<span class="label-text">Required</span>`;
+                html += `<span class="label-value">${formatNonRedundant(depthRequired, unitMm)}</span>`;
                 html += `</div>`;
                 html += `</div>`;
 
-                // Rabbet Depth (available)
-                html += `<div class="depth-metric">`;
-                html += `<label>Rabbet Depth</label>`;
-                html += `<span class="value">${formatNonRedundant(rabbetDepth, unitMm)}</span>`;
-                html += `<div class="progress-bar ${hasShortfall ? 'warning' : 'success'}">`;
-                html += `<div class="progress-fill" style="width: ${rabbetPercent}%"></div>`;
+                // Single bar with indicator
+                html += `<div class="depth-bar-container">`;
+                html += `<div class="depth-bar ${hasShortfall ? 'insufficient' : 'sufficient'}">`;
+                // Fill shows available rabbet depth
+                html += `<div class="depth-fill" style="width: ${rabbetPercent}%"></div>`;
+                // Indicator shows required package depth
+                html += `<div class="depth-indicator ${hasShortfall ? 'over-limit' : 'within-limit'}" style="left: ${requiredPercent}%"></div>`;
                 html += `</div>`;
                 html += `</div>`;
 
-                html += `</div>`; // Close depth-comparison
+                html += `</div>`; // Close depth-analysis
 
-                // Status message below progress bars
+                // Status message below bar
                 html += `<ul>`;
                 if (hasShortfall) {
                     const shortfall = depthRequired - rabbetDepth;

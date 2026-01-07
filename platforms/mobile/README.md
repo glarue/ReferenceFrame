@@ -1,8 +1,10 @@
 # Mobile Platform (iOS + Android)
 
-**Status**: Planned (not yet implemented)
+**Status**: Planning Phase (not yet implemented)
 
 This directory will contain the Flutter mobile application that shares the same Rust core logic as the web platform.
+
+📋 **See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for comprehensive implementation guide**
 
 ## Planned Architecture
 
