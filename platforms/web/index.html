@@ -14,7 +14,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><rect x='30' y='30' width='120' height='120' fill='none' stroke='%2390be6d' stroke-width='12'/><rect x='50' y='50' width='80' height='80' fill='none' stroke='%23f9844a' stroke-width='9'/></svg>">
 
-    <link rel="stylesheet" href="./styles.css?v=20260107-split-gauge-fill">
+    <link rel="stylesheet" href="./styles.css?v=20260107-gauge-positioning">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -1346,13 +1346,13 @@
 
                 html += `<div class="depth-analysis">`;
 
-                // Labels above bar (Required on left, Available on right)
-                html += `<div class="depth-labels">`;
-                html += `<div class="depth-label">`;
+                // Labels: Required on left, Available positioned at marker
+                html += `<div class="depth-labels-container">`;
+                html += `<div class="depth-label depth-label-required">`;
                 html += `<span class="label-text">Required</span>`;
                 html += `<span class="label-value">${formatNonRedundant(depthRequired, unitMm)}</span>`;
                 html += `</div>`;
-                html += `<div class="depth-label depth-label-available">`;
+                html += `<div class="depth-label depth-label-available" style="left: ${rabbetPercent}%">`;
                 html += `<span class="label-text">Available</span>`;
                 html += `<span class="label-value">${formatNonRedundant(rabbetDepth, unitMm)}</span>`;
                 html += `</div>`;

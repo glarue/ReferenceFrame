@@ -756,9 +756,10 @@ input::placeholder {
     margin: 12px 0;
 }
 
-.depth-labels {
-    display: flex;
-    justify-content: space-between;
+.depth-labels-container {
+    position: relative;
+    width: 70%;
+    min-height: 44px; /* Accommodate label height */
     margin-bottom: 6px;
 }
 
@@ -783,14 +784,27 @@ input::placeholder {
     color: var(--rf-text);
 }
 
-/* Available label and value match marker color */
+/* Required label: positioned at left */
+.depth-label-required {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+/* Available label: positioned at marker line */
+.depth-label-available {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%); /* Center on marker */
+}
+
 .depth-label-available .label-text,
 .depth-label-available .label-value {
     color: rgba(64, 64, 64, 0.85);
 }
 
 .depth-bar-container {
-    width: 100%;
+    width: 70%;
     padding: 4px 0;
 }
 
