@@ -44,6 +44,8 @@ jobs:
           mkdir -p deploy
           # Deploy WASM web version (replaces PyScript)
           cp platforms/web/index.html platforms/web/styles.css platforms/web/storage.js deploy/
+          # PWA files
+          cp platforms/web/manifest.json platforms/web/sw.js deploy/
           cp -r platforms/web/pkg deploy/
           # Add .nojekyll to prevent Jekyll processing
           touch deploy/.nojekyll
