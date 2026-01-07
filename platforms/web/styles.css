@@ -817,7 +817,7 @@ input::placeholder {
     height: 12px;
     background: rgba(128, 128, 128, 0.15); /* Light gray background */
     border-radius: 3px;
-    overflow: hidden;
+    overflow: visible; /* Allow marker line to extend beyond bounds */
 }
 
 /* Fill shows required depth */
