@@ -14,7 +14,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><rect x='30' y='30' width='120' height='120' fill='none' stroke='%2390be6d' stroke-width='12'/><rect x='50' y='50' width='80' height='80' fill='none' stroke='%23f9844a' stroke-width='9'/></svg>">
 
-    <link rel="stylesheet" href="./styles.css?v=20260105-dimension-controls-inline">
+    <link rel="stylesheet" href="./styles.css?v=20260107-alert-cards">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -1161,8 +1161,8 @@
                     return formatted.replace(/^(.+?) \(\1([^)]*)\)$/, '$1$2');
                 };
 
-                // Calculate percentages (relative to max of rabbet or required depth)
-                const maxDepth = Math.max(rabbetDepth, depthRequired);
+                // Calculate percentages (scale to larger value for visualization)
+                const maxDepth = Math.max(rabbetDepth, depthRequired) * 1.1; // Add 10% padding
                 const rabbetPercent = (rabbetDepth / maxDepth) * 100;
                 const requiredPercent = (depthRequired / maxDepth) * 100;
                 const hasShortfall = depthRequired > rabbetDepth;
@@ -1181,28 +1181,38 @@
                 html += `</div>`;
                 html += `</div>`;
 
-                // Single bar with indicator
+                // Filling gauge bar
                 html += `<div class="depth-bar-container">`;
-                html += `<div class="depth-bar ${hasShortfall ? 'insufficient' : 'sufficient'}">`;
-                // Fill shows available rabbet depth
-                html += `<div class="depth-fill" style="width: ${rabbetPercent}%"></div>`;
-                // Indicator shows required package depth
-                html += `<div class="depth-indicator ${hasShortfall ? 'over-limit' : 'within-limit'}" style="left: ${requiredPercent}%"></div>`;
+                html += `<div class="depth-bar">`;
+                // Fill from left to required depth (green if within, orange if over)
+                html += `<div class="depth-fill ${hasShortfall ? 'over-limit' : 'within-limit'}" style="width: ${requiredPercent}%"></div>`;
+                // Marker line at rabbet depth (capacity limit)
+                html += `<div class="depth-capacity-marker" style="left: ${rabbetPercent}%"></div>`;
                 html += `</div>`;
                 html += `</div>`;
 
                 html += `</div>`; // Close depth-analysis
 
-                // Status message below bar
-                html += `<ul>`;
+                // Status message as alert card
                 if (hasShortfall) {
                     const shortfall = depthRequired - rabbetDepth;
-                    html += `<li class="text-warning">⚠️ Shortfall: ${formatValueWithDecimal(shortfall, unitMm)} too shallow</li>`;
+                    html += `<div class="alert-card alert-card-warning">`;
+                    html += `<span class="alert-card-icon">⚠️</span>`;
+                    html += `<div class="alert-card-content">`;
+                    html += `<h4 class="alert-card-heading">Clearance Shortfall</h4>`;
+                    html += `<p class="alert-card-description">Package exceeds rabbet depth by <span class="alert-card-value">${formatValueWithDecimal(shortfall, unitMm)}</span>. Offset clips or deeper rabbet required.</p>`;
+                    html += `</div>`;
+                    html += `</div>`;
                 } else {
                     const clearance = rabbetDepth - depthRequired;
-                    html += `<li class="text-success">✅ Clearance: ${formatValueWithDecimal(clearance, unitMm)}</li>`;
+                    html += `<div class="alert-card alert-card-success">`;
+                    html += `<span class="alert-card-icon">✅</span>`;
+                    html += `<div class="alert-card-content">`;
+                    html += `<h4 class="alert-card-heading">Sufficient Clearance</h4>`;
+                    html += `<p class="alert-card-description">Available clearance: <span class="alert-card-value">${formatValueWithDecimal(clearance, unitMm)}</span></p>`;
+                    html += `</div>`;
+                    html += `</div>`;
                 }
-                html += `</ul>`;
 
                 // Specs (reuse already-declared variables: assemblyMargin, bladeWidth, rabbetWidth, rabbetDepth)
                 html += `<strong>⚙️ Specs:</strong>`;
