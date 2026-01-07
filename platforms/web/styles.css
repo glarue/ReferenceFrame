@@ -845,8 +845,8 @@ input::placeholder {
 /* Marker line showing rabbet depth capacity */
 .depth-capacity-marker {
     position: absolute;
-    top: 0;
-    height: 100%;
+    top: -3px;
+    height: calc(100% + 6px);
     width: 2px;
     background: rgba(64, 64, 64, 0.7); /* Dark gray line */
     margin-left: -1px;
