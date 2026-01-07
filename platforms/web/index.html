@@ -859,10 +859,12 @@
 
         // When tb/lr inputs change, sync hidden individual inputs
         document.getElementById('mat-width-tb').addEventListener('input', () => {
-            syncMatWidthInputs();
+            syncDimension('mat-width-tb');  // Parse fraction/decimal first
+            syncMatWidthInputs();  // Then sync to hidden inputs
         });
         document.getElementById('mat-width-lr').addEventListener('input', () => {
-            syncMatWidthInputs();
+            syncDimension('mat-width-lr');  // Parse fraction/decimal first
+            syncMatWidthInputs();  // Then sync to hidden inputs
         });
 
         // Collapsible Advanced Options
