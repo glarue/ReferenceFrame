@@ -14,7 +14,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%231a1a2e'/><rect x='30' y='30' width='120' height='120' fill='none' stroke='%2390be6d' stroke-width='12'/><rect x='50' y='50' width='80' height='80' fill='none' stroke='%23f9844a' stroke-width='9'/></svg>">
 
-    <link rel="stylesheet" href="./styles.css?v=20260107-cut-list-table">
+    <link rel="stylesheet" href="./styles.css?v=20260107-asymmetric-mats">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -114,15 +114,58 @@
                         <span class="header-text-muted">&</span>
                         <span>Frame</span>
                     </h2>
-                    <div class="inline-fields-row">
-                        <div class="field" id="mat-settings">
-                            <label id="label-mat-width">Mat Width</label>
-                            <input type="text" id="mat-width" value="2" inputmode="decimal" placeholder="e.g. 2.25 or 2 1/4">
+                    <!-- Mat Borders (4 separate inputs with steppers) -->
+                    <div class="mat-borders-section" id="mat-settings">
+                        <label id="label-mat-width" class="section-label">Mat Borders</label>
+
+                        <div class="mat-borders-grid">
+                            <div class="field field-stepper">
+                                <label class="field-label-small">Top</label>
+                                <div class="input-stepper">
+                                    <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('top', -0.125)">−</button>
+                                    <input type="text" id="mat-width-top" value="2" inputmode="decimal" placeholder="2.0">
+                                    <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('top', 0.125)">+</button>
+                                </div>
+                            </div>
+                            <div class="field field-stepper">
+                                <label class="field-label-small">Bottom</label>
+                                <div class="input-stepper">
+                                    <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('bottom', -0.125)">−</button>
+                                    <input type="text" id="mat-width-bottom" value="2.5" inputmode="decimal" placeholder="2.5">
+                                    <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('bottom', 0.125)">+</button>
+                                </div>
+                            </div>
+                            <div class="field field-stepper">
+                                <label class="field-label-small">Left</label>
+                                <div class="input-stepper">
+                                    <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('left', -0.125)">−</button>
+                                    <input type="text" id="mat-width-left" value="2" inputmode="decimal" placeholder="2.0">
+                                    <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('left', 0.125)">+</button>
+                                </div>
+                            </div>
+                            <div class="field field-stepper">
+                                <label class="field-label-small">Right</label>
+                                <div class="input-stepper">
+                                    <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('right', -0.125)">−</button>
+                                    <input type="text" id="mat-width-right" value="2" inputmode="decimal" placeholder="2.0">
+                                    <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('right', 0.125)">+</button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="field" id="mat-overlap-field">
-                            <label id="label-mat-overlap">Overlap</label>
-                            <input type="text" id="mat-overlap" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+
+                        <!-- Symmetry helper buttons -->
+                        <div class="mat-symmetry-controls">
+                            <button type="button" class="btn-symmetry" onclick="makeMatSymmetric('all')" title="All sides equal">All =</button>
+                            <button type="button" class="btn-symmetry" onclick="makeMatSymmetric('tb-lr')" title="Top/Bottom equal, Left/Right equal">TB|LR</button>
+                            <button type="button" class="btn-symmetry" onclick="makeMatSymmetric('tb')" title="Top = Bottom">T=B</button>
+                            <button type="button" class="btn-symmetry" onclick="makeMatSymmetric('lr')" title="Left = Right">L=R</button>
                         </div>
+                    </div>
+
+                    <!-- Mat overlap -->
+                    <div class="field" id="mat-overlap-field">
+                        <label id="label-mat-overlap">Mat Overlap</label>
+                        <input type="text" id="mat-overlap" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
                     </div>
                     <div class="inline-fields-row">
                         <div class="field">
@@ -534,7 +577,9 @@
         
         // All dimension input field IDs
         const dimensionInputIds = [
-            'artwork-height', 'artwork-width', 'mat-width', 'mat-overlap',
+            'artwork-height', 'artwork-width',
+            'mat-width-top', 'mat-width-bottom', 'mat-width-left', 'mat-width-right',
+            'mat-overlap',
             'frame-width', 'frame-depth', 'glazing-thickness', 'matboard-thickness',
             'artwork-thickness', 'backing-thickness', 'rabbet-width', 'rabbet-depth',
             'assembly-margin', 'blade-width'
@@ -737,6 +782,48 @@
         });
         
         updateMatVisibility();
+
+        // Mat border stepper controls
+        function adjustMatWidth(side, delta) {
+            const inputId = `mat-width-${side}`;
+            const currentValue = getDimensionValue(inputId);
+            const newValue = Math.max(0, currentValue + delta);
+            setDimensionValue(inputId, newValue);
+            calculate();
+        }
+
+        // Mat symmetry helper functions
+        function makeMatSymmetric(mode) {
+            const top = getDimensionValue('mat-width-top');
+            const bottom = getDimensionValue('mat-width-bottom');
+            const left = getDimensionValue('mat-width-left');
+            const right = getDimensionValue('mat-width-right');
+
+            switch(mode) {
+                case 'all':
+                    // Use top value for all
+                    setDimensionValue('mat-width-bottom', top);
+                    setDimensionValue('mat-width-left', top);
+                    setDimensionValue('mat-width-right', top);
+                    break;
+                case 'tb-lr':
+                    // Top=Bottom, Left=Right (preserves both pairs)
+                    setDimensionValue('mat-width-bottom', top);
+                    setDimensionValue('mat-width-right', left);
+                    break;
+                case 'tb':
+                    // Top = Bottom only
+                    setDimensionValue('mat-width-bottom', top);
+                    break;
+                case 'lr':
+                    // Left = Right only
+                    setDimensionValue('mat-width-right', left);
+                    break;
+            }
+
+            // Trigger recalculation
+            calculate();
+        }
 
         // Collapsible Advanced Options
         document.getElementById('advanced-header').addEventListener('click', () => {
@@ -1020,7 +1107,17 @@
                 const artworkHeight = getDimensionValue('artwork-height');
                 const artworkWidth = getDimensionValue('artwork-width');
                 const includeMat = document.getElementById('include-mat').checked;
-                const matWidth = includeMat ? getDimensionValue('mat-width') : 0;
+
+                // Mat borders - read 4 separate values
+                const matWidthTop = includeMat ? getDimensionValue('mat-width-top') : 0;
+                const matWidthBottom = includeMat ? getDimensionValue('mat-width-bottom') : 0;
+                const matWidthLeft = includeMat ? getDimensionValue('mat-width-left') : 0;
+                const matWidthRight = includeMat ? getDimensionValue('mat-width-right') : 0;
+
+                // Calculate averages for WASM (which expects top/bottom and sides)
+                const matWidthTopBottom = (matWidthTop + matWidthBottom) / 2;
+                const matWidthSides = (matWidthLeft + matWidthRight) / 2;
+
                 const matOverlap = includeMat ? getDimensionValue('mat-overlap') : 0;
                 const frameWidth = getDimensionValue('frame-width');
                 const frameDepth = getDimensionValue('frame-depth');
@@ -1043,8 +1140,8 @@
 
                 // Create design
                 const design = new WasmFrameDesign(artworkHeight, artworkWidth);
-                design.matWidthTopBottom = matWidth;
-                design.matWidthSides = matWidth;
+                design.matWidthTopBottom = matWidthTopBottom;
+                design.matWidthSides = matWidthSides;
                 design.matOverlap = matOverlap;
                 design.frameWidth = frameWidth;
                 design.frameDepth = frameDepth;
@@ -1287,7 +1384,10 @@
             // Set all values using setDimensionValue (stores in inches, displays per unit)
             setDimensionValue('artwork-height', defaults.artworkHeight);
             setDimensionValue('artwork-width', defaults.artworkWidth);
-            setDimensionValue('mat-width', defaults.matWidth);
+            setDimensionValue('mat-width-top', defaults.matWidth);
+            setDimensionValue('mat-width-bottom', defaults.matWidth);
+            setDimensionValue('mat-width-left', defaults.matWidth);
+            setDimensionValue('mat-width-right', defaults.matWidth);
             setDimensionValue('mat-overlap', defaults.matOverlap);
             setDimensionValue('frame-width', defaults.frameWidth);
             setDimensionValue('frame-depth', defaults.frameDepth);
@@ -1331,7 +1431,7 @@
             const unit = currentUnit === 'mm' ? 'mm' : 'inches';
             const labels = {
                 'label-artwork': `Dimensions <span class="text-muted">(${unit})</span>`,
-                'label-mat-width': `Mat Width <span class="text-muted">(${unit})</span>`,
+                'label-mat-width': `Mat Borders <span class="text-muted">(${unit})</span>`,
                 'label-mat-overlap': `Mat Overlap <span class="text-muted">(${unit})</span>`,
                 'label-frame-width': `Frame Width <span class="text-muted">(${unit})</span>`,
                 'label-frame-depth': `Frame Depth <span class="text-muted">(${unit})</span>`,
@@ -1419,7 +1519,13 @@
             const params = {
                 artwork_height: getDimensionValue('artwork-height'),
                 artwork_width: getDimensionValue('artwork-width'),
-                mat_width: includeMat ? getDimensionValue('mat-width') : 0,
+                // For URL params, use average of 4 mat border values (backwards compatibility)
+                mat_width: includeMat ? (
+                    getDimensionValue('mat-width-top') +
+                    getDimensionValue('mat-width-bottom') +
+                    getDimensionValue('mat-width-left') +
+                    getDimensionValue('mat-width-right')
+                ) / 4 : 0,
                 frame_width: getDimensionValue('frame-width'),
                 frame_depth: getDimensionValue('frame-depth'),
                 glazing_thickness: getDimensionValue('glazing-thickness'),
@@ -1647,7 +1753,11 @@
                 // Set all values using setDimensionValue (values from URL are in inches)
                 setDimensionValue('artwork-height', params.artwork_height);
                 setDimensionValue('artwork-width', params.artwork_width);
-                setDimensionValue('mat-width', params.mat_width);
+                // Set all 4 mat borders to the same value (backwards compatibility)
+                setDimensionValue('mat-width-top', params.mat_width);
+                setDimensionValue('mat-width-bottom', params.mat_width);
+                setDimensionValue('mat-width-left', params.mat_width);
+                setDimensionValue('mat-width-right', params.mat_width);
                 setDimensionValue('frame-width', params.frame_width);
                 setDimensionValue('frame-depth', params.frame_depth);
                 setDimensionValue('glazing-thickness', params.glazing_thickness);
@@ -2116,14 +2226,20 @@
                 addHeader('Matboard', 2);
                 const [matH, matW] = currentDesign.getMatboardDimensions();
                 const [matOpenH, matOpenW] = currentDesign.getMatOpeningDimensions();
-                const matWidth = getDimensionValue('mat-width');
+
+                // Get 4 separate mat border values
+                const matWidthTop = getDimensionValue('mat-width-top');
+                const matWidthBottom = getDimensionValue('mat-width-bottom');
+                const matWidthLeft = getDimensionValue('mat-width-left');
+                const matWidthRight = getDimensionValue('mat-width-right');
                 const matOverlap = getDimensionValue('mat-overlap');
-                const matCutSides = matWidth + matOverlap;
-                const matCutTopBottom = matWidth + matOverlap;
+
+                // Use average for display (most informative for asymmetric mats)
+                const matWidthAvg = (matWidthTop + matWidthBottom + matWidthLeft + matWidthRight) / 4;
+
                 addLabelValue('Full Size:', `${formatValueWithDecimal(matH, useMm)} × ${formatValueWithDecimal(matW, useMm)}${unit}`, 2);
                 addLabelValue('Opening:', `${formatValueWithDecimal(matOpenH, useMm)} × ${formatValueWithDecimal(matOpenW, useMm)}${unit}`, 2);
-                addLabelValue('Visual Width:', `${formatValueWithDecimal(matWidth, useMm)}${unit}`, 2);
-                addLabelValue('Cut Width:', `${formatValueWithDecimal(matCutSides, useMm)}${unit}`, 2);
+                addLabelValue('Visual Width:', `${formatValueWithDecimal(matWidthAvg, useMm)}${unit} (avg)`, 2);
                 addLabelValue('Overlap:', `${formatValueWithDecimal(matOverlap, useMm)}${unit}`, 2);
                 addSpace(2);
             }
@@ -2168,7 +2284,13 @@
                 const shareableParams = {
                     artwork_height: currentDesign.artworkHeight,
                     artwork_width: currentDesign.artworkWidth,
-                    mat_width: includeMat ? getDimensionValue('mat-width') : 0,
+                    // Use average of 4 mat borders for shareable URL (backwards compatibility)
+                    mat_width: includeMat ? (
+                        getDimensionValue('mat-width-top') +
+                        getDimensionValue('mat-width-bottom') +
+                        getDimensionValue('mat-width-left') +
+                        getDimensionValue('mat-width-right')
+                    ) / 4 : 0,
                     frame_width: currentDesign.frameWidth,
                     frame_depth: currentDesign.frameDepth,
                     glazing_thickness: currentDesign.glazingThickness,
@@ -2255,7 +2377,10 @@
             return {
                 // NOTE: artwork_height and artwork_width are NOT included
                 // Those are managed separately as custom sizes
-                mat_width: getDimensionValue('mat-width'),
+                mat_width_top: getDimensionValue('mat-width-top'),
+                mat_width_bottom: getDimensionValue('mat-width-bottom'),
+                mat_width_left: getDimensionValue('mat-width-left'),
+                mat_width_right: getDimensionValue('mat-width-right'),
                 frame_width: getDimensionValue('frame-width'),
                 frame_depth: getDimensionValue('frame-depth'),
                 glazing_thickness: getDimensionValue('glazing-thickness'),
@@ -2277,7 +2402,21 @@
         function loadConfigIntoForm(config) {
             // NOTE: artwork dimensions are NOT loaded from configs
             // Use custom sizes for that instead
-            setDimensionValue('mat-width', config.mat_width);
+
+            // Handle both old (single mat_width) and new (4 separate values) formats
+            if (config.mat_width_top !== undefined) {
+                // New format with 4 separate values
+                setDimensionValue('mat-width-top', config.mat_width_top);
+                setDimensionValue('mat-width-bottom', config.mat_width_bottom);
+                setDimensionValue('mat-width-left', config.mat_width_left);
+                setDimensionValue('mat-width-right', config.mat_width_right);
+            } else if (config.mat_width !== undefined) {
+                // Old format with single value - set all 4 to same value
+                setDimensionValue('mat-width-top', config.mat_width);
+                setDimensionValue('mat-width-bottom', config.mat_width);
+                setDimensionValue('mat-width-left', config.mat_width);
+                setDimensionValue('mat-width-right', config.mat_width);
+            }
             setDimensionValue('frame-width', config.frame_width);
             setDimensionValue('frame-depth', config.frame_depth);
             setDimensionValue('glazing-thickness', config.glazing_thickness);

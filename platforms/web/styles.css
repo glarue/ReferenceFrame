@@ -1036,6 +1036,129 @@ input::placeholder {
     color: var(--rf-text);
 }
 
+/* Mat Borders Section */
+.mat-borders-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.section-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--rf-text);
+    margin-bottom: 4px;
+}
+
+.mat-borders-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.field-stepper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.field-label-small {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--rf-text-muted);
+}
+
+/* Input Stepper Controls */
+.input-stepper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.input-stepper input {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}
+
+.stepper-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: var(--rf-surface);
+    border: 1px solid var(--rf-line);
+    border-radius: var(--md-shape-small);
+    color: var(--rf-text);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color var(--md-duration-short3) ease,
+                border-color var(--md-duration-short3) ease;
+    min-height: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stepper-btn:hover {
+    background: var(--rf-surface-hover);
+    border-color: var(--rf-primary-blue);
+}
+
+.stepper-btn:active {
+    background: color-mix(in srgb, var(--rf-primary-blue) 15%, var(--rf-surface));
+}
+
+.stepper-btn.minus {
+    border-radius: var(--md-shape-small) 0 0 var(--md-shape-small);
+}
+
+.stepper-btn.plus {
+    border-radius: 0 var(--md-shape-small) var(--md-shape-small) 0;
+}
+
+/* Mat Symmetry Controls */
+.mat-symmetry-controls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.btn-symmetry {
+    flex: 1;
+    min-width: 48px;
+    padding: 6px 12px;
+    background: var(--rf-surface);
+    border: 1px solid var(--rf-line);
+    border-radius: var(--md-shape-small);
+    color: var(--rf-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background-color var(--md-duration-short3) ease,
+                border-color var(--md-duration-short3) ease,
+                color var(--md-duration-short3) ease;
+    min-height: unset;
+    white-space: nowrap;
+}
+
+.btn-symmetry:hover {
+    background: var(--rf-surface-hover);
+    border-color: var(--rf-primary-blue);
+    color: var(--rf-primary-blue);
+}
+
+.btn-symmetry:active {
+    background: color-mix(in srgb, var(--rf-primary-blue) 15%, var(--rf-surface));
+}
+
 /* Buttons - Material Design 3 */
 button {
     position: relative;
