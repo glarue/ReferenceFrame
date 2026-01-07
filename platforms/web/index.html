@@ -1360,17 +1360,22 @@
 
                 // Filling gauge bar
                 html += `<div class="depth-bar-container">`;
-                html += `<div class="depth-bar">`;
-                // Green fill: always goes up to the available depth threshold
+                html += `<div class="depth-bar" style="width: ${requiredPercent}%">`;
+                // Recalculate fill percentages relative to bar width (not maxDepth)
                 const greenFillPercent = Math.min(requiredPercent, rabbetPercent);
-                html += `<div class="depth-fill depth-fill-green" style="width: ${greenFillPercent}%"></div>`;
+                const greenFillPercentOfBar = (greenFillPercent / requiredPercent) * 100;
+                const rabbetPercentOfBar = (rabbetPercent / requiredPercent) * 100;
+
+                // Green fill: always goes up to the available depth threshold
+                html += `<div class="depth-fill depth-fill-green" style="width: ${greenFillPercentOfBar}%"></div>`;
                 // Orange/red overflow fill: only if required exceeds available
                 if (hasShortfall) {
                     const overflowPercent = requiredPercent - rabbetPercent;
-                    html += `<div class="depth-fill depth-fill-overflow" style="left: ${rabbetPercent}%; width: ${overflowPercent}%"></div>`;
+                    const overflowPercentOfBar = (overflowPercent / requiredPercent) * 100;
+                    html += `<div class="depth-fill depth-fill-overflow" style="left: ${rabbetPercentOfBar}%; width: ${overflowPercentOfBar}%"></div>`;
                 }
                 // Marker line at rabbet depth (capacity limit)
-                html += `<div class="depth-capacity-marker" style="left: ${rabbetPercent}%"></div>`;
+                html += `<div class="depth-capacity-marker" style="left: ${rabbetPercentOfBar}%"></div>`;
                 html += `</div>`;
                 html += `</div>`;
 
