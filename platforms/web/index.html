@@ -1150,9 +1150,8 @@
                     html += `</ul>`;
                 }
 
-                // Depth check
+                // Depth check with visual progress bars
                 html += `<strong>📏 Depth:</strong>`;
-                html += `<ul>`;
 
                 // Format values, removing redundant decimals when fraction = decimal
                 const formatNonRedundant = (value, isUnitMm) => {
@@ -1162,14 +1161,41 @@
                     return formatted.replace(/^(.+?) \(\1([^)]*)\)$/, '$1$2');
                 };
 
-                html += `<li>Required: ${formatNonRedundant(depthRequired, unitMm)} | Available: ${formatNonRedundant(rabbetDepth, unitMm)}</li>`;
+                // Calculate percentage for progress bars (relative to package depth)
+                const packagePercent = 100;
+                const rabbetPercent = Math.min(100, (rabbetDepth / depthRequired) * 100);
+                const hasShortfall = depthRequired > rabbetDepth;
 
-                if (depthRequired > rabbetDepth) {
+                html += `<div class="depth-comparison">`;
+
+                // Package Depth (required)
+                html += `<div class="depth-metric">`;
+                html += `<label>Package Depth</label>`;
+                html += `<span class="value">${formatNonRedundant(depthRequired, unitMm)}</span>`;
+                html += `<div class="progress-bar">`;
+                html += `<div class="progress-fill" style="width: ${packagePercent}%"></div>`;
+                html += `</div>`;
+                html += `</div>`;
+
+                // Rabbet Depth (available)
+                html += `<div class="depth-metric">`;
+                html += `<label>Rabbet Depth</label>`;
+                html += `<span class="value">${formatNonRedundant(rabbetDepth, unitMm)}</span>`;
+                html += `<div class="progress-bar ${hasShortfall ? 'warning' : 'success'}">`;
+                html += `<div class="progress-fill" style="width: ${rabbetPercent}%"></div>`;
+                html += `</div>`;
+                html += `</div>`;
+
+                html += `</div>`; // Close depth-comparison
+
+                // Status message below progress bars
+                html += `<ul>`;
+                if (hasShortfall) {
                     const shortfall = depthRequired - rabbetDepth;
-                    html += `<li class="text-warning">⚠️ ${formatValueWithDecimal(shortfall, unitMm)} too shallow!</li>`;
+                    html += `<li class="text-warning">⚠️ Shortfall: ${formatValueWithDecimal(shortfall, unitMm)} too shallow</li>`;
                 } else {
                     const clearance = rabbetDepth - depthRequired;
-                    html += `<li class="text-success">✅ OK (${formatValueWithDecimal(clearance, unitMm)} clearance)</li>`;
+                    html += `<li class="text-success">✅ Clearance: ${formatValueWithDecimal(clearance, unitMm)}</li>`;
                 }
                 html += `</ul>`;
 
