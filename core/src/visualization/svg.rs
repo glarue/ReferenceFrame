@@ -2409,33 +2409,39 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     let mask_width = label_text_width + mask_padding_x * 2.0;
     let mask_height = style.dimension_font_size + mask_padding_y * 2.0;
 
-    let (label_x, label_y) = if is_horizontal {
+    let (label_x, label_y, offset_applied) = if is_horizontal {
         // Horizontal dimension: label centered on the dimension line
         let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
         let base_y = callout.dimension_line_position;
 
         // Mat cut width labels need extra padding from tick marks
-        let label_y = if callout.callout.dimension_type == super::types::DimensionType::MatCutWidth {
-            base_y + 5.0  // Extra offset below dimension line
+        let (label_y, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutWidth {
+            (base_y + 5.0, true)  // Extra offset below dimension line
         } else {
-            base_y
+            (base_y, false)
         };
 
-        (mid_x, label_y)
+        (mid_x, label_y, offset)
     } else {
         // Vertical dimension: label centered on the dimension line (will be rotated)
         let mid_y = (callout.callout.extent_start.y + callout.callout.extent_end.y) / 2.0;
         let base_x = callout.dimension_line_position;
 
         // Mat cut height labels need extra padding from tick marks
-        let label_x = if callout.callout.dimension_type == super::types::DimensionType::MatCutHeight {
-            base_x - 5.0  // Extra offset left of dimension line (for left-side placement)
+        let (label_x, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutHeight {
+            (base_x - 5.0, true)  // Extra offset left of dimension line (for left-side placement)
         } else {
-            base_x
+            (base_x, false)
         };
 
-        (label_x, mid_y)
+        (label_x, mid_y, offset)
     };
+
+    // Debug: Add SVG comment showing dimension type and whether offset was applied
+    svg.push_str(&format!(
+        "      <!-- Dimension type: {:?}, offset applied: {} -->\n",
+        callout.callout.dimension_type, offset_applied
+    ));
 
     // For vertical dimensions, rotate text 90° (reads bottom-to-top)
     let transform = if !is_horizontal {
