@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260108-frame-outside-orange">
+    <link rel="stylesheet" href="./styles.css?v=20260108-grid-padding-fix">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -1345,7 +1345,7 @@
                 html += `</tr>`;
                 html += `</tbody>`;
                 html += `</table>`;
-                html += `<div class="data-grid" style="margin-top: 12px;">`;
+                html += `<div class="data-grid" style="margin-top: 12px; padding: 0;">`;
                 html += `<div class="data-item">`;
                 html += `<span class="data-label">Material Width</span>`;
                 html += `<span class="data-value">${formatValueWithDecimal(frameWidth, unitMm)}</span>`;
@@ -1385,23 +1385,38 @@
                     html += `</table>`;
 
                     // Mat widths below table
-                    html += `<div class="data-grid" style="margin-top: 12px;">`;
-                    html += `<div class="data-item incidental">`;
-                    html += `<span class="data-label">Visual Width (T/B)</span>`;
-                    html += `<span class="data-value">${formatValueWithDecimal(matWidthTopBottom, unitMm)}</span>`;
-                    html += `</div>`;
-                    html += `<div class="data-item incidental">`;
-                    html += `<span class="data-label">Visual Width (L/R)</span>`;
-                    html += `<span class="data-value">${formatValueWithDecimal(matWidthSides, unitMm)}</span>`;
-                    html += `</div>`;
-                    html += `<div class="data-item cut-dimension">`;
-                    html += `<span class="data-label">Cut Width (T/B)</span>`;
-                    html += `<span class="data-value">${formatValueWithDecimal(matCutTB, unitMm)}</span>`;
-                    html += `</div>`;
-                    html += `<div class="data-item cut-dimension">`;
-                    html += `<span class="data-label">Cut Width (L/R)</span>`;
-                    html += `<span class="data-value">${formatValueWithDecimal(matCutLR, unitMm)}</span>`;
-                    html += `</div>`;
+                    html += `<div class="data-grid" style="margin-top: 12px; padding: 0;">`;
+
+                    // Show separate T/B and L/R only when using separate borders mode
+                    if (separateBordersEnabled) {
+                        html += `<div class="data-item incidental">`;
+                        html += `<span class="data-label">Visual Width (T/B)</span>`;
+                        html += `<span class="data-value">${formatValueWithDecimal(matWidthTopBottom, unitMm)}</span>`;
+                        html += `</div>`;
+                        html += `<div class="data-item incidental">`;
+                        html += `<span class="data-label">Visual Width (L/R)</span>`;
+                        html += `<span class="data-value">${formatValueWithDecimal(matWidthSides, unitMm)}</span>`;
+                        html += `</div>`;
+                        html += `<div class="data-item cut-dimension">`;
+                        html += `<span class="data-label">Cut Width (T/B)</span>`;
+                        html += `<span class="data-value">${formatValueWithDecimal(matCutTB, unitMm)}</span>`;
+                        html += `</div>`;
+                        html += `<div class="data-item cut-dimension">`;
+                        html += `<span class="data-label">Cut Width (L/R)</span>`;
+                        html += `<span class="data-value">${formatValueWithDecimal(matCutLR, unitMm)}</span>`;
+                        html += `</div>`;
+                    } else {
+                        // Symmetrical mat - show single values
+                        html += `<div class="data-item incidental">`;
+                        html += `<span class="data-label">Visual Width</span>`;
+                        html += `<span class="data-value">${formatValueWithDecimal(matWidthTopBottom, unitMm)}</span>`;
+                        html += `</div>`;
+                        html += `<div class="data-item cut-dimension">`;
+                        html += `<span class="data-label">Cut Width</span>`;
+                        html += `<span class="data-value">${formatValueWithDecimal(matCutTB, unitMm)}</span>`;
+                        html += `</div>`;
+                    }
+
                     html += `</div>`;
                     html += `</div>`;
                 }

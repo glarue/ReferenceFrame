@@ -1114,8 +1114,8 @@ input::placeholder {
 }
 
 .data-item {
-    border-left: 3px solid rgba(255, 255, 255, 0.15);
-    padding-left: 12px;
+    border-left: 2px solid rgba(255, 255, 255, 0.15);
+    padding-left: 8px;  /* Match table alignment: 2px border + 8px padding = 10px total indent */
 }
 
 /* Orange - Cut Dimensions (what you physically cut/modify) */
@@ -1123,7 +1123,7 @@ input::placeholder {
     border-left-color: var(--rf-orange);
     background: color-mix(in srgb, var(--rf-orange) 8%, transparent);
     margin: -4px -8px;
-    padding: 10px 12px 10px 12px;
+    padding: 10px 12px 10px 8px;
     border-radius: 0 6px 6px 0;
 }
 
@@ -1154,7 +1154,7 @@ input::placeholder {
     border-left-color: var(--rf-purple);
     background: color-mix(in srgb, var(--rf-purple) 8%, transparent);
     margin: -4px -8px;
-    padding: 10px 12px 10px 12px;
+    padding: 10px 12px 10px 8px;
     border-radius: 0 6px 6px 0;
 }
 
