@@ -71,35 +71,36 @@ pub fn generate_plan_callouts(
     ));
 
     // Mat cut dimensions (if mat is present)
-    // Shows both width (top/bottom) and height (left/right) when they differ
+    // Shows both width (left/right borders) and height (top/bottom borders) when they differ
     if design.has_mat() {
         if let Some(mat_opening) = &geometry.mat_opening {
-            // Mat cut WIDTH (horizontal, top/bottom borders)
-            let mat_visible_tb = design.mat_width_top_bottom;
-            let mat_cut_width = mat_visible_tb + design.rabbet_width;
+            // Mat cut WIDTH (horizontal dimension, uses left/right borders)
+            let mat_visible_sides = design.mat_width_sides;
+            let mat_cut_width = mat_visible_sides + design.rabbet_width;
             callouts.push(DimensionCallout::new(
                 mat_cut_width,
                 format!("Mat Cut: {} ({} visible)",
                     format_value(mat_cut_width, unit),
-                    format_value(mat_visible_tb, unit)),
+                    format_value(mat_visible_sides, unit)),
                 DimensionType::MatCutWidth,
                 Point::new(geometry.content_area.left(), geometry.frame_inner.bottom() - frame_half_stroke),
                 Point::new(mat_opening.left() + mat_half_stroke, geometry.frame_inner.bottom() - frame_half_stroke),
             ));
 
-            // Mat cut HEIGHT (vertical, left/right borders) - only if different from width
+            // Mat cut HEIGHT (vertical dimension, uses top/bottom borders) - only if different from width
             // Tolerance of 1/32" (0.03125) to avoid showing near-identical dimensions
-            let mat_visible_sides = design.mat_width_sides;
-            if (mat_visible_sides - mat_visible_tb).abs() > 0.03125 {
-                let mat_cut_height = mat_visible_sides + design.rabbet_width;
+            let mat_visible_tb = design.mat_width_top_bottom;
+            if (mat_visible_tb - mat_visible_sides).abs() > 0.03125 {
+                let mat_cut_height = mat_visible_tb + design.rabbet_width;
                 callouts.push(DimensionCallout::new(
                     mat_cut_height,
                     format!("Mat Cut: {} ({} visible)",
                         format_value(mat_cut_height, unit),
-                        format_value(mat_visible_sides, unit)),
+                        format_value(mat_visible_tb, unit)),
                     DimensionType::MatVisibleHeight,  // Use height type for vertical callout
-                    Point::new(geometry.frame_inner.right() - frame_half_stroke, geometry.content_area.top()),
-                    Point::new(geometry.frame_inner.right() - frame_half_stroke, mat_opening.top() + mat_half_stroke),
+                    // Place on LEFT side to avoid collision with outside/inside callouts on right
+                    Point::new(geometry.frame_inner.left() + frame_half_stroke, geometry.content_area.top()),
+                    Point::new(geometry.frame_inner.left() + frame_half_stroke, mat_opening.top() + mat_half_stroke),
                 ));
             }
         }
