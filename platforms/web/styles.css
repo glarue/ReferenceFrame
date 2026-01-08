@@ -1040,7 +1040,7 @@ input::placeholder {
     text-transform: uppercase;
     letter-spacing: 0.08em;
     padding: 0 4px 8px;
-    margin-top: 20px;
+    margin-top: 18px;
     margin-bottom: 4px;
 }
 
@@ -1065,7 +1065,7 @@ input::placeholder {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px;
+    padding: 12px;
     transition: background-color 150ms ease;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1110,7 +1110,7 @@ input::placeholder {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 16px 24px;
-    padding: 14px;
+    padding: 12px;
 }
 
 .data-item {
@@ -1240,7 +1240,7 @@ input::placeholder {
 
 .data-value {
     font-family: var(--font-mono);
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 700;
     color: var(--rf-text);
 }
