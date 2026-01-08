@@ -2412,7 +2412,16 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     let (label_x, label_y) = if is_horizontal {
         // Horizontal dimension: label centered on the dimension line
         let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
-        (mid_x, callout.dimension_line_position)
+        let base_y = callout.dimension_line_position;
+
+        // Mat cut width labels need extra padding from tick marks
+        let label_y = if callout.callout.dimension_type == super::types::DimensionType::MatCutWidth {
+            base_y + 3.0  // Extra offset below dimension line
+        } else {
+            base_y
+        };
+
+        (mid_x, label_y)
     } else {
         // Vertical dimension: label centered on the dimension line (will be rotated)
         let mid_y = (callout.callout.extent_start.y + callout.callout.extent_end.y) / 2.0;

@@ -1387,8 +1387,9 @@
                     // Mat widths below table
                     html += `<div class="data-grid" style="margin-top: 12px; padding: 0;">`;
 
-                    // Show separate T/B and L/R only when using separate borders mode
-                    if (separateBordersEnabled) {
+                    // Show separate T/B and L/R only when values actually differ
+                    const matWidthsDiffer = Math.abs(matWidthTopBottom - matWidthSides) > 0.001;
+                    if (separateBordersEnabled && matWidthsDiffer) {
                         html += `<div class="data-item incidental">`;
                         html += `<span class="data-label">Visual Width (T/B)</span>`;
                         html += `<span class="data-value">${formatValueWithDecimal(matWidthTopBottom, unitMm)}</span>`;
