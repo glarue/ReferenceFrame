@@ -1162,6 +1162,72 @@ input::placeholder {
     color: var(--rf-purple);
 }
 
+/* Compact dimension table for Frame and Matboard sections */
+.dimension-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.dimension-table th {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--rf-text-muted);
+    text-align: right;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--rf-border);
+}
+
+.dimension-table th:first-child {
+    text-align: left;
+    width: 35%;
+}
+
+.dimension-table td {
+    padding: 8px;
+    text-align: right;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dimension-table td:first-child {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--rf-text-muted);
+    font-family: var(--font-sans);
+}
+
+.dimension-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Semantic color highlighting for table rows */
+/* Orange - Cut dimensions */
+.dimension-table tr.cut-dimension-row td {
+    background: color-mix(in srgb, var(--rf-orange) 8%, transparent);
+}
+
+.dimension-table tr.cut-dimension-row td:first-child {
+    color: var(--rf-orange);
+    border-left: 2px solid var(--rf-orange);
+}
+
+/* Teal - Incidental dimensions */
+.dimension-table tr.incidental-row td {
+    background: color-mix(in srgb, var(--rf-teal) 5%, transparent);
+}
+
+.dimension-table tr.incidental-row td:first-child {
+    color: var(--rf-teal);
+    border-left: 2px solid var(--rf-teal);
+}
+
 .data-label {
     display: block;
     font-size: 10px;

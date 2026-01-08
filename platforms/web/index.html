@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260108-dogleg-shorter">
+    <link rel="stylesheet" href="./styles.css?v=20260108-frame-outside-orange">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -1325,16 +1325,27 @@
                 html += `<span class="material-symbols-outlined">crop_square</span>`;
                 html += `Frame`;
                 html += `</h3>`;
-                html += `<div class="result-card">`;
-                html += `<div class="data-grid">`;
-                html += `<div class="data-item incidental">`;
-                html += `<span class="data-label">Outside</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(outsideH, unitMm)} × ${formatValueWithDecimal(outsideW, unitMm)}</span>`;
-                html += `</div>`;
-                html += `<div class="data-item incidental">`;
-                html += `<span class="data-label">Inside</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(insideH, unitMm)} × ${formatValueWithDecimal(insideW, unitMm)}</span>`;
-                html += `</div>`;
+                html += `<div class="result-card" style="padding: 14px;">`;
+                html += `<table class="dimension-table">`;
+                html += `<thead><tr>`;
+                html += `<th></th>`;
+                html += `<th>Height</th>`;
+                html += `<th>Width</th>`;
+                html += `</tr></thead>`;
+                html += `<tbody>`;
+                html += `<tr class="cut-dimension-row">`;
+                html += `<td>Outside</td>`;
+                html += `<td>${formatValueWithDecimal(outsideH, unitMm)}</td>`;
+                html += `<td>${formatValueWithDecimal(outsideW, unitMm)}</td>`;
+                html += `</tr>`;
+                html += `<tr class="incidental-row">`;
+                html += `<td>Inside</td>`;
+                html += `<td>${formatValueWithDecimal(insideH, unitMm)}</td>`;
+                html += `<td>${formatValueWithDecimal(insideW, unitMm)}</td>`;
+                html += `</tr>`;
+                html += `</tbody>`;
+                html += `</table>`;
+                html += `<div class="data-grid" style="margin-top: 12px;">`;
                 html += `<div class="data-item">`;
                 html += `<span class="data-label">Material Width</span>`;
                 html += `<span class="data-value">${formatValueWithDecimal(frameWidth, unitMm)}</span>`;
@@ -1342,31 +1353,54 @@
                 html += `</div>`;
                 html += `</div>`;
 
-                // Matboard (calculate average mat width from TB/LR borders)
+                // Matboard dimensions
                 if (includeMat) {
-                    const matWidthAvg = (matWidthTopBottom + matWidthSides) / 2;
-                    const matCut = matWidthAvg + matOverlap;
+                    const matCutTB = matWidthTopBottom + matOverlap;
+                    const matCutLR = matWidthSides + matOverlap;
                     html += `<h3 class="section-header">`;
                     html += `<span class="material-symbols-outlined">layers</span>`;
                     html += `Matboard`;
                     html += `</h3>`;
-                    html += `<div class="result-card">`;
-                    html += `<div class="data-grid">`;
-                    html += `<div class="data-item cut-dimension">`;
-                    html += `<span class="data-label">Size</span>`;
-                    html += `<span class="data-value">${formatValueWithDecimal(matH, unitMm)} × ${formatValueWithDecimal(matW, unitMm)}</span>`;
+                    html += `<div class="result-card" style="padding: 14px;">`;
+
+                    // Outside (size) and Inside (opening) table
+                    html += `<table class="dimension-table">`;
+                    html += `<thead><tr>`;
+                    html += `<th></th>`;
+                    html += `<th>Height</th>`;
+                    html += `<th>Width</th>`;
+                    html += `</tr></thead>`;
+                    html += `<tbody>`;
+                    html += `<tr class="cut-dimension-row">`;
+                    html += `<td>Outside</td>`;
+                    html += `<td>${formatValueWithDecimal(matH, unitMm)}</td>`;
+                    html += `<td>${formatValueWithDecimal(matW, unitMm)}</td>`;
+                    html += `</tr>`;
+                    html += `<tr class="incidental-row">`;
+                    html += `<td>Inside</td>`;
+                    html += `<td>${formatValueWithDecimal(matOpenH, unitMm)}</td>`;
+                    html += `<td>${formatValueWithDecimal(matOpenW, unitMm)}</td>`;
+                    html += `</tr>`;
+                    html += `</tbody>`;
+                    html += `</table>`;
+
+                    // Mat widths below table
+                    html += `<div class="data-grid" style="margin-top: 12px;">`;
+                    html += `<div class="data-item incidental">`;
+                    html += `<span class="data-label">Visual Width (T/B)</span>`;
+                    html += `<span class="data-value">${formatValueWithDecimal(matWidthTopBottom, unitMm)}</span>`;
                     html += `</div>`;
                     html += `<div class="data-item incidental">`;
-                    html += `<span class="data-label">Opening</span>`;
-                    html += `<span class="data-value">${formatValueWithDecimal(matOpenH, unitMm)} × ${formatValueWithDecimal(matOpenW, unitMm)}</span>`;
-                    html += `</div>`;
-                    html += `<div class="data-item incidental">`;
-                    html += `<span class="data-label">Visual Width</span>`;
-                    html += `<span class="data-value">${formatValueWithDecimal(matWidthAvg, unitMm)}</span>`;
+                    html += `<span class="data-label">Visual Width (L/R)</span>`;
+                    html += `<span class="data-value">${formatValueWithDecimal(matWidthSides, unitMm)}</span>`;
                     html += `</div>`;
                     html += `<div class="data-item cut-dimension">`;
-                    html += `<span class="data-label">Cut Width</span>`;
-                    html += `<span class="data-value">${formatValueWithDecimal(matCut, unitMm)}</span>`;
+                    html += `<span class="data-label">Cut Width (T/B)</span>`;
+                    html += `<span class="data-value">${formatValueWithDecimal(matCutTB, unitMm)}</span>`;
+                    html += `</div>`;
+                    html += `<div class="data-item cut-dimension">`;
+                    html += `<span class="data-label">Cut Width (L/R)</span>`;
+                    html += `<span class="data-value">${formatValueWithDecimal(matCutLR, unitMm)}</span>`;
                     html += `</div>`;
                     html += `</div>`;
                     html += `</div>`;
