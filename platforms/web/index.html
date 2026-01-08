@@ -1192,6 +1192,12 @@
                 design.matWidthTopBottom = matWidthTopBottom;
                 design.matWidthSides = matWidthSides;
                 console.log(`[DEBUG] Mat widths: TB=${matWidthTopBottom}, Sides=${matWidthSides}`);
+
+                // Set symmetricalMat flag based on separate borders mode
+                const separateBordersEnabled = document.getElementById('separate-mat-borders').checked;
+                design.symmetricalMat = !separateBordersEnabled;
+                console.log(`[DEBUG] symmetricalMat=${design.symmetricalMat}, separateBorders=${separateBordersEnabled}`);
+
                 design.matOverlap = matOverlap;
                 design.frameWidth = frameWidth;
                 design.frameDepth = frameDepth;

@@ -184,6 +184,16 @@ impl WasmFrameDesign {
         self.inner.assembly_margin = value;
     }
 
+    #[wasm_bindgen(getter, js_name = "symmetricalMat")]
+    pub fn symmetrical_mat(&self) -> bool {
+        self.inner.symmetrical_mat
+    }
+
+    #[wasm_bindgen(setter, js_name = "symmetricalMat")]
+    pub fn set_symmetrical_mat(&mut self, value: bool) {
+        self.inner.symmetrical_mat = value;
+    }
+
     #[wasm_bindgen(getter, js_name = "includeMat")]
     pub fn has_mat(&self) -> bool {
         self.inner.has_mat()
