@@ -1411,10 +1411,7 @@ button:active {
 }
 
 .collapsible-header.expanded {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    margin-bottom: 0;
-    border-bottom-color: transparent;
+    margin-bottom: 8px;
 }
 
 .collapsible-header .header-icon {
@@ -1460,9 +1457,7 @@ button:active {
     opacity: 1;
     padding: 16px 12px;
     border: 1px solid var(--rf-border);
-    border-top: none;
-    border-bottom-left-radius: 8px;
-    border-bottom-right-radius: 8px;
+    border-radius: 8px;
     margin-bottom: 12px;
 }
 
