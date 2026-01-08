@@ -1155,15 +1155,9 @@
                 const artworkWidth = getDimensionValue('artwork-width');
                 const includeMat = document.getElementById('include-mat').checked;
 
-                // Mat borders - read 4 separate values
-                const matWidthTop = includeMat ? getDimensionValue('mat-width-top') : 0;
-                const matWidthBottom = includeMat ? getDimensionValue('mat-width-bottom') : 0;
-                const matWidthLeft = includeMat ? getDimensionValue('mat-width-left') : 0;
-                const matWidthRight = includeMat ? getDimensionValue('mat-width-right') : 0;
-
-                // Calculate averages for WASM (which expects top/bottom and sides)
-                const matWidthTopBottom = (matWidthTop + matWidthBottom) / 2;
-                const matWidthSides = (matWidthLeft + matWidthRight) / 2;
+                // Mat borders - read from tb/lr inputs (synced to top/bottom/left/right hidden inputs)
+                const matWidthTopBottom = includeMat ? getDimensionValue('mat-width-tb') : 0;
+                const matWidthSides = includeMat ? getDimensionValue('mat-width-lr') : 0;
 
                 const matOverlap = includeMat ? getDimensionValue('mat-overlap') : 0;
                 const frameWidth = getDimensionValue('frame-width');
