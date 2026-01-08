@@ -97,7 +97,7 @@ pub fn generate_plan_callouts(
                     format!("Mat Cut: {} ({} visible)",
                         format_value(mat_cut_height, unit),
                         format_value(mat_visible_tb, unit)),
-                    DimensionType::MatVisibleHeight,  // Use height type for vertical callout
+                    DimensionType::MatCutHeight,  // Use MatCutHeight which has Side::Left preference
                     // Place on LEFT side to avoid collision with outside/inside callouts on right
                     Point::new(geometry.frame_inner.left() + frame_half_stroke, geometry.content_area.top()),
                     Point::new(geometry.frame_inner.left() + frame_half_stroke, mat_opening.top() + mat_half_stroke),
