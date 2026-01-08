@@ -814,12 +814,20 @@
             const separateContainer = document.getElementById('mat-width-separate-container');
 
             if (separateModeEnabled) {
-                // Switching to separate mode - populate tb/lr inputs with current single value
-                const singleValue = getDimensionValue('mat-width-single');
-                setDimensionValue('mat-width-tb', singleValue);
-                setDimensionValue('mat-width-lr', singleValue);
+                // Switching to separate mode - use existing hidden values if they differ
+                const hiddenTop = getDimensionValue('mat-width-top');
+                const hiddenBottom = getDimensionValue('mat-width-bottom');
+                const hiddenLeft = getDimensionValue('mat-width-left');
+                const hiddenRight = getDimensionValue('mat-width-right');
 
-                // Sync hidden individual inputs
+                // Calculate tb/lr from hidden values (preserve asymmetry if it exists)
+                const tbValue = (hiddenTop + hiddenBottom) / 2;
+                const lrValue = (hiddenLeft + hiddenRight) / 2;
+
+                setDimensionValue('mat-width-tb', tbValue);
+                setDimensionValue('mat-width-lr', lrValue);
+
+                // Sync hidden individual inputs (this will make top=bottom and left=right)
                 syncMatWidthInputs();
 
                 // Show separate inputs, hide single input
@@ -1183,6 +1191,7 @@
                 const design = new WasmFrameDesign(artworkHeight, artworkWidth);
                 design.matWidthTopBottom = matWidthTopBottom;
                 design.matWidthSides = matWidthSides;
+                console.log(`[DEBUG] Mat widths: TB=${matWidthTopBottom}, Sides=${matWidthSides}`);
                 design.matOverlap = matOverlap;
                 design.frameWidth = frameWidth;
                 design.frameDepth = frameDepth;
