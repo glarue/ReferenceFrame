@@ -46,6 +46,7 @@
     --rf-teal-dark: #4d908e;     /* Dark Cyan */
     --rf-blue-slate: #577590;    /* Blue Slate */
     --rf-blue: #277da1;          /* Cerulean */
+    --rf-purple: #9d4edd;        /* Purple */
 
     /* Core Palette - Light Variants (70% base + 30% white) */
     --rf-red-light: color-mix(in srgb, var(--rf-red) 70%, white);
@@ -70,6 +71,7 @@
     --rf-teal-darker: color-mix(in srgb, var(--rf-teal-dark) 70%, black);
     --rf-blue-slate-dark: color-mix(in srgb, var(--rf-blue-slate) 70%, black);
     --rf-blue-dark: color-mix(in srgb, var(--rf-blue) 70%, black);
+    --rf-purple-dark: color-mix(in srgb, var(--rf-purple) 70%, black);
 
     /* Neutrals */
     --rf-white: #ffffff;
@@ -157,15 +159,21 @@
     --rf-bg-dark: var(--md-surface);
     --rf-bg-section: var(--md-surface-container-high);
     --rf-bg-input: var(--md-surface-container);
-    --rf-bg-light: #F5F2EB;      /* Light neutral background */
+    --rf-bg-light: #f6f7f8;      /* Light neutral background (Stitch UI match) */
+    --rf-surface-light: #ffffff;  /* Light surface (cards, etc.) */
+    --rf-surface-dark: #1c262a;   /* Dark surface (cards in dark mode) */
 
     /* Text Colors */
+    --rf-text: var(--rf-white);
     --rf-text-light: var(--rf-white);
-    --rf-text-muted: var(--rf-gray-light);
+    --rf-text-muted: #64748b;    /* slate-500 (Stitch UI match) */
+    --rf-text-muted-dark: #94a3b8;  /* slate-400 (dark mode) */
     --rf-text-dark: #1a1a1a;     /* Dark text for light backgrounds */
 
     /* Borders */
-    --rf-border: var(--rf-border);        /* Default border color */
+    --rf-border-light: #e2e8f0;  /* slate-200 (Stitch UI match) */
+    --rf-border-dark: rgba(30, 41, 59, 0.5);  /* slate-800/50 */
+    --rf-border: rgba(255, 255, 255, 0.12);  /* More subtle border - 12% opacity */
 
     /* Spacing */
     --rf-space-2: 0.5rem;
@@ -775,7 +783,7 @@ input::placeholder {
 
 .depth-labels-container {
     position: relative;
-    width: 25%;
+    width: 100%;  /* Full width so % positioning works correctly */
     min-height: 44px; /* Accommodate label height */
     margin-bottom: 6px;
     overflow: visible; /* Allow labels to extend beyond container */
@@ -823,8 +831,29 @@ input::placeholder {
     color: rgba(64, 64, 64, 0.85);
 }
 
+/* Connector line from Available label to capacity marker (dog-leg with vertical + diagonal) */
+/* Short vertical segment from label */
+.depth-connector-vertical-short {
+    position: absolute;
+    width: 1px; /* Thin line */
+    background: rgba(128, 128, 128, 0.4);
+    transform: translateX(-50%); /* Center on label position */
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Diagonal segment from vertical drop to marker */
+.depth-connector-diagonal {
+    position: absolute;
+    height: 1px; /* Thin line */
+    background: rgba(128, 128, 128, 0.4);
+    transform-origin: left center;
+    pointer-events: none;
+    z-index: 10;
+}
+
 .depth-bar-container {
-    width: 25%;
+    width: 25%;  /* Compact gauge bar */
     padding: 4px 0;
 }
 
@@ -998,6 +1027,156 @@ input::placeholder {
 .alert-card-error .alert-card-value {
     background: color-mix(in srgb, var(--rf-red) 25%, var(--rf-bg));
     color: var(--rf-red-dark);
+}
+
+/* Card-based results display (Phase 2 - Style Matching) */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--rf-primary-blue);
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0 4px 8px;
+    margin-top: 20px;
+    margin-bottom: 4px;
+}
+
+.section-header:first-child {
+    margin-top: 0;
+}
+
+.section-header .material-symbols-outlined {
+    font-size: 18px;
+}
+
+.result-card {
+    background: var(--md-surface-container);
+    border: 1px solid var(--rf-border);
+    border-radius: 12px;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px;
+    transition: background-color 150ms ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.result-row:last-child {
+    border-bottom: none;
+}
+
+.result-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.result-row.highlight {
+    background: color-mix(in srgb, var(--rf-primary-blue) 5%, transparent);
+}
+
+.result-row.highlight:hover {
+    background: color-mix(in srgb, var(--rf-primary-blue) 10%, transparent);
+}
+
+.result-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--rf-text-muted);
+}
+
+.result-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--rf-text);
+}
+
+.result-value.highlight {
+    color: var(--rf-primary-blue);
+}
+
+/* Data grid layout for results sections - auto-adapts to available space */
+.data-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px 24px;
+    padding: 14px;
+}
+
+.data-item {
+    border-left: 3px solid rgba(255, 255, 255, 0.15);
+    padding-left: 12px;
+}
+
+/* Orange - Cut Dimensions (what you physically cut/modify) */
+.data-item.cut-dimension {
+    border-left-color: var(--rf-orange);
+    background: color-mix(in srgb, var(--rf-orange) 8%, transparent);
+    margin: -4px -8px;
+    padding: 10px 12px 10px 12px;
+    border-radius: 0 6px 6px 0;
+}
+
+.data-item.cut-dimension .data-label {
+    color: var(--rf-orange);
+}
+
+/* Teal - Incidental Dimensions (derived from cuts) */
+.data-item.incidental {
+    border-left-color: var(--rf-teal);
+}
+
+.data-item.incidental .data-label {
+    color: var(--rf-teal);
+}
+
+/* Green - Material Properties (stack components) */
+.data-item.material-property {
+    border-left-color: var(--rf-green);
+}
+
+.data-item.material-property .data-label {
+    color: var(--rf-green);
+}
+
+/* Purple - Modified from Defaults */
+.data-item.modified {
+    border-left-color: var(--rf-purple);
+    background: color-mix(in srgb, var(--rf-purple) 8%, transparent);
+    margin: -4px -8px;
+    padding: 10px 12px 10px 12px;
+    border-radius: 0 6px 6px 0;
+}
+
+.data-item.modified .data-label {
+    color: var(--rf-purple);
+}
+
+.data-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--rf-text-muted);
+    margin-bottom: 6px;
+}
+
+.data-value {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--rf-text);
 }
 
 /* Cut List Table */

@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260107-unit-toggle">
+    <link rel="stylesheet" href="./styles.css?v=20260108-dogleg-final">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -1257,15 +1257,34 @@
 
                 const calcTime = performance.now() - calcStart;
 
+                // Get defaults for comparison (to highlight modified values)
+                const defaults = JSON.parse(getDefaults());
+                const isModified = (currentValue, defaultValue, tolerance = 0.001) => {
+                    return Math.abs(currentValue - defaultValue) > tolerance;
+                };
+
                 // Build enhanced results HTML
                 let html = '';
 
                 // Artwork
-                html += `<strong>📐 Artwork:</strong>`;
-                html += `<ul><li>${formatValueWithDecimal(artworkHeight, unitMm)} H × ${formatValueWithDecimal(artworkWidth, unitMm)} W</li></ul>`;
+                html += `<h3 class="section-header">`;
+                html += `<span class="material-symbols-outlined">photo</span>`;
+                html += `Artwork`;
+                html += `</h3>`;
+                html += `<div class="result-card">`;
+                html += `<div class="data-grid">`;
+                html += `<div class="data-item incidental">`;
+                html += `<span class="data-label">Dimensions</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(artworkHeight, unitMm)} × ${formatValueWithDecimal(artworkWidth, unitMm)}</span>`;
+                html += `</div>`;
+                html += `</div>`;
+                html += `</div>`;
 
                 // Cut List (table format)
-                html += `<strong>🪚 Cut List:</strong>`;
+                html += `<h3 class="section-header">`;
+                html += `<span class="material-symbols-outlined">content_cut</span>`;
+                html += `Cut List`;
+                html += `</h3>`;
                 html += `<div class="cut-list-table">`;
 
                 // Header
@@ -1302,27 +1321,62 @@
                 html += `</div>`; // Close cut-list-table
 
                 // Frame dimensions
-                html += `<strong>🖼️ Frame:</strong>`;
-                html += `<ul>`;
-                html += `<li>Inside: ${formatValueWithDecimal(insideH, unitMm)} × ${formatValueWithDecimal(insideW, unitMm)}</li>`;
-                html += `<li>Outside: ${formatValueWithDecimal(outsideH, unitMm)} × ${formatValueWithDecimal(outsideW, unitMm)}</li>`;
-                html += `</ul>`;
+                html += `<h3 class="section-header">`;
+                html += `<span class="material-symbols-outlined">crop_square</span>`;
+                html += `Frame`;
+                html += `</h3>`;
+                html += `<div class="result-card">`;
+                html += `<div class="data-grid">`;
+                html += `<div class="data-item incidental">`;
+                html += `<span class="data-label">Outside</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(outsideH, unitMm)} × ${formatValueWithDecimal(outsideW, unitMm)}</span>`;
+                html += `</div>`;
+                html += `<div class="data-item incidental">`;
+                html += `<span class="data-label">Inside</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(insideH, unitMm)} × ${formatValueWithDecimal(insideW, unitMm)}</span>`;
+                html += `</div>`;
+                html += `<div class="data-item">`;
+                html += `<span class="data-label">Material Width</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(frameWidth, unitMm)}</span>`;
+                html += `</div>`;
+                html += `</div>`;
+                html += `</div>`;
 
                 // Matboard (calculate average mat width from TB/LR borders)
                 if (includeMat) {
                     const matWidthAvg = (matWidthTopBottom + matWidthSides) / 2;
                     const matCut = matWidthAvg + matOverlap;
-                    html += `<strong>🎨 Matboard:</strong>`;
-                    html += `<ul>`;
-                    html += `<li>Size: ${formatValueWithDecimal(matH, unitMm)} × ${formatValueWithDecimal(matW, unitMm)}</li>`;
-                    html += `<li>Opening: ${formatValueWithDecimal(matOpenH, unitMm)} × ${formatValueWithDecimal(matOpenW, unitMm)}</li>`;
-                    html += `<li>Visual Width: ${formatValueWithDecimal(matWidthAvg, unitMm)}</li>`;
-                    html += `<li>Cut Width: ${formatValueWithDecimal(matCut, unitMm)} <span class="text-muted">(+overlap)</span></li>`;
-                    html += `</ul>`;
+                    html += `<h3 class="section-header">`;
+                    html += `<span class="material-symbols-outlined">layers</span>`;
+                    html += `Matboard`;
+                    html += `</h3>`;
+                    html += `<div class="result-card">`;
+                    html += `<div class="data-grid">`;
+                    html += `<div class="data-item cut-dimension">`;
+                    html += `<span class="data-label">Size</span>`;
+                    html += `<span class="data-value">${formatValueWithDecimal(matH, unitMm)} × ${formatValueWithDecimal(matW, unitMm)}</span>`;
+                    html += `</div>`;
+                    html += `<div class="data-item incidental">`;
+                    html += `<span class="data-label">Opening</span>`;
+                    html += `<span class="data-value">${formatValueWithDecimal(matOpenH, unitMm)} × ${formatValueWithDecimal(matOpenW, unitMm)}</span>`;
+                    html += `</div>`;
+                    html += `<div class="data-item incidental">`;
+                    html += `<span class="data-label">Visual Width</span>`;
+                    html += `<span class="data-value">${formatValueWithDecimal(matWidthAvg, unitMm)}</span>`;
+                    html += `</div>`;
+                    html += `<div class="data-item cut-dimension">`;
+                    html += `<span class="data-label">Cut Width</span>`;
+                    html += `<span class="data-value">${formatValueWithDecimal(matCut, unitMm)}</span>`;
+                    html += `</div>`;
+                    html += `</div>`;
+                    html += `</div>`;
                 }
 
                 // Depth check with visual progress bar
-                html += `<strong>📏 Depth:</strong>`;
+                html += `<h3 class="section-header">`;
+                html += `<span class="material-symbols-outlined">straighten</span>`;
+                html += `Depth Analysis`;
+                html += `</h3>`;
 
                 // Format values, removing redundant decimals when fraction = decimal
                 const formatNonRedundant = (value, isUnitMm) => {
@@ -1340,10 +1394,18 @@
 
                 html += `<div class="depth-analysis">`;
 
-                // Labels: Required on left, Available positioned at marker
-                // Ensure minimum spacing to prevent collision (especially during overflow)
-                const minLabelSpacing = 55; // Minimum % separation to prevent text overlap
-                const availableLabelPosition = Math.max(rabbetPercent, minLabelSpacing);
+                // Calculate where marker actually appears
+                // Structure: container (100%) > bar-container (25%) > bar (barExtent% of container) > marker (rabbetPercentOfBar% of bar)
+                const barExtent = Math.max(requiredPercent, rabbetPercent);
+                const rabbetPercentOfBar = (rabbetPercent / barExtent) * 100;
+                const barContainerWidth = 25; // Bar container is 25% of full width
+                const barWidthOfFull = barContainerWidth * (barExtent / 100); // Bar width as % of full width
+                const markerActualPosition = barWidthOfFull * (rabbetPercentOfBar / 100); // Marker position as % of full width
+
+                // Labels: Position Available at a readable distance from Required
+                // The dog-leg will show connection to the actual marker position
+                const labelSpacing = 45; // Fixed spacing between labels for readability (increased for mobile)
+                const availableLabelPosition = labelSpacing;
 
                 html += `<div class="depth-labels-container">`;
                 html += `<div class="depth-label depth-label-required">`;
@@ -1354,18 +1416,35 @@
                 html += `<span class="label-text">Available</span>`;
                 html += `<span class="label-value">${formatNonRedundant(rabbetDepth, unitMm)}</span>`;
                 html += `</div>`;
+                // Add connector line from Available label to capacity marker (dog-leg)
+                // The marker is at markerActualPosition, label is at availableLabelPosition
+                // Calculate the horizontal offset from label to marker
+                const horizontalOffset = markerActualPosition - availableLabelPosition;
+                const absOffset = Math.abs(horizontalOffset);
+                const lineDirection = horizontalOffset >= 0 ? 'right' : 'left';
+
+                // Render dog-leg connector using SVG for precise endpoint positioning
+                const verticalDropPx = 6; // Short vertical drop from label
+                const startY = 42; // Start just below Available label
+                const diagonalStartY = startY + verticalDropPx;
+                const gaugeBarY = 56; // Gauge bar Y position
+
+                // Create SVG overlay for the connector
+                html += `<svg class="depth-connector-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 70px; pointer-events: none; z-index: 10; overflow: visible;">`;
+                // Vertical segment
+                html += `<line x1="${availableLabelPosition}%" y1="${startY}" x2="${availableLabelPosition}%" y2="${diagonalStartY}" stroke="rgba(128,128,128,0.4)" stroke-width="1"/>`;
+                // Diagonal segment
+                html += `<line x1="${availableLabelPosition}%" y1="${diagonalStartY}" x2="${markerActualPosition}%" y2="${gaugeBarY}" stroke="rgba(128,128,128,0.4)" stroke-width="1"/>`;
+                html += `</svg>`;
                 html += `</div>`;
 
                 // Filling gauge bar
-                // Bar extends to whichever is larger: required or available
-                const barExtent = Math.max(requiredPercent, rabbetPercent);
                 html += `<div class="depth-bar-container">`;
                 html += `<div class="depth-bar" style="width: ${barExtent}%">`;
 
-                // Recalculate fill percentages relative to bar width
+                // Calculate fill percentages relative to bar width
                 const greenFillPercent = Math.min(requiredPercent, rabbetPercent);
                 const greenFillPercentOfBar = (greenFillPercent / barExtent) * 100;
-                const rabbetPercentOfBar = (rabbetPercent / barExtent) * 100;
 
                 // Green fill: always goes up to the available depth threshold
                 html += `<div class="depth-fill depth-fill-green" style="width: ${greenFillPercentOfBar}%"></div>`;
@@ -1375,7 +1454,7 @@
                     const overflowPercentOfBar = (overflowPercent / barExtent) * 100;
                     html += `<div class="depth-fill depth-fill-overflow" style="left: ${rabbetPercentOfBar}%; width: ${overflowPercentOfBar}%"></div>`;
                 }
-                // Marker line at rabbet depth (capacity limit)
+                // Marker line at rabbet depth (capacity limit) - positioned relative to bar width
                 html += `<div class="depth-capacity-marker" style="left: ${rabbetPercentOfBar}%"></div>`;
                 html += `</div>`;
                 html += `</div>`;
@@ -1394,24 +1473,74 @@
                 html += `</div>`; // Close depth-analysis
 
                 // Specs (reuse already-declared variables: assemblyMargin, bladeWidth, rabbetWidth, rabbetDepth)
-                html += `<strong>⚙️ Specs:</strong>`;
-                html += `<ul>`;
-                html += `<li>Frame Material: ${formatValueWithDecimal(frameWidth, unitMm)} × ${formatValueWithDecimal(frameDepth, unitMm)}</li>`;
-                html += `<li>Rabbet: ${formatValueWithDecimal(rabbetWidth, unitMm)} × ${formatValueWithDecimal(rabbetDepth, unitMm)}</li>`;
-                html += `<li>Assembly Margin: ${formatValueWithDecimal(assemblyMargin, unitMm)}</li>`;
-                html += `<li>Blade Width (kerf): ${formatValueWithDecimal(bladeWidth, unitMm)}</li>`;
-                html += `</ul>`;
+                html += `<h3 class="section-header">`;
+                html += `<span class="material-symbols-outlined">tune</span>`;
+                html += `Specifications`;
+                html += `</h3>`;
+                html += `<div class="result-card">`;
+                html += `<div class="data-grid">`;
+                // Frame Material - check both width and depth
+                const frameModified = isModified(frameWidth, defaults.frameWidth) || isModified(frameDepth, defaults.frameDepth);
+                html += `<div class="data-item${frameModified ? ' modified' : ''}">`;
+                html += `<span class="data-label">Frame Material</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(frameWidth, unitMm)} × ${formatValueWithDecimal(frameDepth, unitMm)}</span>`;
+                html += `</div>`;
+                // Rabbet - check both width and depth
+                const rabbetModified = isModified(rabbetWidth, defaults.rabbet_width) || isModified(rabbetDepth, defaults.rabbet_depth);
+                html += `<div class="data-item cut-dimension${rabbetModified ? ' modified' : ''}">`;
+                html += `<span class="data-label">Rabbet</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(rabbetWidth, unitMm)} × ${formatValueWithDecimal(rabbetDepth, unitMm)}</span>`;
+                html += `</div>`;
+                // Assembly Margin
+                const marginModified = isModified(assemblyMargin, defaults.assemblyMargin);
+                html += `<div class="data-item${marginModified ? ' modified' : ''}">`;
+                html += `<span class="data-label">Assembly Margin</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(assemblyMargin, unitMm)}</span>`;
+                html += `</div>`;
+                // Blade Width
+                const bladeModified = isModified(bladeWidth, defaults.bladeWidth);
+                html += `<div class="data-item${bladeModified ? ' modified' : ''}">`;
+                html += `<span class="data-label">Blade Width (kerf)</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(bladeWidth, unitMm)}</span>`;
+                html += `</div>`;
+                html += `</div>`;
+                html += `</div>`;
 
                 // Material Thicknesses (reuse already-declared variables)
-                html += `<strong>📦 Material Thicknesses:</strong>`;
-                html += `<ul>`;
-                html += `<li>Glazing: ${formatValueWithDecimal(glazingThickness, unitMm)}</li>`;
+                html += `<h3 class="section-header">`;
+                html += `<span class="material-symbols-outlined">stacks</span>`;
+                html += `Material Thicknesses`;
+                html += `</h3>`;
+                html += `<div class="result-card">`;
+                html += `<div class="data-grid">`;
+                // Glazing
+                const glazingModified = isModified(glazingThickness, defaults.glazingThickness);
+                html += `<div class="data-item material-property${glazingModified ? ' modified' : ''}">`;
+                html += `<span class="data-label">Glazing</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(glazingThickness, unitMm)}</span>`;
+                html += `</div>`;
                 if (includeMat) {
-                    html += `<li>Matboard: ${formatValueWithDecimal(matboardThickness, unitMm)}</li>`;
+                    // Matboard
+                    const matboardModified = isModified(matboardThickness, defaults.matboardThickness);
+                    html += `<div class="data-item material-property${matboardModified ? ' modified' : ''}">`;
+                    html += `<span class="data-label">Matboard</span>`;
+                    html += `<span class="data-value">${formatValueWithDecimal(matboardThickness, unitMm)}</span>`;
+                    html += `</div>`;
                 }
-                html += `<li>Artwork: ${formatValueWithDecimal(artworkThickness, unitMm)}</li>`;
-                html += `<li>Backing: ${formatValueWithDecimal(backingThickness, unitMm)}</li>`;
-                html += `</ul>`;
+                // Artwork
+                const artworkThicknessModified = isModified(artworkThickness, defaults.artworkThickness);
+                html += `<div class="data-item material-property${artworkThicknessModified ? ' modified' : ''}">`;
+                html += `<span class="data-label">Artwork</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(artworkThickness, unitMm)}</span>`;
+                html += `</div>`;
+                // Backing
+                const backingModified = isModified(backingThickness, defaults.backingThickness);
+                html += `<div class="data-item material-property${backingModified ? ' modified' : ''}">`;
+                html += `<span class="data-label">Backing</span>`;
+                html += `<span class="data-value">${formatValueWithDecimal(backingThickness, unitMm)}</span>`;
+                html += `</div>`;
+                html += `</div>`;
+                html += `</div>`;
 
                 document.getElementById('results').innerHTML = html;
 
