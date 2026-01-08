@@ -1293,9 +1293,9 @@
                 html += `<li>Outside: ${formatValueWithDecimal(outsideH, unitMm)} × ${formatValueWithDecimal(outsideW, unitMm)}</li>`;
                 html += `</ul>`;
 
-                // Matboard (calculate average mat width from 4 borders)
+                // Matboard (calculate average mat width from TB/LR borders)
                 if (includeMat) {
-                    const matWidthAvg = (matWidthTop + matWidthBottom + matWidthLeft + matWidthRight) / 4;
+                    const matWidthAvg = (matWidthTopBottom + matWidthSides) / 2;
                     const matCut = matWidthAvg + matOverlap;
                     html += `<strong>🎨 Matboard:</strong>`;
                     html += `<ul>`;
@@ -1326,12 +1326,16 @@
                 html += `<div class="depth-analysis">`;
 
                 // Labels: Required on left, Available positioned at marker
+                // Ensure minimum spacing to prevent collision (especially during overflow)
+                const minLabelSpacing = 55; // Minimum % separation to prevent text overlap
+                const availableLabelPosition = Math.max(rabbetPercent, minLabelSpacing);
+
                 html += `<div class="depth-labels-container">`;
                 html += `<div class="depth-label depth-label-required">`;
                 html += `<span class="label-text">Required</span>`;
                 html += `<span class="label-value">${formatNonRedundant(depthRequired, unitMm)}</span>`;
                 html += `</div>`;
-                html += `<div class="depth-label depth-label-available" style="left: ${rabbetPercent}%">`;
+                html += `<div class="depth-label depth-label-available" style="left: ${availableLabelPosition}%">`;
                 html += `<span class="label-text">Available</span>`;
                 html += `<span class="label-value">${formatNonRedundant(rabbetDepth, unitMm)}</span>`;
                 html += `</div>`;
@@ -2276,15 +2280,13 @@
                 const [matH, matW] = currentDesign.getMatboardDimensions();
                 const [matOpenH, matOpenW] = currentDesign.getMatOpeningDimensions();
 
-                // Get 4 separate mat border values
-                const matWidthTop = getDimensionValue('mat-width-top');
-                const matWidthBottom = getDimensionValue('mat-width-bottom');
-                const matWidthLeft = getDimensionValue('mat-width-left');
-                const matWidthRight = getDimensionValue('mat-width-right');
+                // Get mat border values (tb/lr)
+                const matWidthTopBottom = getDimensionValue('mat-width-tb');
+                const matWidthSides = getDimensionValue('mat-width-lr');
                 const matOverlap = getDimensionValue('mat-overlap');
 
                 // Use average for display (most informative for asymmetric mats)
-                const matWidthAvg = (matWidthTop + matWidthBottom + matWidthLeft + matWidthRight) / 4;
+                const matWidthAvg = (matWidthTopBottom + matWidthSides) / 2;
 
                 addLabelValue('Full Size:', `${formatValueWithDecimal(matH, useMm)} × ${formatValueWithDecimal(matW, useMm)}${unit}`, 2);
                 addLabelValue('Opening:', `${formatValueWithDecimal(matOpenH, useMm)} × ${formatValueWithDecimal(matOpenW, useMm)}${unit}`, 2);
