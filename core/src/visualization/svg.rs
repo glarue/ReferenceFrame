@@ -2200,6 +2200,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
         DimensionType::FrameOutsideWidth
         | DimensionType::FrameOutsideHeight => &style.outside_dimension_color,
         DimensionType::MatCutWidth
+        | DimensionType::MatCutHeight
         | DimensionType::MatOpeningWidth
         | DimensionType::MatOpeningHeight
         | DimensionType::MatVisibleWidth

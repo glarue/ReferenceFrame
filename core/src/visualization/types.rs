@@ -131,7 +131,8 @@ pub enum DimensionType {
     FrameInsideHeightInterior, // Inside height shown inside the frame opening
     MatVisibleWidth,
     MatVisibleHeight,
-    MatCutWidth,      // Total mat cut width (visible + rabbet)
+    MatCutWidth,      // Total mat cut width (visible + rabbet) - shown on bottom
+    MatCutHeight,     // Total mat cut height (visible + rabbet) - shown on left when different
     MatOpeningWidth,
     MatOpeningHeight,
     FrameMaterialWidth,
@@ -176,6 +177,7 @@ impl DimensionType {
             DimensionType::MatVisibleWidth => 3,
             DimensionType::MatVisibleHeight => 3,
             DimensionType::MatCutWidth => 2,  // Same as other mat dimensions
+            DimensionType::MatCutHeight => 2,  // Same as other mat dimensions
             DimensionType::RabbetDepth => 3,
 
             // Nice to have
@@ -202,8 +204,9 @@ impl DimensionType {
             DimensionType::FrameInsideWidthInterior => Side::Top,
             DimensionType::FrameInsideHeightInterior => Side::Right,
 
-            // Mat cut width moved to bottom to avoid overlap
+            // Mat cut dimensions - width on bottom, height on left (when different)
             DimensionType::MatCutWidth => Side::Bottom,
+            DimensionType::MatCutHeight => Side::Left,
 
             // Other mat dimensions on same side as corresponding frame dims
             DimensionType::MatOpeningWidth
