@@ -2416,7 +2416,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
 
         // Mat cut width labels need extra padding from tick marks
         let label_y = if callout.callout.dimension_type == super::types::DimensionType::MatCutWidth {
-            base_y + 3.0  // Extra offset below dimension line
+            base_y + 5.0  // Extra offset below dimension line
         } else {
             base_y
         };
@@ -2425,7 +2425,16 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     } else {
         // Vertical dimension: label centered on the dimension line (will be rotated)
         let mid_y = (callout.callout.extent_start.y + callout.callout.extent_end.y) / 2.0;
-        (callout.dimension_line_position, mid_y)
+        let base_x = callout.dimension_line_position;
+
+        // Mat cut height labels need extra padding from tick marks
+        let label_x = if callout.callout.dimension_type == super::types::DimensionType::MatCutHeight {
+            base_x - 5.0  // Extra offset left of dimension line (for left-side placement)
+        } else {
+            base_x
+        };
+
+        (label_x, mid_y)
     };
 
     // For vertical dimensions, rotate text 90° (reads bottom-to-top)
