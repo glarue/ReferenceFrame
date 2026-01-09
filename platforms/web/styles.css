@@ -1803,34 +1803,8 @@ button:active {
     overflow: visible;
     width: 100%;
     box-sizing: border-box;
-    /* Subtle technical grid pattern - fine grid at 20px intervals */
-    background-image:
-        linear-gradient(to right, rgba(39, 124, 160, 0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(39, 124, 160, 0.03) 1px, transparent 1px);
-    background-size: 20px 20px;
-    background-position: -1px -1px;
 }
 
-/* Major grid lines every 100px - slightly more visible */
-.svg-container::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image:
-        linear-gradient(to right, rgba(39, 124, 160, 0.08) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(39, 124, 160, 0.08) 1px, transparent 1px);
-    background-size: 100px 100px;
-    background-position: -1px -1px;
-    pointer-events: none;
-    border-radius: var(--md-shape-small);
-    z-index: 0;
-}
-
-/* Ensure SVG content is above the grid */
-.svg-container > * {
-    position: relative;
-    z-index: 1;
-}
 
 .svg-container svg {
     display: block;
