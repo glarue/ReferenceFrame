@@ -162,8 +162,8 @@ impl Default for DiagramStyle {
             // Materials
             material_patterns: MaterialPatterns::default(),
 
-            // Layout - minimal margins to maximize visualization space
-            margin: 4.0,  // Reduced from 12.0 to maximize diagram size
+            // Layout - margins sized to accommodate rotated dimension labels
+            margin: 40.0,  // Sufficient space for dimension labels like "Outside: 24""
             label_spacing: 6.0,
         }
     }

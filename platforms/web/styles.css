@@ -1809,7 +1809,7 @@ button:active {
 .svg-container svg {
     display: block;
     border-radius: var(--md-shape-small);
-    overflow: visible;  /* Allow dimension labels to extend beyond viewBox */
+    overflow: hidden;  /* Clip to viewBox bounds */
 }
 
 .svg-container svg text {

@@ -108,9 +108,7 @@ impl PlanViewGeometry {
         let (frame_inner_height, frame_inner_width) = design.get_frame_inside_dimensions();
 
         // Calculate available canvas area (accounting for margins and dimension callouts)
-        // For vertical dimensions, rotated labels need horizontal space = label height
-        let vertical_label_space = style.dimension_font_size * 1.2;
-        let available_width = canvas_width - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step - 2.0 * vertical_label_space;
+        let available_width = canvas_width - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
         let available_height = canvas_height - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
 
         // Calculate scale to fit
@@ -125,11 +123,9 @@ impl PlanViewGeometry {
         // Ensure minimum offset from edges to leave room for dimension callouts + labels
         // Labels extend above the dimension line by (font_size/2 + 2) and have height (font_size * 1.2)
         let label_extension = style.dimension_font_size + 4.0;
-        let min_offset_y = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
-        // Horizontal offset needs additional space for rotated vertical dimension labels
-        let min_offset_x = min_offset_y + vertical_label_space;
-        let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset_x);
-        let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset_y);
+        let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
+        let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
+        let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
         let origin = Point::new(origin_x, origin_y);
 
         // Calculate rectangles
