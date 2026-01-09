@@ -1646,11 +1646,11 @@ fn build_section_svg(
         ));
         svg.push('\n');
 
-        // Label text
+        // Label text - use label_font_size for material identification labels
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" dominant-baseline="middle">{}: {}</text>"#,
             label_base_x, label_y,
-            dim_color, style.font_family, style.dimension_font_size * 0.85,
+            dim_color, style.font_family, style.label_font_size,
             mat.name, format_value(mat.thickness, unit)
         ));
         svg.push('\n');
@@ -1760,7 +1760,7 @@ fn build_section_svg(
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="{}">{}</text>"#,
         text_x, rabbet_label_y,
-        indicator_color, style.font_family, style.dimension_font_size * 0.8,
+        indicator_color, style.font_family, style.label_font_size * 0.9,
         text_anchor, clearance_text
     ));
     svg.push('\n');
@@ -2523,7 +2523,7 @@ fn generate_section_legend(
         ));
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}</text>"#,
-            x + 16.0, legend_y, style.dimension_color, style.font_family, style.dimension_font_size * 0.85, name
+            x + 16.0, legend_y, style.dimension_color, style.font_family, style.label_font_size * 0.9, name
         ));
         svg.push('\n');
     }
