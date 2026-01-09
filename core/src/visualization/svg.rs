@@ -314,7 +314,8 @@ fn generate_combined_view(
 ) -> DiagramResult {
     // Vertical stacking: plan view (top), section view (bottom)
     // Add gap between views for breathing room
-    let gap_between_views = 35.0;
+    // Extra space needed for mat cut label offset (41px downward)
+    let gap_between_views = 50.0;
     let plan_height = (options.canvas_height - gap_between_views) * 0.58;
     let section_height = (options.canvas_height - gap_between_views) * 0.42;
 
@@ -1639,7 +1640,9 @@ fn build_section_svg(
 
         // 2. Angled segment to label position
         // Adjust endpoint to visual center of text (accounting for font metrics)
-        let label_visual_center = label_y - style.label_font_size * 0.35;
+        // With dominant-baseline="central", text is centered at label_y, but PDF renderers
+        // may use baseline instead. Offset by ~20% of font size to hit visual center.
+        let label_visual_center = label_y - style.label_font_size * 0.20;
         svg.push_str(&format!(
             r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
             horiz_end_x, mat.center_y,
