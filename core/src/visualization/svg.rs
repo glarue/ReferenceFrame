@@ -1638,10 +1638,12 @@ fn build_section_svg(
         ));
 
         // 2. Angled segment to label position
+        // Adjust endpoint to visual center of text (accounting for font metrics)
+        let label_visual_center = label_y - style.label_font_size * 0.35;
         svg.push_str(&format!(
             r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
             horiz_end_x, mat.center_y,
-            label_base_x - 5.0, label_y,
+            label_base_x - 5.0, label_visual_center,
             dim_color, style.extension_stroke_width * 0.7
         ));
         svg.push('\n');
