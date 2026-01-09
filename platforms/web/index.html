@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260109-compact-mat-inputs">
+    <link rel="stylesheet" href="./styles.css?v=20260109-share-and-export-ux">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -1808,8 +1808,10 @@
             };
 
             try {
-                const url = generateShareableUrl(JSON.stringify(params));
-                document.getElementById('share-url').textContent = url;
+                const encoded = generateShareableUrl(JSON.stringify(params));
+                // Build full URL with origin and path
+                const fullUrl = `${window.location.origin}${window.location.pathname}?d=${encoded}`;
+                document.getElementById('share-url').textContent = fullUrl;
                 document.getElementById('share-modal').classList.add('visible');
                 document.getElementById('copy-success').style.display = 'none';
             } catch (e) {

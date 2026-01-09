@@ -1559,6 +1559,26 @@ button:active {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
+/* Export PDF button - prominent styling */
+#export-pdf-btn {
+    background: var(--rf-seagrass);
+    color: white;
+    border-color: var(--rf-seagrass);
+    font-weight: 600;
+}
+
+#export-pdf-btn:hover {
+    background: color-mix(in srgb, var(--rf-seagrass) 85%, black);
+    border-color: color-mix(in srgb, var(--rf-seagrass) 85%, black);
+}
+
+#export-pdf-btn:disabled {
+    background: var(--rf-surface);
+    color: var(--rf-text-muted);
+    border-color: var(--rf-line);
+    cursor: not-allowed;
+    transform: none;
+}
 
 .button-group {
     display: flex;
@@ -1898,6 +1918,8 @@ button:active {
     max-height: 80px;
     overflow-y: auto;
     color: var(--rf-text-muted);
+    user-select: all;  /* Allow text selection for manual copying */
+    cursor: text;
 }
 
 .modal-buttons {
