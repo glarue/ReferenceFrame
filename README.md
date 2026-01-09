@@ -2,6 +2,8 @@
 
 A cross-platform picture frame design calculator with support for Web, iOS, and Android.
 
+![ReferenceFrame Web Interface](docs/images/main_interface.png)
+
 ## 🏗️ Architecture
 
 ReferenceFrame uses a **shared Rust core** architecture for maximum code reuse across platforms:
