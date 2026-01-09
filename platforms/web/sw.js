@@ -1,8 +1,8 @@
 // Service Worker for ReferenceFrame WASM
 // Caches WASM modules, libraries, and app resources for fast subsequent loads
 
-const CACHE_NAME = 'referenceframe-wasm-v2';
-const RUNTIME_CACHE = 'referenceframe-runtime-v2';
+const CACHE_NAME = 'referenceframe-wasm-v3';
+const RUNTIME_CACHE = 'referenceframe-runtime-v3';
 
 // Resources to cache immediately on install
 const PRECACHE_URLS = [
@@ -53,6 +53,7 @@ self.addEventListener('fetch', event => {
     if (event.request.destination === 'document' ||
         url.pathname.endsWith('.html') ||
         url.pathname.endsWith('.js') ||
+        url.pathname.endsWith('.wasm') ||  // WASM files also network-first for development
         url.pathname === '/' ||
         url.pathname.endsWith('/')) {
         event.respondWith(
@@ -75,29 +76,7 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Cache-first for WASM files (they're immutable and large)
-    if (url.pathname.endsWith('.wasm')) {
-        event.respondWith(
-            caches.match(event.request).then(cachedResponse => {
-                if (cachedResponse) {
-                    console.log('[SW] Serving WASM from cache:', event.request.url);
-                    return cachedResponse;
-                }
-
-                console.log('[SW] Fetching and caching WASM:', event.request.url);
-                return fetch(event.request).then(response => {
-                    if (response && response.status === 200) {
-                        const responseToCache = response.clone();
-                        caches.open(CACHE_NAME).then(cache => {
-                            cache.put(event.request, responseToCache);
-                        });
-                    }
-                    return response;
-                });
-            })
-        );
-        return;
-    }
+    // WASM files are now handled by network-first above (removed cache-first block)
 
     // Cache strategy for CDN resources (jsPDF, svg2pdf, qrcode, etc.)
     if (url.hostname === 'cdnjs.cloudflare.com' ||
