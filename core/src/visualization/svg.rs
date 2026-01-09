@@ -1639,14 +1639,11 @@ fn build_section_svg(
         ));
 
         // 2. Angled segment to label position
-        // Adjust endpoint to visual center of text (accounting for font metrics)
-        // With dominant-baseline="central", text is centered at label_y, but PDF renderers
-        // may use baseline instead. Offset by ~20% of font size to hit visual center.
-        let label_visual_center = label_y - style.label_font_size * 0.20;
+        // Use label_y directly - dominant-baseline="central" centers text at this position
         svg.push_str(&format!(
             r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
             horiz_end_x, mat.center_y,
-            label_base_x - 5.0, label_visual_center,
+            label_base_x - 5.0, label_y,
             dim_color, style.extension_stroke_width * 0.7
         ));
         svg.push('\n');
