@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260109-left-align-data-grid">
+    <link rel="stylesheet" href="./styles.css?v=20260109-compact-mat-inputs">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -120,19 +120,26 @@
                     <!-- Mat Borders -->
                     <div class="mat-borders-section" id="mat-settings">
                         <div class="section-header-with-toggle">
-                            <label id="label-mat-width" class="section-label">Mat Width</label>
+                            <label id="label-mat-width" class="section-label">Mat Borders</label>
                             <label class="toggle-checkbox-label">
                                 <input type="checkbox" id="separate-mat-borders" onchange="toggleMatBorderMode()">
                                 <span class="toggle-text">Separate sides</span>
                             </label>
                         </div>
 
-                        <!-- Single mat width input (default) -->
-                        <div class="field" id="mat-width-single-field">
-                            <input type="text" id="mat-width-single" value="2" inputmode="decimal" placeholder="e.g. 2.0 or 2 1/4">
+                        <!-- Single mode: mat width and overlap side-by-side -->
+                        <div class="inline-fields-row" id="mat-single-mode-row">
+                            <div class="field" id="mat-width-single-field">
+                                <label>Width</label>
+                                <input type="text" id="mat-width-single" value="2" inputmode="decimal" placeholder="e.g. 2.0">
+                            </div>
+                            <div class="field" id="mat-overlap-field-inline">
+                                <label>Overlap</label>
+                                <input type="text" id="mat-overlap" value="0.125" inputmode="decimal" placeholder="e.g. 1/8">
+                            </div>
                         </div>
 
-                        <!-- 2 separate inputs (shown when toggle enabled) -->
+                        <!-- Separate mode: T/B and L/R inputs, overlap below -->
                         <div id="mat-width-separate-container" style="display: none;">
                             <div class="mat-borders-grid">
                                 <div class="field field-stepper">
@@ -153,18 +160,18 @@
                                 </div>
                             </div>
 
+                            <!-- Mat overlap for separate mode -->
+                            <div class="field" id="mat-overlap-field-separate" style="margin-top: 12px;">
+                                <label id="label-mat-overlap">Mat Overlap</label>
+                                <input type="text" id="mat-overlap-separate" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+                            </div>
+
                             <!-- Hidden inputs for backwards compatibility - synced with tb/lr -->
                             <input type="hidden" id="mat-width-top" value="2">
                             <input type="hidden" id="mat-width-bottom" value="2">
                             <input type="hidden" id="mat-width-left" value="2">
                             <input type="hidden" id="mat-width-right" value="2">
                         </div>
-                    </div>
-
-                    <!-- Mat overlap -->
-                    <div class="field" id="mat-overlap-field">
-                        <label id="label-mat-overlap">Mat Overlap</label>
-                        <input type="text" id="mat-overlap" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
                     </div>
                     <div class="inline-fields-row">
                         <div class="field">
@@ -580,7 +587,7 @@
         const dimensionInputIds = [
             'artwork-height', 'artwork-width',
             'mat-width-single', 'mat-width-tb', 'mat-width-lr', 'mat-width-top', 'mat-width-bottom', 'mat-width-left', 'mat-width-right',
-            'mat-overlap',
+            'mat-overlap', 'mat-overlap-separate',
             'frame-width', 'frame-depth', 'glazing-thickness', 'matboard-thickness',
             'artwork-thickness', 'backing-thickness', 'rabbet-width', 'rabbet-depth',
             'assembly-margin', 'blade-width'
@@ -761,11 +768,9 @@
         function updateMatVisibility() {
             const includeMat = document.getElementById('include-mat').checked;
             const matSettings = document.getElementById('mat-settings');
-            const matOverlap = document.getElementById('mat-overlap-field');
             const matLabel = document.getElementById('mat-label');
             const style = includeMat ? '' : 'opacity: 0.4; pointer-events: none;';
             matSettings.style.cssText = style;
-            matOverlap.style.cssText = style;
             matLabel.classList.toggle('disabled', !includeMat);
         }
 
@@ -810,7 +815,7 @@
         // Toggle between single and separate mat border inputs
         window.toggleMatBorderMode = function() {
             const separateModeEnabled = document.getElementById('separate-mat-borders').checked;
-            const singleField = document.getElementById('mat-width-single-field');
+            const singleModeRow = document.getElementById('mat-single-mode-row');
             const separateContainer = document.getElementById('mat-width-separate-container');
 
             if (separateModeEnabled) {
@@ -827,11 +832,15 @@
                 setDimensionValue('mat-width-tb', tbValue);
                 setDimensionValue('mat-width-lr', lrValue);
 
+                // Sync mat overlap to separate mode input
+                const overlapValue = getDimensionValue('mat-overlap');
+                setDimensionValue('mat-overlap-separate', overlapValue);
+
                 // Sync hidden individual inputs (this will make top=bottom and left=right)
                 syncMatWidthInputs();
 
-                // Show separate inputs, hide single input
-                singleField.style.display = 'none';
+                // Show separate inputs, hide single mode row
+                singleModeRow.style.display = 'none';
                 separateContainer.style.display = 'block';
             } else {
                 // Switching to single mode - use average of tb and lr
@@ -840,14 +849,18 @@
                 const average = (tb + lr) / 2;
                 setDimensionValue('mat-width-single', average);
 
+                // Sync mat overlap to single mode input
+                const overlapValue = getDimensionValue('mat-overlap-separate');
+                setDimensionValue('mat-overlap', overlapValue);
+
                 // Sync all hidden inputs to single value
                 setDimensionValue('mat-width-top', average);
                 setDimensionValue('mat-width-bottom', average);
                 setDimensionValue('mat-width-left', average);
                 setDimensionValue('mat-width-right', average);
 
-                // Show single input, hide separate inputs
-                singleField.style.display = 'block';
+                // Show single mode row, hide separate inputs
+                singleModeRow.style.display = 'flex';
                 separateContainer.style.display = 'none';
             }
 
@@ -878,6 +891,16 @@
         document.getElementById('mat-width-lr').addEventListener('input', () => {
             syncDimension('mat-width-lr');  // Parse fraction/decimal first
             syncMatWidthInputs();  // Then sync to hidden inputs
+        });
+
+        // Keep both mat-overlap inputs in sync
+        document.getElementById('mat-overlap').addEventListener('input', () => {
+            const value = getDimensionValue('mat-overlap');
+            setDimensionValue('mat-overlap-separate', value);
+        });
+        document.getElementById('mat-overlap-separate').addEventListener('input', () => {
+            const value = getDimensionValue('mat-overlap-separate');
+            setDimensionValue('mat-overlap', value);
         });
 
         // Collapsible Advanced Options
