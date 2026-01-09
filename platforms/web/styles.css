@@ -42,7 +42,7 @@
     --rf-orange-alt: #f9844a;    /* Mango Tango */
     --rf-yellow: #f9c74f;        /* Tuscan Sun */
     --rf-green: #90be6d;         /* Willow Green */
-    --rf-teal: #43aa8b;          /* Seagrass */
+    --rf-teal: #43aa8b;          /* Teal / Seagrass - use var(--rf-teal) */
     --rf-teal-dark: #4d908e;     /* Dark Cyan */
     --rf-blue-slate: #577590;    /* Blue Slate */
     --rf-blue: #277da1;          /* Cerulean */
