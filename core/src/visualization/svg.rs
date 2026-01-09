@@ -351,6 +351,10 @@ fn generate_combined_view(
     let plan_result = generate_plan_view(design, &plan_options, &plan_style);
     let section_result = generate_section_view(design, &section_options, &section_style);
 
+    // Extract viewBoxes from both views to preserve their coordinate systems
+    let plan_viewbox = extract_viewbox(&plan_result.svg);
+    let section_viewbox = extract_viewbox(&section_result.svg);
+
     // Combine into single SVG
     let mut svg = String::new();
     svg.push_str(&format!(
@@ -364,21 +368,45 @@ fn generate_combined_view(
         svg.push_str(&generate_title_block(design, options, style));
     }
 
-    // Plan view on top
-    let plan_content = extract_svg_content(&plan_result.svg);
-    svg.push_str(&format!(
-        r#"  <g id="plan-view" transform="translate(0, 0)">{}</g>"#,
-        plan_content
-    ));
+    // Plan view on top - embed as nested SVG with preserved viewBox
+    if let Some((vb_x, vb_y, vb_w, vb_h)) = plan_viewbox {
+        svg.push_str(&format!(
+            r#"  <svg id="plan-view" x="0" y="0" width="{}" height="{}" viewBox="{} {} {} {}" preserveAspectRatio="xMidYMin meet">{}</svg>"#,
+            options.canvas_width,
+            plan_height,
+            vb_x, vb_y, vb_w, vb_h,
+            extract_svg_content(&plan_result.svg)
+        ));
+    } else {
+        // Fallback
+        let plan_content = extract_svg_content(&plan_result.svg);
+        svg.push_str(&format!(
+            r#"  <g id="plan-view" transform="translate(0, 0)">{}</g>"#,
+            plan_content
+        ));
+    }
     svg.push('\n');
 
-    // Section view below (translated down with gap)
-    let section_content = extract_svg_content(&section_result.svg);
-    svg.push_str(&format!(
-        r#"  <g id="section-view" transform="translate(0, {})">{}</g>"#,
-        plan_height + gap_between_views,
-        section_content
-    ));
+    // Section view below - embed as nested SVG with preserved viewBox
+    // This ensures the section view (including legend) scales to fit within section_height
+    if let Some((vb_x, vb_y, vb_w, vb_h)) = section_viewbox {
+        svg.push_str(&format!(
+            r#"  <svg id="section-view" x="0" y="{}" width="{}" height="{}" viewBox="{} {} {} {}" preserveAspectRatio="xMidYMin meet">{}</svg>"#,
+            plan_height + gap_between_views,
+            options.canvas_width,
+            section_height,
+            vb_x, vb_y, vb_w, vb_h,
+            extract_svg_content(&section_result.svg)
+        ));
+    } else {
+        // Fallback
+        let section_content = extract_svg_content(&section_result.svg);
+        svg.push_str(&format!(
+            r#"  <g id="section-view" transform="translate(0, {})">{}</g>"#,
+            plan_height + gap_between_views,
+            section_content
+        ));
+    }
     svg.push('\n');
 
     svg.push_str("</svg>");
@@ -2735,6 +2763,29 @@ fn get_fill_for_pattern(pattern: &FillPattern) -> String {
         FillPattern::Hatched { color, .. } => color.clone(),
         FillPattern::CrossHatched { color, .. } => color.clone(),
     }
+}
+
+/// Extract viewBox dimensions from SVG string
+/// Returns (x, y, width, height) if found
+fn extract_viewbox(svg: &str) -> Option<(f64, f64, f64, f64)> {
+    if let Some(start) = svg.find("viewBox=\"") {
+        let values_start = start + 9; // Length of "viewBox=\""
+        if let Some(end) = svg[values_start..].find('"') {
+            let viewbox_str = &svg[values_start..values_start + end];
+            let parts: Vec<&str> = viewbox_str.split_whitespace().collect();
+            if parts.len() == 4 {
+                if let (Ok(x), Ok(y), Ok(w), Ok(h)) = (
+                    parts[0].parse::<f64>(),
+                    parts[1].parse::<f64>(),
+                    parts[2].parse::<f64>(),
+                    parts[3].parse::<f64>(),
+                ) {
+                    return Some((x, y, w, h));
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Extract content from SVG (between opening and closing tags), preserving defs
