@@ -1108,9 +1108,10 @@ input::placeholder {
 /* Data grid layout for results sections - auto-adapts to available space */
 .data-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, auto));
     gap: 16px 24px;
     padding: 12px;
+    justify-content: start;  /* Left-align items when fewer than full row */
 }
 
 .data-item {
