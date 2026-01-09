@@ -417,13 +417,27 @@ fn build_plan_svg(
         min_y = min_y.min(extent_start.y.min(extent_end.y) - style.dimension_offset_step);
         max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
 
-        // Account for dimension labels (rotated text needs extra space)
-        // Estimate label width: ~10 chars * 0.6 * font_size for typical dimension labels
-        let label_space = style.dimension_font_size * 6.0;
-        min_x = min_x.min(dim_line_pos - label_space);
-        max_x = max_x.max(dim_line_pos + label_space);
-        min_y = min_y.min(dim_line_pos - label_space);
-        max_y = max_y.max(dim_line_pos + label_space);
+        // Account for dimension labels using actual label text length
+        let label_text_width = callout.callout.label.len() as f64 * style.dimension_font_size * 0.6;
+        let label_height = style.dimension_font_size * 1.2;
+
+        // Only extend bounds in the direction perpendicular to the dimension line
+        // Horizontal dimensions: label centered above/below line
+        if (extent_start.y - extent_end.y).abs() < 1.0 {
+            min_y = min_y.min(dim_line_pos - label_height);
+            max_y = max_y.max(dim_line_pos + label_height);
+            // Horizontal extent of centered text
+            let mid_x = (extent_start.x + extent_end.x) / 2.0;
+            min_x = min_x.min(mid_x - label_text_width / 2.0);
+            max_x = max_x.max(mid_x + label_text_width / 2.0);
+        } else {
+            // Vertical dimensions: rotated label (text width becomes vertical extent)
+            min_x = min_x.min(dim_line_pos - label_height);
+            max_x = max_x.max(dim_line_pos + label_height);
+            let mid_y = (extent_start.y + extent_end.y) / 2.0;
+            min_y = min_y.min(mid_y - label_text_width / 2.0);
+            max_y = max_y.max(mid_y + label_text_width / 2.0);
+        }
     }
 
     // Add padding for visual comfort

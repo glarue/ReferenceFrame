@@ -162,8 +162,8 @@ impl Default for DiagramStyle {
             // Materials
             material_patterns: MaterialPatterns::default(),
 
-            // Layout - margins sized to accommodate rotated dimension labels
-            margin: 40.0,  // Sufficient space for dimension labels like "Outside: 24""
+            // Layout - minimal margins (dynamic bounds handle label space)
+            margin: 8.0,  // Small padding for visual comfort
             label_spacing: 6.0,
         }
     }
