@@ -2145,7 +2145,14 @@
                 // Generate SVG diagram with PDF-optimized styling (larger fonts)
                 // Use square canvas (1:1) to maximize use of portrait PDF page
                 const unitMm = currentUnit === 'mm';
+                console.log('[PDF] Using WASM version:', getWasmVersion());
                 let svgString = generateCombinedViewSvgForPdf(currentDesign, 1200, 1200, unitMm, false, true);
+
+                // Debug: Check for mat cut offset comments
+                const hasMatCutComments = svgString.includes('Dimension type: MatCut');
+                const offsetAppliedCount = (svgString.match(/offset applied: true/g) || []).length;
+                console.log('[PDF] Mat cut dimension comments found:', hasMatCutComments);
+                console.log('[PDF] Number of offsets applied:', offsetAppliedCount);
 
                 // Fix font issues for PDF rendering - svg2pdf.js has trouble with custom fonts
                 // Replace font-family with just "Helvetica" (standard PDF font, no fallbacks)
