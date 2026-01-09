@@ -1796,7 +1796,7 @@ button:active {
 /* Visualization container */
 .svg-container {
     position: relative;
-    background: var(--rf-bg-light);
+    background: #ffffff;
     border-radius: var(--md-shape-small);
     padding: var(--svg-container-padding);
     display: block;
