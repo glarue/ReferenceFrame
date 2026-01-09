@@ -1561,15 +1561,15 @@ button:active {
 
 /* Export PDF button - prominent styling */
 #export-pdf-btn {
-    background: var(--rf-seagrass);
+    background: var(--rf-teal);
     color: white;
-    border-color: var(--rf-seagrass);
+    border: 1.5px solid var(--rf-teal);
     font-weight: 600;
 }
 
 #export-pdf-btn:hover {
-    background: color-mix(in srgb, var(--rf-seagrass) 85%, black);
-    border-color: color-mix(in srgb, var(--rf-seagrass) 85%, black);
+    background: color-mix(in srgb, var(--rf-teal) 85%, black);
+    border-color: color-mix(in srgb, var(--rf-teal) 85%, black);
 }
 
 #export-pdf-btn:disabled {
