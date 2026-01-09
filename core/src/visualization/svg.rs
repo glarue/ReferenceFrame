@@ -2416,7 +2416,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
 
         // Mat cut width labels need extra padding from tick marks
         let (label_y, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutWidth {
-            (base_y + 12.0, true)  // Extra offset below dimension line (increased from 5px for visibility)
+            (base_y + 20.0, true)  // Extra offset below dimension line (increased for clear visibility)
         } else {
             (base_y, false)
         };
