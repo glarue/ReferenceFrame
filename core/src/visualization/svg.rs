@@ -327,12 +327,14 @@ fn generate_combined_view(
     plan_style.dimension_offset_base = style.dimension_offset_base * scale_factor;
     plan_style.dimension_offset_step = style.dimension_offset_step * scale_factor;
     plan_style.dimension_font_size = style.dimension_font_size * scale_factor;
+    plan_style.label_font_size = style.label_font_size * scale_factor;
     plan_style.title_font_size = style.title_font_size * scale_factor;
 
     // Create compact style for section view
     let mut section_style = style.clone();
     section_style.margin = style.margin * scale_factor;
     section_style.dimension_font_size = style.dimension_font_size * scale_factor;
+    section_style.label_font_size = style.label_font_size * scale_factor;
     section_style.title_font_size = style.title_font_size * scale_factor;
 
     let plan_options = DiagramOptions {
