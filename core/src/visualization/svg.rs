@@ -359,13 +359,6 @@ fn generate_combined_view(
     ));
     svg.push('\n');
 
-    // Background
-    svg.push_str(&format!(
-        r#"  <rect fill="{}" width="100%" height="100%"/>"#,
-        style.background_color
-    ));
-    svg.push('\n');
-
     // Title block if requested
     if options.include_title_block {
         svg.push_str(&generate_title_block(design, options, style));
