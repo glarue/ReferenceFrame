@@ -417,13 +417,6 @@ fn build_plan_svg(
     // Defs for patterns
     svg.push_str(&generate_defs(style));
 
-    // Background
-    svg.push_str(&format!(
-        r#"  <rect fill="{}" width="100%" height="100%"/>"#,
-        style.background_color
-    ));
-    svg.push('\n');
-
     // Geometry group
     svg.push_str("  <g id=\"geometry\">\n");
 
@@ -719,13 +712,6 @@ fn build_section_svg(
 
     // Defs
     svg.push_str(&generate_defs(style));
-
-    // Background
-    svg.push_str(&format!(
-        r#"  <rect fill="{}" width="100%" height="100%"/>"#,
-        style.background_color
-    ));
-    svg.push('\n');
 
     // Section geometry
     svg.push_str("  <g id=\"section-geometry\">\n");
