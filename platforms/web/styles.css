@@ -1834,6 +1834,8 @@ button:active {
 
 .svg-container svg {
     display: block;
+    border-radius: var(--md-shape-small);
+    overflow: hidden;  /* Ensure content respects border-radius */
 }
 
 .svg-container svg text {
