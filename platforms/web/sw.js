@@ -1,8 +1,8 @@
 // Service Worker for ReferenceFrame WASM
 // Caches WASM modules, libraries, and app resources for fast subsequent loads
 
-const CACHE_NAME = 'referenceframe-wasm-v3';
-const RUNTIME_CACHE = 'referenceframe-runtime-v3';
+const CACHE_NAME = 'referenceframe-wasm-v5';
+const RUNTIME_CACHE = 'referenceframe-runtime-v5';
 
 // Resources to cache immediately on install
 const PRECACHE_URLS = [
@@ -52,6 +52,7 @@ self.addEventListener('fetch', event => {
     // Network-first for app files (always get fresh version during development)
     if (event.request.destination === 'document' ||
         url.pathname.endsWith('.html') ||
+        url.pathname.endsWith('.css') ||  // CSS files network-first for development
         url.pathname.endsWith('.js') ||
         url.pathname.endsWith('.wasm') ||  // WASM files also network-first for development
         url.pathname === '/' ||
