@@ -1648,7 +1648,7 @@ fn build_section_svg(
 
         // Label text - use label_font_size for material identification labels
         svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" dominant-baseline="middle">{}: {}</text>"#,
+            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" dominant-baseline="central">{}: {}</text>"#,
             label_base_x, label_y,
             dim_color, style.font_family, style.label_font_size,
             mat.name, format_value(mat.thickness, unit)
