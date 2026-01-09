@@ -2422,9 +2422,10 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
         let base_y = callout.dimension_line_position;
 
         // Mat cut width labels need extra padding from extension lines
-        // Calculation: 5mm gap = 29px + 4px (extension overshoot) + 8px (half font height) = 41px
+        // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
+        let mat_cut_offset = EXTENSION_OVERSHOOT + style.dimension_font_size / 2.0 + style.dimension_offset_base;
         let (label_y, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutWidth {
-            (base_y + 41.0, true)  // Offset for ~5mm gap between extension lines and label
+            (base_y + mat_cut_offset, true)
         } else {
             (base_y, false)
         };
@@ -2436,9 +2437,10 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
         let base_x = callout.dimension_line_position;
 
         // Mat cut height labels need extra padding from extension lines
-        // Calculation: 5mm gap = 29px + 4px (extension overshoot) + 8px (half font height) = 41px
+        // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
+        let mat_cut_offset = EXTENSION_OVERSHOOT + style.dimension_font_size / 2.0 + style.dimension_offset_base;
         let (label_x, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutHeight {
-            (base_x - 41.0, true)  // Offset for ~5mm gap between extension lines and label
+            (base_x - mat_cut_offset, true)
         } else {
             (base_x, false)
         };
