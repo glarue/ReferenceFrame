@@ -398,12 +398,52 @@ fn build_plan_svg(
     options: &DiagramOptions,
     style: &DiagramStyle,
 ) -> String {
+    // Calculate bounds from actual geometry and layout data
+    let mut min_x = geometry.frame_outer.left() - style.frame_stroke_width / 2.0;
+    let mut max_x = geometry.frame_outer.right() + style.frame_stroke_width / 2.0;
+    let mut min_y = geometry.frame_outer.top() - style.frame_stroke_width / 2.0;
+    let mut max_y = geometry.frame_outer.bottom() + style.frame_stroke_width / 2.0;
+
+    // Include dimension callouts in bounds
+    for callout in &layout.positioned_callouts {
+        // Dimension lines extend beyond geometry
+        let dim_line_pos = callout.dimension_line_position;
+        let extent_start = &callout.callout.extent_start;
+        let extent_end = &callout.callout.extent_end;
+
+        // Track dimension line and extension line bounds
+        min_x = min_x.min(extent_start.x.min(extent_end.x) - style.dimension_offset_step);
+        max_x = max_x.max(extent_start.x.max(extent_end.x) + style.dimension_offset_step);
+        min_y = min_y.min(extent_start.y.min(extent_end.y) - style.dimension_offset_step);
+        max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
+
+        // Account for dimension labels (rotated text needs extra space)
+        // Estimate label width: ~10 chars * 0.6 * font_size for typical dimension labels
+        let label_space = style.dimension_font_size * 6.0;
+        min_x = min_x.min(dim_line_pos - label_space);
+        max_x = max_x.max(dim_line_pos + label_space);
+        min_y = min_y.min(dim_line_pos - label_space);
+        max_y = max_y.max(dim_line_pos + label_space);
+    }
+
+    // Add padding for visual comfort
+    let padding = style.margin;
+    min_x -= padding;
+    max_x += padding;
+    min_y -= padding;
+    max_y += padding;
+
+    // Calculate viewBox dimensions
+    let viewbox_width = max_x - min_x;
+    let viewbox_height = max_y - min_y;
+
+    // Build SVG with dynamic viewBox
     let mut svg = String::new();
 
-    // SVG header
+    // SVG header with calculated viewBox
     svg.push_str(&format!(
-        r#"<svg viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"#,
-        options.canvas_width, options.canvas_height
+        r#"<svg viewBox="{:.2} {:.2} {:.2} {:.2}" xmlns="http://www.w3.org/2000/svg">"#,
+        min_x, min_y, viewbox_width, viewbox_height
     ));
     svg.push('\n');
 
