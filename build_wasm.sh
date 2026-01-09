@@ -1,6 +1,10 @@
 #!/bin/bash
 # Build script for ReferenceFrame WASM
 # Ensures WASM is built to the correct location every time
+#
+# IMPORTANT: There is only ONE pkg directory: platforms/web/pkg/
+# This is where index.html loads from (via ./pkg/ relative path)
+# Do not create platforms/pkg/ or any other pkg directories!
 
 set -e  # Exit on error
 
