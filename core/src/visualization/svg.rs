@@ -1585,6 +1585,11 @@ fn build_section_svg(
     }
 
     let fw_label_y = fw_y - label_offset;
+
+    // Track width label Y bounds (text baseline is at fw_label_y, extends above and below)
+    track_y!(fw_label_y - style.dimension_font_size * 0.8); // Above baseline (most of glyph height)
+    track_y!(fw_label_y + style.dimension_font_size * 0.2); // Below baseline (descenders)
+
     // Show actual frame width (not display width) in label
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">Width: {}</text>"#,
@@ -1947,8 +1952,15 @@ fn build_section_svg(
     }
 
     // Compact legend (horizontal at very bottom of canvas)
-    // Legend is centered on canvas, not affected by content centering
-    final_svg.push_str(&generate_section_legend(design, geometry, style, options.canvas_width, options.canvas_height));
+    // Pass content bounds for dynamic viewBox centering
+    final_svg.push_str(&generate_section_legend(
+        design,
+        geometry,
+        style,
+        options.canvas_width,
+        options.canvas_height,
+        Some((content_min_x, content_max_x)),
+    ));
 
     final_svg.push_str("</svg>");
     final_svg
@@ -2636,6 +2648,7 @@ fn generate_section_legend(
     style: &DiagramStyle,
     canvas_width: f64,
     _canvas_height: f64,
+    content_bounds_x: Option<(f64, f64)>, // (min_x, max_x) for dynamic viewBox centering
 ) -> String {
     let mut svg = String::new();
     svg.push_str("  <g id=\"legend\">\n");
@@ -2652,7 +2665,14 @@ fn generate_section_legend(
 
     let item_width = 80.0;
     let total_width = materials.len() as f64 * item_width;
-    let start_x = (canvas_width - total_width) / 2.0;
+
+    // Center legend relative to content bounds (for dynamic viewBox) or canvas (for fixed viewBox)
+    let start_x = if let Some((min_x, max_x)) = content_bounds_x {
+        let content_center = (min_x + max_x) / 2.0;
+        content_center - total_width / 2.0
+    } else {
+        (canvas_width - total_width) / 2.0
+    };
 
     // Position legend tightly below the content bounds
     let content_bottom = geometry.bounds.bottom();
