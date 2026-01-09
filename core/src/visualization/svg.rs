@@ -1649,9 +1649,12 @@ fn build_section_svg(
         svg.push('\n');
 
         // Label text - use label_font_size for material identification labels
+        // Position text so baseline is slightly below label_y (visual center)
+        // This makes dog-leg line hit visual center regardless of baseline rendering
+        let text_y = label_y + style.label_font_size * 0.35;
         svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" dominant-baseline="central">{}: {}</text>"#,
-            label_base_x, label_y,
+            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}: {}</text>"#,
+            label_base_x, text_y,
             dim_color, style.font_family, style.label_font_size,
             mat.name, format_value(mat.thickness, unit)
         ));
