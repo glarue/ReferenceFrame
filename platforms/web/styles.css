@@ -1040,7 +1040,7 @@ input::placeholder {
     text-transform: uppercase;
     letter-spacing: 0.08em;
     padding: 0 4px 8px;
-    margin-top: 20px;
+    margin-top: 18px;
     margin-bottom: 4px;
 }
 
@@ -1065,7 +1065,7 @@ input::placeholder {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px;
+    padding: 12px;
     transition: background-color 150ms ease;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1110,12 +1110,12 @@ input::placeholder {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 16px 24px;
-    padding: 14px;
+    padding: 12px;
 }
 
 .data-item {
-    border-left: 3px solid rgba(255, 255, 255, 0.15);
-    padding-left: 12px;
+    border-left: 2px solid rgba(255, 255, 255, 0.15);
+    padding-left: 8px;  /* Match table alignment: 2px border + 8px padding = 10px total indent */
 }
 
 /* Orange - Cut Dimensions (what you physically cut/modify) */
@@ -1123,7 +1123,7 @@ input::placeholder {
     border-left-color: var(--rf-orange);
     background: color-mix(in srgb, var(--rf-orange) 8%, transparent);
     margin: -4px -8px;
-    padding: 10px 12px 10px 12px;
+    padding: 10px 12px 10px 8px;
     border-radius: 0 6px 6px 0;
 }
 
@@ -1154,12 +1154,78 @@ input::placeholder {
     border-left-color: var(--rf-purple);
     background: color-mix(in srgb, var(--rf-purple) 8%, transparent);
     margin: -4px -8px;
-    padding: 10px 12px 10px 12px;
+    padding: 10px 12px 10px 8px;
     border-radius: 0 6px 6px 0;
 }
 
 .data-item.modified .data-label {
     color: var(--rf-purple);
+}
+
+/* Compact dimension table for Frame and Matboard sections */
+.dimension-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.dimension-table th {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--rf-text-muted);
+    text-align: right;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--rf-border);
+}
+
+.dimension-table th:first-child {
+    text-align: left;
+    width: 35%;
+}
+
+.dimension-table td {
+    padding: 8px;
+    text-align: right;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dimension-table td:first-child {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--rf-text-muted);
+    font-family: var(--font-sans);
+}
+
+.dimension-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Semantic color highlighting for table rows */
+/* Orange - Cut dimensions */
+.dimension-table tr.cut-dimension-row td {
+    background: color-mix(in srgb, var(--rf-orange) 8%, transparent);
+}
+
+.dimension-table tr.cut-dimension-row td:first-child {
+    color: var(--rf-orange);
+    border-left: 2px solid var(--rf-orange);
+}
+
+/* Teal - Incidental dimensions */
+.dimension-table tr.incidental-row td {
+    background: color-mix(in srgb, var(--rf-teal) 5%, transparent);
+}
+
+.dimension-table tr.incidental-row td:first-child {
+    color: var(--rf-teal);
+    border-left: 2px solid var(--rf-teal);
 }
 
 .data-label {
@@ -1174,7 +1240,7 @@ input::placeholder {
 
 .data-value {
     font-family: var(--font-mono);
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 700;
     color: var(--rf-text);
 }
@@ -1730,44 +1796,20 @@ button:active {
 /* Visualization container */
 .svg-container {
     position: relative;
-    background: var(--rf-bg-light);
+    background: #ffffff;
     border-radius: var(--md-shape-small);
     padding: var(--svg-container-padding);
     display: block;
     overflow: visible;
     width: 100%;
     box-sizing: border-box;
-    /* Subtle technical grid pattern - fine grid at 20px intervals */
-    background-image:
-        linear-gradient(to right, rgba(39, 124, 160, 0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(39, 124, 160, 0.03) 1px, transparent 1px);
-    background-size: 20px 20px;
-    background-position: -1px -1px;
 }
 
-/* Major grid lines every 100px - slightly more visible */
-.svg-container::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image:
-        linear-gradient(to right, rgba(39, 124, 160, 0.08) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(39, 124, 160, 0.08) 1px, transparent 1px);
-    background-size: 100px 100px;
-    background-position: -1px -1px;
-    pointer-events: none;
-    border-radius: var(--md-shape-small);
-    z-index: 0;
-}
-
-/* Ensure SVG content is above the grid */
-.svg-container > * {
-    position: relative;
-    z-index: 1;
-}
 
 .svg-container svg {
     display: block;
+    border-radius: var(--md-shape-small);
+    overflow: hidden;  /* Clip to viewBox bounds */
 }
 
 .svg-container svg text {

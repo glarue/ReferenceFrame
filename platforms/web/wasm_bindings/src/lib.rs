@@ -15,7 +15,7 @@ use referenceframe_core::{
 /// Get the WASM build version for debugging
 #[wasm_bindgen(js_name = "getWasmVersion")]
 pub fn get_wasm_version() -> String {
-    "2026-01-05-arrows-fixed".to_string()
+    "2026-01-09-nested-svg-combined".to_string()
 }
 
 /// WASM-friendly wrapper for FrameDesign

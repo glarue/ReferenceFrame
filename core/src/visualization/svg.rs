@@ -314,7 +314,8 @@ fn generate_combined_view(
 ) -> DiagramResult {
     // Vertical stacking: plan view (top), section view (bottom)
     // Add gap between views for breathing room
-    let gap_between_views = 35.0;
+    // Extra space needed for mat cut label offset (41px downward)
+    let gap_between_views = 50.0;
     let plan_height = (options.canvas_height - gap_between_views) * 0.58;
     let section_height = (options.canvas_height - gap_between_views) * 0.42;
 
@@ -327,12 +328,14 @@ fn generate_combined_view(
     plan_style.dimension_offset_base = style.dimension_offset_base * scale_factor;
     plan_style.dimension_offset_step = style.dimension_offset_step * scale_factor;
     plan_style.dimension_font_size = style.dimension_font_size * scale_factor;
+    plan_style.label_font_size = style.label_font_size * scale_factor;
     plan_style.title_font_size = style.title_font_size * scale_factor;
 
     // Create compact style for section view
     let mut section_style = style.clone();
     section_style.margin = style.margin * scale_factor;
     section_style.dimension_font_size = style.dimension_font_size * scale_factor;
+    section_style.label_font_size = style.label_font_size * scale_factor;
     section_style.title_font_size = style.title_font_size * scale_factor;
 
     let plan_options = DiagramOptions {
@@ -348,6 +351,10 @@ fn generate_combined_view(
     let plan_result = generate_plan_view(design, &plan_options, &plan_style);
     let section_result = generate_section_view(design, &section_options, &section_style);
 
+    // Extract viewBoxes from both views to preserve their coordinate systems
+    let plan_viewbox = extract_viewbox(&plan_result.svg);
+    let section_viewbox = extract_viewbox(&section_result.svg);
+
     // Combine into single SVG
     let mut svg = String::new();
     svg.push_str(&format!(
@@ -356,33 +363,50 @@ fn generate_combined_view(
     ));
     svg.push('\n');
 
-    // Background
-    svg.push_str(&format!(
-        r#"  <rect fill="{}" width="100%" height="100%"/>"#,
-        style.background_color
-    ));
-    svg.push('\n');
-
     // Title block if requested
     if options.include_title_block {
         svg.push_str(&generate_title_block(design, options, style));
     }
 
-    // Plan view on top
-    let plan_content = extract_svg_content(&plan_result.svg);
-    svg.push_str(&format!(
-        r#"  <g id="plan-view" transform="translate(0, 0)">{}</g>"#,
-        plan_content
-    ));
+    // Plan view on top - embed as nested SVG with preserved viewBox
+    if let Some((vb_x, vb_y, vb_w, vb_h)) = plan_viewbox {
+        svg.push_str(&format!(
+            r#"  <svg id="plan-view" x="0" y="0" width="{}" height="{}" viewBox="{} {} {} {}" preserveAspectRatio="xMidYMin meet">{}</svg>"#,
+            options.canvas_width,
+            plan_height,
+            vb_x, vb_y, vb_w, vb_h,
+            extract_svg_content(&plan_result.svg)
+        ));
+    } else {
+        // Fallback
+        let plan_content = extract_svg_content(&plan_result.svg);
+        svg.push_str(&format!(
+            r#"  <g id="plan-view" transform="translate(0, 0)">{}</g>"#,
+            plan_content
+        ));
+    }
     svg.push('\n');
 
-    // Section view below (translated down with gap)
-    let section_content = extract_svg_content(&section_result.svg);
-    svg.push_str(&format!(
-        r#"  <g id="section-view" transform="translate(0, {})">{}</g>"#,
-        plan_height + gap_between_views,
-        section_content
-    ));
+    // Section view below - embed as nested SVG with preserved viewBox
+    // This ensures the section view (including legend) scales to fit within section_height
+    if let Some((vb_x, vb_y, vb_w, vb_h)) = section_viewbox {
+        svg.push_str(&format!(
+            r#"  <svg id="section-view" x="0" y="{}" width="{}" height="{}" viewBox="{} {} {} {}" preserveAspectRatio="xMidYMin meet">{}</svg>"#,
+            plan_height + gap_between_views,
+            options.canvas_width,
+            section_height,
+            vb_x, vb_y, vb_w, vb_h,
+            extract_svg_content(&section_result.svg)
+        ));
+    } else {
+        // Fallback
+        let section_content = extract_svg_content(&section_result.svg);
+        svg.push_str(&format!(
+            r#"  <g id="section-view" transform="translate(0, {})">{}</g>"#,
+            plan_height + gap_between_views,
+            section_content
+        ));
+    }
     svg.push('\n');
 
     svg.push_str("</svg>");
@@ -402,24 +426,88 @@ fn build_plan_svg(
     options: &DiagramOptions,
     style: &DiagramStyle,
 ) -> String {
+    // Calculate bounds from actual geometry and layout data
+    let mut min_x = geometry.frame_outer.left() - style.frame_stroke_width / 2.0;
+    let mut max_x = geometry.frame_outer.right() + style.frame_stroke_width / 2.0;
+    let mut min_y = geometry.frame_outer.top() - style.frame_stroke_width / 2.0;
+    let mut max_y = geometry.frame_outer.bottom() + style.frame_stroke_width / 2.0;
+
+    // Include dimension callouts in bounds
+    for callout in &layout.positioned_callouts {
+        use super::types::DimensionType;
+
+        // Dimension lines extend beyond geometry
+        let dim_line_pos = callout.dimension_line_position;
+        let extent_start = &callout.callout.extent_start;
+        let extent_end = &callout.callout.extent_end;
+
+        // Track dimension line and extension line bounds
+        min_x = min_x.min(extent_start.x.min(extent_end.x) - style.dimension_offset_step);
+        max_x = max_x.max(extent_start.x.max(extent_end.x) + style.dimension_offset_step);
+        min_y = min_y.min(extent_start.y.min(extent_end.y) - style.dimension_offset_step);
+        max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
+
+        // Account for dimension labels using actual label text length
+        let label_text_width = callout.callout.label.len() as f64 * style.dimension_font_size * 0.6;
+        let label_height = style.dimension_font_size * 1.2;
+
+        // Mat cut dimensions get extra offset - calculate it here
+        let mat_cut_offset = EXTENSION_OVERSHOOT + style.dimension_font_size / 2.0 + style.dimension_offset_base;
+
+        // Only extend bounds in the direction perpendicular to the dimension line
+        // Horizontal dimensions: label centered above/below line
+        if (extent_start.y - extent_end.y).abs() < 1.0 {
+            // Check if this is a mat cut width dimension (needs extra downward offset)
+            let extra_offset = if callout.callout.dimension_type == DimensionType::MatCutWidth {
+                mat_cut_offset
+            } else {
+                0.0
+            };
+            min_y = min_y.min(dim_line_pos - label_height);
+            max_y = max_y.max(dim_line_pos + label_height + extra_offset);
+            // Horizontal extent of centered text
+            let mid_x = (extent_start.x + extent_end.x) / 2.0;
+            min_x = min_x.min(mid_x - label_text_width / 2.0);
+            max_x = max_x.max(mid_x + label_text_width / 2.0);
+        } else {
+            // Vertical dimensions: rotated label (text width becomes vertical extent)
+            // Check if this is a mat cut height dimension (needs extra leftward offset)
+            let extra_offset = if callout.callout.dimension_type == DimensionType::MatCutHeight {
+                mat_cut_offset
+            } else {
+                0.0
+            };
+            min_x = min_x.min(dim_line_pos - label_height - extra_offset);
+            max_x = max_x.max(dim_line_pos + label_height);
+            let mid_y = (extent_start.y + extent_end.y) / 2.0;
+            min_y = min_y.min(mid_y - label_text_width / 2.0);
+            max_y = max_y.max(mid_y + label_text_width / 2.0);
+        }
+    }
+
+    // Add padding for visual comfort
+    let padding = style.margin;
+    min_x -= padding;
+    max_x += padding;
+    min_y -= padding;
+    max_y += padding;
+
+    // Calculate viewBox dimensions
+    let viewbox_width = max_x - min_x;
+    let viewbox_height = max_y - min_y;
+
+    // Build SVG with dynamic viewBox
     let mut svg = String::new();
 
-    // SVG header
+    // SVG header with calculated viewBox
     svg.push_str(&format!(
-        r#"<svg viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"#,
-        options.canvas_width, options.canvas_height
+        r#"<svg viewBox="{:.2} {:.2} {:.2} {:.2}" xmlns="http://www.w3.org/2000/svg">"#,
+        min_x, min_y, viewbox_width, viewbox_height
     ));
     svg.push('\n');
 
     // Defs for patterns
     svg.push_str(&generate_defs(style));
-
-    // Background
-    svg.push_str(&format!(
-        r#"  <rect fill="{}" width="100%" height="100%"/>"#,
-        style.background_color
-    ));
-    svg.push('\n');
 
     // Geometry group
     svg.push_str("  <g id=\"geometry\">\n");
@@ -683,12 +771,14 @@ fn build_section_svg(
     // Section view uses black for all dimension lines/text (not the colored scheme from plan view)
     let dim_color = &style.line_color;
 
-    // Track horizontal bounds for self-centering
+    // Track content bounds for dynamic viewBox
     // These will be updated as we render content
     let mut content_min_x = f64::MAX;
     let mut content_max_x = f64::MIN;
+    let mut content_min_y = f64::MAX;
+    let mut content_max_y = f64::MIN;
 
-    // Helper macro to track x bounds
+    // Helper macros to track bounds
     macro_rules! track_x {
         ($x:expr) => {
             {
@@ -705,6 +795,22 @@ fn build_section_svg(
         };
     }
 
+    macro_rules! track_y {
+        ($y:expr) => {
+            {
+                let y = $y;
+                if y < content_min_y { content_min_y = y; }
+                if y > content_max_y { content_max_y = y; }
+            }
+        };
+        ($y1:expr, $y2:expr) => {
+            {
+                track_y!($y1);
+                track_y!($y2);
+            }
+        };
+    }
+
     let mut svg = String::new();
 
     // SVG header
@@ -717,13 +823,6 @@ fn build_section_svg(
     // Defs
     svg.push_str(&generate_defs(style));
 
-    // Background
-    svg.push_str(&format!(
-        r#"  <rect fill="{}" width="100%" height="100%"/>"#,
-        style.background_color
-    ));
-    svg.push('\n');
-
     // Section geometry
     svg.push_str("  <g id=\"section-geometry\">\n");
 
@@ -735,9 +834,31 @@ fn build_section_svg(
     let rabbet_w = geometry.rabbet_area.width;
     let rabbet_h = geometry.rabbet_area.height;
 
-    // Track frame bounds - the frame itself is the leftmost geometry element
+    // Track frame bounds
     track_x!(frame_x);
     track_x!(frame_x + frame_w);
+    track_y!(frame_y);
+    track_y!(frame_y + frame_h);
+
+    // Track material bounds
+    track_x!(geometry.glazing.left(), geometry.glazing.right());
+    track_y!(geometry.glazing.top(), geometry.glazing.bottom());
+
+    if let Some(matboard) = &geometry.matboard {
+        track_x!(matboard.left(), matboard.right());
+        track_y!(matboard.top(), matboard.bottom());
+    }
+
+    track_x!(geometry.artwork.left(), geometry.artwork.right());
+    track_y!(geometry.artwork.top(), geometry.artwork.bottom());
+
+    track_x!(geometry.backing.left(), geometry.backing.right());
+    track_y!(geometry.backing.top(), geometry.backing.bottom());
+
+    if geometry.assembly_margin.height > 0.5 {
+        track_x!(geometry.assembly_margin.left(), geometry.assembly_margin.right());
+        track_y!(geometry.assembly_margin.top(), geometry.assembly_margin.bottom());
+    }
 
     // Draw materials FIRST (so frame overlaps them at rabbet)
     // Materials are stacked vertically (glazing at top, backing at bottom)
@@ -1492,6 +1613,11 @@ fn build_section_svg(
     }
 
     let fw_label_y = fw_y - label_offset;
+
+    // Track width label Y bounds (text baseline is at fw_label_y, extends above and below)
+    track_y!(fw_label_y - style.dimension_font_size * 0.8); // Above baseline (most of glyph height)
+    track_y!(fw_label_y + style.dimension_font_size * 0.2); // Below baseline (descenders)
+
     // Show actual frame width (not display width) in label
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">Width: {}</text>"#,
@@ -1636,6 +1762,7 @@ fn build_section_svg(
         ));
 
         // 2. Angled segment to label position
+        // Use label_y directly - dominant-baseline="central" centers text at this position
         svg.push_str(&format!(
             r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
             horiz_end_x, mat.center_y,
@@ -1644,11 +1771,14 @@ fn build_section_svg(
         ));
         svg.push('\n');
 
-        // Label text
+        // Label text - use label_font_size for material identification labels
+        // Position text so baseline is slightly below label_y (visual center)
+        // This makes dog-leg line hit visual center regardless of baseline rendering
+        let text_y = label_y + style.label_font_size * 0.35;
         svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" dominant-baseline="middle">{}: {}</text>"#,
-            label_base_x, label_y,
-            dim_color, style.font_family, style.dimension_font_size * 0.85,
+            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}: {}</text>"#,
+            label_base_x, text_y,
+            dim_color, style.font_family, style.label_font_size,
             mat.name, format_value(mat.thickness, unit)
         ));
         svg.push('\n');
@@ -1758,12 +1888,60 @@ fn build_section_svg(
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="{}">{}</text>"#,
         text_x, rabbet_label_y,
-        indicator_color, style.font_family, style.dimension_font_size * 0.8,
+        indicator_color, style.font_family, style.label_font_size * 0.9,
         text_anchor, clearance_text
     ));
     svg.push('\n');
 
     svg.push_str("  </g>\n");
+
+    // =================================================================
+    // DYNAMIC VIEWBOX: Calculate legend bounds
+    // =================================================================
+    // Legend is positioned below content and centered on canvas
+    let materials_count = if design.has_mat() { 5 } else { 4 };
+    let item_width = 80.0;
+    let total_width = materials_count as f64 * item_width;
+    let legend_start_x = (options.canvas_width - total_width) / 2.0;
+    let legend_end_x = legend_start_x + total_width;
+
+    let content_bottom = geometry.bounds.bottom();
+    let legend_gap = 8.0;
+    let legend_y = content_bottom + legend_gap;
+    let legend_bottom = legend_y + style.label_font_size * 0.9 * 1.2; // text height estimate
+
+    // Calculate final bounds including legend
+    let mut min_x = content_min_x.min(legend_start_x);
+    let mut max_x = content_max_x.max(legend_end_x);
+    let mut min_y = content_min_y;
+    let mut max_y = content_max_y.max(legend_bottom);
+
+    // Add padding
+    let padding = style.margin;
+    min_x -= padding;
+    max_x += padding;
+    min_y -= padding;
+    max_y += padding;
+
+    // Calculate viewBox dimensions
+    let viewbox_width = max_x - min_x;
+    let viewbox_height = max_y - min_y;
+
+    // Replace fixed viewBox with dynamic one
+    if let Some(viewbox_start) = svg.find("viewBox=\"") {
+        let viewbox_end = svg[viewbox_start..].find('"').unwrap() + viewbox_start + 1;
+        let after_viewbox = svg[viewbox_end..].find('"').map(|i| viewbox_end + i).unwrap_or(svg.len());
+
+        // Build new SVG with dynamic viewBox
+        let mut svg_with_dynamic_viewbox = String::new();
+        svg_with_dynamic_viewbox.push_str(&svg[..viewbox_start]);
+        svg_with_dynamic_viewbox.push_str(&format!(
+            "viewBox=\"{:.2} {:.2} {:.2} {:.2}\"",
+            min_x, min_y, viewbox_width, viewbox_height
+        ));
+        svg_with_dynamic_viewbox.push_str(&svg[after_viewbox..]);
+        svg = svg_with_dynamic_viewbox;
+    }
 
     // =================================================================
     // SELF-CENTERING: Apply horizontal centering transform
@@ -1774,7 +1952,7 @@ fn build_section_svg(
     let content_center_x = (content_min_x + content_max_x) / 2.0;
     let canvas_center_x = options.canvas_width / 2.0;
     let center_offset_x = canvas_center_x - content_center_x;
-    
+
     // Build final SVG with centering transform wrapper
     let mut final_svg = String::new();
     
@@ -1802,8 +1980,15 @@ fn build_section_svg(
     }
 
     // Compact legend (horizontal at very bottom of canvas)
-    // Legend is centered on canvas, not affected by content centering
-    final_svg.push_str(&generate_section_legend(design, geometry, style, options.canvas_width, options.canvas_height));
+    // Pass content bounds for dynamic viewBox centering
+    final_svg.push_str(&generate_section_legend(
+        design,
+        geometry,
+        style,
+        options.canvas_width,
+        options.canvas_height,
+        Some((content_min_x, content_max_x)),
+    ));
 
     final_svg.push_str("</svg>");
     final_svg
@@ -2409,15 +2594,43 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     let mask_width = label_text_width + mask_padding_x * 2.0;
     let mask_height = style.dimension_font_size + mask_padding_y * 2.0;
 
-    let (label_x, label_y) = if is_horizontal {
+    let (label_x, label_y, offset_applied) = if is_horizontal {
         // Horizontal dimension: label centered on the dimension line
         let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
-        (mid_x, callout.dimension_line_position)
+        let base_y = callout.dimension_line_position;
+
+        // Mat cut width labels need extra padding from extension lines
+        // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
+        let mat_cut_offset = EXTENSION_OVERSHOOT + style.dimension_font_size / 2.0 + style.dimension_offset_base;
+        let (label_y, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutWidth {
+            (base_y + mat_cut_offset, true)
+        } else {
+            (base_y, false)
+        };
+
+        (mid_x, label_y, offset)
     } else {
         // Vertical dimension: label centered on the dimension line (will be rotated)
         let mid_y = (callout.callout.extent_start.y + callout.callout.extent_end.y) / 2.0;
-        (callout.dimension_line_position, mid_y)
+        let base_x = callout.dimension_line_position;
+
+        // Mat cut height labels need extra padding from extension lines
+        // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
+        let mat_cut_offset = EXTENSION_OVERSHOOT + style.dimension_font_size / 2.0 + style.dimension_offset_base;
+        let (label_x, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutHeight {
+            (base_x - mat_cut_offset, true)
+        } else {
+            (base_x, false)
+        };
+
+        (label_x, mid_y, offset)
     };
+
+    // Debug: Add SVG comment showing dimension type and whether offset was applied
+    svg.push_str(&format!(
+        "      <!-- Dimension type: {:?}, offset applied: {} -->\n",
+        callout.callout.dimension_type, offset_applied
+    ));
 
     // For vertical dimensions, rotate text 90° (reads bottom-to-top)
     let transform = if !is_horizontal {
@@ -2463,6 +2676,7 @@ fn generate_section_legend(
     style: &DiagramStyle,
     canvas_width: f64,
     _canvas_height: f64,
+    content_bounds_x: Option<(f64, f64)>, // (min_x, max_x) for dynamic viewBox centering
 ) -> String {
     let mut svg = String::new();
     svg.push_str("  <g id=\"legend\">\n");
@@ -2479,7 +2693,14 @@ fn generate_section_legend(
 
     let item_width = 80.0;
     let total_width = materials.len() as f64 * item_width;
-    let start_x = (canvas_width - total_width) / 2.0;
+
+    // Center legend relative to content bounds (for dynamic viewBox) or canvas (for fixed viewBox)
+    let start_x = if let Some((min_x, max_x)) = content_bounds_x {
+        let content_center = (min_x + max_x) / 2.0;
+        content_center - total_width / 2.0
+    } else {
+        (canvas_width - total_width) / 2.0
+    };
 
     // Position legend tightly below the content bounds
     let content_bottom = geometry.bounds.bottom();
@@ -2495,7 +2716,7 @@ fn generate_section_legend(
         ));
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}</text>"#,
-            x + 16.0, legend_y, style.dimension_color, style.font_family, style.dimension_font_size * 0.85, name
+            x + 16.0, legend_y, style.dimension_color, style.font_family, style.label_font_size * 0.9, name
         ));
         svg.push('\n');
     }
@@ -2542,6 +2763,29 @@ fn get_fill_for_pattern(pattern: &FillPattern) -> String {
         FillPattern::Hatched { color, .. } => color.clone(),
         FillPattern::CrossHatched { color, .. } => color.clone(),
     }
+}
+
+/// Extract viewBox dimensions from SVG string
+/// Returns (x, y, width, height) if found
+fn extract_viewbox(svg: &str) -> Option<(f64, f64, f64, f64)> {
+    if let Some(start) = svg.find("viewBox=\"") {
+        let values_start = start + 9; // Length of "viewBox=\""
+        if let Some(end) = svg[values_start..].find('"') {
+            let viewbox_str = &svg[values_start..values_start + end];
+            let parts: Vec<&str> = viewbox_str.split_whitespace().collect();
+            if parts.len() == 4 {
+                if let (Ok(x), Ok(y), Ok(w), Ok(h)) = (
+                    parts[0].parse::<f64>(),
+                    parts[1].parse::<f64>(),
+                    parts[2].parse::<f64>(),
+                    parts[3].parse::<f64>(),
+                ) {
+                    return Some((x, y, w, h));
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Extract content from SVG (between opening and closing tags), preserving defs

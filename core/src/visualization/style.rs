@@ -162,8 +162,8 @@ impl Default for DiagramStyle {
             // Materials
             material_patterns: MaterialPatterns::default(),
 
-            // Layout - minimal margins to maximize visualization space
-            margin: 4.0,  // Reduced from 12.0 to maximize diagram size
+            // Layout - minimal margins (dynamic bounds handle label space)
+            margin: 8.0,  // Small padding for visual comfort
             label_spacing: 6.0,
         }
     }
@@ -173,9 +173,9 @@ impl DiagramStyle {
     /// Create a style optimized for PDF export (larger text for print readability)
     pub fn for_pdf() -> Self {
         let mut style = Self::default();
-        style.dimension_font_size = 16.0;  // Larger for PDF readability
-        style.label_font_size = 17.0;      // Larger for PDF readability
-        style.title_font_size = 20.0;
+        style.dimension_font_size = 18.0;  // Larger for PDF readability (scaled to 14.4pt in combined view)
+        style.label_font_size = 19.0;      // Larger for PDF readability (scaled to 15.2pt in combined view)
+        style.title_font_size = 22.0;      // Larger for PDF readability (scaled to 17.6pt in combined view)
         style.margin = 4.0; // Keep tight margins to maximize diagram space
         style
     }
