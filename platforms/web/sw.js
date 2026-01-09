@@ -1,8 +1,8 @@
 // Service Worker for ReferenceFrame WASM
 // Caches WASM modules, libraries, and app resources for fast subsequent loads
 
-const CACHE_NAME = 'referenceframe-wasm-v1';
-const RUNTIME_CACHE = 'referenceframe-runtime-v1';
+const CACHE_NAME = 'referenceframe-wasm-v2';
+const RUNTIME_CACHE = 'referenceframe-runtime-v2';
 
 // Resources to cache immediately on install
 const PRECACHE_URLS = [
