@@ -2316,35 +2316,38 @@ button:active {
 
 /* Load configuration section */
 .config-load-section {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .config-load-section .input-group {
-    margin-bottom: 10px;
+    margin-bottom: 0;
 }
 
 .config-load-section .input-group label {
     display: block;
-    margin-bottom: 4px;
-    font-size: 12px;
-    color: var(--rf-text-muted);
+    margin-bottom: 6px;
+    font: var(--md-typescale-label-medium);
+    color: var(--rf-text);
+    font-weight: 500;
 }
 
 /* Configuration select dropdown */
 .config-select-wrapper {
     display: flex;
-    gap: 6px;
+    gap: 8px;
+    align-items: stretch;
 }
 
 .config-select {
     flex: 1;
-    padding: 8px;
-    font-size: 14px;
-    background: var(--rf-bg-secondary);
-    border: 1px solid var(--rf-border);
-    border-radius: 4px;
-    color: var(--rf-text-primary);
+    padding: 8px 12px;
+    font-size: 13px;
+    background: var(--rf-surface);
+    border: 1px solid var(--rf-line);
+    border-radius: var(--md-shape-small);
+    color: var(--rf-text);
     cursor: pointer;
+    transition: border-color 0.15s ease;
 }
 
 .config-select:focus {
@@ -2353,34 +2356,36 @@ button:active {
 }
 
 .config-select option {
-    background: var(--rf-bg-secondary);
-    color: var(--rf-text-primary);
+    background: var(--rf-surface);
+    color: var(--rf-text);
 }
 
 /* Save configuration section */
 .configs-save-section {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
 }
 
 .configs-save-section .input-group {
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 
 .configs-save-section .input-group label {
     display: block;
-    margin-bottom: 4px;
-    font-size: 12px;
-    color: var(--rf-text-muted);
+    margin-bottom: 6px;
+    font: var(--md-typescale-label-medium);
+    color: var(--rf-text);
+    font-weight: 500;
 }
 
 .configs-save-section #config-name {
     width: 100%;
-    padding: 8px;
-    font-size: 14px;
-    background: var(--rf-bg-secondary);
-    border: 1px solid var(--rf-border);
-    border-radius: 4px;
-    color: var(--rf-text-primary);
+    padding: 8px 12px;
+    font-size: 13px;
+    background: var(--rf-surface);
+    border: 1px solid var(--rf-line);
+    border-radius: var(--md-shape-small);
+    color: var(--rf-text);
+    transition: border-color 0.15s ease;
 }
 
 .configs-save-section #config-name:focus {
@@ -2391,67 +2396,76 @@ button:active {
 /* Primary button styling */
 .btn-primary {
     width: 100%;
-    padding: 10px;
-    background-color: var(--rf-green);
+    padding: 10px 16px;
+    background: var(--rf-teal);
     color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
+    border: 1px solid var(--rf-teal);
+    border-radius: var(--md-shape-small);
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn-primary:hover {
-    background-color: var(--rf-green-dark);
+    background: color-mix(in srgb, var(--rf-teal) 85%, black);
+    border-color: color-mix(in srgb, var(--rf-teal) 85%, black);
 }
 
 .btn-primary:active {
     transform: translateY(1px);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 
 /* Compact primary button */
 .btn-primary-compact {
     padding: 6px 12px;
-    background-color: var(--rf-green);
+    background: var(--rf-teal);
     color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 12px;
+    border: 1px solid var(--rf-teal);
+    border-radius: var(--md-shape-small);
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn-primary-compact:hover {
-    background-color: var(--rf-green-dark);
+    background: color-mix(in srgb, var(--rf-teal) 85%, black);
+    border-color: color-mix(in srgb, var(--rf-teal) 85%, black);
 }
 
 .btn-primary-compact:active {
     transform: translateY(1px);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 
 /* Secondary button styling */
 .btn-secondary {
-    padding: 7px 12px;
-    background-color: var(--rf-blue);
-    color: white;
-    border: none;
-    border-radius: 4px;
+    padding: 8px 16px;
+    background: var(--rf-surface);
+    color: var(--rf-text);
+    border: 1.5px solid var(--rf-line);
+    border-radius: var(--md-shape-small);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
     text-align: center;
     display: inline-block;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn-secondary:hover {
-    background-color: var(--rf-blue-dark);
+    background: var(--rf-surface-hover);
+    border-color: var(--rf-blue);
 }
 
 .btn-secondary:active {
     transform: translateY(1px);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 
 /* File label button (for import) */
@@ -2464,15 +2478,15 @@ button:active {
 .backup-section {
     margin-top: 24px;
     padding-top: 20px;
-    border-top: 1px solid var(--rf-border);
+    border-top: 1px solid var(--rf-line);
 }
 
 /* h3 - subsection headers (middle level) */
 .backup-section h3,
 h3 {
-    margin: 0 0 10px 0;
-    font-size: 14px;
-    color: var(--rf-text-primary);
+    margin: 0 0 12px 0;
+    font: var(--md-typescale-title-small);
+    color: var(--rf-text);
     font-weight: 600;
 }
 
@@ -2494,8 +2508,9 @@ h3 {
     text-align: center;
     color: var(--rf-text-muted);
     font-style: italic;
-    background: var(--rf-bg-secondary);
-    border-radius: 4px;
+    background: var(--rf-surface);
+    border: 1px solid var(--rf-line);
+    border-radius: var(--md-shape-small);
     margin: 10px 0;
 }
 
@@ -2505,10 +2520,10 @@ h3 {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: var(--rf-bg-primary);
+    background: var(--md-surface-container-high);
     padding: 24px;
-    border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    border-radius: var(--md-shape-medium);
+    box-shadow: var(--md-elevation-3);
     z-index: 1000;
     max-width: 400px;
 }
@@ -2519,7 +2534,7 @@ h3 {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.7);
     z-index: 999;
 }
 
@@ -2579,14 +2594,14 @@ h3 {
 }
 
 .size-select-compact option {
-    background: var(--rf-bg-secondary);
-    color: var(--rf-text-primary);
+    background: var(--rf-surface);
+    color: var(--rf-text);
 }
 
 /* Custom size controls (dropdown + delete button) */
 .custom-size-controls {
     display: flex;
-    gap: 4px;
+    gap: 8px;
 }
 
 .custom-size-controls select {
@@ -2596,23 +2611,27 @@ h3 {
 /* Small icon button (trash can) */
 .btn-icon-small {
     padding: 6px 8px;
-    background-color: var(--rf-red);
-    color: white;
-    border: none;
-    border-radius: 4px;
+    background: var(--rf-surface);
+    color: var(--rf-text-muted);
+    border: 1.5px solid var(--rf-line);
+    border-radius: var(--md-shape-small);
     font-size: 14px;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: all 0.2s ease;
     min-width: 32px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn-icon-small:hover {
-    opacity: 0.9;
+    background: var(--rf-surface-hover);
+    border-color: var(--rf-red);
+    color: var(--rf-red);
 }
 
 .btn-icon-small:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+    border-color: var(--rf-line);
 }
 
 /* Save size row */
