@@ -2468,7 +2468,8 @@
             // === COLUMN 1: Artwork, Frame, Cut List, Material (12 lines) ===
             addHeader('Artwork', 1);
             // Helper to strip unit symbol for dimension pairs (we'll add one at the end)
-            const stripUnit = (s) => s.replace(/"$/, '').replace(/mm$/, '');
+            // Handles both: '12"' → '12' and '12 1/4 (12.25")' → '12 1/4 (12.25)'
+            const stripUnit = (s) => s.replace(/"\)$/, ')').replace(/"$/, '').replace(/mm\)$/, ')').replace(/mm$/, '');
 
             const artHeight = formatValueWithDecimal(currentDesign.artworkHeight, useMm);
             const artWidth = formatValueWithDecimal(currentDesign.artworkWidth, useMm);
