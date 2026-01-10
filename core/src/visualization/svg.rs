@@ -1678,7 +1678,7 @@ fn build_section_svg(
     // Minimal spacing for maximum diagram space
     let base_offset = 18.0_f64.min(geometry.scale * 0.4 + 12.0); // Reduced from 35.0
     let label_base_x = geometry.glazing.right() + base_offset;
-    let label_spacing = 16.0; // Reduced from 18
+    let label_spacing = style.label_font_size * 1.6; // Scale with font size (screen: ~21px, PDF: ~38px)
 
     // Materials are drawn at true geometric positions - labels point to actual centers
 
@@ -1898,7 +1898,7 @@ fn build_section_svg(
     // =================================================================
     // Legend is positioned below content and centered on canvas
     let materials_count = if design.has_mat() { 5 } else { 4 };
-    let item_width = 80.0;
+    let item_width = (style.label_font_size * 0.9) * 6.5; // Scale with legend font size (screen: ~76px, PDF: ~140px)
     let total_width = materials_count as f64 * item_width;
     let legend_start_x = (options.canvas_width - total_width) / 2.0;
     let legend_end_x = legend_start_x + total_width;
@@ -2689,7 +2689,7 @@ fn generate_section_legend(
         .filter(|(name, _)| *name != "Matboard" || design.has_mat())
         .collect();
 
-    let item_width = 80.0;
+    let item_width = (style.label_font_size * 0.9) * 6.5; // Scale with legend font size (screen: ~76px, PDF: ~140px)
     let total_width = materials.len() as f64 * item_width;
 
     // Center legend relative to content bounds (for dynamic viewBox) or canvas (for fixed viewBox)
