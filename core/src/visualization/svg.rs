@@ -226,9 +226,7 @@ fn stroked_rect_inner_boundary(rect: &Rect, stroke_width: f64) -> Rect {
 #[allow(dead_code)]
 const ARROW_GAP: f64 = 6.0;
 
-/// EXTENSION_OVERSHOOT: How far extension lines extend past the dimension line
-/// - Creates the classic drafting look where witness lines extend beyond arrows
-const EXTENSION_OVERSHOOT: f64 = 8.0;
+// EXTENSION_OVERSHOOT constant removed - now using style.extension_line_overshoot for proper scaling
 
 /// LABEL_BUFFER: Minimum gap between label text and dimension line
 /// Reduced for tighter visual association between labels and lines
