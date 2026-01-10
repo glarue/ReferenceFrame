@@ -2467,17 +2467,20 @@
 
             // === COLUMN 1: Artwork, Frame, Cut List, Material (12 lines) ===
             addHeader('Artwork', 1);
+            // Helper to strip unit symbol for dimension pairs (we'll add one at the end)
+            const stripUnit = (s) => s.replace(/"$/, '').replace(/mm$/, '');
+
             const artHeight = formatValueWithDecimal(currentDesign.artworkHeight, useMm);
             const artWidth = formatValueWithDecimal(currentDesign.artworkWidth, useMm);
-            addText(`${artHeight} × ${artWidth}`, 1);
+            addText(`${stripUnit(artHeight)} × ${stripUnit(artWidth)}${unit}`, 1);
             addSpace(1);
 
             addHeader('Frame', 1);
             const [outsideH, outsideW] = currentDesign.getFrameOutsideDimensions();
             const [insideH, insideW] = currentDesign.getFrameInsideDimensions();
-            addLabelValue('Outside:', `${formatValueWithDecimal(outsideH, useMm)} × ${formatValueWithDecimal(outsideW, useMm)}`, 1);
-            addLabelValue('Inside:', `${formatValueWithDecimal(insideH, useMm)} × ${formatValueWithDecimal(insideW, useMm)}`, 1);
-            addLabelValue('Frame Material:', `${formatValueWithDecimal(currentDesign.frameWidth, useMm)} × ${formatValueWithDecimal(currentDesign.frameDepth, useMm)}`, 1);
+            addLabelValue('Outside:', `${stripUnit(formatValueWithDecimal(outsideH, useMm))} × ${stripUnit(formatValueWithDecimal(outsideW, useMm))}${unit}`, 1);
+            addLabelValue('Inside:', `${stripUnit(formatValueWithDecimal(insideH, useMm))} × ${stripUnit(formatValueWithDecimal(insideW, useMm))}${unit}`, 1);
+            addLabelValue('Frame Material:', `${stripUnit(formatValueWithDecimal(currentDesign.frameWidth, useMm))} × ${stripUnit(formatValueWithDecimal(currentDesign.frameDepth, useMm))}${unit}`, 1);
             addSpace(1);
 
             addHeader('Cut List', 1);
@@ -2514,8 +2517,8 @@
                 // Use average for display (most informative for asymmetric mats)
                 const matWidthAvg = (matWidthTopBottom + matWidthSides) / 2;
 
-                addLabelValue('Full Size:', `${formatValueWithDecimal(matH, useMm)} × ${formatValueWithDecimal(matW, useMm)}`, 2);
-                addLabelValue('Opening:', `${formatValueWithDecimal(matOpenH, useMm)} × ${formatValueWithDecimal(matOpenW, useMm)}`, 2);
+                addLabelValue('Full Size:', `${stripUnit(formatValueWithDecimal(matH, useMm))} × ${stripUnit(formatValueWithDecimal(matW, useMm))}${unit}`, 2);
+                addLabelValue('Opening:', `${stripUnit(formatValueWithDecimal(matOpenH, useMm))} × ${stripUnit(formatValueWithDecimal(matOpenW, useMm))}${unit}`, 2);
                 addLabelValue('Visual Width:', `${formatValueWithDecimal(matWidthAvg, useMm)} (avg)`, 2);
                 addLabelValue('Overlap:', `${formatValueWithDecimal(matOverlap, useMm)}`, 2);
                 addSpace(2);
