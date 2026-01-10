@@ -452,7 +452,7 @@ fn build_plan_svg(
         let label_height = style.dimension_font_size * 1.2;
 
         // Mat cut dimensions get extra offset - calculate it here
-        let mat_cut_offset = EXTENSION_OVERSHOOT + style.dimension_font_size / 2.0 + style.dimension_offset_base;
+        let mat_cut_offset = style.extension_line_overshoot + style.dimension_font_size / 2.0 + style.dimension_offset_base;
 
         // Only extend bounds in the direction perpendicular to the dimension line
         // Horizontal dimensions: label centered above/below line
@@ -1455,20 +1455,20 @@ fn build_section_svg(
     let dim_y2 = frame_y + frame_h;
 
     // Track left extent (extension lines extend to dim_x - EXTENSION_OVERSHOOT)
-    track_x!(dim_x - EXTENSION_OVERSHOOT);
+    track_x!(dim_x - style.extension_line_overshoot);
 
     // Extension lines
     svg.push_str(&format!(
         r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
         frame_x - style.extension_line_gap, dim_y1,
-        dim_x - EXTENSION_OVERSHOOT, dim_y1,
+        dim_x - style.extension_line_overshoot, dim_y1,
         dim_color, style.extension_stroke_width
     ));
     svg.push('\n');
     svg.push_str(&format!(
         r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
         frame_x - style.extension_line_gap, dim_y2,
-        dim_x - EXTENSION_OVERSHOOT, dim_y2,
+        dim_x - style.extension_line_overshoot, dim_y2,
         dim_color, style.extension_stroke_width
     ));
     svg.push('\n');
@@ -1520,7 +1520,7 @@ fn build_section_svg(
     
     // Label - extra offset to avoid crowding arrows
     // When axis break is used, show actual frame depth (not display depth)
-    let label_offset = LABEL_BUFFER + style.dimension_font_size * LABEL_FONT_OFFSET + 6.0;
+    let label_offset = LABEL_BUFFER + style.dimension_font_size * LABEL_FONT_OFFSET + style.extension_line_gap;
     let depth_label_x = dim_x - label_offset;
     let depth_label_y = (dim_y1 + dim_y2) / 2.0;
     
@@ -1553,14 +1553,14 @@ fn build_section_svg(
     svg.push_str(&format!(
         r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
         fw_x1, frame_y - style.extension_line_gap,
-        fw_x1, fw_y - EXTENSION_OVERSHOOT,
+        fw_x1, fw_y - style.extension_line_overshoot,
         dim_color, style.extension_stroke_width
     ));
     svg.push('\n');
     svg.push_str(&format!(
         r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
         fw_x2, frame_y - style.extension_line_gap,
-        fw_x2, fw_y - EXTENSION_OVERSHOOT,
+        fw_x2, fw_y - style.extension_line_overshoot,
         dim_color, style.extension_stroke_width
     ));
     svg.push('\n');
@@ -1806,14 +1806,14 @@ fn build_section_svg(
         svg.push_str(&format!(
             r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
             label_base_x + max_label_width + 10.0, stack_top,
-            stack_dim_x + EXTENSION_OVERSHOOT, stack_top,
+            stack_dim_x + style.extension_line_overshoot, stack_top,
             dim_color, style.extension_stroke_width
         ));
         svg.push('\n');
         svg.push_str(&format!(
             r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
             label_base_x + max_label_width + 10.0, stack_bottom,
-            stack_dim_x + EXTENSION_OVERSHOOT, stack_bottom,
+            stack_dim_x + style.extension_line_overshoot, stack_bottom,
             dim_color, style.extension_stroke_width
         ));
         svg.push('\n');
@@ -1906,7 +1906,7 @@ fn build_section_svg(
     let legend_end_x = legend_start_x + total_width;
 
     let content_bottom = geometry.bounds.bottom();
-    let legend_gap = 8.0;
+    let legend_gap = style.label_font_size * 0.6;  // Scale with label font size
     let legend_y = content_bottom + legend_gap;
     let legend_bottom = legend_y + style.label_font_size * 0.9 * 1.2; // text height estimate
 
@@ -2416,7 +2416,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
         // Start: small gap from geometry
         // End: past the dimension line by EXTENSION_OVERSHOOT
         let ext_start_y = if going_up { geom_y - style.extension_line_gap } else { geom_y + style.extension_line_gap };
-        let ext_end_y = if going_up { dim_y - EXTENSION_OVERSHOOT } else { dim_y + EXTENSION_OVERSHOOT };
+        let ext_end_y = if going_up { dim_y - style.extension_line_overshoot } else { dim_y + style.extension_line_overshoot };
 
         // Extension lines - special case for MatCutWidth: both lines extend to same y-value
         // at the mat opening's bottom edge (with small offset)
@@ -2513,7 +2513,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
         // Start: small gap from geometry
         // End: past the dimension line by EXTENSION_OVERSHOOT
         let ext_start_x = if going_right { geom_x + style.extension_line_gap } else { geom_x - style.extension_line_gap };
-        let ext_end_x = if going_right { dim_x + EXTENSION_OVERSHOOT } else { dim_x - EXTENSION_OVERSHOOT };
+        let ext_end_x = if going_right { dim_x + style.extension_line_overshoot } else { dim_x - style.extension_line_overshoot };
 
         // Top extension line
         svg.push_str(&format!(
@@ -2601,7 +2601,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
 
         // Mat cut width labels need extra padding from extension lines
         // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
-        let mat_cut_offset = EXTENSION_OVERSHOOT + style.dimension_font_size / 2.0 + style.dimension_offset_base;
+        let mat_cut_offset = style.extension_line_overshoot + style.dimension_font_size / 2.0 + style.dimension_offset_base;
         let (label_y, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutWidth {
             (base_y + mat_cut_offset, true)
         } else {
@@ -2616,7 +2616,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
 
         // Mat cut height labels need extra padding from extension lines
         // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
-        let mat_cut_offset = EXTENSION_OVERSHOOT + style.dimension_font_size / 2.0 + style.dimension_offset_base;
+        let mat_cut_offset = style.extension_line_overshoot + style.dimension_font_size / 2.0 + style.dimension_offset_base;
         let (label_x, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutHeight {
             (base_x - mat_cut_offset, true)
         } else {
@@ -2704,7 +2704,7 @@ fn generate_section_legend(
 
     // Position legend tightly below the content bounds
     let content_bottom = geometry.bounds.bottom();
-    let legend_gap = 8.0; // Tight gap between content and legend
+    let legend_gap = style.label_font_size * 0.6;  // Scale with label font size // Tight gap between content and legend
     let legend_y = content_bottom + legend_gap;
 
     for (i, (name, pattern)) in materials.iter().enumerate() {
@@ -2716,7 +2716,7 @@ fn generate_section_legend(
         ));
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}</text>"#,
-            x + 16.0, legend_y, style.dimension_color, style.font_family, style.label_font_size * 0.9, name
+            x + style.label_font_size * 1.2, legend_y, style.dimension_color, style.font_family, style.label_font_size * 0.9, name
         ));
         svg.push('\n');
     }
