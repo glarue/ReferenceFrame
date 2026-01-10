@@ -315,7 +315,7 @@ fn generate_combined_view(
     // Vertical stacking: plan view (top), section view (bottom)
     // Add gap between views for breathing room
     // Extra space needed for mat cut label offset (41px downward)
-    let gap_between_views = 50.0;
+    let gap_between_views = 20.0;
     let plan_height = (options.canvas_height - gap_between_views) * 0.58;
     let section_height = (options.canvas_height - gap_between_views) * 0.42;
 
