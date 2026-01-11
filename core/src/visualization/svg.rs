@@ -2705,9 +2705,10 @@ fn generate_section_legend(
             r#"    <rect x="{:.2}" y="{:.2}" width="12" height="12" fill="{}" stroke="{}" stroke-width="0.5"/>"#,
             x, legend_y - 10.0, fill, style.line_color
         ));
+        // Position text with comfortable spacing: 12px rect + 8px gap
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}</text>"#,
-            x + style.label_font_size * 1.2, legend_y, style.dimension_color, style.font_family, style.label_font_size, name
+            x + 20.0, legend_y, style.dimension_color, style.font_family, style.label_font_size, name
         ));
         svg.push('\n');
     }
