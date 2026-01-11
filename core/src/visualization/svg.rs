@@ -436,11 +436,11 @@ fn build_plan_svg(
         max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
 
         // Account for dimension labels using actual label text length
-        let label_text_width = callout.callout.label.len() as f64 * style.dimension_font_size * 0.6;
-        let label_height = style.dimension_font_size * 1.2;
+        let label_text_width = callout.callout.label.len() as f64 * style.label_font_size * 0.6;
+        let label_height = style.label_font_size * 1.2;
 
         // Mat cut dimensions get extra offset - calculate it here
-        let mat_cut_offset = style.extension_line_overshoot + style.dimension_font_size / 2.0 + style.dimension_offset_base;
+        let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0 + style.dimension_offset_base;
 
         // Only extend bounds in the direction perpendicular to the dimension line
         // Horizontal dimensions: label centered above/below line
@@ -695,9 +695,9 @@ fn build_plan_svg(
     // Calculate background rectangle dimensions
     // Use better text width estimation: 0.6 * font_size per character for typical fonts
     let mask_margin = 4.0;
-    let estimated_char_width = style.dimension_font_size * 0.6;
+    let estimated_char_width = style.label_font_size * 0.6;
     let text_bg_w = artwork_label.len() as f64 * estimated_char_width + mask_margin * 2.0;
-    let text_bg_h = style.dimension_font_size * 1.3 + mask_margin * 2.0;
+    let text_bg_h = style.label_font_size * 1.3 + mask_margin * 2.0;
 
     // Draw background rectangle FIRST (so it appears behind the text)
     // Centered on artwork_center
@@ -727,7 +727,7 @@ fn build_plan_svg(
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{:.2}" text-anchor="middle" dominant-baseline="middle">{}</text>"#,
         artwork_center.x, artwork_center.y,
-        style.artwork_dimension_color, style.font_family, style.dimension_font_size,
+        style.artwork_dimension_color, style.font_family, style.label_font_size,
         html_escape(&artwork_label)
     ));
     svg.push('\n');
@@ -1508,13 +1508,13 @@ fn build_section_svg(
     
     // Label - extra offset to avoid crowding arrows
     // When axis break is used, show actual frame depth (not display depth)
-    let label_offset = LABEL_BUFFER + style.dimension_font_size * LABEL_FONT_OFFSET + style.extension_line_gap;
+    let label_offset = LABEL_BUFFER + style.label_font_size * LABEL_FONT_OFFSET + style.extension_line_gap;
     let depth_label_x = dim_x - label_offset;
     let depth_label_y = (dim_y1 + dim_y2) / 2.0;
     
     // Track left extent - the rotated label extends half its height to the left of its x position
     // (rotated -90 degrees means the text height becomes width, text is anchored at middle)
-    track_x!(depth_label_x - style.dimension_font_size / 2.0);
+    track_x!(depth_label_x - style.label_font_size / 2.0);
     
     let depth_value = if geometry.use_axis_break_y {
         geometry.actual_frame_depth
@@ -1524,7 +1524,7 @@ fn build_section_svg(
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">Depth: {}</text>"#,
         depth_label_x, depth_label_y,
-        dim_color, style.font_family, style.dimension_font_size,
+        dim_color, style.font_family, style.label_font_size,
         depth_label_x, depth_label_y,
         format_value(depth_value, unit)
     ));
@@ -1603,14 +1603,14 @@ fn build_section_svg(
     let fw_label_y = fw_y - label_offset;
 
     // Track width label Y bounds (text baseline is at fw_label_y, extends above and below)
-    track_y!(fw_label_y - style.dimension_font_size * 0.8); // Above baseline (most of glyph height)
-    track_y!(fw_label_y + style.dimension_font_size * 0.2); // Below baseline (descenders)
+    track_y!(fw_label_y - style.label_font_size * 0.8); // Above baseline (most of glyph height)
+    track_y!(fw_label_y + style.label_font_size * 0.2); // Below baseline (descenders)
 
     // Show actual frame width (not display width) in label
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">Width: {}</text>"#,
         (fw_x1 + fw_x2) / 2.0, fw_label_y,
-        dim_color, style.font_family, style.dimension_font_size,
+        dim_color, style.font_family, style.label_font_size,
         format_value(geometry.actual_frame_width, unit)
     ));
     svg.push('\n');
@@ -1777,7 +1777,7 @@ fn build_section_svg(
     let stack_bottom = geometry.backing.y + geometry.backing.height;
 
     // Estimate max label width more generously
-    let char_width = style.dimension_font_size * 0.85 * 0.6;
+    let char_width = style.label_font_size * 0.85 * 0.6;
     let max_label_len = materials.iter()
         .map(|m| format!("{}: {}", m.name, format_value(m.thickness, unit)).len())
         .max()
@@ -1818,12 +1818,12 @@ fn build_section_svg(
         let stack_label_y = (stack_top + stack_bottom) / 2.0;
         
         // Track right extent - the rotated label extends half its height to the right of its x position
-        track_x!(stack_label_x + style.dimension_font_size * 0.9 / 2.0);
-        
+        track_x!(stack_label_x + style.label_font_size / 2.0);
+
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">{}</text>"#,
             stack_label_x, stack_label_y,
-            dim_color, style.font_family, style.dimension_font_size * 0.9,
+            dim_color, style.font_family, style.label_font_size,
             stack_label_x, stack_label_y,
             callout.label.clone()
         ));
@@ -1876,7 +1876,7 @@ fn build_section_svg(
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="{}">{}</text>"#,
         text_x, rabbet_label_y,
-        indicator_color, style.font_family, style.label_font_size * 0.9,
+        indicator_color, style.font_family, style.label_font_size,
         text_anchor, clearance_text
     ));
     svg.push('\n');
@@ -1888,7 +1888,7 @@ fn build_section_svg(
     // =================================================================
     // Legend is positioned below content and centered on canvas
     let materials_count = if design.has_mat() { 5 } else { 4 };
-    let item_width = (style.label_font_size * 0.9) * 6.5; // Scale with legend font size (screen: ~76px, PDF: ~140px)
+    let item_width = style.label_font_size * 6.5; // Scale with legend font size
     let total_width = materials_count as f64 * item_width;
     let legend_start_x = (options.canvas_width - total_width) / 2.0;
     let legend_end_x = legend_start_x + total_width;
@@ -1896,7 +1896,7 @@ fn build_section_svg(
     let content_bottom = geometry.bounds.bottom();
     let legend_gap = style.label_font_size * 0.6;  // Scale with label font size
     let legend_y = content_bottom + legend_gap;
-    let legend_bottom = legend_y + style.label_font_size * 0.9 * 1.2; // text height estimate
+    let legend_bottom = legend_y + style.label_font_size * 1.2; // text height estimate
 
     // Calculate final bounds including legend
     let mut min_x = content_min_x.min(legend_start_x);
@@ -2031,7 +2031,7 @@ fn svg_interior_width_dimension(
     let ext_bottom = dim_y + 4.0; // Below dimension line
 
     // Estimate label width
-    let char_width = style.dimension_font_size * 0.6;
+    let char_width = style.label_font_size * 0.6;
     let label_width = callout.label.len() as f64 * char_width;
     let label_padding = 30.0;
     let min_span_for_label = label_width + label_padding;
@@ -2096,11 +2096,11 @@ fn svg_interior_width_dimension(
         svg.push('\n');
 
         // Label centered on the line with mask
-        let char_width = style.dimension_font_size * 0.55;
+        let char_width = style.label_font_size * 0.55;
         let label_text_width = callout.label.len() as f64 * char_width;
         let mask_padding = 4.0;
         let mask_width = label_text_width + mask_padding * 2.0;
-        let mask_height = style.dimension_font_size + 4.0;
+        let mask_height = style.label_font_size + 4.0;
 
         svg.push_str(&format!(
             r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" stroke="none"/>"#,
@@ -2112,7 +2112,7 @@ fn svg_interior_width_dimension(
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" dominant-baseline="central">{}</text>"#,
             center_x, dim_y,
-            dim_color, style.font_family, style.dimension_font_size,
+            dim_color, style.font_family, style.label_font_size,
             html_escape(&callout.label)
         ));
         svg.push('\n');
@@ -2145,11 +2145,11 @@ fn svg_interior_width_dimension(
 
         // Label centered on the line with mask
         let center_x = (left_x + right_x) / 2.0;
-        let char_width = style.dimension_font_size * 0.55;
+        let char_width = style.label_font_size * 0.55;
         let label_text_width = callout.label.len() as f64 * char_width;
         let mask_padding = 4.0;
         let mask_width = label_text_width + mask_padding * 2.0;
-        let mask_height = style.dimension_font_size + 4.0;
+        let mask_height = style.label_font_size + 4.0;
 
         svg.push_str(&format!(
             r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" stroke="none"/>"#,
@@ -2161,7 +2161,7 @@ fn svg_interior_width_dimension(
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" dominant-baseline="central">{}</text>"#,
             center_x, dim_y,
-            dim_color, style.font_family, style.dimension_font_size,
+            dim_color, style.font_family, style.label_font_size,
             html_escape(&callout.label)
         ));
         svg.push('\n');
@@ -2202,7 +2202,7 @@ fn svg_interior_height_dimension(
     let ext_right = dim_x + 4.0; // Right of dimension line
 
     // Estimate label height (for vertical text, width becomes height)
-    let char_width = style.dimension_font_size * 0.6;
+    let char_width = style.label_font_size * 0.6;
     let label_width = callout.label.len() as f64 * char_width;
     let label_padding = 30.0;
     let min_span_for_label = label_width + label_padding;
@@ -2267,11 +2267,11 @@ fn svg_interior_height_dimension(
         svg.push('\n');
 
         // Label centered on the line with mask, rotated 90°
-        let char_width = style.dimension_font_size * 0.55;
+        let char_width = style.label_font_size * 0.55;
         let label_text_width = callout.label.len() as f64 * char_width;
         let mask_padding = 4.0;
         let mask_width = label_text_width + mask_padding * 2.0;
-        let mask_height = style.dimension_font_size + 4.0;
+        let mask_height = style.label_font_size + 4.0;
 
         // For vertical text, swap dimensions for the mask
         svg.push_str(&format!(
@@ -2284,7 +2284,7 @@ fn svg_interior_height_dimension(
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" dominant-baseline="central" transform="rotate(90 {:.2} {:.2})">{}</text>"#,
             dim_x, center_y,
-            dim_color, style.font_family, style.dimension_font_size,
+            dim_color, style.font_family, style.label_font_size,
             dim_x, center_y,
             html_escape(&callout.label)
         ));
@@ -2318,11 +2318,11 @@ fn svg_interior_height_dimension(
 
         // Label centered on the line with mask, rotated 90°
         let center_y = (top_y + bottom_y) / 2.0;
-        let char_width = style.dimension_font_size * 0.55;
+        let char_width = style.label_font_size * 0.55;
         let label_text_width = callout.label.len() as f64 * char_width;
         let mask_padding = 4.0;
         let mask_width = label_text_width + mask_padding * 2.0;
-        let mask_height = style.dimension_font_size + 4.0;
+        let mask_height = style.label_font_size + 4.0;
 
         // For vertical text, swap dimensions for the mask
         svg.push_str(&format!(
@@ -2335,7 +2335,7 @@ fn svg_interior_height_dimension(
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" dominant-baseline="central" transform="rotate(90 {:.2} {:.2})">{}</text>"#,
             dim_x, center_y,
-            dim_color, style.font_family, style.dimension_font_size,
+            dim_color, style.font_family, style.label_font_size,
             dim_x, center_y,
             html_escape(&callout.label)
         ));
@@ -2575,12 +2575,12 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     // This creates a compact layout: |<--- Label --->|
 
     // Estimate label dimensions for masking
-    let char_width = style.dimension_font_size * 0.55;
+    let char_width = style.label_font_size * 0.55;
     let label_text_width = callout.callout.label.len() as f64 * char_width;
     let mask_padding_x = 4.0;  // Horizontal padding around text
     let mask_padding_y = 2.0;  // Vertical padding around text
     let mask_width = label_text_width + mask_padding_x * 2.0;
-    let mask_height = style.dimension_font_size + mask_padding_y * 2.0;
+    let mask_height = style.label_font_size + mask_padding_y * 2.0;
 
     let (label_x, label_y, offset_applied) = if is_horizontal {
         // Horizontal dimension: label centered on the dimension line
@@ -2589,7 +2589,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
 
         // Mat cut width labels need extra padding from extension lines
         // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
-        let mat_cut_offset = style.extension_line_overshoot + style.dimension_font_size / 2.0 + style.dimension_offset_base;
+        let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0 + style.dimension_offset_base;
         let (label_y, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutWidth {
             (base_y + mat_cut_offset, true)
         } else {
@@ -2604,7 +2604,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
 
         // Mat cut height labels need extra padding from extension lines
         // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
-        let mat_cut_offset = style.extension_line_overshoot + style.dimension_font_size / 2.0 + style.dimension_offset_base;
+        let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0 + style.dimension_offset_base;
         let (label_x, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutHeight {
             (base_x - mat_cut_offset, true)
         } else {
@@ -2647,7 +2647,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     svg.push_str(&format!(
         r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" dominant-baseline="central"{}>{}</text>"#,
         label_x, label_y,
-        dim_color, style.font_family, style.dimension_font_size,
+        dim_color, style.font_family, style.label_font_size,
         transform,
         html_escape(&callout.callout.label)
     ));
@@ -2679,7 +2679,7 @@ fn generate_section_legend(
         .filter(|(name, _)| *name != "Matboard" || design.has_mat())
         .collect();
 
-    let item_width = (style.label_font_size * 0.9) * 6.5; // Scale with legend font size (screen: ~76px, PDF: ~140px)
+    let item_width = style.label_font_size * 6.5; // Scale with legend font size
     let total_width = materials.len() as f64 * item_width;
 
     // Center legend relative to content bounds (for dynamic viewBox) or canvas (for fixed viewBox)
@@ -2704,7 +2704,7 @@ fn generate_section_legend(
         ));
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}</text>"#,
-            x + style.label_font_size * 1.2, legend_y, style.dimension_color, style.font_family, style.label_font_size * 0.9, name
+            x + style.label_font_size * 1.2, legend_y, style.dimension_color, style.font_family, style.label_font_size, name
         ));
         svg.push('\n');
     }
