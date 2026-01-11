@@ -2231,8 +2231,13 @@
                 }
 
                 // DIAGNOSTIC: Analyze font sizes in plan vs section views
+                console.log('=== FONT SIZE DIAGNOSTIC ===');
+
                 const planGroup = svgElement.querySelector('#plan-view');
                 const sectionGroup = svgElement.querySelector('#section-view');
+
+                console.log('Plan element:', planGroup?.tagName, 'Found:', !!planGroup);
+                console.log('Section element:', sectionGroup?.tagName, 'Found:', !!sectionGroup);
 
                 if (planGroup && sectionGroup) {
                     const planTexts = Array.from(planGroup.querySelectorAll('text'));
@@ -2249,9 +2254,14 @@
                     console.log('  Font sizes:', sectionSizes.sort((a,b) => a-b));
                     console.log('  Min:', Math.min(...sectionSizes).toFixed(2), 'Max:', Math.max(...sectionSizes).toFixed(2));
 
-                    // Check viewBox on each sub-view if they have svg elements
-                    const planSvg = planGroup.querySelector('svg');
-                    const sectionSvg = sectionGroup.querySelector('svg');
+                    // Check viewBox on each sub-view
+                    // They might BE svg elements or contain nested svg elements
+                    const planSvg = planGroup.tagName === 'svg' ? planGroup : planGroup.querySelector('svg');
+                    const sectionSvg = sectionGroup.tagName === 'svg' ? sectionGroup : sectionGroup.querySelector('svg');
+
+                    console.log('Plan SVG for viewBox:', planSvg?.tagName);
+                    console.log('Section SVG for viewBox:', sectionSvg?.tagName);
+
                     if (planSvg) {
                         const planViewBox = planSvg.getAttribute('viewBox');
                         const planWidth = planSvg.getAttribute('width');
