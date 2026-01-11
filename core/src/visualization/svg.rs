@@ -317,24 +317,14 @@ fn generate_combined_view(
     let plan_height = (options.canvas_height - gap_between_views) * 0.58;
     let section_height = (options.canvas_height - gap_between_views) * 0.42;
 
-    // Scale factor for combined view
-    let scale_factor = 0.80;
+    // Use full PDF font sizes without scaling - dynamic viewBox handles fitting
+    // Previously scaled by 0.8× but this made fonts unnecessarily small (17.6pt instead of 22pt)
+    let plan_style = style.clone();
 
-    // Create compact style for plan view
-    let mut plan_style = style.clone();
-    plan_style.margin = style.margin * scale_factor;
-    plan_style.dimension_offset_base = style.dimension_offset_base * scale_factor;
-    plan_style.dimension_offset_step = style.dimension_offset_step * scale_factor;
-    plan_style.dimension_font_size = style.dimension_font_size * scale_factor;
-    plan_style.label_font_size = style.label_font_size * scale_factor;
-    plan_style.title_font_size = style.title_font_size * scale_factor;
-
-    // Create compact style for section view
+    // Section view needs reduced dimension_offset for plan view (only difference)
     let mut section_style = style.clone();
-    section_style.margin = style.margin * scale_factor;
-    section_style.dimension_font_size = style.dimension_font_size * scale_factor;
-    section_style.label_font_size = style.label_font_size * scale_factor;
-    section_style.title_font_size = style.title_font_size * scale_factor;
+    section_style.dimension_offset_base = style.dimension_offset_base * 0.9;
+    section_style.dimension_offset_step = style.dimension_offset_step * 0.9;
 
     let plan_options = DiagramOptions {
         canvas_height: plan_height,
