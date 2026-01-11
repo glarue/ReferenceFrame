@@ -2230,6 +2230,37 @@
                     throw new Error('Failed to generate SVG diagram');
                 }
 
+                // DIAGNOSTIC: Analyze font sizes in plan vs section views
+                const planGroup = svgElement.querySelector('#plan-view');
+                const sectionGroup = svgElement.querySelector('#section-view');
+
+                if (planGroup && sectionGroup) {
+                    const planTexts = Array.from(planGroup.querySelectorAll('text'));
+                    const sectionTexts = Array.from(sectionGroup.querySelectorAll('text'));
+
+                    const planSizes = planTexts.map(t => parseFloat(t.getAttribute('font-size'))).filter(s => !isNaN(s));
+                    const sectionSizes = sectionTexts.map(t => parseFloat(t.getAttribute('font-size'))).filter(s => !isNaN(s));
+
+                    console.log('=== FONT SIZE DIAGNOSTIC ===');
+                    console.log('Plan view text elements:', planTexts.length);
+                    console.log('  Font sizes:', planSizes.sort((a,b) => a-b));
+                    console.log('  Min:', Math.min(...planSizes).toFixed(2), 'Max:', Math.max(...planSizes).toFixed(2));
+                    console.log('Section view text elements:', sectionTexts.length);
+                    console.log('  Font sizes:', sectionSizes.sort((a,b) => a-b));
+                    console.log('  Min:', Math.min(...sectionSizes).toFixed(2), 'Max:', Math.max(...sectionSizes).toFixed(2));
+
+                    // Check viewBox on each sub-view if they have svg elements
+                    const planSvg = planGroup.querySelector('svg');
+                    const sectionSvg = sectionGroup.querySelector('svg');
+                    if (planSvg) {
+                        console.log('Plan view has nested SVG with viewBox:', planSvg.getAttribute('viewBox'));
+                    }
+                    if (sectionSvg) {
+                        console.log('Section view has nested SVG with viewBox:', sectionSvg.getAttribute('viewBox'));
+                    }
+                    console.log('=========================');
+                }
+
                 // Extract SVG dimensions from viewBox
                 const viewBox = svgElement.getAttribute('viewBox');
                 const [vbX, vbY, vbWidth, vbHeight] = viewBox ? viewBox.split(' ').map(Number) : [0, 0, 800, 600];
