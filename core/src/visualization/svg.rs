@@ -1889,17 +1889,35 @@ fn build_section_svg(
     // =================================================================
     // DYNAMIC VIEWBOX: Calculate legend bounds
     // =================================================================
-    // Legend is positioned below content and centered on canvas
-    let materials_count = if design.has_mat() { 5 } else { 4 };
-    let item_width = style.label_font_size * 6.5; // Scale with legend font size
-    let total_width = materials_count as f64 * item_width;
+    // Calculate legend width based on actual text lengths (same logic as generate_section_legend)
+    let material_names = if design.has_mat() {
+        vec!["Frame", "Glazing", "Matboard", "Artwork", "Backing"]
+    } else {
+        vec!["Frame", "Glazing", "Artwork", "Backing"]
+    };
+
+    const RECT_WIDTH: f64 = 12.0;
+    const RECT_TO_TEXT_GAP: f64 = 8.0;
+    const INTER_ITEM_GAP: f64 = 16.0;
+    const CHAR_WIDTH_RATIO: f64 = 0.55;
+
+    let mut item_widths: Vec<f64> = material_names.iter().map(|name| {
+        let text_width = name.len() as f64 * style.label_font_size * CHAR_WIDTH_RATIO;
+        RECT_WIDTH + RECT_TO_TEXT_GAP + text_width + INTER_ITEM_GAP
+    }).collect();
+
+    if let Some(last_width) = item_widths.last_mut() {
+        *last_width -= INTER_ITEM_GAP;
+    }
+
+    let total_width: f64 = item_widths.iter().sum();
     let legend_start_x = (options.canvas_width - total_width) / 2.0;
     let legend_end_x = legend_start_x + total_width;
 
     let content_bottom = geometry.bounds.bottom();
-    let legend_gap = style.label_font_size * 0.6;  // Scale with label font size
+    let legend_gap = style.label_font_size * 0.6;
     let legend_y = content_bottom + legend_gap;
-    let legend_bottom = legend_y + style.label_font_size * 1.2; // text height estimate
+    let legend_bottom = legend_y + style.label_font_size * 1.2;
 
     // Calculate final bounds including legend
     let mut min_x = content_min_x.min(legend_start_x);
@@ -2682,8 +2700,24 @@ fn generate_section_legend(
         .filter(|(name, _)| *name != "Matboard" || design.has_mat())
         .collect();
 
-    let item_width = style.label_font_size * 6.5; // Scale with legend font size
-    let total_width = materials.len() as f64 * item_width;
+    // Calculate actual width needed for each item based on text length
+    // Components: rect (12px) + gap (8px) + text_width + inter_item_spacing (16px)
+    const RECT_WIDTH: f64 = 12.0;
+    const RECT_TO_TEXT_GAP: f64 = 8.0;
+    const INTER_ITEM_GAP: f64 = 16.0;
+    const CHAR_WIDTH_RATIO: f64 = 0.55; // Average character width as fraction of font size
+
+    let mut item_widths: Vec<f64> = materials.iter().map(|(name, _)| {
+        let text_width = name.len() as f64 * style.label_font_size * CHAR_WIDTH_RATIO;
+        RECT_WIDTH + RECT_TO_TEXT_GAP + text_width + INTER_ITEM_GAP
+    }).collect();
+
+    // Don't add inter-item gap after the last item
+    if let Some(last_width) = item_widths.last_mut() {
+        *last_width -= INTER_ITEM_GAP;
+    }
+
+    let total_width: f64 = item_widths.iter().sum();
 
     // Center legend relative to content bounds (for dynamic viewBox) or canvas (for fixed viewBox)
     let start_x = if let Some((min_x, max_x)) = content_bounds_x {
@@ -2695,22 +2729,22 @@ fn generate_section_legend(
 
     // Position legend tightly below the content bounds
     let content_bottom = geometry.bounds.bottom();
-    let legend_gap = style.label_font_size * 0.6;  // Scale with label font size // Tight gap between content and legend
+    let legend_gap = style.label_font_size * 0.6;  // Scale with label font size
     let legend_y = content_bottom + legend_gap;
 
-    for (i, (name, pattern)) in materials.iter().enumerate() {
-        let x = start_x + i as f64 * item_width;
+    let mut current_x = start_x;
+    for ((name, pattern), item_width) in materials.iter().zip(item_widths.iter()) {
         let fill = get_fill_for_pattern(pattern);
         svg.push_str(&format!(
             r#"    <rect x="{:.2}" y="{:.2}" width="12" height="12" fill="{}" stroke="{}" stroke-width="0.5"/>"#,
-            x, legend_y - 10.0, fill, style.line_color
+            current_x, legend_y - 10.0, fill, style.line_color
         ));
-        // Position text with comfortable spacing: 12px rect + 8px gap
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}</text>"#,
-            x + 20.0, legend_y, style.dimension_color, style.font_family, style.label_font_size, name
+            current_x + RECT_WIDTH + RECT_TO_TEXT_GAP, legend_y, style.dimension_color, style.font_family, style.label_font_size, name
         ));
         svg.push('\n');
+        current_x += item_width;
     }
 
     svg.push_str("  </g>\n");
