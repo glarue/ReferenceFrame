@@ -2253,10 +2253,32 @@
                     const planSvg = planGroup.querySelector('svg');
                     const sectionSvg = sectionGroup.querySelector('svg');
                     if (planSvg) {
-                        console.log('Plan view has nested SVG with viewBox:', planSvg.getAttribute('viewBox'));
+                        const planViewBox = planSvg.getAttribute('viewBox');
+                        const planWidth = planSvg.getAttribute('width');
+                        const [pvX, pvY, pvW, pvH] = planViewBox.split(' ').map(Number);
+                        const planScale = parseFloat(planWidth) / pvW;
+                        console.log('Plan view viewBox:', planViewBox);
+                        console.log('  Canvas width:', planWidth, 'ViewBox width:', pvW, '→ Scale:', planScale.toFixed(3) + '×');
                     }
                     if (sectionSvg) {
-                        console.log('Section view has nested SVG with viewBox:', sectionSvg.getAttribute('viewBox'));
+                        const sectionViewBox = sectionSvg.getAttribute('viewBox');
+                        const sectionWidth = sectionSvg.getAttribute('width');
+                        const [svX, svY, svW, svH] = sectionViewBox.split(' ').map(Number);
+                        const sectionScale = parseFloat(sectionWidth) / svW;
+                        console.log('Section view viewBox:', sectionViewBox);
+                        console.log('  Canvas width:', sectionWidth, 'ViewBox width:', svW, '→ Scale:', sectionScale.toFixed(3) + '×');
+                    }
+                    if (planSvg && sectionSvg) {
+                        const planViewBox = planSvg.getAttribute('viewBox');
+                        const sectionViewBox = sectionSvg.getAttribute('viewBox');
+                        const planWidth = planSvg.getAttribute('width');
+                        const sectionWidth = sectionSvg.getAttribute('width');
+                        const [pvX, pvY, pvW, pvH] = planViewBox.split(' ').map(Number);
+                        const [svX, svY, svW, svH] = sectionViewBox.split(' ').map(Number);
+                        const planScale = parseFloat(planWidth) / pvW;
+                        const sectionScale = parseFloat(sectionWidth) / svW;
+                        const scaleDifference = ((sectionScale / planScale - 1) * 100).toFixed(1);
+                        console.log('→ Section view is scaled', scaleDifference + '% ' + (scaleDifference > 0 ? 'LARGER' : 'smaller'), 'than plan view');
                     }
                     console.log('=========================');
                 }
