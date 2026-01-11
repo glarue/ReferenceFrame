@@ -321,8 +321,11 @@ fn generate_combined_view(
     // Previously scaled by 0.8× but this made fonts unnecessarily small (17.6pt instead of 22pt)
     let plan_style = style.clone();
 
-    // Section view needs reduced dimension_offset for plan view (only difference)
+    // Section view typically has narrower content, causing larger viewBox scaling
+    // Compensate by reducing font sizes proportionally (~24% reduction empirically)
+    // This makes rendered font sizes match between plan and section views
     let mut section_style = style.clone();
+    section_style.label_font_size = (style.label_font_size * 0.76).round();
     section_style.dimension_offset_base = style.dimension_offset_base * 0.9;
     section_style.dimension_offset_step = style.dimension_offset_step * 0.9;
 
