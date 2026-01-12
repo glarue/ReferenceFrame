@@ -2230,6 +2230,69 @@
                     throw new Error('Failed to generate SVG diagram');
                 }
 
+                // DIAGNOSTIC: Analyze font sizes in plan vs section views
+                console.log('=== FONT SIZE DIAGNOSTIC ===');
+
+                const planGroup = svgElement.querySelector('#plan-view');
+                const sectionGroup = svgElement.querySelector('#section-view');
+
+                console.log('Plan element:', planGroup?.tagName, 'Found:', !!planGroup);
+                console.log('Section element:', sectionGroup?.tagName, 'Found:', !!sectionGroup);
+
+                if (planGroup && sectionGroup) {
+                    const planTexts = Array.from(planGroup.querySelectorAll('text'));
+                    const sectionTexts = Array.from(sectionGroup.querySelectorAll('text'));
+
+                    const planSizes = planTexts.map(t => parseFloat(t.getAttribute('font-size'))).filter(s => !isNaN(s));
+                    const sectionSizes = sectionTexts.map(t => parseFloat(t.getAttribute('font-size'))).filter(s => !isNaN(s));
+
+                    console.log('=== FONT SIZE DIAGNOSTIC ===');
+                    console.log('Plan view text elements:', planTexts.length);
+                    console.log('  Font sizes:', planSizes.sort((a,b) => a-b));
+                    console.log('  Min:', Math.min(...planSizes).toFixed(2), 'Max:', Math.max(...planSizes).toFixed(2));
+                    console.log('Section view text elements:', sectionTexts.length);
+                    console.log('  Font sizes:', sectionSizes.sort((a,b) => a-b));
+                    console.log('  Min:', Math.min(...sectionSizes).toFixed(2), 'Max:', Math.max(...sectionSizes).toFixed(2));
+
+                    // Check viewBox on each sub-view
+                    // They might BE svg elements or contain nested svg elements
+                    const planSvg = planGroup.tagName === 'svg' ? planGroup : planGroup.querySelector('svg');
+                    const sectionSvg = sectionGroup.tagName === 'svg' ? sectionGroup : sectionGroup.querySelector('svg');
+
+                    console.log('Plan SVG for viewBox:', planSvg?.tagName);
+                    console.log('Section SVG for viewBox:', sectionSvg?.tagName);
+
+                    if (planSvg) {
+                        const planViewBox = planSvg.getAttribute('viewBox');
+                        const planWidth = planSvg.getAttribute('width');
+                        const [pvX, pvY, pvW, pvH] = planViewBox.split(' ').map(Number);
+                        const planScale = parseFloat(planWidth) / pvW;
+                        console.log('Plan view viewBox:', planViewBox);
+                        console.log('  Canvas width:', planWidth, 'ViewBox width:', pvW, '→ Scale:', planScale.toFixed(3) + '×');
+                    }
+                    if (sectionSvg) {
+                        const sectionViewBox = sectionSvg.getAttribute('viewBox');
+                        const sectionWidth = sectionSvg.getAttribute('width');
+                        const [svX, svY, svW, svH] = sectionViewBox.split(' ').map(Number);
+                        const sectionScale = parseFloat(sectionWidth) / svW;
+                        console.log('Section view viewBox:', sectionViewBox);
+                        console.log('  Canvas width:', sectionWidth, 'ViewBox width:', svW, '→ Scale:', sectionScale.toFixed(3) + '×');
+                    }
+                    if (planSvg && sectionSvg) {
+                        const planViewBox = planSvg.getAttribute('viewBox');
+                        const sectionViewBox = sectionSvg.getAttribute('viewBox');
+                        const planWidth = planSvg.getAttribute('width');
+                        const sectionWidth = sectionSvg.getAttribute('width');
+                        const [pvX, pvY, pvW, pvH] = planViewBox.split(' ').map(Number);
+                        const [svX, svY, svW, svH] = sectionViewBox.split(' ').map(Number);
+                        const planScale = parseFloat(planWidth) / pvW;
+                        const sectionScale = parseFloat(sectionWidth) / svW;
+                        const scaleDifference = ((sectionScale / planScale - 1) * 100).toFixed(1);
+                        console.log('→ Section view is scaled', scaleDifference + '% ' + (scaleDifference > 0 ? 'LARGER' : 'smaller'), 'than plan view');
+                    }
+                    console.log('=========================');
+                }
+
                 // Extract SVG dimensions from viewBox
                 const viewBox = svgElement.getAttribute('viewBox');
                 const [vbX, vbY, vbWidth, vbHeight] = viewBox ? viewBox.split(' ').map(Number) : [0, 0, 800, 600];
@@ -2383,16 +2446,16 @@
                 red: [249, 65, 68]           // --rf-red (#f94144)
             };
 
-            // COMPACT LAYOUT: 3 columns, small font, tight spacing
-            const fontSize = 8;
-            const headerSize = 9;
+            // COMPACT LAYOUT: 3 columns, increased font for print readability
+            const fontSize = 10;      // Was 8, increased ~25% for print
+            const headerSize = 13;    // Was 11, increased for better section distinction
             const lineHeight = 1.1;
 
-            // 3-column layout (60mm each with 5mm gutters)
-            const col1X = 15;
-            const col2X = 80;
-            const col3X = 145;
-            const colWidth = 60;
+            // 3-column layout (62mm each with 3mm gutters, 10mm left/8mm right margins)
+            const col1X = 10;
+            const col2X = 75;   // 10 + 62 + 3
+            const col3X = 140;  // 10 + 62 + 3 + 62 + 3
+            const colWidth = 62;
 
             let col1Y = startY;
             let col2Y = startY;
@@ -2467,17 +2530,21 @@
 
             // === COLUMN 1: Artwork, Frame, Cut List, Material (12 lines) ===
             addHeader('Artwork', 1);
+            // Helper to strip unit symbol for dimension pairs (we'll add one at the end)
+            // '12"' → '12', '3/8 (0.38)"' → '3/8 (0.38)', '254 mm' → '254', '254 (254.5) mm' → '254 (254.5)'
+            const stripUnit = (s) => s.replace(/"$/, '').replace(/ mm$/, '');
+
             const artHeight = formatValueWithDecimal(currentDesign.artworkHeight, useMm);
             const artWidth = formatValueWithDecimal(currentDesign.artworkWidth, useMm);
-            addText(`${artHeight}${unit} × ${artWidth}${unit}`, 1);
+            addText(`${stripUnit(artHeight)} × ${stripUnit(artWidth)}${unit}`, 1);
             addSpace(1);
 
             addHeader('Frame', 1);
             const [outsideH, outsideW] = currentDesign.getFrameOutsideDimensions();
             const [insideH, insideW] = currentDesign.getFrameInsideDimensions();
-            addLabelValue('Outside:', `${formatValueWithDecimal(outsideH, useMm)} × ${formatValueWithDecimal(outsideW, useMm)}${unit}`, 1);
-            addLabelValue('Inside:', `${formatValueWithDecimal(insideH, useMm)} × ${formatValueWithDecimal(insideW, useMm)}${unit}`, 1);
-            addLabelValue('Frame Material:', `${formatValueWithDecimal(currentDesign.frameWidth, useMm)} × ${formatValueWithDecimal(currentDesign.frameDepth, useMm)}${unit}`, 1);
+            addLabelValue('Outside:', `${stripUnit(formatValueWithDecimal(outsideH, useMm))} × ${stripUnit(formatValueWithDecimal(outsideW, useMm))}${unit}`, 1);
+            addLabelValue('Inside:', `${stripUnit(formatValueWithDecimal(insideH, useMm))} × ${stripUnit(formatValueWithDecimal(insideW, useMm))}${unit}`, 1);
+            addLabelValue('Frame Material:', `${stripUnit(formatValueWithDecimal(currentDesign.frameWidth, useMm))} × ${stripUnit(formatValueWithDecimal(currentDesign.frameDepth, useMm))}${unit}`, 1);
             addSpace(1);
 
             addHeader('Cut List', 1);
@@ -2485,18 +2552,18 @@
             const cutList = JSON.parse(cutListJson);
             if (cutList.horizontal_pieces && cutList.horizontal_pieces.length > 0) {
                 const p = cutList.horizontal_pieces[0];
-                addLabelValue('Top/Bottom:', `${formatValueWithDecimal(p.outside_length, useMm)}${unit} (×${p.quantity})`, 1, 'orange', true);
+                addLabelValue('Top/Bottom:', `${formatValueWithDecimal(p.outside_length, useMm)} (×${p.quantity})`, 1, 'orange', true);
             }
             if (cutList.vertical_pieces && cutList.vertical_pieces.length > 0) {
                 const p = cutList.vertical_pieces[0];
-                addLabelValue('Left/Right:', `${formatValueWithDecimal(p.outside_length, useMm)}${unit} (×${p.quantity})`, 1, 'orange', true);
+                addLabelValue('Left/Right:', `${formatValueWithDecimal(p.outside_length, useMm)} (×${p.quantity})`, 1, 'orange', true);
             }
             addSpace(1);
 
             addHeader('Material', 1);
             const errorMargin = 0.0625;
             const totalWood = currentDesign.getTotalWoodLength(bladeWidth, errorMargin);
-            addLabelValue('Total:', `${formatValueWithDecimal(totalWood, useMm)}${unit}`, 1, 'cerulean', true);
+            addLabelValue('Total:', `${formatValueWithDecimal(totalWood, useMm)}`, 1, 'cerulean', true);
             addText(`(w/ blade width)`, 1, 'gray');
 
             // === COLUMN 2: Matboard, Rabbet, Specs (12 lines with mat, 6 without) ===
@@ -2514,42 +2581,42 @@
                 // Use average for display (most informative for asymmetric mats)
                 const matWidthAvg = (matWidthTopBottom + matWidthSides) / 2;
 
-                addLabelValue('Full Size:', `${formatValueWithDecimal(matH, useMm)} × ${formatValueWithDecimal(matW, useMm)}${unit}`, 2);
-                addLabelValue('Opening:', `${formatValueWithDecimal(matOpenH, useMm)} × ${formatValueWithDecimal(matOpenW, useMm)}${unit}`, 2);
-                addLabelValue('Visual Width:', `${formatValueWithDecimal(matWidthAvg, useMm)}${unit} (avg)`, 2);
-                addLabelValue('Overlap:', `${formatValueWithDecimal(matOverlap, useMm)}${unit}`, 2);
+                addLabelValue('Full Size:', `${stripUnit(formatValueWithDecimal(matH, useMm))} × ${stripUnit(formatValueWithDecimal(matW, useMm))}${unit}`, 2);
+                addLabelValue('Opening:', `${stripUnit(formatValueWithDecimal(matOpenH, useMm))} × ${stripUnit(formatValueWithDecimal(matOpenW, useMm))}${unit}`, 2);
+                addLabelValue('Visual Width:', `${formatValueWithDecimal(matWidthAvg, useMm)} (avg)`, 2);
+                addLabelValue('Overlap:', `${formatValueWithDecimal(matOverlap, useMm)}`, 2);
                 addSpace(2);
             }
 
             addHeader('Rabbet', 2);
-            addLabelValue('Width (x-axis):', `${formatValueWithDecimal(currentDesign.rabbet_width, useMm)}${unit}`, 2);
-            addLabelValue('Depth (z-axis):', `${formatValueWithDecimal(currentDesign.rabbet_depth, useMm)}${unit}`, 2);
+            addLabelValue('Width (x-axis):', `${formatValueWithDecimal(currentDesign.rabbet_width, useMm)}`, 2);
+            addLabelValue('Depth (z-axis):', `${formatValueWithDecimal(currentDesign.rabbet_depth, useMm)}`, 2);
             addSpace(2);
 
             addHeader('Specs', 2);
             const assemblyMargin = getDimensionValue('assembly-margin');
-            addLabelValue('Assembly Margin:', `${formatValueWithDecimal(assemblyMargin, useMm)}${unit}`, 2);
-            addLabelValue('Blade Width:', `${formatValueWithDecimal(bladeWidth, useMm)}${unit}`, 2);
+            addLabelValue('Assembly Margin:', `${formatValueWithDecimal(assemblyMargin, useMm)}`, 2);
+            addLabelValue('Blade Width:', `${formatValueWithDecimal(bladeWidth, useMm)}`, 2);
 
             // === COLUMN 3: Depth ===
             addHeader('Depth', 3);
             const depthRequired = currentDesign.getRabbetZDepthRequired();
             const depthAvailable = currentDesign.rabbet_depth;
-            addLabelValue('Required:', `${formatValueWithDecimal(depthRequired, useMm)}${unit}`, 3, 'black', true);
-            addLabelValue('Available:', `${formatValueWithDecimal(depthAvailable, useMm)}${unit}`, 3);
+            addLabelValue('Required:', `${formatValueWithDecimal(depthRequired, useMm)}`, 3, 'black', true);
+            addLabelValue('Available:', `${formatValueWithDecimal(depthAvailable, useMm)}`, 3);
             if (depthRequired <= depthAvailable) {
                 const clearance = depthAvailable - depthRequired;
-                addLabelValue('Clearance:', `${formatValueWithDecimal(clearance, useMm)}${unit}`, 3, 'green', true);
+                addLabelValue('Clearance:', `${formatValueWithDecimal(clearance, useMm)}`, 3, 'green', true);
             } else {
                 const shortfall = depthRequired - depthAvailable;
-                addLabelValue('Shortfall:', `${formatValueWithDecimal(shortfall, useMm)}${unit}`, 3, 'red', true);
+                addLabelValue('Shortfall:', `${formatValueWithDecimal(shortfall, useMm)}`, 3, 'red', true);
             }
-            addLabelValue('Glazing:', `${formatValueWithDecimal(currentDesign.glazingThickness, useMm)}${unit}`, 3);
+            addLabelValue('Glazing:', `${formatValueWithDecimal(currentDesign.glazingThickness, useMm)}`, 3);
             if (includesMat) {
-                addLabelValue('Matboard:', `${formatValueWithDecimal(currentDesign.matboardThickness, useMm)}${unit}`, 3);
+                addLabelValue('Matboard:', `${formatValueWithDecimal(currentDesign.matboardThickness, useMm)}`, 3);
             }
-            addLabelValue('Artwork:', `${formatValueWithDecimal(currentDesign.artworkThickness, useMm)}${unit}`, 3);
-            addLabelValue('Backing:', `${formatValueWithDecimal(currentDesign.backingThickness, useMm)}${unit}`, 3);
+            addLabelValue('Artwork:', `${formatValueWithDecimal(currentDesign.artworkThickness, useMm)}`, 3);
+            addLabelValue('Backing:', `${formatValueWithDecimal(currentDesign.backingThickness, useMm)}`, 3);
         }
 
         // Add QR code to PDF

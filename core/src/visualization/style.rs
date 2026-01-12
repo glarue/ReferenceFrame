@@ -173,9 +173,18 @@ impl DiagramStyle {
     /// Create a style optimized for PDF export (larger text for print readability)
     pub fn for_pdf() -> Self {
         let mut style = Self::default();
-        style.dimension_font_size = 18.0;  // Larger for PDF readability (scaled to 14.4pt in combined view)
-        style.label_font_size = 19.0;      // Larger for PDF readability (scaled to 15.2pt in combined view)
-        style.title_font_size = 22.0;      // Larger for PDF readability (scaled to 17.6pt in combined view)
+        // Increased ~25% from previous PDF sizes for better print readability
+        // After 0.8× combined view scaling: 17.6pt/19.2pt/21.6pt
+        style.dimension_font_size = 22.0;
+        style.label_font_size = 24.0;
+        style.title_font_size = 27.0;
+
+        // Scale spacing proportionally to prevent overlap
+        style.dimension_offset_base = 28.0;  // Was 22.0, scaled ~1.27×
+        style.dimension_offset_step = 23.0;  // Was 18.0, scaled ~1.28×
+        style.extension_line_gap = 8.0;      // Was 6.0, scaled ~1.33×
+        style.extension_line_overshoot = 5.0; // Was 4.0, scaled ~1.25×
+
         style.margin = 4.0; // Keep tight margins to maximize diagram space
         style
     }
@@ -210,7 +219,9 @@ mod tests {
     #[test]
     fn test_pdf_style() {
         let style = DiagramStyle::for_pdf();
-        assert!(style.dimension_font_size < DiagramStyle::default().dimension_font_size);
+        assert!(style.dimension_font_size > DiagramStyle::default().dimension_font_size);
+        assert!(style.label_font_size > DiagramStyle::default().label_font_size);
+        assert!(style.dimension_offset_base > DiagramStyle::default().dimension_offset_base);
     }
 
     #[test]

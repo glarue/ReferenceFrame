@@ -135,7 +135,7 @@ pub fn format_value_with_decimal(value: f64, unit: Unit) -> String {
                 // Has fractional part - show decimal
                 let fraction_no_quote = fraction.trim_end_matches('"');
                 let decimal = format!("{:.2}", value).trim_end_matches('0').trim_end_matches('.').to_string();
-                format!("{} ({}\")", fraction_no_quote, decimal)
+                format!("{} ({})\"", fraction_no_quote, decimal)
             }
         }
         Unit::Millimeters => {
@@ -149,7 +149,7 @@ pub fn format_value_with_decimal(value: f64, unit: Unit) -> String {
                 // Same representation - no need for parenthetical
                 format!("{} mm", trimmed)
             } else {
-                format!("{} mm ({} mm)", trimmed, decimal)
+                format!("{} ({}) mm", trimmed, decimal)
             }
         }
     }
