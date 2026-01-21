@@ -337,8 +337,15 @@ pub struct DiagramOptions {
     /// Whether to include title block
     pub include_title_block: bool,
 
+    /// Custom title text (if None, uses "Frame Design")
+    pub title_text: Option<String>,
+
     /// Whether dimensions are in mm (for labels)
     pub unit_mm: bool,
+
+    /// Use tape measure segmented format (e.g., "3/4 - 1/32" instead of "23/32")
+    /// Only applies when unit_mm is false (inches mode)
+    pub use_tape_segments: bool,
 }
 
 impl Default for DiagramOptions {
@@ -348,7 +355,9 @@ impl Default for DiagramOptions {
             canvas_width: 800.0,
             canvas_height: 600.0,
             include_title_block: false,
+            title_text: None,
             unit_mm: false,
+            use_tape_segments: false, // Default off to avoid breaking existing behavior
         }
     }
 }
