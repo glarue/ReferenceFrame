@@ -2839,29 +2839,37 @@ fn generate_title_block(
     let mut svg = String::new();
     svg.push_str("  <g id=\"title-block\">\n");
 
-    // Use custom title if provided, otherwise default to "Frame Design"
-    let title = options.title_text
+    // Check if custom title is provided
+    let has_custom_title = options.title_text
         .as_ref()
-        .filter(|t| !t.trim().is_empty())
-        .map(|t| html_escape(t.trim()))
-        .unwrap_or_else(|| "Frame Design".to_string());
+        .map(|t| !t.trim().is_empty())
+        .unwrap_or(false);
 
-    let (outside_h, outside_w) = design.get_frame_outside_dimensions();
-    let subtitle = format!(
-        "{:.2}\" × {:.2}\" outside",
-        outside_h, outside_w
-    );
+    let title = if has_custom_title {
+        html_escape(options.title_text.as_ref().unwrap().trim())
+    } else {
+        "Frame Design".to_string()
+    };
 
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="30" fill="{}" font-family="{}" font-size="{}" font-weight="bold" text-anchor="middle">{}</text>"#,
         options.canvas_width / 2.0, style.line_color, style.font_family, style.title_font_size, title
     ));
     svg.push('\n');
-    svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="70" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">{}</text>"#,
-        options.canvas_width / 2.0, style.dimension_color, style.font_family, style.label_font_size, subtitle
-    ));
-    svg.push('\n');
+
+    // Only show subtitle (dimensions) when using default title
+    if !has_custom_title {
+        let (outside_h, outside_w) = design.get_frame_outside_dimensions();
+        let subtitle = format!(
+            "{:.2}\" × {:.2}\" outside",
+            outside_h, outside_w
+        );
+        svg.push_str(&format!(
+            r#"    <text x="{:.2}" y="70" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">{}</text>"#,
+            options.canvas_width / 2.0, style.dimension_color, style.font_family, style.label_font_size, subtitle
+        ));
+        svg.push('\n');
+    }
 
     svg.push_str("  </g>\n");
     svg
