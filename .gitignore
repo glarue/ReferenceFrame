@@ -37,6 +37,9 @@ platforms/web/wasm_bindings/pkg/
 *.wasm
 *.wasm.d.ts
 
+# Mobile platform (private, separate local git repo)
+platforms/mobile/
+
 # Experimental directories (moved to legacy/experiments/)
 # These should NEVER be committed
 rust-flutter/
