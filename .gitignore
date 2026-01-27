@@ -37,7 +37,7 @@ platforms/web/wasm_bindings/pkg/
 *.wasm
 *.wasm.d.ts
 
-# Mobile platform (private, separate local git repo)
+# Mobile platform (local development only, not pushed to GitHub)
 platforms/mobile/
 
 # Experimental directories (moved to legacy/experiments/)

@@ -9,8 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::frame::FrameDesign;
 
-#[cfg(target_arch = "wasm32")]
-
 /// Validation configuration with user-adjustable limits
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationConfig {
