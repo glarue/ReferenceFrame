@@ -1,4 +1,4 @@
-// SVG generation for frame diagrams
+// SVG generation for frame diagram
 //
 // Generates professional, warm-aesthetic SVG diagrams from
 // frame designs with adaptive dimension callouts.
@@ -10,7 +10,7 @@ use super::types::{
     Rect, Side,
 };
 use super::style::{DiagramStyle, FillPattern};
-use super::geometry::{PlanViewGeometry, SectionViewGeometry};
+use super::geometry::{PlanViewGeometry, SectionViewGeometry, estimate_text_width};
 use super::callouts::{generate_plan_callouts, generate_section_callouts};
 use super::layout::{layout_plan_callouts, LayoutResult};
 
@@ -271,7 +271,7 @@ fn generate_plan_view(
         style,
     );
 
-    let callouts = generate_plan_callouts(design, &geometry, options.unit_mm, style);
+    let callouts = generate_plan_callouts(design, &geometry, options.unit_mm, options.use_tape_segments, style);
     let layout = layout_plan_callouts(&callouts, &geometry, style);
 
     let svg = build_plan_svg(design, &geometry, &callouts, &layout, options, style);
@@ -295,7 +295,7 @@ fn generate_section_view(
         style,
     );
 
-    let callouts = generate_section_callouts(design, options.unit_mm);
+    let callouts = generate_section_callouts(design, options.unit_mm, options.use_tape_segments);
     let svg = build_section_svg(design, &geometry, &callouts, options, style);
 
     DiagramResult {
@@ -313,9 +313,18 @@ fn generate_combined_view(
     // Vertical stacking: plan view (top), section view (bottom)
     // Add gap between views for breathing room
     // Extra space needed for mat cut label offset (41px downward)
-    let gap_between_views = 20.0;
-    let plan_height = (options.canvas_height - gap_between_views) * 0.58;
-    let section_height = (options.canvas_height - gap_between_views) * 0.42;
+    let gap_between_views = 40.0; // Increased to prevent overlaps
+    
+    // Account for title block height if present (prevents overlap at top)
+    // Title at y=30, subtitle at y=70, then diagram content starts at y=95
+    let title_height = if options.include_title_block { 95.0 } else { 0.0 };
+    
+    // Calculate available height for diagrams
+    let available_height = options.canvas_height - gap_between_views - title_height;
+    
+    // Distribute available height: 58% plan, 42% section
+    let plan_height = available_height * 0.58;
+    let section_height = available_height * 0.42;
 
     // Use full PDF font sizes without scaling - dynamic viewBox handles fitting
     // Previously scaled by 0.8× but this made fonts unnecessarily small (17.6pt instead of 22pt)
@@ -330,11 +339,13 @@ fn generate_combined_view(
     section_style.dimension_offset_step = style.dimension_offset_step * 0.9;
 
     let plan_options = DiagramOptions {
+        view: ViewOption::PlanOnly,
         canvas_height: plan_height,
         ..options.clone()
     };
 
     let section_options = DiagramOptions {
+        view: ViewOption::SectionOnly,
         canvas_height: section_height,
         ..options.clone()
     };
@@ -359,42 +370,46 @@ fn generate_combined_view(
         svg.push_str(&generate_title_block(design, options, style));
     }
 
-    // Plan view on top - embed as nested SVG with preserved viewBox
-    if let Some((vb_x, vb_y, vb_w, vb_h)) = plan_viewbox {
+    // Use simple <g> transforms instead of nested <svg> elements
+    // This approach is more compatible with flutter_svg and other SVG renderers
+    // We manually calculate the transform that emulates the viewBox "meet" behavior
+    
+    // Plan View Transform (starts after title block)
+    let plan_content = extract_svg_content(&plan_result.svg);
+    if let Some((vx, vy, vw, vh)) = plan_viewbox {
+        let (tx, ty, scale) = calculate_fit_transform(
+            vx, vy, vw, vh,
+            0.0, title_height, options.canvas_width, plan_height,
+            true // Align top (YMin)
+        );
         svg.push_str(&format!(
-            r#"  <svg id="plan-view" x="0" y="0" width="{}" height="{}" viewBox="{} {} {} {}" preserveAspectRatio="xMidYMin meet">{}</svg>"#,
-            options.canvas_width,
-            plan_height,
-            vb_x, vb_y, vb_w, vb_h,
-            extract_svg_content(&plan_result.svg)
+            r#"  <g id="plan-view" transform="translate({:.2}, {:.2}) scale({:.4})">{}</g>"#,
+            tx, ty, scale, plan_content
         ));
     } else {
-        // Fallback
-        let plan_content = extract_svg_content(&plan_result.svg);
         svg.push_str(&format!(
-            r#"  <g id="plan-view" transform="translate(0, 0)">{}</g>"#,
+            r#"  <g id="plan-view">{}</g>"#,
             plan_content
         ));
     }
     svg.push('\n');
 
-    // Section view below - embed as nested SVG with preserved viewBox
-    // This ensures the section view (including legend) scales to fit within section_height
-    if let Some((vb_x, vb_y, vb_w, vb_h)) = section_viewbox {
+    // Section View Transform (starts after plan view + gap)
+    let section_content = extract_svg_content(&section_result.svg);
+    if let Some((vx, vy, vw, vh)) = section_viewbox {
+        let (tx, ty, scale) = calculate_fit_transform(
+            vx, vy, vw, vh,
+            0.0, title_height + plan_height + gap_between_views, options.canvas_width, section_height,
+            true // Align top (YMin)
+        );
         svg.push_str(&format!(
-            r#"  <svg id="section-view" x="0" y="{}" width="{}" height="{}" viewBox="{} {} {} {}" preserveAspectRatio="xMidYMin meet">{}</svg>"#,
-            plan_height + gap_between_views,
-            options.canvas_width,
-            section_height,
-            vb_x, vb_y, vb_w, vb_h,
-            extract_svg_content(&section_result.svg)
+            r#"  <g id="section-view" transform="translate({:.2}, {:.2}) scale({:.4})">{}</g>"#,
+            tx, ty, scale, section_content
         ));
     } else {
-        // Fallback
-        let section_content = extract_svg_content(&section_result.svg);
         svg.push_str(&format!(
             r#"  <g id="section-view" transform="translate(0, {})">{}</g>"#,
-            plan_height + gap_between_views,
+            title_height + plan_height + gap_between_views,
             section_content
         ));
     }
@@ -406,6 +421,54 @@ fn generate_combined_view(
     warnings.extend(section_result.warnings);
 
     DiagramResult { svg, warnings }
+}
+
+/// Calculate transform (tx, ty, scale) to fit a source rect into a target rect
+/// Preserves aspect ratio (meet)
+/// align_top: if true, aligns to top of target (YMin), else centers vertically (YMid)
+fn calculate_fit_transform(
+    src_x: f64, src_y: f64, src_w: f64, src_h: f64,
+    dest_x: f64, dest_y: f64, dest_w: f64, dest_h: f64,
+    align_top: bool,
+) -> (f64, f64, f64) {
+    if src_w <= 0.0 || src_h <= 0.0 || dest_w <= 0.0 || dest_h <= 0.0 {
+        return (dest_x, dest_y, 1.0);
+    }
+    
+    // Safety check for non-finite values (Infinity/NaN)
+    if !src_w.is_finite() || !src_h.is_finite() || !dest_w.is_finite() || !dest_h.is_finite() {
+        return (dest_x, dest_y, 1.0);
+    }
+
+    // Calculate scale to fit (meet)
+    let scale_x = dest_w / src_w;
+    let scale_y = dest_h / src_h;
+    let scale = scale_x.min(scale_y);
+
+    // Calculate centering offsets
+    let new_w = src_w * scale;
+    let new_h = src_h * scale;
+
+    let offset_x = (dest_w - new_w) / 2.0;
+    
+    let offset_y = if align_top {
+        0.0 // YMin
+    } else {
+        (dest_h - new_h) / 2.0 // YMid
+    };
+
+    // Calculate translation
+    // transform = translate(tx, ty) scale(s)
+    
+    let tx = dest_x + offset_x - scale * src_x;
+    let ty = dest_y + offset_y - scale * src_y;
+
+    // Final safety check
+    if !tx.is_finite() || !ty.is_finite() || !scale.is_finite() {
+        return (dest_x, dest_y, 1.0);
+    }
+
+    (tx, ty, scale)
 }
 
 /// Build SVG string for plan view
@@ -439,7 +502,7 @@ fn build_plan_svg(
         max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
 
         // Account for dimension labels using actual label text length
-        let label_text_width = callout.callout.label.len() as f64 * style.label_font_size * 0.6;
+        let label_text_width = estimate_text_width(&callout.callout.label, style.label_font_size);
         let label_height = style.label_font_size * 1.2;
 
         // Mat cut dimensions get extra offset - calculate it here
@@ -696,10 +759,8 @@ fn build_plan_svg(
     );
 
     // Calculate background rectangle dimensions
-    // Use better text width estimation: 0.6 * font_size per character for typical fonts
     let mask_margin = 4.0;
-    let estimated_char_width = style.label_font_size * 0.6;
-    let text_bg_w = artwork_label.len() as f64 * estimated_char_width + mask_margin * 2.0;
+    let text_bg_w = estimate_text_width(&artwork_label, style.label_font_size) + mask_margin * 2.0;
     let text_bg_h = style.label_font_size * 1.3 + mask_margin * 2.0;
 
     // Draw background rectangle FIRST (so it appears behind the text)
@@ -1779,13 +1840,13 @@ fn build_section_svg(
     let stack_top = geometry.glazing.y;
     let stack_bottom = geometry.backing.y + geometry.backing.height;
 
-    // Estimate max label width more generously
-    let char_width = style.label_font_size * 0.85 * 0.6;
-    let max_label_len = materials.iter()
-        .map(|m| format!("{}: {}", m.name, format_value(m.thickness, unit)).len())
-        .max()
-        .unwrap_or(10);
-    let max_label_width = max_label_len as f64 * char_width;
+    // Estimate max label width by checking each label
+    let max_label_width = materials.iter()
+        .map(|m| {
+            let label = format!("{}: {}", m.name, format_value(m.thickness, unit));
+            estimate_text_width(&label, style.label_font_size * 0.85)
+        })
+        .fold(0.0_f64, |a, b| a.max(b));
 
     // Position stack dimension with clearance from labels (reduced for compact layout)
     let stack_dim_x = label_base_x + max_label_width + 20.0;
@@ -1859,15 +1920,15 @@ fn build_section_svg(
         format!("Rabbet: {} × {}", format_value(design.rabbet_width, unit), format_value(design.rabbet_depth, unit))
     };
 
-    let clearance_text = if geometry.has_interference() {
-        format!("{} (INTERFERENCE: {})", rabbet_label, format_value(-geometry.clearance, unit))
+    // Clearance/interference text on separate line to avoid overlap with material labels
+    let clearance_line = if geometry.has_interference() {
+        format!("(INTERFERENCE: {})", format_value(-geometry.clearance, unit))
     } else {
-        format!("{} (clearance: {})", rabbet_label, format_value(geometry.clearance, unit))
+        format!("(clearance: {})", format_value(geometry.clearance, unit))
     };
 
-    // Combined rabbet + clearance on one line
-    // Estimate text width to prevent clipping at left edge (rough estimate: ~6px per char at this font size)
-    let estimated_text_width = clearance_text.len() as f64 * 6.0;
+    // Estimate text width of rabbet label to prevent clipping at left edge
+    let estimated_text_width = estimate_text_width(&rabbet_label, style.label_font_size * 0.85);
     let min_x_for_centering = estimated_text_width / 2.0 + 5.0; // 5px margin from edge
 
     let (text_x, text_anchor) = if rabbet_center_x >= min_x_for_centering {
@@ -1876,11 +1937,24 @@ fn build_section_svg(
         (5.0, "start") // Left-align with small margin if centering would clip
     };
 
+    // Line spacing for two-line label
+    let line_height = style.label_font_size * 1.2;
+
+    // Rabbet dimensions on first line
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="{}">{}</text>"#,
         text_x, rabbet_label_y,
         indicator_color, style.font_family, style.label_font_size,
-        text_anchor, clearance_text
+        text_anchor, rabbet_label
+    ));
+    svg.push('\n');
+
+    // Clearance/interference on second line
+    svg.push_str(&format!(
+        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="{}">{}</text>"#,
+        text_x, rabbet_label_y + line_height,
+        indicator_color, style.font_family, style.label_font_size,
+        text_anchor, clearance_line
     ));
     svg.push('\n');
 
@@ -1915,13 +1989,26 @@ fn build_section_svg(
     let legend_end_x = legend_start_x + total_width;
 
     let content_bottom = geometry.bounds.bottom();
-    let legend_gap = style.label_font_size * 0.6;
+    let legend_gap = style.label_font_size * 0.4;  // Reduced to recover space for title
     let legend_y = content_bottom + legend_gap;
     let legend_bottom = legend_y + style.label_font_size * 1.2;
 
+    // =================================================================
+    // SELF-CENTERING: Calculate horizontal centering
+    // =================================================================
+    // Calculate the horizontal offset needed to center the actual content
+    // within the canvas. This dynamically adapts to content variations.
+    let content_center_x = (content_min_x + content_max_x) / 2.0;
+    let canvas_center_x = options.canvas_width / 2.0;
+    let center_offset_x = canvas_center_x - content_center_x;
+
+    // Calculate final actual bounds of the content after transform
+    let shifted_content_min_x = content_min_x + center_offset_x;
+    let shifted_content_max_x = content_max_x + center_offset_x;
+
     // Calculate final bounds including legend
-    let mut min_x = content_min_x.min(legend_start_x);
-    let mut max_x = content_max_x.max(legend_end_x);
+    let mut min_x = shifted_content_min_x.min(legend_start_x);
+    let mut max_x = shifted_content_max_x.max(legend_end_x);
     let mut min_y = content_min_y;
     let mut max_y = content_max_y.max(legend_bottom);
 
@@ -1939,38 +2026,36 @@ fn build_section_svg(
     // Replace fixed viewBox with dynamic one
     if let Some(viewbox_start) = svg.find("viewBox=\"") {
         let viewbox_end = svg[viewbox_start..].find('"').unwrap() + viewbox_start + 1;
-        let after_viewbox = svg[viewbox_end..].find('"').map(|i| viewbox_end + i).unwrap_or(svg.len());
+        
+        // Find closing quote of the attribute
+        if let Some(closing_quote_offset) = svg[viewbox_end..].find('"') {
+            let after_viewbox = viewbox_end + closing_quote_offset;
 
-        // Build new SVG with dynamic viewBox
-        let mut svg_with_dynamic_viewbox = String::new();
-        svg_with_dynamic_viewbox.push_str(&svg[..viewbox_start]);
-        svg_with_dynamic_viewbox.push_str(&format!(
-            "viewBox=\"{:.2} {:.2} {:.2} {:.2}\"",
-            min_x, min_y, viewbox_width, viewbox_height
-        ));
-        svg_with_dynamic_viewbox.push_str(&svg[after_viewbox..]);
-        svg = svg_with_dynamic_viewbox;
+            // Build new SVG with dynamic viewBox
+            let mut svg_with_dynamic_viewbox = String::new();
+            svg_with_dynamic_viewbox.push_str(&svg[..viewbox_start]);
+            svg_with_dynamic_viewbox.push_str(&format!(
+                "viewBox=\"{:.2} {:.2} {:.2} {:.2}\"",
+                min_x, min_y, viewbox_width, viewbox_height
+            ));
+            
+            // Skip the original closing quote since we added our own
+            if after_viewbox + 1 < svg.len() {
+                svg_with_dynamic_viewbox.push_str(&svg[after_viewbox + 1..]);
+            } else {
+                // End of string? Unlikely for valid SVG but safe fallback
+            }
+            svg = svg_with_dynamic_viewbox;
+        }
     }
-
-    // =================================================================
-    // SELF-CENTERING: Apply horizontal centering transform
-    // =================================================================
-    // Calculate the horizontal offset needed to center the actual content
-    // within the canvas. This dynamically adapts to content variations.
-    let _content_width = content_max_x - content_min_x;
-    let content_center_x = (content_min_x + content_max_x) / 2.0;
-    let canvas_center_x = options.canvas_width / 2.0;
-    let center_offset_x = canvas_center_x - content_center_x;
 
     // Build final SVG with centering transform wrapper
     let mut final_svg = String::new();
     
-    // Copy everything up to and including the background rect
-    // Find where the background rect ends (after "</rect>" for background)
-    if let Some(bg_end) = svg.find(r#"width="100%" height="100%"/>"#) {
-        // Find the end of that line
-        let bg_line_end = svg[bg_end..].find('\n').map(|i| bg_end + i + 1).unwrap_or(svg.len());
-        final_svg.push_str(&svg[..bg_line_end]);
+    // Copy everything up to the start of the geometry group
+    // We use "section-geometry" as the reliable anchor point since background rect is not present
+    if let Some(geom_start) = svg.find("<g id=\"section-geometry\">") {
+        final_svg.push_str(&svg[..geom_start]);
         
         // Add centering transform wrapper around the content
         final_svg.push_str(&format!(
@@ -1979,7 +2064,7 @@ fn build_section_svg(
         ));
         
         // Add the rest of the content (geometry and dimensions groups)
-        final_svg.push_str(&svg[bg_line_end..]);
+        final_svg.push_str(&svg[geom_start..]);
         
         // Close the centering wrapper
         final_svg.push_str("  </g>\n");
@@ -1996,10 +2081,11 @@ fn build_section_svg(
         style,
         options.canvas_width,
         options.canvas_height,
-        Some((content_min_x, content_max_x)),
+        Some((shifted_content_min_x, shifted_content_max_x)), // Use shifted bounds for legend centering
     ));
 
     final_svg.push_str("</svg>");
+    
     final_svg
 }
 
@@ -2052,8 +2138,7 @@ fn svg_interior_width_dimension(
     let ext_bottom = dim_y + 4.0; // Below dimension line
 
     // Estimate label width
-    let char_width = style.label_font_size * 0.6;
-    let label_width = callout.label.len() as f64 * char_width;
+    let label_width = estimate_text_width(&callout.label, style.label_font_size);
     let label_padding = 30.0;
     let min_span_for_label = label_width + label_padding;
 
@@ -2117,8 +2202,7 @@ fn svg_interior_width_dimension(
         svg.push('\n');
 
         // Label centered on the line with mask
-        let char_width = style.label_font_size * 0.55;
-        let label_text_width = callout.label.len() as f64 * char_width;
+        let label_text_width = estimate_text_width(&callout.label, style.label_font_size);
         let mask_padding = 4.0;
         let mask_width = label_text_width + mask_padding * 2.0;
         let mask_height = style.label_font_size + 4.0;
@@ -2166,8 +2250,7 @@ fn svg_interior_width_dimension(
 
         // Label centered on the line with mask
         let center_x = (left_x + right_x) / 2.0;
-        let char_width = style.label_font_size * 0.55;
-        let label_text_width = callout.label.len() as f64 * char_width;
+        let label_text_width = estimate_text_width(&callout.label, style.label_font_size);
         let mask_padding = 4.0;
         let mask_width = label_text_width + mask_padding * 2.0;
         let mask_height = style.label_font_size + 4.0;
@@ -2223,8 +2306,7 @@ fn svg_interior_height_dimension(
     let ext_right = dim_x + 4.0; // Right of dimension line
 
     // Estimate label height (for vertical text, width becomes height)
-    let char_width = style.label_font_size * 0.6;
-    let label_width = callout.label.len() as f64 * char_width;
+    let label_width = estimate_text_width(&callout.label, style.label_font_size);
     let label_padding = 30.0;
     let min_span_for_label = label_width + label_padding;
 
@@ -2288,8 +2370,7 @@ fn svg_interior_height_dimension(
         svg.push('\n');
 
         // Label centered on the line with mask, rotated 90°
-        let char_width = style.label_font_size * 0.55;
-        let label_text_width = callout.label.len() as f64 * char_width;
+        let label_text_width = estimate_text_width(&callout.label, style.label_font_size);
         let mask_padding = 4.0;
         let mask_width = label_text_width + mask_padding * 2.0;
         let mask_height = style.label_font_size + 4.0;
@@ -2339,8 +2420,7 @@ fn svg_interior_height_dimension(
 
         // Label centered on the line with mask, rotated 90°
         let center_y = (top_y + bottom_y) / 2.0;
-        let char_width = style.label_font_size * 0.55;
-        let label_text_width = callout.label.len() as f64 * char_width;
+        let label_text_width = estimate_text_width(&callout.label, style.label_font_size);
         let mask_padding = 4.0;
         let mask_width = label_text_width + mask_padding * 2.0;
         let mask_height = style.label_font_size + 4.0;
@@ -2596,8 +2676,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     // This creates a compact layout: |<--- Label --->|
 
     // Estimate label dimensions for masking
-    let char_width = style.label_font_size * 0.55;
-    let label_text_width = callout.callout.label.len() as f64 * char_width;
+    let label_text_width = estimate_text_width(&callout.callout.label, style.label_font_size);
     let mask_padding_x = 4.0;  // Horizontal padding around text
     let mask_padding_y = 2.0;  // Vertical padding around text
     let mask_width = label_text_width + mask_padding_x * 2.0;
@@ -2729,7 +2808,7 @@ fn generate_section_legend(
 
     // Position legend tightly below the content bounds
     let content_bottom = geometry.bounds.bottom();
-    let legend_gap = style.label_font_size * 0.6;  // Scale with label font size
+    let legend_gap = style.label_font_size * 0.4;  // Reduced to recover space for title  // Scale with label font size
     let legend_y = content_bottom + legend_gap;
 
     let mut current_x = start_x;
@@ -2760,23 +2839,37 @@ fn generate_title_block(
     let mut svg = String::new();
     svg.push_str("  <g id=\"title-block\">\n");
 
-    let title = "Frame Design";
-    let (outside_h, outside_w) = design.get_frame_outside_dimensions();
-    let subtitle = format!(
-        "{:.2}\" × {:.2}\" outside",
-        outside_h, outside_w
-    );
+    // Check if custom title is provided
+    let has_custom_title = options.title_text
+        .as_ref()
+        .map(|t| !t.trim().is_empty())
+        .unwrap_or(false);
+
+    let title = if has_custom_title {
+        html_escape(options.title_text.as_ref().unwrap().trim())
+    } else {
+        "Frame Design".to_string()
+    };
 
     svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="25" fill="{}" font-family="{}" font-size="{}" font-weight="bold">{}</text>"#,
+        r#"    <text x="{:.2}" y="30" fill="{}" font-family="{}" font-size="{}" font-weight="bold" text-anchor="middle">{}</text>"#,
         options.canvas_width / 2.0, style.line_color, style.font_family, style.title_font_size, title
     ));
     svg.push('\n');
-    svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="45" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">{}</text>"#,
-        options.canvas_width / 2.0, style.dimension_color, style.font_family, style.label_font_size, subtitle
-    ));
-    svg.push('\n');
+
+    // Only show subtitle (dimensions) when using default title
+    if !has_custom_title {
+        let (outside_h, outside_w) = design.get_frame_outside_dimensions();
+        let subtitle = format!(
+            "{:.2}\" × {:.2}\" outside",
+            outside_h, outside_w
+        );
+        svg.push_str(&format!(
+            r#"    <text x="{:.2}" y="70" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">{}</text>"#,
+            options.canvas_width / 2.0, style.dimension_color, style.font_family, style.label_font_size, subtitle
+        ));
+        svg.push('\n');
+    }
 
     svg.push_str("  </g>\n");
     svg

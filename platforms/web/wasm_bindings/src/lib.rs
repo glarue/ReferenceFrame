@@ -393,7 +393,9 @@ pub fn wasm_generate_plan_view_svg(
         canvas_width,
         canvas_height,
         include_title_block: false,
+        title_text: None,
         unit_mm,
+        use_tape_segments: false,
     };
 
     let result = generate_diagram(&design.inner, &options);
@@ -415,7 +417,9 @@ pub fn wasm_generate_section_view_svg(
         canvas_width,
         canvas_height,
         include_title_block: false,
+        title_text: None,
         unit_mm,
+        use_tape_segments: false,
     };
 
     let result = generate_diagram(&design.inner, &options);
@@ -431,18 +435,22 @@ pub fn wasm_generate_combined_view_svg(
     unit_mm: bool,
     include_title: bool,
 ) -> String {
-    wasm_generate_combined_view_svg_with_style(design, canvas_width, canvas_height, unit_mm, include_title, false)
+    wasm_generate_combined_view_svg_with_title(design, canvas_width, canvas_height, unit_mm, include_title, false, None)
 }
 
-/// Generate combined view SVG with optional PDF styling
+/// Generate combined view SVG with optional PDF styling and custom title
+///
+/// title_text: Optional custom title for the diagram (e.g., "Living Room Landscape")
+///             If None or empty, defaults to "Frame Design"
 #[wasm_bindgen(js_name = "generateCombinedViewSvgForPdf")]
-pub fn wasm_generate_combined_view_svg_with_style(
+pub fn wasm_generate_combined_view_svg_with_title(
     design: &WasmFrameDesign,
     canvas_width: f64,
     canvas_height: f64,
     unit_mm: bool,
     include_title: bool,
     for_pdf: bool,
+    title_text: Option<String>,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, DiagramStyle, ViewOption};
 
@@ -451,7 +459,9 @@ pub fn wasm_generate_combined_view_svg_with_style(
         canvas_width,
         canvas_height,
         include_title_block: include_title,
+        title_text,
         unit_mm,
+        use_tape_segments: false,
     };
 
     let style = if for_pdf {
