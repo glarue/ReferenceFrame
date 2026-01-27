@@ -271,7 +271,7 @@ fn generate_plan_view(
         style,
     );
 
-    let callouts = generate_plan_callouts(design, &geometry, options.unit_mm, options.use_tape_segments, style);
+    let callouts = generate_plan_callouts(design, &geometry, options.unit_mm, style);
     let layout = layout_plan_callouts(&callouts, &geometry, style);
 
     let svg = build_plan_svg(design, &geometry, &callouts, &layout, options, style);
@@ -295,7 +295,7 @@ fn generate_section_view(
         style,
     );
 
-    let callouts = generate_section_callouts(design, options.unit_mm, options.use_tape_segments);
+    let callouts = generate_section_callouts(design, options.unit_mm);
     let svg = build_section_svg(design, &geometry, &callouts, options, style);
 
     DiagramResult {
@@ -1846,7 +1846,7 @@ fn build_section_svg(
             let label = format!("{}: {}", m.name, format_value(m.thickness, unit));
             estimate_text_width(&label, style.label_font_size * 0.85)
         })
-        .fold(0.0_f64, |a, b| a.max(b));
+        .fold(0.0_f64, |a: f64, b: f64| a.max(b));
 
     // Position stack dimension with clearance from labels (reduced for compact layout)
     let stack_dim_x = label_base_x + max_label_width + 20.0;

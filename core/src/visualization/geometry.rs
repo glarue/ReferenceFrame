@@ -14,7 +14,7 @@ const LABEL_BUFFER: f64 = 2.0;
 const LABEL_FONT_OFFSET: f64 = 0.4;
 
 /// Helper to estimate text width based on character count and font size
-fn estimate_text_width(text: &str, font_size: f64) -> f64 {
+pub fn estimate_text_width(text: &str, font_size: f64) -> f64 {
     // Average character width is approximately 0.6x font size for proportional fonts
     text.len() as f64 * font_size * 0.6
 }
