@@ -10,7 +10,11 @@ const STORAGE_KEYS = {
     CONFIGS: 'frame_designer_saved_configs',
     CUSTOM_SIZES: 'frame_designer_custom_sizes',
     UNIT: 'frame_designer_unit',
-    SETTINGS: 'frame_designer_settings'
+    SETTINGS: 'frame_designer_settings',
+    THEME: 'frame_designer_theme',
+    CUSTOM_COLORS: 'frame_designer_custom_colors',
+    CUSTOM_DEFAULTS: 'frame_designer_custom_defaults',
+    DISPLAY_FORMAT: 'frame_designer_display_format'
 };
 
 /**
@@ -183,6 +187,215 @@ function loadUnitPreference() {
     } catch (e) {
         console.error('Error loading unit preference:', e);
         return 'inches';
+    }
+}
+
+// ============================================================================
+// Theme Management
+// ============================================================================
+
+/**
+ * Save theme preference
+ * @param {string} theme - 'system', 'light', or 'dark'
+ */
+function saveThemePreference(theme) {
+    try {
+        localStorage.setItem(STORAGE_KEYS.THEME, theme);
+    } catch (e) {
+        console.error('Error saving theme preference:', e);
+    }
+}
+
+/**
+ * Load theme preference
+ * @returns {string} 'system', 'light', or 'dark'
+ */
+function loadThemePreference() {
+    try {
+        return localStorage.getItem(STORAGE_KEYS.THEME) || 'system';
+    } catch (e) {
+        console.error('Error loading theme preference:', e);
+        return 'system';
+    }
+}
+
+/**
+ * Apply theme to document
+ * @param {string} theme - 'system', 'light', or 'dark'
+ */
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    saveThemePreference(theme);
+}
+
+/**
+ * Get the effective theme (resolves 'system' to actual theme)
+ * @returns {string} 'light' or 'dark'
+ */
+function getEffectiveTheme() {
+    const saved = loadThemePreference();
+    if (saved === 'system') {
+        return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    return saved;
+}
+
+// ============================================================================
+// Custom Colors Management
+// ============================================================================
+
+/**
+ * Load custom color overrides
+ * @returns {Object} Map of category -> colorName
+ */
+function loadCustomColors() {
+    try {
+        const json = localStorage.getItem(STORAGE_KEYS.CUSTOM_COLORS);
+        if (!json) return {};
+        return JSON.parse(json);
+    } catch (e) {
+        console.error('Error loading custom colors:', e);
+        return {};
+    }
+}
+
+/**
+ * Save custom color for a semantic category
+ * @param {string} category - e.g., 'primary', 'error', 'cutDimension'
+ * @param {string} colorName - e.g., 'blue', 'flagRed', 'teal'
+ */
+function saveCustomColor(category, colorName) {
+    try {
+        const colors = loadCustomColors();
+        colors[category] = colorName;
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_COLORS, JSON.stringify(colors));
+        return true;
+    } catch (e) {
+        console.error('Error saving custom color:', e);
+        return false;
+    }
+}
+
+/**
+ * Reset a custom color to factory default
+ * @param {string} category - Category to reset
+ */
+function resetCustomColor(category) {
+    try {
+        const colors = loadCustomColors();
+        delete colors[category];
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_COLORS, JSON.stringify(colors));
+        return true;
+    } catch (e) {
+        console.error('Error resetting custom color:', e);
+        return false;
+    }
+}
+
+/**
+ * Reset all custom colors
+ */
+function resetAllCustomColors() {
+    try {
+        localStorage.removeItem(STORAGE_KEYS.CUSTOM_COLORS);
+        return true;
+    } catch (e) {
+        console.error('Error resetting all custom colors:', e);
+        return false;
+    }
+}
+
+// ============================================================================
+// Custom Defaults Management
+// ============================================================================
+
+/**
+ * Load custom default values
+ * @returns {Object} Map of field -> value
+ */
+function loadCustomDefaults() {
+    try {
+        const json = localStorage.getItem(STORAGE_KEYS.CUSTOM_DEFAULTS);
+        if (!json) return {};
+        return JSON.parse(json);
+    } catch (e) {
+        console.error('Error loading custom defaults:', e);
+        return {};
+    }
+}
+
+/**
+ * Save a custom default value
+ * @param {string} field - Field name
+ * @param {number} value - Value in inches
+ */
+function saveCustomDefault(field, value) {
+    try {
+        const defaults = loadCustomDefaults();
+        defaults[field] = value;
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_DEFAULTS, JSON.stringify(defaults));
+        return true;
+    } catch (e) {
+        console.error('Error saving custom default:', e);
+        return false;
+    }
+}
+
+/**
+ * Reset a custom default to factory value
+ * @param {string} field - Field to reset
+ */
+function resetCustomDefault(field) {
+    try {
+        const defaults = loadCustomDefaults();
+        delete defaults[field];
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_DEFAULTS, JSON.stringify(defaults));
+        return true;
+    } catch (e) {
+        console.error('Error resetting custom default:', e);
+        return false;
+    }
+}
+
+/**
+ * Reset all custom defaults
+ */
+function resetAllCustomDefaults() {
+    try {
+        localStorage.removeItem(STORAGE_KEYS.CUSTOM_DEFAULTS);
+        return true;
+    } catch (e) {
+        console.error('Error resetting all custom defaults:', e);
+        return false;
+    }
+}
+
+// ============================================================================
+// Display Format Management
+// ============================================================================
+
+/**
+ * Save display format preference
+ * @param {string} format - 'fractions', 'decimal', or 'tape'
+ */
+function saveDisplayFormat(format) {
+    try {
+        localStorage.setItem(STORAGE_KEYS.DISPLAY_FORMAT, format);
+    } catch (e) {
+        console.error('Error saving display format:', e);
+    }
+}
+
+/**
+ * Load display format preference
+ * @returns {string} 'fractions', 'decimal', or 'tape'
+ */
+function loadDisplayFormat() {
+    try {
+        return localStorage.getItem(STORAGE_KEYS.DISPLAY_FORMAT) || 'fractions';
+    } catch (e) {
+        console.error('Error loading display format:', e);
+        return 'fractions';
     }
 }
 

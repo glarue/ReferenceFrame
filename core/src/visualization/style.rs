@@ -127,17 +127,28 @@ pub struct DiagramStyle {
 impl Default for DiagramStyle {
     fn default() -> Self {
         Self {
-            // Color palette matching PyScript UI design system
-            background_color: "#FFFFFF".to_string(),  // White
-            line_color: "#333333".to_string(),        // Dark gray for frame lines
-            dimension_color: "#277da1".to_string(),   // Cerulean (rf-primary-blue) - default
-            inside_dimension_color: "#43aa8b".to_string(),  // Seagrass (rf-seagrass) - inside dims
-            outside_dimension_color: "#577590".to_string(), // Blue-slate (rf-primary-blue-dark) - outside dims
-            mat_dimension_color: "#f3722c".to_string(),     // Warm orange - mat dimensions
-            artwork_dimension_color: "#9b5de5".to_string(), // Purple/violet - artwork dimensions
-            accent_color: "#43aa8b".to_string(),      // Seagrass (rf-seagrass)
-            warning_color: "#f94144".to_string(),     // Strawberry red (rf-error-red)
-            success_color: "#90be6d".to_string(),     // Willow green (rf-success-green)
+            // ================================================================
+            // Standardized 7-color palette (shared with Web CSS & Flutter)
+            // ================================================================
+            // Core palette (warm → cool gradient):
+            //   #f94144 Strawberry Red   - error/warning
+            //   #f3722c Atomic Tangerine - modified/changed
+            //   #f8961e Carrot Orange    - cut dimensions
+            //   #f9c74f Tuscan Sun       - warnings
+            //   #90be6d Willow Green     - success/material
+            //   #43aa8b Seagrass         - accent/incidental
+            //   #577590 Blue Slate       - primary
+            // ================================================================
+            background_color: "#FFFFFF".to_string(),        // White
+            line_color: "#333333".to_string(),              // Dark gray for frame lines
+            dimension_color: "#577590".to_string(),         // Blue Slate - primary/default
+            inside_dimension_color: "#43aa8b".to_string(),  // Seagrass - inside dims
+            outside_dimension_color: "#577590".to_string(), // Blue Slate - outside dims
+            mat_dimension_color: "#f3722c".to_string(),     // Atomic Tangerine - mat dimensions
+            artwork_dimension_color: "#f8961e".to_string(), // Carrot Orange - artwork dimensions
+            accent_color: "#43aa8b".to_string(),            // Seagrass - accent
+            warning_color: "#f94144".to_string(),           // Strawberry Red - error
+            success_color: "#90be6d".to_string(),           // Willow Green - success
 
             // Line weights
             frame_stroke_width: 2.5,

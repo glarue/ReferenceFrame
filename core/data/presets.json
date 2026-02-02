@@ -1,0 +1,141 @@
+{
+  "_comment": "Single source of truth for all platforms (presets, defaults, colors)",
+  "_sources": [
+    "Frame widths: https://framing4yourself.com/how-to-select-right-length-moulding/",
+    "Rabbet dimensions: https://framing4yourself.com/what-rabbet-depth/",
+    "Mat borders: https://www.framedestination.com/blog/mat-board/proper-mat-size-for-matting-an-image",
+    "Glazing: https://tru-vue.com/2021/09/6-types-of-picture-framing-glass-best-use-cases/",
+    "Mat board: https://www.framedestination.com/blog/mat-board/mat-board-thickness-explained",
+    "Backing: https://www.framedestination.com/blog/mount-board/what-type-of-foamcore-backing-board-to-use-2"
+  ],
+
+  "colors": {
+    "_comment": "Color palette (hex values without #). Based on harmonious warm-cool spectrum.",
+    "palette": {
+      "red": "F94144",
+      "red_orange": "F3722C",
+      "orange": "F8961E",
+      "yellow": "F9C74F",
+      "green": "90BE6D",
+      "teal": "43AA8B",
+      "blue": "577590"
+    },
+    "palette_light": {
+      "red": "FB8A8C",
+      "red_orange": "F7A675",
+      "orange": "FBBB6D",
+      "yellow": "FBDA8B",
+      "green": "B8D4A2",
+      "teal": "8AC9B5",
+      "blue": "94A7B8"
+    },
+    "palette_dark": {
+      "red": "AE2D2F",
+      "red_orange": "AA4F1E",
+      "orange": "AE6915",
+      "yellow": "AE8B37",
+      "green": "65854C",
+      "teal": "2F7761",
+      "blue": "3D5265"
+    },
+    "neutrals": {
+      "white": "FFFFFF",
+      "gray_lighter": "E0E0E0",
+      "gray_light": "B0B0B0",
+      "gray_medium": "808080",
+      "gray_dark": "404040",
+      "gray_darker": "202020",
+      "black": "000000"
+    },
+    "semantic": {
+      "_comment": "Semantic color assignments for consistent meaning across platforms",
+      "primary": "blue",
+      "primary_dark": "palette_dark.blue",
+      "secondary": "teal",
+      "secondary_dark": "palette_dark.teal",
+      "success": "green",
+      "warning": "orange",
+      "error": "red",
+      "modified": "9B59B6",
+      "custom_value": "teal"
+    }
+  },
+
+  "defaults": {
+    "_comment": "Default values for new frame designs. All dimensions in inches.",
+    "_units": "inches",
+
+    "_artwork_comment": "Default artwork: 12.5 x 18.75 inches (common medium format)",
+    "artwork_height": 12.5,
+    "artwork_width": 18.75,
+
+    "_mat_comment": "Mat enabled by default with 2 inch borders, 1/8 inch overlap onto artwork",
+    "include_mat": true,
+    "symmetrical_mat": true,
+    "mat_width": 2.0,
+    "mat_overlap": 0.125,
+
+    "_frame_comment": "3/4 inch frame stock (face width and depth), 3/8 inch rabbet",
+    "frame_material_width": 0.75,
+    "frame_material_depth": 0.75,
+    "rabbet_width": 0.375,
+    "rabbet_depth": 0.375,
+
+    "_materials_comment": "Standard thicknesses: 3/32 glass, 4-ply mat, photo paper, 1/8 backing",
+    "glazing_thickness": 0.093,
+    "matboard_thickness": 0.055,
+    "artwork_thickness": 0.008,
+    "backing_thickness": 0.125,
+
+    "_assembly_comment": "1/16 inch assembly clearance, 1/8 inch saw blade kerf",
+    "assembly_margin": 0.0625,
+    "blade_width": 0.125
+  },
+
+  "presets": {
+    "frame_face_width": {
+      "_comment": "3/4\"-1.25\" small, 1.5\"-2.25\" medium, 2.5\"+ large frames",
+      "values": [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]
+    },
+    "frame_depth": {
+      "_comment": "Moulding thickness front to back",
+      "values": [0.5, 0.75, 1.0, 1.25, 1.5]
+    },
+    "rabbet_width": {
+      "_comment": "1/4\" standard, 1/2\" professional",
+      "values": [0.25, 0.3125, 0.375, 0.5]
+    },
+    "rabbet_depth": {
+      "_comment": "3/8\" minimum, 1/2\" preferred, 3/4\"+ for canvas",
+      "values": [0.25, 0.375, 0.5, 0.625, 0.75]
+    },
+    "mat_width": {
+      "_comment": "1.5\"-3\" average, 4\"+ for larger artwork",
+      "values": [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+    },
+    "mat_overlap": {
+      "_comment": "1/8\" precision, 1/4\" standard",
+      "values": [0.125, 0.1875, 0.25]
+    },
+    "glazing": {
+      "_comment": "2mm glass, 3/32\" acrylic, museum glass, conservation acrylic",
+      "values": [0.079, 0.093, 0.098, 0.118, 0.125]
+    },
+    "matboard": {
+      "_comment": "2-ply thin, 4-ply standard, 6-ply medium, 8-ply premium",
+      "values": [0.040, 0.055, 0.080, 0.110]
+    },
+    "artwork": {
+      "_comment": "Paper weights: 4mil thin to 20mil heavy art paper",
+      "values": [0.004, 0.008, 0.011, 0.014, 0.020]
+    },
+    "backing": {
+      "_comment": "1/8\" standard (default), 3/16\" foamcore, 1/4\" heavy",
+      "values": [0.125, 0.1875, 0.25]
+    },
+    "assembly_margin": {
+      "_comment": "1/16\" tight, 1/8\" standard clearance",
+      "values": [0.0625, 0.125]
+    }
+  }
+}

@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260109-share-and-export-ux">
+    <link rel="stylesheet" href="./styles.css?v=20260127-pdf-title">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -48,6 +48,9 @@
                     <button id="btn-mm" onclick="setUnit('mm')">mm</button>
                 </div>
                 <button class="share-btn" onclick="shareDesign()">Share</button>
+                <button class="theme-btn" onclick="cycleTheme()" title="Toggle theme">
+                    <span id="theme-icon">🌙</span>
+                </button>
                 <button class="settings-btn" onclick="openSettingsModal()" title="Validation Settings">⚙️</button>
             </div>
         </div>
@@ -322,7 +325,8 @@
                 <div class="section">
                     <h2>
                         <span>Results</span>
-                        <div>
+                        <div class="results-actions">
+                            <input type="text" id="pdf-title" class="pdf-title-input" placeholder="PDF title (optional)">
                             <button class="reset-btn" onclick="loadDefaults()">Reset</button>
                             <button class="reset-btn" onclick="exportPdf()" id="export-pdf-btn">Export PDF</button>
                         </div>
@@ -358,19 +362,20 @@
         <div class="modal-overlay" id="settings-modal" onclick="closeSettingsModal(event)">
             <div class="modal settings-modal" onclick="event.stopPropagation()">
                 <div class="settings-header">
-                    <h3>Validation Settings</h3>
-                    <div class="settings-unit-toggle">
+                    <h3>Settings</h3>
+                    <div class="settings-unit-toggle" id="validation-unit-toggle">
                         <button id="cfg-btn-inches" class="active" onclick="switchSettingsUnit('inches')">in</button>
                         <button id="cfg-btn-mm" onclick="switchSettingsUnit('mm')">mm</button>
                     </div>
                 </div>
-                <p class="modal-description">Configure validation limits. Changes are saved automatically.</p>
-                
+                <p class="modal-description" id="settings-description">Configure validation limits. Changes are saved automatically.</p>
+
                 <div class="settings-tabs">
                     <button class="settings-tab active" data-tab="structural" onclick="switchSettingsTab('structural')">Structural</button>
                     <button class="settings-tab" data-tab="dimensions" onclick="switchSettingsTab('dimensions')">Dimensions</button>
                     <button class="settings-tab" data-tab="materials" onclick="switchSettingsTab('materials')">Materials</button>
                     <button class="settings-tab" data-tab="warnings" onclick="switchSettingsTab('warnings')">Warnings</button>
+                    <button class="settings-tab" data-tab="appearance" onclick="switchSettingsTab('appearance')">Appearance</button>
                 </div>
                 
                 <div class="settings-content" id="settings-content">
@@ -499,6 +504,57 @@
                             <small>Warn if ratio exceeds this (e.g., 10:1)</small>
                         </div>
                     </div>
+
+                    <!-- Appearance Tab -->
+                    <div class="settings-panel" id="panel-appearance">
+                        <!-- Theme Selection -->
+                        <div class="settings-group">
+                            <label>Theme</label>
+                            <div class="theme-selector">
+                                <button class="theme-option" data-theme="system" onclick="setThemeFromSettings('system')">
+                                    <span class="theme-icon">🔄</span>
+                                    <span>System</span>
+                                </button>
+                                <button class="theme-option" data-theme="light" onclick="setThemeFromSettings('light')">
+                                    <span class="theme-icon">☀️</span>
+                                    <span>Light</span>
+                                </button>
+                                <button class="theme-option" data-theme="dark" onclick="setThemeFromSettings('dark')">
+                                    <span class="theme-icon">🌙</span>
+                                    <span>Dark</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Display Format -->
+                        <div class="settings-group">
+                            <label>Display Format</label>
+                            <div class="format-selector">
+                                <button class="format-option" data-format="fractions" onclick="setDisplayFormat('fractions')">
+                                    <span>4 3/4"</span>
+                                    <small>Fractions</small>
+                                </button>
+                                <button class="format-option" data-format="decimal" onclick="setDisplayFormat('decimal')">
+                                    <span>4.75"</span>
+                                    <small>Decimal</small>
+                                </button>
+                                <button class="format-option" data-format="tape" onclick="setDisplayFormat('tape')">
+                                    <span>4 - 3/4</span>
+                                    <small>Tape</small>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Color Customization -->
+                        <div class="settings-group">
+                            <label>Color Customization</label>
+                            <small>Click a color swatch to customize</small>
+                            <div class="color-categories" id="color-categories">
+                                <!-- Generated by JavaScript -->
+                            </div>
+                            <button class="secondary reset-colors-btn" onclick="resetAllColors()">Reset All Colors</button>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="modal-buttons">
@@ -516,6 +572,7 @@
             WasmFrameDesign,
             formatValue,
             formatValueWithDecimal,
+            formatValueTapeMeasure,
             inchesToMm,
             mmToInches,
             getDefaults,
@@ -531,7 +588,7 @@
             validateDesign,
             DimensionInput,
             decimalToFraction
-        } from './pkg/referenceframe_wasm.js?v=20260109-share-and-export-ux';
+        } from './pkg/referenceframe_wasm.js?v=20260127-display-format';
 
         console.log('WASM imports successful');
 
@@ -575,10 +632,56 @@
         let validationConfig = null;
         let typicalRanges = null;
         let settingsUnit = 'inches';  // Unit for displaying settings values
+        let currentTheme = 'system';  // Theme preference: 'system', 'light', 'dark'
 
         // localStorage keys
         const STORAGE_KEY_CONFIG = 'referenceframe_validation_config';
         const STORAGE_KEY_SETTINGS_UNIT = 'referenceframe_settings_unit';
+
+        // ============================================================================
+        // Theme Management
+        // ============================================================================
+
+        // Initialize theme immediately (before WASM loads) to prevent flash
+        (function initTheme() {
+            currentTheme = loadThemePreference();
+            applyTheme(currentTheme);
+            updateThemeIcon();
+        })();
+
+        function updateThemeIcon() {
+            const icon = document.getElementById('theme-icon');
+            if (!icon) return;
+
+            const effective = getEffectiveTheme();
+            if (currentTheme === 'system') {
+                icon.textContent = '🔄';  // Auto/system
+                icon.title = `Theme: System (${effective})`;
+            } else if (currentTheme === 'light') {
+                icon.textContent = '☀️';  // Light
+                icon.title = 'Theme: Light';
+            } else {
+                icon.textContent = '🌙';  // Dark
+                icon.title = 'Theme: Dark';
+            }
+        }
+
+        window.cycleTheme = function() {
+            // Cycle: system → light → dark → system
+            const themes = ['system', 'light', 'dark'];
+            const currentIndex = themes.indexOf(currentTheme);
+            currentTheme = themes[(currentIndex + 1) % themes.length];
+            applyTheme(currentTheme);
+            updateThemeIcon();
+            console.log('Theme changed to:', currentTheme);
+        };
+
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+            if (currentTheme === 'system') {
+                updateThemeIcon();
+            }
+        });
 
         // Map of input IDs to DimensionInput instances
         const dimensions = {};
@@ -753,6 +856,9 @@
             setupSettingsListeners();
             updateLabels();
             updateRangeSubtitles();
+
+            // Initialize custom colors
+            initCustomColors();
 
             const version = getWasmVersion();
             console.log('WASM version:', version);
@@ -1298,7 +1404,7 @@
                 html += `<div class="data-grid">`;
                 html += `<div class="data-item incidental">`;
                 html += `<span class="data-label">Dimensions</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(artworkHeight, unitMm)} × ${formatValueWithDecimal(artworkWidth, unitMm)}</span>`;
+                html += `<span class="data-value">${formatDisplay(artworkHeight, unitMm)} × ${formatDisplay(artworkWidth, unitMm)}</span>`;
                 html += `</div>`;
                 html += `</div>`;
                 html += `</div>`;
@@ -1323,7 +1429,7 @@
                     html += `<div class="cut-list-row">`;
                     html += `<span>${p.quantity}</span>`;
                     html += `<span>Top & Bottom</span>`;
-                    html += `<span>${formatValueWithDecimal(p.outside_length, unitMm)}</span>`;
+                    html += `<span>${formatDisplay(p.outside_length, unitMm)}</span>`;
                     html += `</div>`;
                 }
                 if (cutList.vertical_pieces && cutList.vertical_pieces.length > 0) {
@@ -1331,14 +1437,14 @@
                     html += `<div class="cut-list-row">`;
                     html += `<span>${p.quantity}</span>`;
                     html += `<span>Left & Right</span>`;
-                    html += `<span>${formatValueWithDecimal(p.outside_length, unitMm)}</span>`;
+                    html += `<span>${formatDisplay(p.outside_length, unitMm)}</span>`;
                     html += `</div>`;
                 }
 
                 // Footer with total
                 html += `<div class="cut-list-footer">`;
                 html += `<span>Total Wood Length</span>`;
-                html += `<span>${formatValueWithDecimal(totalWood, unitMm)}</span>`;
+                html += `<span>${formatDisplay(totalWood, unitMm)}</span>`;
                 html += `</div>`;
 
                 html += `</div>`; // Close cut-list-table
@@ -1358,20 +1464,20 @@
                 html += `<tbody>`;
                 html += `<tr class="cut-dimension-row">`;
                 html += `<td>Outside</td>`;
-                html += `<td>${formatValueWithDecimal(outsideH, unitMm)}</td>`;
-                html += `<td>${formatValueWithDecimal(outsideW, unitMm)}</td>`;
+                html += `<td>${formatDisplay(outsideH, unitMm)}</td>`;
+                html += `<td>${formatDisplay(outsideW, unitMm)}</td>`;
                 html += `</tr>`;
                 html += `<tr class="incidental-row">`;
                 html += `<td>Inside</td>`;
-                html += `<td>${formatValueWithDecimal(insideH, unitMm)}</td>`;
-                html += `<td>${formatValueWithDecimal(insideW, unitMm)}</td>`;
+                html += `<td>${formatDisplay(insideH, unitMm)}</td>`;
+                html += `<td>${formatDisplay(insideW, unitMm)}</td>`;
                 html += `</tr>`;
                 html += `</tbody>`;
                 html += `</table>`;
                 html += `<div class="data-grid" style="margin-top: 12px; padding: 0;">`;
                 html += `<div class="data-item">`;
                 html += `<span class="data-label">Material Width</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(frameWidth, unitMm)}</span>`;
+                html += `<span class="data-value">${formatDisplay(frameWidth, unitMm)}</span>`;
                 html += `</div>`;
                 html += `</div>`;
                 html += `</div>`;
@@ -1396,13 +1502,13 @@
                     html += `<tbody>`;
                     html += `<tr class="cut-dimension-row">`;
                     html += `<td>Outside</td>`;
-                    html += `<td>${formatValueWithDecimal(matH, unitMm)}</td>`;
-                    html += `<td>${formatValueWithDecimal(matW, unitMm)}</td>`;
+                    html += `<td>${formatDisplay(matH, unitMm)}</td>`;
+                    html += `<td>${formatDisplay(matW, unitMm)}</td>`;
                     html += `</tr>`;
                     html += `<tr class="incidental-row">`;
                     html += `<td>Inside</td>`;
-                    html += `<td>${formatValueWithDecimal(matOpenH, unitMm)}</td>`;
-                    html += `<td>${formatValueWithDecimal(matOpenW, unitMm)}</td>`;
+                    html += `<td>${formatDisplay(matOpenH, unitMm)}</td>`;
+                    html += `<td>${formatDisplay(matOpenW, unitMm)}</td>`;
                     html += `</tr>`;
                     html += `</tbody>`;
                     html += `</table>`;
@@ -1415,29 +1521,29 @@
                     if (separateBordersEnabled && matWidthsDiffer) {
                         html += `<div class="data-item incidental">`;
                         html += `<span class="data-label">Visual Width (T/B)</span>`;
-                        html += `<span class="data-value">${formatValueWithDecimal(matWidthTopBottom, unitMm)}</span>`;
+                        html += `<span class="data-value">${formatDisplay(matWidthTopBottom, unitMm)}</span>`;
                         html += `</div>`;
                         html += `<div class="data-item incidental">`;
                         html += `<span class="data-label">Visual Width (L/R)</span>`;
-                        html += `<span class="data-value">${formatValueWithDecimal(matWidthSides, unitMm)}</span>`;
+                        html += `<span class="data-value">${formatDisplay(matWidthSides, unitMm)}</span>`;
                         html += `</div>`;
                         html += `<div class="data-item cut-dimension">`;
                         html += `<span class="data-label">Cut Width (T/B)</span>`;
-                        html += `<span class="data-value">${formatValueWithDecimal(matCutTB, unitMm)}</span>`;
+                        html += `<span class="data-value">${formatDisplay(matCutTB, unitMm)}</span>`;
                         html += `</div>`;
                         html += `<div class="data-item cut-dimension">`;
                         html += `<span class="data-label">Cut Width (L/R)</span>`;
-                        html += `<span class="data-value">${formatValueWithDecimal(matCutLR, unitMm)}</span>`;
+                        html += `<span class="data-value">${formatDisplay(matCutLR, unitMm)}</span>`;
                         html += `</div>`;
                     } else {
                         // Symmetrical mat - show single values
                         html += `<div class="data-item incidental">`;
                         html += `<span class="data-label">Visual Width</span>`;
-                        html += `<span class="data-value">${formatValueWithDecimal(matWidthTopBottom, unitMm)}</span>`;
+                        html += `<span class="data-value">${formatDisplay(matWidthTopBottom, unitMm)}</span>`;
                         html += `</div>`;
                         html += `<div class="data-item cut-dimension">`;
                         html += `<span class="data-label">Cut Width</span>`;
-                        html += `<span class="data-value">${formatValueWithDecimal(matCutTB, unitMm)}</span>`;
+                        html += `<span class="data-value">${formatDisplay(matCutTB, unitMm)}</span>`;
                         html += `</div>`;
                     }
 
@@ -1453,7 +1559,7 @@
 
                 // Format values, removing redundant decimals when fraction = decimal
                 const formatNonRedundant = (value, isUnitMm) => {
-                    const formatted = formatValueWithDecimal(value, isUnitMm);
+                    const formatted = formatDisplay(value, isUnitMm);
                     // Remove redundant decimal: "0.35 (0.35")" -> "0.35""
                     // Works for both decimals and fractions: "3/8 (3/8")" -> "3/8""
                     return formatted.replace(/^(.+?) \(\1([^)]*)\)$/, '$1$2');
@@ -1537,9 +1643,9 @@
                 const clearanceAbs = Math.abs(clearance);
                 html += `<div class="depth-status">`;
                 if (hasShortfall) {
-                    html += `<span class="depth-status-warning">⚠️ Shortfall: ${formatValueWithDecimal(clearanceAbs, unitMm)} (offset clips required)</span>`;
+                    html += `<span class="depth-status-warning">⚠️ Shortfall: ${formatDisplay(clearanceAbs, unitMm)} (offset clips required)</span>`;
                 } else {
-                    html += `<span class="depth-status-success">Clearance: ${formatValueWithDecimal(clearanceAbs, unitMm)}</span>`;
+                    html += `<span class="depth-status-success">Clearance: ${formatDisplay(clearanceAbs, unitMm)}</span>`;
                 }
                 html += `</div>`;
 
@@ -1556,25 +1662,25 @@
                 const frameModified = isModified(frameWidth, defaults.frameWidth) || isModified(frameDepth, defaults.frameDepth);
                 html += `<div class="data-item${frameModified ? ' modified' : ''}">`;
                 html += `<span class="data-label">Frame Material</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(frameWidth, unitMm)} × ${formatValueWithDecimal(frameDepth, unitMm)}</span>`;
+                html += `<span class="data-value">${formatDisplay(frameWidth, unitMm)} × ${formatDisplay(frameDepth, unitMm)}</span>`;
                 html += `</div>`;
                 // Rabbet - check both width and depth
                 const rabbetModified = isModified(rabbetWidth, defaults.rabbet_width) || isModified(rabbetDepth, defaults.rabbet_depth);
                 html += `<div class="data-item cut-dimension${rabbetModified ? ' modified' : ''}">`;
                 html += `<span class="data-label">Rabbet</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(rabbetWidth, unitMm)} × ${formatValueWithDecimal(rabbetDepth, unitMm)}</span>`;
+                html += `<span class="data-value">${formatDisplay(rabbetWidth, unitMm)} × ${formatDisplay(rabbetDepth, unitMm)}</span>`;
                 html += `</div>`;
                 // Assembly Margin
                 const marginModified = isModified(assemblyMargin, defaults.assemblyMargin);
                 html += `<div class="data-item${marginModified ? ' modified' : ''}">`;
                 html += `<span class="data-label">Assembly Margin</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(assemblyMargin, unitMm)}</span>`;
+                html += `<span class="data-value">${formatDisplay(assemblyMargin, unitMm)}</span>`;
                 html += `</div>`;
                 // Blade Width
                 const bladeModified = isModified(bladeWidth, defaults.bladeWidth);
                 html += `<div class="data-item${bladeModified ? ' modified' : ''}">`;
                 html += `<span class="data-label">Blade Width (kerf)</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(bladeWidth, unitMm)}</span>`;
+                html += `<span class="data-value">${formatDisplay(bladeWidth, unitMm)}</span>`;
                 html += `</div>`;
                 html += `</div>`;
                 html += `</div>`;
@@ -1590,27 +1696,27 @@
                 const glazingModified = isModified(glazingThickness, defaults.glazingThickness);
                 html += `<div class="data-item material-property${glazingModified ? ' modified' : ''}">`;
                 html += `<span class="data-label">Glazing</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(glazingThickness, unitMm)}</span>`;
+                html += `<span class="data-value">${formatDisplay(glazingThickness, unitMm)}</span>`;
                 html += `</div>`;
                 if (includeMat) {
                     // Matboard
                     const matboardModified = isModified(matboardThickness, defaults.matboardThickness);
                     html += `<div class="data-item material-property${matboardModified ? ' modified' : ''}">`;
                     html += `<span class="data-label">Matboard</span>`;
-                    html += `<span class="data-value">${formatValueWithDecimal(matboardThickness, unitMm)}</span>`;
+                    html += `<span class="data-value">${formatDisplay(matboardThickness, unitMm)}</span>`;
                     html += `</div>`;
                 }
                 // Artwork
                 const artworkThicknessModified = isModified(artworkThickness, defaults.artworkThickness);
                 html += `<div class="data-item material-property${artworkThicknessModified ? ' modified' : ''}">`;
                 html += `<span class="data-label">Artwork</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(artworkThickness, unitMm)}</span>`;
+                html += `<span class="data-value">${formatDisplay(artworkThickness, unitMm)}</span>`;
                 html += `</div>`;
                 // Backing
                 const backingModified = isModified(backingThickness, defaults.backingThickness);
                 html += `<div class="data-item material-property${backingModified ? ' modified' : ''}">`;
                 html += `<span class="data-label">Backing</span>`;
-                html += `<span class="data-value">${formatValueWithDecimal(backingThickness, unitMm)}</span>`;
+                html += `<span class="data-value">${formatDisplay(backingThickness, unitMm)}</span>`;
                 html += `</div>`;
                 html += `</div>`;
                 html += `</div>`;
@@ -1873,7 +1979,251 @@
             document.querySelectorAll('.settings-panel').forEach(panel => {
                 panel.classList.toggle('active', panel.id === `panel-${tabName}`);
             });
+
+            // Show/hide unit toggle based on tab (only for validation tabs)
+            const unitToggle = document.getElementById('validation-unit-toggle');
+            const description = document.getElementById('settings-description');
+            if (tabName === 'appearance') {
+                unitToggle.style.display = 'none';
+                description.textContent = 'Customize the look and feel of the application.';
+                populateAppearanceTab();
+            } else {
+                unitToggle.style.display = 'flex';
+                description.textContent = 'Configure validation limits. Changes are saved automatically.';
+            }
         };
+
+        // ============================================================================
+        // Appearance Tab Functions
+        // ============================================================================
+
+        // Semantic color categories with their default mappings
+        const SEMANTIC_CATEGORIES = [
+            { key: 'primary', name: 'Primary', desc: 'Main buttons, navigation', default: 'blue' },
+            { key: 'secondary', name: 'Secondary', desc: 'Section headers, accents', default: 'teal' },
+            { key: 'success', name: 'Success', desc: 'Depth clearance OK', default: 'green' },
+            { key: 'warning', name: 'Warning', desc: 'Active toggles, caution', default: 'orange' },
+            { key: 'error', name: 'Error', desc: 'Depth shortfall, delete', default: 'flagRed' },
+            { key: 'modified', name: 'Modified', desc: 'Customized values', default: 'yellow' },
+            { key: 'cutDimension', name: 'Cut Dimension', desc: 'Measurements to cut', default: 'redOrange' },
+            { key: 'incidental', name: 'Incidental', desc: 'Reference dimensions', default: 'darkCyan' },
+            { key: 'materialProperty', name: 'Material', desc: 'Material info', default: 'airForceBlue' },
+        ];
+
+        // 10-color palette (warm → cool)
+        const COLOR_PALETTE = [
+            { name: 'flagRed', display: 'Flag Red', hex: '#d52023' },
+            { name: 'red', display: 'Strawberry', hex: '#f94144' },
+            { name: 'redOrange', display: 'Tangerine', hex: '#f3722c' },
+            { name: 'orange', display: 'Carrot', hex: '#f8961e' },
+            { name: 'yellow', display: 'Tuscan Sun', hex: '#f9c74f' },
+            { name: 'green', display: 'Willow', hex: '#90be6d' },
+            { name: 'teal', display: 'Seagrass', hex: '#43aa8b' },
+            { name: 'darkCyan', display: 'Dark Cyan', hex: '#478583' },
+            { name: 'blue', display: 'Slate', hex: '#577590' },
+            { name: 'airForceBlue', display: 'Air Force', hex: '#7890a5' },
+        ];
+
+        let currentDisplayFormat = 'fractions';
+        let colorPickerTarget = null;
+
+        function populateAppearanceTab() {
+            // Load current format
+            currentDisplayFormat = loadDisplayFormat();
+
+            // Update theme buttons
+            document.querySelectorAll('.theme-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.theme === currentTheme);
+            });
+
+            // Update format buttons
+            document.querySelectorAll('.format-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.format === currentDisplayFormat);
+            });
+
+            // Populate color categories
+            populateColorCategories();
+        }
+
+        function populateColorCategories() {
+            const container = document.getElementById('color-categories');
+            const customColors = loadCustomColors();
+
+            container.innerHTML = SEMANTIC_CATEGORIES.map(cat => {
+                const currentColor = customColors[cat.key] || cat.default;
+                const colorInfo = COLOR_PALETTE.find(c => c.name === currentColor) || COLOR_PALETTE.find(c => c.name === cat.default);
+                const isCustomized = !!customColors[cat.key];
+
+                return `
+                    <div class="color-category-row">
+                        <div class="color-category-info">
+                            <div class="color-category-name">${cat.name}</div>
+                            <div class="color-category-desc">${cat.desc}</div>
+                        </div>
+                        <button class="color-swatch-btn ${isCustomized ? 'customized' : ''}"
+                                style="background: ${colorInfo.hex}"
+                                onclick="openColorPicker('${cat.key}', this)"
+                                title="${colorInfo.display}">
+                        </button>
+                        <button class="color-reset-btn"
+                                onclick="resetColor('${cat.key}')"
+                                ${!isCustomized ? 'disabled' : ''}
+                                title="Reset to default">↺</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.setThemeFromSettings = function(theme) {
+            currentTheme = theme;
+            applyTheme(theme);
+            updateThemeIcon();
+            document.querySelectorAll('.theme-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.theme === theme);
+            });
+        };
+
+        window.setDisplayFormat = function(format) {
+            currentDisplayFormat = format;
+            saveDisplayFormat(format);
+            document.querySelectorAll('.format-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.format === format);
+            });
+            // Recalculate to update display
+            if (wasmLoaded) {
+                calculate();
+            }
+        };
+
+        // Format a value according to current display format preference
+        function formatDisplay(value, unitMm) {
+            switch (currentDisplayFormat) {
+                case 'decimal':
+                    return formatDisplay(value, unitMm);
+                case 'tape':
+                    return formatValueTapeMeasure(value, unitMm);
+                case 'fractions':
+                default:
+                    return formatValue(value, unitMm);
+            }
+        }
+
+        window.openColorPicker = function(category, buttonEl) {
+            // Remove existing picker
+            const existing = document.querySelector('.color-picker-popup');
+            if (existing) existing.remove();
+
+            colorPickerTarget = category;
+            const customColors = loadCustomColors();
+            const catInfo = SEMANTIC_CATEGORIES.find(c => c.key === category);
+            const currentColor = customColors[category] || catInfo.default;
+
+            // Create picker popup
+            const popup = document.createElement('div');
+            popup.className = 'color-picker-popup visible';
+            popup.innerHTML = `
+                <div class="color-picker-grid">
+                    ${COLOR_PALETTE.map(c => `
+                        <button class="color-picker-swatch ${c.name === currentColor ? 'selected' : ''}"
+                                style="background: ${c.hex}"
+                                onclick="selectColor('${category}', '${c.name}')"
+                                title="${c.display}">
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+
+            // Position near the button
+            const rect = buttonEl.getBoundingClientRect();
+            popup.style.top = `${rect.bottom + 8}px`;
+            popup.style.left = `${Math.max(8, rect.left - 80)}px`;
+
+            document.body.appendChild(popup);
+
+            // Close on outside click
+            setTimeout(() => {
+                document.addEventListener('click', closeColorPickerOnOutsideClick);
+            }, 10);
+        };
+
+        function closeColorPickerOnOutsideClick(e) {
+            const popup = document.querySelector('.color-picker-popup');
+            if (popup && !popup.contains(e.target) && !e.target.classList.contains('color-swatch-btn')) {
+                popup.remove();
+                document.removeEventListener('click', closeColorPickerOnOutsideClick);
+            }
+        }
+
+        window.selectColor = function(category, colorName) {
+            const catInfo = SEMANTIC_CATEGORIES.find(c => c.key === category);
+            if (colorName === catInfo.default) {
+                // If selecting default, just reset
+                resetCustomColor(category);
+            } else {
+                saveCustomColor(category, colorName);
+            }
+
+            // Apply the color to CSS
+            applyCustomColors();
+
+            // Update UI
+            populateColorCategories();
+
+            // Close picker
+            const popup = document.querySelector('.color-picker-popup');
+            if (popup) popup.remove();
+            document.removeEventListener('click', closeColorPickerOnOutsideClick);
+        };
+
+        window.resetColor = function(category) {
+            resetCustomColor(category);
+            applyCustomColors();
+            populateColorCategories();
+        };
+
+        window.resetAllColors = function() {
+            if (confirm('Reset all colors to defaults?')) {
+                resetAllCustomColors();
+                applyCustomColors();
+                populateColorCategories();
+            }
+        };
+
+        // Apply custom colors to CSS variables
+        function applyCustomColors() {
+            const customColors = loadCustomColors();
+            const root = document.documentElement;
+
+            SEMANTIC_CATEGORIES.forEach(cat => {
+                const colorName = customColors[cat.key] || cat.default;
+                const colorInfo = COLOR_PALETTE.find(c => c.name === colorName);
+                if (colorInfo) {
+                    // Map category key to CSS variable name
+                    const cssVarName = getCssVarName(cat.key);
+                    root.style.setProperty(cssVarName, colorInfo.hex);
+                }
+            });
+        }
+
+        function getCssVarName(categoryKey) {
+            const mapping = {
+                'primary': '--rf-primary',
+                'secondary': '--rf-secondary',
+                'success': '--rf-success',
+                'warning': '--rf-warning',
+                'error': '--rf-error',
+                'modified': '--rf-modified',
+                'cutDimension': '--rf-cut-dimension',
+                'incidental': '--rf-incidental',
+                'materialProperty': '--rf-material-property',
+            };
+            return mapping[categoryKey] || `--rf-${categoryKey}`;
+        }
+
+        // Initialize custom colors on page load
+        function initCustomColors() {
+            applyCustomColors();
+        }
 
         function populateSettingsModal() {
             if (!validationConfig) {
@@ -2171,7 +2521,10 @@
                 // Use square canvas (1:1) to maximize use of portrait PDF page
                 const unitMm = currentUnit === 'mm';
                 console.log('[PDF] Using WASM version:', getWasmVersion());
-                let svgString = generateCombinedViewSvgForPdf(currentDesign, 1200, 1200, unitMm, false, true);
+
+                // Get custom title from input (empty string means use default "Frame Design")
+                const customTitle = document.getElementById('pdf-title').value.trim() || null;
+                let svgString = generateCombinedViewSvgForPdf(currentDesign, 1200, 1200, unitMm, true, true, customTitle);
 
                 // Debug: Check for mat cut offset comments
                 const hasMatCutComments = svgString.includes('Dimension type: MatCut');
@@ -2410,6 +2763,9 @@
                 // Generate and add QR code
                 await addQrCode(pdf);
 
+                // Add footer
+                addPdfFooter(pdf);
+
                 // Download PDF
                 const timestamp = new Date().toISOString().slice(0, 10);
                 pdf.save(`frame_design_${timestamp}.pdf`);
@@ -2534,17 +2890,17 @@
             // '12"' → '12', '3/8 (0.38)"' → '3/8 (0.38)', '254 mm' → '254', '254 (254.5) mm' → '254 (254.5)'
             const stripUnit = (s) => s.replace(/"$/, '').replace(/ mm$/, '');
 
-            const artHeight = formatValueWithDecimal(currentDesign.artworkHeight, useMm);
-            const artWidth = formatValueWithDecimal(currentDesign.artworkWidth, useMm);
+            const artHeight = formatDisplay(currentDesign.artworkHeight, useMm);
+            const artWidth = formatDisplay(currentDesign.artworkWidth, useMm);
             addText(`${stripUnit(artHeight)} × ${stripUnit(artWidth)}${unit}`, 1);
             addSpace(1);
 
             addHeader('Frame', 1);
             const [outsideH, outsideW] = currentDesign.getFrameOutsideDimensions();
             const [insideH, insideW] = currentDesign.getFrameInsideDimensions();
-            addLabelValue('Outside:', `${stripUnit(formatValueWithDecimal(outsideH, useMm))} × ${stripUnit(formatValueWithDecimal(outsideW, useMm))}${unit}`, 1);
-            addLabelValue('Inside:', `${stripUnit(formatValueWithDecimal(insideH, useMm))} × ${stripUnit(formatValueWithDecimal(insideW, useMm))}${unit}`, 1);
-            addLabelValue('Frame Material:', `${stripUnit(formatValueWithDecimal(currentDesign.frameWidth, useMm))} × ${stripUnit(formatValueWithDecimal(currentDesign.frameDepth, useMm))}${unit}`, 1);
+            addLabelValue('Outside:', `${stripUnit(formatDisplay(outsideH, useMm))} × ${stripUnit(formatDisplay(outsideW, useMm))}${unit}`, 1);
+            addLabelValue('Inside:', `${stripUnit(formatDisplay(insideH, useMm))} × ${stripUnit(formatDisplay(insideW, useMm))}${unit}`, 1);
+            addLabelValue('Frame Material:', `${stripUnit(formatDisplay(currentDesign.frameWidth, useMm))} × ${stripUnit(formatDisplay(currentDesign.frameDepth, useMm))}${unit}`, 1);
             addSpace(1);
 
             addHeader('Cut List', 1);
@@ -2552,18 +2908,18 @@
             const cutList = JSON.parse(cutListJson);
             if (cutList.horizontal_pieces && cutList.horizontal_pieces.length > 0) {
                 const p = cutList.horizontal_pieces[0];
-                addLabelValue('Top/Bottom:', `${formatValueWithDecimal(p.outside_length, useMm)} (×${p.quantity})`, 1, 'orange', true);
+                addLabelValue('Top/Bottom:', `${formatDisplay(p.outside_length, useMm)} (×${p.quantity})`, 1, 'orange', true);
             }
             if (cutList.vertical_pieces && cutList.vertical_pieces.length > 0) {
                 const p = cutList.vertical_pieces[0];
-                addLabelValue('Left/Right:', `${formatValueWithDecimal(p.outside_length, useMm)} (×${p.quantity})`, 1, 'orange', true);
+                addLabelValue('Left/Right:', `${formatDisplay(p.outside_length, useMm)} (×${p.quantity})`, 1, 'orange', true);
             }
             addSpace(1);
 
             addHeader('Material', 1);
             const errorMargin = 0.0625;
             const totalWood = currentDesign.getTotalWoodLength(bladeWidth, errorMargin);
-            addLabelValue('Total:', `${formatValueWithDecimal(totalWood, useMm)}`, 1, 'cerulean', true);
+            addLabelValue('Total:', `${formatDisplay(totalWood, useMm)}`, 1, 'cerulean', true);
             addText(`(w/ blade width)`, 1, 'gray');
 
             // === COLUMN 2: Matboard, Rabbet, Specs (12 lines with mat, 6 without) ===
@@ -2581,42 +2937,42 @@
                 // Use average for display (most informative for asymmetric mats)
                 const matWidthAvg = (matWidthTopBottom + matWidthSides) / 2;
 
-                addLabelValue('Full Size:', `${stripUnit(formatValueWithDecimal(matH, useMm))} × ${stripUnit(formatValueWithDecimal(matW, useMm))}${unit}`, 2);
-                addLabelValue('Opening:', `${stripUnit(formatValueWithDecimal(matOpenH, useMm))} × ${stripUnit(formatValueWithDecimal(matOpenW, useMm))}${unit}`, 2);
-                addLabelValue('Visual Width:', `${formatValueWithDecimal(matWidthAvg, useMm)} (avg)`, 2);
-                addLabelValue('Overlap:', `${formatValueWithDecimal(matOverlap, useMm)}`, 2);
+                addLabelValue('Full Size:', `${stripUnit(formatDisplay(matH, useMm))} × ${stripUnit(formatDisplay(matW, useMm))}${unit}`, 2);
+                addLabelValue('Opening:', `${stripUnit(formatDisplay(matOpenH, useMm))} × ${stripUnit(formatDisplay(matOpenW, useMm))}${unit}`, 2);
+                addLabelValue('Visual Width:', `${formatDisplay(matWidthAvg, useMm)} (avg)`, 2);
+                addLabelValue('Overlap:', `${formatDisplay(matOverlap, useMm)}`, 2);
                 addSpace(2);
             }
 
             addHeader('Rabbet', 2);
-            addLabelValue('Width (x-axis):', `${formatValueWithDecimal(currentDesign.rabbet_width, useMm)}`, 2);
-            addLabelValue('Depth (z-axis):', `${formatValueWithDecimal(currentDesign.rabbet_depth, useMm)}`, 2);
+            addLabelValue('Width (x-axis):', `${formatDisplay(currentDesign.rabbet_width, useMm)}`, 2);
+            addLabelValue('Depth (z-axis):', `${formatDisplay(currentDesign.rabbet_depth, useMm)}`, 2);
             addSpace(2);
 
             addHeader('Specs', 2);
             const assemblyMargin = getDimensionValue('assembly-margin');
-            addLabelValue('Assembly Margin:', `${formatValueWithDecimal(assemblyMargin, useMm)}`, 2);
-            addLabelValue('Blade Width:', `${formatValueWithDecimal(bladeWidth, useMm)}`, 2);
+            addLabelValue('Assembly Margin:', `${formatDisplay(assemblyMargin, useMm)}`, 2);
+            addLabelValue('Blade Width:', `${formatDisplay(bladeWidth, useMm)}`, 2);
 
             // === COLUMN 3: Depth ===
             addHeader('Depth', 3);
             const depthRequired = currentDesign.getRabbetZDepthRequired();
             const depthAvailable = currentDesign.rabbet_depth;
-            addLabelValue('Required:', `${formatValueWithDecimal(depthRequired, useMm)}`, 3, 'black', true);
-            addLabelValue('Available:', `${formatValueWithDecimal(depthAvailable, useMm)}`, 3);
+            addLabelValue('Required:', `${formatDisplay(depthRequired, useMm)}`, 3, 'black', true);
+            addLabelValue('Available:', `${formatDisplay(depthAvailable, useMm)}`, 3);
             if (depthRequired <= depthAvailable) {
                 const clearance = depthAvailable - depthRequired;
-                addLabelValue('Clearance:', `${formatValueWithDecimal(clearance, useMm)}`, 3, 'green', true);
+                addLabelValue('Clearance:', `${formatDisplay(clearance, useMm)}`, 3, 'green', true);
             } else {
                 const shortfall = depthRequired - depthAvailable;
-                addLabelValue('Shortfall:', `${formatValueWithDecimal(shortfall, useMm)}`, 3, 'red', true);
+                addLabelValue('Shortfall:', `${formatDisplay(shortfall, useMm)}`, 3, 'red', true);
             }
-            addLabelValue('Glazing:', `${formatValueWithDecimal(currentDesign.glazingThickness, useMm)}`, 3);
+            addLabelValue('Glazing:', `${formatDisplay(currentDesign.glazingThickness, useMm)}`, 3);
             if (includesMat) {
-                addLabelValue('Matboard:', `${formatValueWithDecimal(currentDesign.matboardThickness, useMm)}`, 3);
+                addLabelValue('Matboard:', `${formatDisplay(currentDesign.matboardThickness, useMm)}`, 3);
             }
-            addLabelValue('Artwork:', `${formatValueWithDecimal(currentDesign.artworkThickness, useMm)}`, 3);
-            addLabelValue('Backing:', `${formatValueWithDecimal(currentDesign.backingThickness, useMm)}`, 3);
+            addLabelValue('Artwork:', `${formatDisplay(currentDesign.artworkThickness, useMm)}`, 3);
+            addLabelValue('Backing:', `${formatDisplay(currentDesign.backingThickness, useMm)}`, 3);
         }
 
         // Add QR code to PDF
@@ -2708,6 +3064,26 @@
                 console.warn('QR code generation failed:', error);
                 // Continue without QR code - not critical
             }
+        }
+
+        // Add footer to PDF
+        function addPdfFooter(pdf) {
+            const footerY = 287; // Near bottom of A4 page (297mm height)
+            const leftMargin = 10;
+            const rightMargin = 200; // 210 - 10
+
+            // Gray color for footer text
+            pdf.setTextColor(128, 128, 128);
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'normal');
+
+            // "ReferenceFrame" on left
+            pdf.text('ReferenceFrame', leftMargin, footerY);
+
+            // Timestamp on right (YYYY-MM-DD HH:MM format to match iOS)
+            const now = new Date();
+            const timestamp = now.toISOString().slice(0, 16).replace('T', ' ');
+            pdf.text(timestamp, rightMargin, footerY, { align: 'right' });
         }
 
         // ===================================================================

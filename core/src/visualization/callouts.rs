@@ -4,7 +4,7 @@
 // priorities and preferred placement sides.
 
 use crate::frame::FrameDesign;
-use crate::conversions::{format_value, Unit};
+use crate::conversions::{format_dimension, Unit};
 use super::types::{
     DimensionCallout, DimensionType, Point, Side,
 };
@@ -18,10 +18,13 @@ pub fn generate_plan_callouts(
     design: &FrameDesign,
     geometry: &PlanViewGeometry,
     unit_mm: bool,
+    use_tape_segments: bool,
     style: &DiagramStyle,
 ) -> Vec<DimensionCallout> {
     let mut callouts = Vec::new();
     let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
+    // Helper closure for formatting dimensions
+    let fmt = |value: f64| format_dimension(value, unit, use_tape_segments);
 
     // Stroke width adjustments - stroke is centered on the path
     // Visual edge is at rect_position ± stroke_width/2
@@ -33,7 +36,7 @@ pub fn generate_plan_callouts(
     let (frame_h, frame_w) = design.get_frame_outside_dimensions();
     callouts.push(DimensionCallout::new(
         frame_w,
-        format!("Outside: {}", format_value(frame_w, unit)),
+        format!("Outside: {}", fmt(frame_w)),
         DimensionType::FrameOutsideWidth,
         Point::new(geometry.frame_outer.left() - frame_half_stroke, geometry.frame_outer.top() - frame_half_stroke),
         Point::new(geometry.frame_outer.right() + frame_half_stroke, geometry.frame_outer.top() - frame_half_stroke),
@@ -43,7 +46,7 @@ pub fn generate_plan_callouts(
     // Extends from visual outer top edge to visual outer bottom edge
     callouts.push(DimensionCallout::new(
         frame_h,
-        format!("Outside: {}", format_value(frame_h, unit)),
+        format!("Outside: {}", fmt(frame_h)),
         DimensionType::FrameOutsideHeight,
         Point::new(geometry.frame_outer.right() + frame_half_stroke, geometry.frame_outer.top() - frame_half_stroke),
         Point::new(geometry.frame_outer.right() + frame_half_stroke, geometry.frame_outer.bottom() + frame_half_stroke),
@@ -54,7 +57,7 @@ pub fn generate_plan_callouts(
     let (inside_h, inside_w) = design.get_frame_inside_dimensions();
     callouts.push(DimensionCallout::new(
         inside_w,
-        format!("Inside: {}", format_value(inside_w, unit)),
+        format!("Inside: {}", fmt(inside_w)),
         DimensionType::FrameInsideWidthInterior,
         Point::new(geometry.frame_inner.left() + frame_half_stroke, geometry.frame_inner.top() + frame_half_stroke),
         Point::new(geometry.frame_inner.right() - frame_half_stroke, geometry.frame_inner.top() + frame_half_stroke),
@@ -64,7 +67,7 @@ pub fn generate_plan_callouts(
     // Extends from visual inner top edge to visual inner bottom edge
     callouts.push(DimensionCallout::new(
         inside_h,
-        format!("Inside: {}", format_value(inside_h, unit)),
+        format!("Inside: {}", fmt(inside_h)),
         DimensionType::FrameInsideHeightInterior,
         Point::new(geometry.frame_inner.right() - frame_half_stroke, geometry.frame_inner.top() + frame_half_stroke),
         Point::new(geometry.frame_inner.right() - frame_half_stroke, geometry.frame_inner.bottom() - frame_half_stroke),
@@ -80,8 +83,8 @@ pub fn generate_plan_callouts(
             callouts.push(DimensionCallout::new(
                 mat_cut_width,
                 format!("Mat Cut: {} ({} visible)",
-                    format_value(mat_cut_width, unit),
-                    format_value(mat_visible_sides, unit)),
+                    fmt(mat_cut_width),
+                    fmt(mat_visible_sides)),
                 DimensionType::MatCutWidth,
                 Point::new(geometry.content_area.left(), geometry.frame_inner.bottom() - frame_half_stroke),
                 Point::new(mat_opening.left() + mat_half_stroke, geometry.frame_inner.bottom() - frame_half_stroke),
@@ -95,8 +98,8 @@ pub fn generate_plan_callouts(
                 callouts.push(DimensionCallout::new(
                     mat_cut_height,
                     format!("Mat Cut: {} ({} visible)",
-                        format_value(mat_cut_height, unit),
-                        format_value(mat_visible_tb, unit)),
+                        fmt(mat_cut_height),
+                        fmt(mat_visible_tb)),
                     DimensionType::MatCutHeight,  // Use MatCutHeight which has Side::Left preference
                     // Place on LEFT side to avoid collision with outside/inside callouts on right
                     Point::new(geometry.frame_inner.left() + frame_half_stroke, geometry.content_area.top()),
@@ -116,9 +119,12 @@ pub fn generate_plan_callouts(
 pub fn generate_section_callouts(
     design: &FrameDesign,
     unit_mm: bool,
+    use_tape_segments: bool,
 ) -> Vec<DimensionCallout> {
     let mut callouts = Vec::new();
     let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
+    // Helper closure for formatting dimensions
+    let fmt = |value: f64| format_dimension(value, unit, use_tape_segments);
 
     // These will use placeholder positions - actual positions
     // calculated by SectionViewGeometry during layout
@@ -126,7 +132,7 @@ pub fn generate_section_callouts(
     // Frame depth
     callouts.push(DimensionCallout::new(
         design.frame_material_depth,
-        format_value(design.frame_material_depth, unit),
+        fmt(design.frame_material_depth),
         DimensionType::FrameDepth,
         Point::new(0.0, 0.0), // Placeholder
         Point::new(0.0, 1.0),
@@ -135,7 +141,7 @@ pub fn generate_section_callouts(
     // Material stack
     callouts.push(DimensionCallout::new(
         design.glazing_thickness,
-        format!("Glazing {}", format_value(design.glazing_thickness, unit)),
+        format!("Glazing {}", fmt(design.glazing_thickness)),
         DimensionType::GlazingThickness,
         Point::new(0.0, 0.0),
         Point::new(0.0, 1.0),
@@ -144,7 +150,7 @@ pub fn generate_section_callouts(
     if design.has_mat() {
         callouts.push(DimensionCallout::new(
             design.matboard_thickness,
-            format!("Mat {}", format_value(design.matboard_thickness, unit)),
+            format!("Mat {}", fmt(design.matboard_thickness)),
             DimensionType::MatboardThickness,
             Point::new(0.0, 0.0),
             Point::new(0.0, 1.0),
@@ -153,7 +159,7 @@ pub fn generate_section_callouts(
 
     callouts.push(DimensionCallout::new(
         design.artwork_thickness,
-        format!("Artwork {}", format_value(design.artwork_thickness, unit)),
+        format!("Artwork {}", fmt(design.artwork_thickness)),
         DimensionType::ArtworkThickness,
         Point::new(0.0, 0.0),
         Point::new(0.0, 1.0),
@@ -161,7 +167,7 @@ pub fn generate_section_callouts(
 
     callouts.push(DimensionCallout::new(
         design.backing_thickness,
-        format!("Backing {}", format_value(design.backing_thickness, unit)),
+        format!("Backing {}", fmt(design.backing_thickness)),
         DimensionType::BackingThickness,
         Point::new(0.0, 0.0),
         Point::new(0.0, 1.0),
@@ -171,7 +177,7 @@ pub fn generate_section_callouts(
     let total_stack = design.get_rabbet_z_depth_required() - design.assembly_margin;
     callouts.push(DimensionCallout::new(
         total_stack,
-        format_value(total_stack, unit),  // Just the value, context is clear
+        fmt(total_stack),  // Just the value, context is clear
         DimensionType::TotalStackHeight,
         Point::new(0.0, 0.0),
         Point::new(0.0, 1.0),
@@ -179,9 +185,9 @@ pub fn generate_section_callouts(
 
     let clearance = design.frame_material_depth - design.get_rabbet_z_depth_required();
     let clearance_label = if clearance >= 0.0 {
-        format!("Clearance {}", format_value(clearance, unit))
+        format!("Clearance {}", fmt(clearance))
     } else {
-        format!("INTERFERENCE {}", format_value(-clearance, unit))
+        format!("INTERFERENCE {}", fmt(-clearance))
     };
     callouts.push(DimensionCallout::new(
         clearance.abs(),
@@ -239,7 +245,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         // Should have at least frame outside and inside dimensions
         assert!(callouts.len() >= 4);
@@ -259,7 +265,7 @@ mod tests {
 
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         // Should not have mat callouts
         let has_mat = callouts.iter().any(|c| c.dimension_type == DimensionType::MatOpeningWidth);
@@ -269,7 +275,7 @@ mod tests {
     #[test]
     fn test_generate_section_callouts() {
         let design = test_design();
-        let callouts = generate_section_callouts(&design, false);
+        let callouts = generate_section_callouts(&design, false, false);
 
         // Should have frame depth and material thicknesses
         assert!(callouts.len() >= 5);
@@ -283,7 +289,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         let (top, right, bottom, left) = group_by_side(&callouts);
 
@@ -305,7 +311,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         let mut refs: Vec<&DimensionCallout> = callouts.iter().collect();
         sort_by_priority(&mut refs);
@@ -321,7 +327,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         // Labels should contain inch marks
         let frame_width_callout = callouts.iter()
@@ -335,7 +341,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, true, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, true, false, &style);
 
         // Labels should contain mm
         let frame_width_callout = callouts.iter()

@@ -9,7 +9,8 @@
 //!
 //! All calculations are done in inches internally.
 
-pub mod defaults;
+pub mod presets;
+pub mod version;
 pub mod conversions;
 pub mod frame;
 pub mod aspect_ratio;
@@ -17,6 +18,7 @@ pub mod shareable_url;
 pub mod visualization;
 pub mod validation;
 pub mod input_parser;
+pub mod history;
 
 // Re-export key types for convenience
 pub use frame::{FrameDesign, FrameSize};
@@ -33,3 +35,4 @@ pub use input_parser::{
     ParsedDimension, parse_dimension, decimal_to_fraction,
     is_valid_dimension_input, get_common_fractions
 };
+pub use history::{HistoryEntry, DesignHistory, DEFAULT_MAX_ENTRIES};

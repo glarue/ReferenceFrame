@@ -14,9 +14,35 @@ const LABEL_BUFFER: f64 = 2.0;
 const LABEL_FONT_OFFSET: f64 = 0.4;
 
 /// Helper to estimate text width based on character count and font size
-fn estimate_text_width(text: &str, font_size: f64) -> f64 {
-    // Average character width is approximately 0.6x font size for proportional fonts
-    text.len() as f64 * font_size * 0.6
+/// Uses character-aware widths for more accurate proportional font estimation
+pub fn estimate_text_width(text: &str, font_size: f64) -> f64 {
+    // Use character-aware width estimation for proportional fonts
+    // Different characters have different widths
+    let mut width = 0.0;
+    for c in text.chars() {
+        let char_width_factor = match c {
+            // Narrow characters
+            '1' | 'i' | 'l' | '.' | ',' | ':' | ';' | '!' | '|' | '\'' | ' ' => 0.4,
+            'I' | 'j' | 't' | 'f' | 'r' => 0.45,
+            // Wide characters
+            'm' | 'w' | 'M' | 'W' => 0.9,
+            // Fraction slash (common in inches display)
+            '/' => 0.45,
+            // Digits are fairly consistent
+            '0'..='9' => 0.65,
+            // Most lowercase letters
+            'a'..='z' => 0.6,
+            // Most uppercase letters
+            'A'..='Z' => 0.75,
+            // Quote/inch marks
+            '"' => 0.5,
+            // Default for other characters
+            _ => 0.65,
+        };
+        width += font_size * char_width_factor;
+    }
+    // Add 5% safety margin to ensure boxes are never too tight
+    width * 1.05
 }
 
 /// Computed geometry for rendering a plan view
@@ -205,6 +231,114 @@ impl PlanViewGeometry {
         value * self.scale
     }
 
+    /// Calculate geometry for preview mode (no callouts)
+    ///
+    /// Scales to maximize use of available canvas space while maintaining
+    /// correct proportions. Diagram size will change when mat is toggled
+    /// (because the actual frame size changes), but ratios remain accurate.
+    pub fn from_design_preview(
+        design: &FrameDesign,
+        canvas_width: f64,
+        canvas_height: f64,
+        style: &DiagramStyle,
+    ) -> Self {
+        // Get actual dimensions in inches
+        let (frame_outer_height, frame_outer_width) = design.get_frame_outside_dimensions();
+        let (frame_inner_height, frame_inner_width) = design.get_frame_inside_dimensions();
+
+        // Calculate available canvas area (minimal margins, no callout space needed)
+        let margin = style.margin;
+        let available_width = canvas_width - 2.0 * margin;
+        let available_height = canvas_height - 2.0 * margin;
+
+        // Scale to fit actual frame, maximizing canvas usage
+        let scale_x = available_width / frame_outer_width;
+        let scale_y = available_height / frame_outer_height;
+        let scale = scale_x.min(scale_y);
+
+        // Calculate scaled dimensions
+        let scaled_outer_width = frame_outer_width * scale;
+        let scaled_outer_height = frame_outer_height * scale;
+        let scaled_artwork_width = design.artwork_width * scale;
+        let scaled_artwork_height = design.artwork_height * scale;
+
+        // Center in canvas
+        let origin_x = (canvas_width - scaled_outer_width) / 2.0;
+        let origin_y = (canvas_height - scaled_outer_height) / 2.0;
+
+        // Scaled component dimensions
+        let frame_width_scaled = design.frame_material_width * scale;
+        let rabbet_width_scaled = design.rabbet_width * scale;
+        let origin = Point::new(origin_x, origin_y);
+
+        // Calculate rectangles (same as from_design but with preview-computed origin/scale)
+        let frame_outer = Rect::new(origin_x, origin_y, scaled_outer_width, scaled_outer_height);
+
+        let frame_inner = Rect::new(
+            origin_x + frame_width_scaled,
+            origin_y + frame_width_scaled,
+            frame_inner_width * scale,
+            frame_inner_height * scale,
+        );
+
+        // Mat geometry (if mat is present)
+        let (mat_visible, mat_opening) = if design.has_mat() {
+            let (mat_opening_height, mat_opening_width) = design.get_mat_opening_dimensions();
+            let mat_opening_scaled_w = mat_opening_width * scale;
+            let mat_opening_scaled_h = mat_opening_height * scale;
+
+            // Mat visible area = frame inner
+            let mat_vis = Some(frame_inner);
+
+            // Mat opening (centered within mat visible)
+            let opening_x = frame_inner.x + (frame_inner.width - mat_opening_scaled_w) / 2.0;
+            let opening_y = frame_inner.y + (frame_inner.height - mat_opening_scaled_h) / 2.0;
+            let mat_open = Some(Rect::new(
+                opening_x,
+                opening_y,
+                mat_opening_scaled_w,
+                mat_opening_scaled_h,
+            ));
+
+            (mat_vis, mat_open)
+        } else {
+            (None, None)
+        };
+
+        // Content area (extends under rabbet lip by rabbet_width)
+        let content_area = Rect::new(
+            frame_inner.x - rabbet_width_scaled,
+            frame_inner.y - rabbet_width_scaled,
+            frame_inner.width + 2.0 * rabbet_width_scaled,
+            frame_inner.height + 2.0 * rabbet_width_scaled,
+        );
+
+        // Artwork rectangle
+        let artwork = if design.has_mat() {
+            // With mat, artwork is positioned relative to content area
+            Rect::new(
+                content_area.x + (content_area.width - scaled_artwork_width) / 2.0,
+                content_area.y + (content_area.height - scaled_artwork_height) / 2.0,
+                scaled_artwork_width,
+                scaled_artwork_height,
+            )
+        } else {
+            // Without mat, artwork = content area
+            content_area
+        };
+
+        Self {
+            frame_outer,
+            frame_inner,
+            mat_visible,
+            mat_opening,
+            artwork,
+            content_area,
+            scale,
+            origin,
+        }
+    }
+
     /// Get a point on the frame outer boundary
     pub fn frame_outer_point(&self, t: f64, vertical: bool) -> Point {
         if vertical {
@@ -341,9 +475,10 @@ impl SectionViewGeometry {
         let width_dim_space = width_line_offset + EXTENSION_OVERSHOOT + font_size;
 
         // BOTTOM: Legend and rabbet label
-        let legend_gap = 10.0;  // Reduced from 22.0 to minimize bottom margin
+        let legend_gap = 6.0;  // Reduced from 10.0 to recover space for title
         let legend_height = 25.0;
-        let rabbet_label_height = 18.0 + font_size; // Leader line + text
+        // Rabbet label is now two lines (dimensions + clearance/interference)
+        let rabbet_label_height = 18.0 + font_size * 2.2; // Leader line + two lines of text
 
         // Guard against zero/invalid dimensions - use sensible minimums
         let min_dimension = 0.1; // Minimum 0.1 inch for any dimension

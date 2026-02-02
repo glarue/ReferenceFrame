@@ -3,7 +3,7 @@
 // Ported from Python frame.py with identical calculation behavior
 
 use serde::{Deserialize, Serialize};
-use crate::defaults::*;
+use crate::presets;
 
 /// Represents a standard or custom frame size
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,7 +24,7 @@ impl FrameSize {
 }
 
 /// Complete frame design with all dimensions and materials
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FrameDesign {
     // Artwork dimensions
     pub artwork_width: f64,
@@ -57,22 +57,24 @@ pub struct FrameDesign {
 
 impl Default for FrameDesign {
     fn default() -> Self {
+        // Load defaults from presets.json (single source of truth)
+        let d = presets::get_defaults();
         Self {
-            artwork_width: DEFAULT_ARTWORK_WIDTH,
-            artwork_height: DEFAULT_ARTWORK_HEIGHT,
-            mat_width_top_bottom: DEFAULT_MAT_WIDTH,
-            mat_width_sides: DEFAULT_MAT_WIDTH,
-            mat_overlap: DEFAULT_MAT_OVERLAP,
-            rabbet_width: DEFAULT_RABBET_DEPTH,  // Default to same as depth (square rabbet)
-            rabbet_depth: DEFAULT_RABBET_DEPTH,
-            frame_material_width: DEFAULT_FRAME_MATERIAL_WIDTH,
-            matboard_thickness: DEFAULT_MATBOARD_THICKNESS,
-            artwork_thickness: DEFAULT_ARTWORK_THICKNESS,
-            backing_thickness: DEFAULT_BACKING_THICKNESS,
-            glazing_thickness: DEFAULT_GLAZING_THICKNESS,
-            frame_material_depth: DEFAULT_FRAME_THICKNESS,
-            assembly_margin: DEFAULT_ASSEMBLY_MARGIN,
-            symmetrical_mat: true,
+            artwork_width: d.artwork_width,
+            artwork_height: d.artwork_height,
+            mat_width_top_bottom: d.mat_width,
+            mat_width_sides: d.mat_width,
+            mat_overlap: d.mat_overlap,
+            rabbet_width: d.rabbet_width,
+            rabbet_depth: d.rabbet_depth,
+            frame_material_width: d.frame_material_width,
+            matboard_thickness: d.matboard_thickness,
+            artwork_thickness: d.artwork_thickness,
+            backing_thickness: d.backing_thickness,
+            glazing_thickness: d.glazing_thickness,
+            frame_material_depth: d.frame_material_depth,
+            assembly_margin: d.assembly_margin,
+            symmetrical_mat: d.symmetrical_mat,
             no_artwork_margin: false,
         }
     }
@@ -308,8 +310,9 @@ mod tests {
     #[test]
     fn test_default_values() {
         let design = FrameDesign::default();
-        assert!((design.artwork_height - DEFAULT_ARTWORK_HEIGHT).abs() < 0.001);
-        assert!((design.artwork_width - DEFAULT_ARTWORK_WIDTH).abs() < 0.001);
+        let defaults = presets::get_defaults();
+        assert!((design.artwork_height - defaults.artwork_height).abs() < 0.001);
+        assert!((design.artwork_width - defaults.artwork_width).abs() < 0.001);
     }
 
     #[test]
