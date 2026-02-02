@@ -264,15 +264,35 @@ fn generate_plan_view(
     options: &DiagramOptions,
     style: &DiagramStyle,
 ) -> DiagramResult {
-    let geometry = PlanViewGeometry::from_design(
-        design,
-        options.canvas_width,
-        options.canvas_height,
-        style,
-    );
+    // Use preview geometry (scales to artwork) when callouts disabled for stable sizing
+    let geometry = if options.show_callouts {
+        PlanViewGeometry::from_design(
+            design,
+            options.canvas_width,
+            options.canvas_height,
+            style,
+        )
+    } else {
+        PlanViewGeometry::from_design_preview(
+            design,
+            options.canvas_width,
+            options.canvas_height,
+            style,
+        )
+    };
 
-    let callouts = generate_plan_callouts(design, &geometry, options.unit_mm, style);
-    let layout = layout_plan_callouts(&callouts, &geometry, style);
+    // Only generate callouts if requested (default true)
+    let (callouts, layout) = if options.show_callouts {
+        let callouts = generate_plan_callouts(design, &geometry, options.unit_mm, options.use_tape_segments, style);
+        let layout = layout_plan_callouts(&callouts, &geometry, style);
+        (callouts, layout)
+    } else {
+        // Empty callouts for minimal preview
+        (Vec::new(), LayoutResult {
+            positioned_callouts: Vec::new(),
+            warnings: Vec::new(),
+        })
+    };
 
     let svg = build_plan_svg(design, &geometry, &callouts, &layout, options, style);
 
@@ -295,7 +315,12 @@ fn generate_section_view(
         style,
     );
 
-    let callouts = generate_section_callouts(design, options.unit_mm);
+    // Only generate callouts if requested (default true)
+    let callouts = if options.show_callouts {
+        generate_section_callouts(design, options.unit_mm, options.use_tape_segments)
+    } else {
+        Vec::new()
+    };
     let svg = build_section_svg(design, &geometry, &callouts, options, style);
 
     DiagramResult {
@@ -480,75 +505,75 @@ fn build_plan_svg(
     options: &DiagramOptions,
     style: &DiagramStyle,
 ) -> String {
-    // Calculate bounds from actual geometry and layout data
-    let mut min_x = geometry.frame_outer.left() - style.frame_stroke_width / 2.0;
-    let mut max_x = geometry.frame_outer.right() + style.frame_stroke_width / 2.0;
-    let mut min_y = geometry.frame_outer.top() - style.frame_stroke_width / 2.0;
-    let mut max_y = geometry.frame_outer.bottom() + style.frame_stroke_width / 2.0;
-
-    // Include dimension callouts in bounds
-    for callout in &layout.positioned_callouts {
-        use super::types::DimensionType;
-
-        // Dimension lines extend beyond geometry
-        let dim_line_pos = callout.dimension_line_position;
-        let extent_start = &callout.callout.extent_start;
-        let extent_end = &callout.callout.extent_end;
-
-        // Track dimension line and extension line bounds
-        min_x = min_x.min(extent_start.x.min(extent_end.x) - style.dimension_offset_step);
-        max_x = max_x.max(extent_start.x.max(extent_end.x) + style.dimension_offset_step);
-        min_y = min_y.min(extent_start.y.min(extent_end.y) - style.dimension_offset_step);
-        max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
-
-        // Account for dimension labels using actual label text length
-        let label_text_width = estimate_text_width(&callout.callout.label, style.label_font_size);
-        let label_height = style.label_font_size * 1.2;
-
-        // Mat cut dimensions get extra offset - calculate it here
-        let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0 + style.dimension_offset_base;
-
-        // Only extend bounds in the direction perpendicular to the dimension line
-        // Horizontal dimensions: label centered above/below line
-        if (extent_start.y - extent_end.y).abs() < 1.0 {
-            // Check if this is a mat cut width dimension (needs extra downward offset)
-            let extra_offset = if callout.callout.dimension_type == DimensionType::MatCutWidth {
-                mat_cut_offset
-            } else {
-                0.0
-            };
-            min_y = min_y.min(dim_line_pos - label_height);
-            max_y = max_y.max(dim_line_pos + label_height + extra_offset);
-            // Horizontal extent of centered text
-            let mid_x = (extent_start.x + extent_end.x) / 2.0;
-            min_x = min_x.min(mid_x - label_text_width / 2.0);
-            max_x = max_x.max(mid_x + label_text_width / 2.0);
-        } else {
-            // Vertical dimensions: rotated label (text width becomes vertical extent)
-            // Check if this is a mat cut height dimension (needs extra leftward offset)
-            let extra_offset = if callout.callout.dimension_type == DimensionType::MatCutHeight {
-                mat_cut_offset
-            } else {
-                0.0
-            };
-            min_x = min_x.min(dim_line_pos - label_height - extra_offset);
-            max_x = max_x.max(dim_line_pos + label_height);
-            let mid_y = (extent_start.y + extent_end.y) / 2.0;
-            min_y = min_y.min(mid_y - label_text_width / 2.0);
-            max_y = max_y.max(mid_y + label_text_width / 2.0);
-        }
-    }
-
-    // Add padding for visual comfort
-    let padding = style.margin;
-    min_x -= padding;
-    max_x += padding;
-    min_y -= padding;
-    max_y += padding;
-
     // Calculate viewBox dimensions
-    let viewbox_width = max_x - min_x;
-    let viewbox_height = max_y - min_y;
+    let (min_x, min_y, viewbox_width, viewbox_height) = if options.show_callouts {
+        // With callouts: calculate bounds from actual geometry and layout data
+        let mut min_x = geometry.frame_outer.left() - style.frame_stroke_width / 2.0;
+        let mut max_x = geometry.frame_outer.right() + style.frame_stroke_width / 2.0;
+        let mut min_y = geometry.frame_outer.top() - style.frame_stroke_width / 2.0;
+        let mut max_y = geometry.frame_outer.bottom() + style.frame_stroke_width / 2.0;
+
+        // Include dimension callouts in bounds
+        for callout in &layout.positioned_callouts {
+            use super::types::DimensionType;
+
+            // Dimension lines extend beyond geometry
+            let dim_line_pos = callout.dimension_line_position;
+            let extent_start = &callout.callout.extent_start;
+            let extent_end = &callout.callout.extent_end;
+
+            // Track dimension line and extension line bounds
+            min_x = min_x.min(extent_start.x.min(extent_end.x) - style.dimension_offset_step);
+            max_x = max_x.max(extent_start.x.max(extent_end.x) + style.dimension_offset_step);
+            min_y = min_y.min(extent_start.y.min(extent_end.y) - style.dimension_offset_step);
+            max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
+
+            // Account for dimension labels using actual label text length
+            let label_text_width = estimate_text_width(&callout.callout.label, style.label_font_size);
+            let label_height = style.label_font_size * 1.2;
+
+            // Mat cut dimensions get extra offset - calculate it here
+            let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0 + style.dimension_offset_base;
+
+            // Only extend bounds in the direction perpendicular to the dimension line
+            // Horizontal dimensions: label centered above/below line
+            if (extent_start.y - extent_end.y).abs() < 1.0 {
+                // Check if this is a mat cut width dimension (needs extra downward offset)
+                let extra_offset = if callout.callout.dimension_type == DimensionType::MatCutWidth {
+                    mat_cut_offset
+                } else {
+                    0.0
+                };
+                min_y = min_y.min(dim_line_pos - label_height);
+                max_y = max_y.max(dim_line_pos + label_height + extra_offset);
+                // Horizontal extent of centered text
+                let mid_x = (extent_start.x + extent_end.x) / 2.0;
+                min_x = min_x.min(mid_x - label_text_width / 2.0);
+                max_x = max_x.max(mid_x + label_text_width / 2.0);
+            } else {
+                // Vertical dimensions: rotated label (text width becomes vertical extent)
+                // Check if this is a mat cut height dimension (needs extra leftward offset)
+                let extra_offset = if callout.callout.dimension_type == DimensionType::MatCutHeight {
+                    mat_cut_offset
+                } else {
+                    0.0
+                };
+                min_x = min_x.min(dim_line_pos - label_height - extra_offset);
+                max_x = max_x.max(dim_line_pos + label_height);
+                let mid_y = (extent_start.y + extent_end.y) / 2.0;
+                min_y = min_y.min(mid_y - label_text_width / 2.0);
+                max_y = max_y.max(mid_y + label_text_width / 2.0);
+            }
+        }
+
+        // Add padding for visual comfort
+        let padding = style.margin;
+        (min_x - padding, min_y - padding, max_x - min_x + 2.0 * padding, max_y - min_y + 2.0 * padding)
+    } else {
+        // Without callouts (preview mode): use fixed viewBox matching canvas dimensions
+        // This ensures the diagram size stays constant regardless of frame dimensions
+        (0.0, 0.0, options.canvas_width, options.canvas_height)
+    };
 
     // Build SVG with dynamic viewBox
     let mut svg = String::new();
@@ -692,110 +717,115 @@ fn build_plan_svg(
         }
     }
 
-    // Dimensions group
-    svg.push_str("  <g id=\"dimensions\">\n");
-    for callout in &layout.positioned_callouts {
-        svg.push_str(&svg_dimension(callout, style, geometry));
+    // Dimensions group (only if callouts are enabled)
+    if options.show_callouts {
+        svg.push_str("  <g id=\"dimensions\">\n");
+        for callout in &layout.positioned_callouts {
+            svg.push_str(&svg_dimension(callout, style, geometry));
+        }
+        svg.push_str("  </g>\n");
     }
-    svg.push_str("  </g>\n");
 
     // Artwork dimensions indicator - arrows extending to artwork boundary
-    // The artwork boundary is shown as a dashed line with stroke width extension_stroke_width * 0.8
-    // We want arrow tips to land exactly at the INNER edge of that dashed stroke
-    let artwork_center = geometry.artwork.center();
-    let unit = if options.unit_mm { Unit::Millimeters } else { Unit::Inches };
+    // Only show if callouts are enabled
+    if options.show_callouts {
+        // The artwork boundary is shown as a dashed line with stroke width extension_stroke_width * 0.8
+        // We want arrow tips to land exactly at the INNER edge of that dashed stroke
+        let artwork_center = geometry.artwork.center();
+        let unit = if options.unit_mm { Unit::Millimeters } else { Unit::Inches };
 
-    svg.push_str(&format!(
-        r#"  <g id="artwork-indicator">"#
-    ));
-    svg.push('\n');
+        svg.push_str(&format!(
+            r#"  <g id="artwork-indicator">"#
+        ));
+        svg.push('\n');
 
-    // Calculate arrow stroke width (used for marker scaling)
-    let arrow_stroke_width = style.dimension_stroke_width * 0.7;
-    
-    // The artwork boundary dashed line has this stroke width
-    let artwork_boundary_stroke = style.extension_stroke_width * 0.8;
-    
-    // Arrow tips should land at the inner edge of the artwork boundary stroke
-    // Inner edge = geometric boundary + half the boundary stroke width
-    let target_left = geometry.artwork.left() + artwork_boundary_stroke / 2.0;
-    let target_right = geometry.artwork.right() - artwork_boundary_stroke / 2.0;
-    let target_top = geometry.artwork.top() + artwork_boundary_stroke / 2.0;
-    let target_bottom = geometry.artwork.bottom() - artwork_boundary_stroke / 2.0;
-    
-    // Calculate line endpoints so arrow tips land at targets
-    let h_line_x1 = arrow_line_endpoint_for_target(target_left, arrow_stroke_width, true);
-    let h_line_x2 = arrow_line_endpoint_for_target(target_right, arrow_stroke_width, false);
-    let v_line_y1 = arrow_line_endpoint_for_target_y(target_top, arrow_stroke_width, true);
-    let v_line_y2 = arrow_line_endpoint_for_target_y(target_bottom, arrow_stroke_width, false);
+        // Calculate arrow stroke width (used for marker scaling)
+        let arrow_stroke_width = style.dimension_stroke_width * 0.7;
 
-    // Horizontal line with arrows
-    svg.push_str(&generate_line_with_arrows(
-        h_line_x1, artwork_center.y,
-        h_line_x2, artwork_center.y,
-        &style.artwork_dimension_color,
-        arrow_stroke_width,
-        true,  // arrow_start
-        true,  // arrow_end
-        false, // is_leader
-    ));
+        // The artwork boundary dashed line has this stroke width
+        let artwork_boundary_stroke = style.extension_stroke_width * 0.8;
 
-    // Vertical line with arrows
-    svg.push_str(&generate_line_with_arrows(
-        artwork_center.x, v_line_y1,
-        artwork_center.x, v_line_y2,
-        &style.artwork_dimension_color,
-        arrow_stroke_width,
-        true,  // arrow_start
-        true,  // arrow_end
-        false, // is_leader
-    ));
+        // Arrow tips should land at the inner edge of the artwork boundary stroke
+        // Inner edge = geometric boundary + half the boundary stroke width
+        let target_left = geometry.artwork.left() + artwork_boundary_stroke / 2.0;
+        let target_right = geometry.artwork.right() - artwork_boundary_stroke / 2.0;
+        let target_top = geometry.artwork.top() + artwork_boundary_stroke / 2.0;
+        let target_bottom = geometry.artwork.bottom() - artwork_boundary_stroke / 2.0;
 
-    // Artwork dimension label (height × width)
-    let artwork_label = format!(
-        "{} × {}",
-        format_value(design.artwork_height, unit),
-        format_value(design.artwork_width, unit)
-    );
+        // Calculate line endpoints so arrow tips land at targets
+        let h_line_x1 = arrow_line_endpoint_for_target(target_left, arrow_stroke_width, true);
+        let h_line_x2 = arrow_line_endpoint_for_target(target_right, arrow_stroke_width, false);
+        let v_line_y1 = arrow_line_endpoint_for_target_y(target_top, arrow_stroke_width, true);
+        let v_line_y2 = arrow_line_endpoint_for_target_y(target_bottom, arrow_stroke_width, false);
 
-    // Calculate background rectangle dimensions
-    let mask_margin = 4.0;
-    let text_bg_w = estimate_text_width(&artwork_label, style.label_font_size) + mask_margin * 2.0;
-    let text_bg_h = style.label_font_size * 1.3 + mask_margin * 2.0;
+        // Horizontal line with arrows
+        svg.push_str(&generate_line_with_arrows(
+            h_line_x1, artwork_center.y,
+            h_line_x2, artwork_center.y,
+            &style.artwork_dimension_color,
+            arrow_stroke_width,
+            true,  // arrow_start
+            true,  // arrow_end
+            false, // is_leader
+        ));
 
-    // Draw background rectangle FIRST (so it appears behind the text)
-    // Centered on artwork_center
-    svg.push_str(&format!(
-        r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="0.85" stroke="none" rx="2"/>"#,
-        artwork_center.x - text_bg_w / 2.0,
-        artwork_center.y - text_bg_h / 2.0,
-        text_bg_w,
-        text_bg_h,
-        style.background_color
-    ));
-    svg.push('\n');
+        // Vertical line with arrows
+        svg.push_str(&generate_line_with_arrows(
+            artwork_center.x, v_line_y1,
+            artwork_center.x, v_line_y2,
+            &style.artwork_dimension_color,
+            arrow_stroke_width,
+            true,  // arrow_start
+            true,  // arrow_end
+            false, // is_leader
+        ));
 
-    // Draw text SECOND (so it appears on top)
-    // text-anchor="middle" ensures horizontal centering at artwork_center.x
-    // dominant-baseline="middle" ensures vertical centering at artwork_center.y
-    //
-    // KNOWN ISSUE: svg2pdf.js ignores dominant-baseline, causing text to sit above the line
-    // instead of being bisected by it in PDF exports. The proper fix would be to offset the
-    // y-coordinate by ~0.35em (half the text height), but this requires either:
-    //   1. Font metrics library (ttf-parser) - adds dependencies, requires bundling fonts
-    //   2. JavaScript post-processing - adds complexity, fragile
-    //   3. Hardcoded font-specific metrics - breaks with font fallbacks
-    //
-    // DECISION: Accept imperfect PDF rendering rather than engineering complexity.
-    // The browser rendering is correct, and the PDF issue is a minor aesthetic imperfection.
-    svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{:.2}" text-anchor="middle" dominant-baseline="middle">{}</text>"#,
-        artwork_center.x, artwork_center.y,
-        style.artwork_dimension_color, style.font_family, style.label_font_size,
-        html_escape(&artwork_label)
-    ));
-    svg.push('\n');
-    svg.push_str("  </g>\n");
+        // Artwork dimension label (height × width)
+        let artwork_label = format!(
+            "{} × {}",
+            format_value(design.artwork_height, unit),
+            format_value(design.artwork_width, unit)
+        );
+
+        // Calculate background rectangle dimensions
+        let mask_margin = 4.0;
+        let text_bg_w = estimate_text_width(&artwork_label, style.label_font_size) + mask_margin * 2.0;
+        let text_bg_h = style.label_font_size * 1.3 + mask_margin * 2.0;
+
+        // Draw background rectangle FIRST (so it appears behind the text)
+        // Centered on artwork_center
+        svg.push_str(&format!(
+            r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="0.85" stroke="none" rx="2"/>"#,
+            artwork_center.x - text_bg_w / 2.0,
+            artwork_center.y - text_bg_h / 2.0,
+            text_bg_w,
+            text_bg_h,
+            style.background_color
+        ));
+        svg.push('\n');
+
+        // Draw text SECOND (so it appears on top)
+        // text-anchor="middle" ensures horizontal centering at artwork_center.x
+        // dominant-baseline="middle" ensures vertical centering at artwork_center.y
+        //
+        // KNOWN ISSUE: svg2pdf.js ignores dominant-baseline, causing text to sit above the line
+        // instead of being bisected by it in PDF exports. The proper fix would be to offset the
+        // y-coordinate by ~0.35em (half the text height), but this requires either:
+        //   1. Font metrics library (ttf-parser) - adds dependencies, requires bundling fonts
+        //   2. JavaScript post-processing - adds complexity, fragile
+        //   3. Hardcoded font-specific metrics - breaks with font fallbacks
+        //
+        // DECISION: Accept imperfect PDF rendering rather than engineering complexity.
+        // The browser rendering is correct, and the PDF issue is a minor aesthetic imperfection.
+        svg.push_str(&format!(
+            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{:.2}" text-anchor="middle" dominant-baseline="middle">{}</text>"#,
+            artwork_center.x, artwork_center.y,
+            style.artwork_dimension_color, style.font_family, style.label_font_size,
+            html_escape(&artwork_label)
+        ));
+        svg.push('\n');
+        svg.push_str("  </g>\n");
+    }
 
     svg.push_str("</svg>");
     svg
@@ -1846,7 +1876,7 @@ fn build_section_svg(
             let label = format!("{}: {}", m.name, format_value(m.thickness, unit));
             estimate_text_width(&label, style.label_font_size * 0.85)
         })
-        .fold(0.0_f64, |a: f64, b: f64| a.max(b));
+        .fold(0.0_f64, |a, b| a.max(b));
 
     // Position stack dimension with clearance from labels (reduced for compact layout)
     let stack_dim_x = label_base_x + max_label_width + 20.0;

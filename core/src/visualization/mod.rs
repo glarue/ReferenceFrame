@@ -20,7 +20,7 @@ pub use types::{
     TextAnchor,
 };
 pub use style::{DiagramStyle, MaterialPatterns, FillPattern};
-pub use geometry::{PlanViewGeometry, SectionViewGeometry};
+pub use geometry::{PlanViewGeometry, SectionViewGeometry, estimate_text_width};
 pub use callouts::{generate_plan_callouts, generate_section_callouts};
 pub use layout::{layout_plan_callouts, LayoutResult};
 pub use svg::{generate_diagram, generate_diagram_with_style};

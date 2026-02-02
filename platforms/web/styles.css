@@ -1,92 +1,121 @@
-/* ReferenceFrame WASM - Styles - v2026-01-06-1315 */
+/* ReferenceFrame - Styles - v2026-01-17 */
 
 /*
- * Color Palette Reference
- * ========================
+ * ================================================================
+ * Standardized Color Palette (7 colors + grayscale)
+ * Shared across: Web (CSS), Mobile (Flutter), Rust Core (SVG)
+ * ================================================================
  *
- * Base Colors (warm → cool gradient):
- * -----------------------------------
- * 🔴 #f94144 Red         → Error states
- * 🟠 #f3722c Red-Orange  → Accents
- * 🟠 #f8961e Orange      → Highlights
- * 🟠 #f9844a Orange Alt  → Highlights
- * 🟡 #f9c74f Yellow      → Warnings
- * 🟢 #90be6d Green       → Success states
- * 🔵 #43aa8b Teal        → Accent elements
- * 🔵 #4d908e Teal Dark   → Muted accents
- * 🔵 #577590 Blue Slate  → Secondary elements
- * 🔵 #277da1 Blue        → Primary UI color
+ * Core Palette (warm → cool gradient):
+ * ------------------------------------
+ * 🔴 #f94144 Strawberry Red   → Error states, alerts
+ * 🟠 #f3722c Atomic Tangerine → Modified/changed indicators
+ * 🟠 #f8961e Carrot Orange    → Cut dimensions, highlights
+ * 🟡 #f9c74f Tuscan Sun       → Warnings
+ * 🟢 #90be6d Willow Green     → Success states, material properties
+ * 🔵 #43aa8b Seagrass         → Accent, incidental dimensions
+ * 🔵 #577590 Blue Slate       → Primary UI color
  *
  * Variants (auto-generated via color-mix):
  * -----------------------------------------
- * Each base color has -light and -dark variants:
- * • Light: 70% base + 30% white
- * • Dark:  70% base + 30% black
- * Usage: var(--rf-blue-light), var(--rf-green-dark), etc.
+ * Each color has -light (70% + white) and -dark (70% + black) variants
  *
  * Neutrals:
  * ---------
  * ⚪ #ffffff White
+ * ⚪ #e0e0e0 Gray Lighter
+ * ⚪ #b0b0b0 Gray Light
+ * ⚪ #808080 Gray Medium
+ * ⚫ #404040 Gray Dark
+ * ⚫ #202020 Gray Darker
  * ⚫ #000000 Black
- * ⚪ #808080 Gray        → Standard gray
- * ⚪ #b0b0b0 Gray Light  → Muted text
- * ⚫ #404040 Gray Dark   → Buttons/UI
  */
 
 /* CSS Variables - Design System */
 :root {
-    /* Core Palette - Base Colors (warm → cool gradient) */
+    /* ================================================================
+     * Core Palette - 10 colors (warm → cool gradient)
+     * Matches iOS Flutter palette for cross-platform consistency
+     * ================================================================ */
+    --rf-flag-red: #d52023;      /* Flag Red - critical errors, delete */
     --rf-red: #f94144;           /* Strawberry Red */
     --rf-red-orange: #f3722c;    /* Atomic Tangerine */
     --rf-orange: #f8961e;        /* Carrot Orange */
-    --rf-orange-alt: #f9844a;    /* Mango Tango */
     --rf-yellow: #f9c74f;        /* Tuscan Sun */
     --rf-green: #90be6d;         /* Willow Green */
-    --rf-teal: #43aa8b;          /* Teal / Seagrass - use var(--rf-teal) */
-    --rf-teal-dark: #4d908e;     /* Dark Cyan */
-    --rf-blue-slate: #577590;    /* Blue Slate */
-    --rf-blue: #277da1;          /* Cerulean */
-    --rf-purple: #9d4edd;        /* Purple */
+    --rf-teal: #43aa8b;          /* Seagrass */
+    --rf-dark-cyan: #478583;     /* Dark Cyan - muted/disabled */
+    --rf-blue: #577590;          /* Blue Slate */
+    --rf-air-force-blue: #7890a5; /* Air Force Blue - hover/backgrounds */
 
-    /* Core Palette - Light Variants (70% base + 30% white) */
-    --rf-red-light: color-mix(in srgb, var(--rf-red) 70%, white);
-    --rf-red-orange-light: color-mix(in srgb, var(--rf-red-orange) 70%, white);
-    --rf-orange-light: color-mix(in srgb, var(--rf-orange) 70%, white);
-    --rf-orange-alt-light: color-mix(in srgb, var(--rf-orange-alt) 70%, white);
-    --rf-yellow-light: color-mix(in srgb, var(--rf-yellow) 70%, white);
-    --rf-green-light: color-mix(in srgb, var(--rf-green) 70%, white);
-    --rf-teal-light: color-mix(in srgb, var(--rf-teal) 70%, white);
-    --rf-teal-dark-light: color-mix(in srgb, var(--rf-teal-dark) 70%, white);
-    --rf-blue-slate-light: color-mix(in srgb, var(--rf-blue-slate) 70%, white);
-    --rf-blue-light: color-mix(in srgb, var(--rf-blue) 70%, white);
+    /* ================================================================
+     * Light Variants (70% base + 30% white)
+     * ================================================================ */
+    --rf-flag-red-light: #e26365;
+    --rf-red-light: #fb8a8c;
+    --rf-red-orange-light: #f7a675;
+    --rf-orange-light: #fbbb6d;
+    --rf-yellow-light: #fbda8b;
+    --rf-green-light: #b8d4a2;
+    --rf-teal-light: #8ac9b5;
+    --rf-dark-cyan-light: #7eaaa8;
+    --rf-blue-light: #94a7b8;
+    --rf-air-force-blue-light: #a1b1c0;
 
-    /* Core Palette - Dark Variants (70% base + 30% black) */
-    --rf-red-dark: color-mix(in srgb, var(--rf-red) 70%, black);
-    --rf-red-orange-dark: color-mix(in srgb, var(--rf-red-orange) 70%, black);
-    --rf-orange-dark: color-mix(in srgb, var(--rf-orange) 70%, black);
-    --rf-orange-alt-dark: color-mix(in srgb, var(--rf-orange-alt) 70%, black);
-    --rf-yellow-dark: color-mix(in srgb, var(--rf-yellow) 70%, black);
-    --rf-green-dark: color-mix(in srgb, var(--rf-green) 70%, black);
-    --rf-teal-dark-variant: color-mix(in srgb, var(--rf-teal) 70%, black);
-    --rf-teal-darker: color-mix(in srgb, var(--rf-teal-dark) 70%, black);
-    --rf-blue-slate-dark: color-mix(in srgb, var(--rf-blue-slate) 70%, black);
-    --rf-blue-dark: color-mix(in srgb, var(--rf-blue) 70%, black);
-    --rf-purple-dark: color-mix(in srgb, var(--rf-purple) 70%, black);
+    /* ================================================================
+     * Dark Variants (70% base + 30% black)
+     * ================================================================ */
+    --rf-flag-red-dark: #951619;
+    --rf-red-dark: #ae2d2f;
+    --rf-red-orange-dark: #aa4f1e;
+    --rf-orange-dark: #ae6915;
+    --rf-yellow-dark: #ae8b37;
+    --rf-green-dark: #65854c;
+    --rf-teal-dark: #2f7761;
+    --rf-dark-cyan-dark: #325d5c;
+    --rf-blue-dark: #3d5265;
+    --rf-air-force-blue-dark: #546574;
 
-    /* Neutrals */
+    /* ================================================================
+     * Neutrals
+     * ================================================================ */
     --rf-white: #ffffff;
+    --rf-gray-lighter: #e0e0e0;
+    --rf-gray-light: #b0b0b0;
+    --rf-gray: #808080;
+    --rf-gray-dark: #404040;
+    --rf-gray-darker: #202020;
     --rf-black: #000000;
-    --rf-gray: #808080;          /* Neutral Gray */
-    --rf-gray-light: #b0b0b0;    /* Light Gray */
-    --rf-gray-dark: #404040;     /* Dark Gray */
 
-    /* Semantic Colors (mapped from palette) */
-    --rf-primary-blue: var(--rf-blue);
-    --rf-primary-blue-dark: var(--rf-blue-slate);
-    --rf-success-green: var(--rf-green);
-    --rf-success-green-dark: var(--rf-green-dark);
-    --rf-warning-orange: var(--rf-yellow);
-    --rf-error-red: var(--rf-red);
+    /* ================================================================
+     * Semantic Colors - functional naming
+     * Matches iOS Flutter semantic mappings for consistency
+     * ================================================================ */
+    --rf-primary: var(--rf-blue);
+    --rf-primary-dark: var(--rf-blue-dark);
+    --rf-secondary: var(--rf-teal);
+    --rf-secondary-dark: var(--rf-teal-dark);
+    --rf-success: var(--rf-green);
+    --rf-success-dark: var(--rf-green-dark);
+    --rf-warning: var(--rf-orange);
+    --rf-warning-dark: var(--rf-orange-dark);
+    --rf-error: var(--rf-flag-red);
+    --rf-error-dark: var(--rf-flag-red-dark);
+
+    /* Results display semantic colors */
+    --rf-cut-dimension: var(--rf-red-orange);
+    --rf-incidental: var(--rf-dark-cyan);
+    --rf-material-property: var(--rf-air-force-blue);
+    --rf-modified: var(--rf-yellow);
+
+    /* Legacy aliases for backward compatibility */
+    --rf-primary-blue: var(--rf-primary);
+    --rf-primary-blue-dark: var(--rf-primary-dark);
+    --rf-success-green: var(--rf-success);
+    --rf-success-green-dark: var(--rf-success-dark);
+    --rf-warning-orange: var(--rf-warning);
+    --rf-error-red: var(--rf-error);
+    --rf-accent: var(--rf-secondary);
 
     /* ================================================================
      * Material Design 3 - Surface Container System (Tonal Elevation)
@@ -249,6 +278,81 @@
     /* Responsive Breakpoints (for reference in media queries) */
     --breakpoint-mobile: 768px;
     --breakpoint-small: 500px;
+}
+
+/* ================================================================
+ * Light Theme Override
+ * Applied via data-theme="light" attribute on <html>
+ * ================================================================ */
+[data-theme="light"] {
+    /* Surface containers - light variants */
+    --md-surface: #ffffff;
+    --md-surface-container-lowest: #ffffff;
+    --md-surface-container-low: #f7f7f7;
+    --md-surface-container: #f0f0f0;
+    --md-surface-container-high: #e8e8e8;
+    --md-surface-container-highest: #e0e0e0;
+
+    /* Background overrides */
+    --rf-bg-dark: var(--md-surface);
+    --rf-bg-section: var(--md-surface-container-high);
+    --rf-bg-input: var(--md-surface-container);
+
+    /* Text colors - dark text on light background */
+    --rf-text: var(--rf-gray-dark);
+    --rf-text-light: var(--rf-gray-dark);
+    --rf-text-muted: #64748b;
+    --rf-text-muted-dark: #475569;
+
+    /* Border colors */
+    --rf-border: rgba(0, 0, 0, 0.12);
+    --rf-border-light: #e2e8f0;
+    --rf-border-dark: rgba(0, 0, 0, 0.2);
+
+    /* Elevation shadows - more visible on light backgrounds */
+    --md-elevation-1: 0px 1px 3px 0px rgba(0, 0, 0, 0.12),
+                      0px 1px 2px 0px rgba(0, 0, 0, 0.08);
+    --md-elevation-2: 0px 2px 6px 0px rgba(0, 0, 0, 0.15),
+                      0px 1px 2px 0px rgba(0, 0, 0, 0.10);
+    --md-elevation-3: 0px 4px 8px 0px rgba(0, 0, 0, 0.15),
+                      0px 2px 4px 0px rgba(0, 0, 0, 0.10);
+}
+
+/* System preference detection for "auto" theme mode */
+@media (prefers-color-scheme: light) {
+    [data-theme="system"] {
+        /* Surface containers - light variants */
+        --md-surface: #ffffff;
+        --md-surface-container-lowest: #ffffff;
+        --md-surface-container-low: #f7f7f7;
+        --md-surface-container: #f0f0f0;
+        --md-surface-container-high: #e8e8e8;
+        --md-surface-container-highest: #e0e0e0;
+
+        /* Background overrides */
+        --rf-bg-dark: var(--md-surface);
+        --rf-bg-section: var(--md-surface-container-high);
+        --rf-bg-input: var(--md-surface-container);
+
+        /* Text colors - dark text on light background */
+        --rf-text: var(--rf-gray-dark);
+        --rf-text-light: var(--rf-gray-dark);
+        --rf-text-muted: #64748b;
+        --rf-text-muted-dark: #475569;
+
+        /* Border colors */
+        --rf-border: rgba(0, 0, 0, 0.12);
+        --rf-border-light: #e2e8f0;
+        --rf-border-dark: rgba(0, 0, 0, 0.2);
+
+        /* Elevation shadows */
+        --md-elevation-1: 0px 1px 3px 0px rgba(0, 0, 0, 0.12),
+                          0px 1px 2px 0px rgba(0, 0, 0, 0.08);
+        --md-elevation-2: 0px 2px 6px 0px rgba(0, 0, 0, 0.15),
+                          0px 1px 2px 0px rgba(0, 0, 0, 0.10);
+        --md-elevation-3: 0px 4px 8px 0px rgba(0, 0, 0, 0.15),
+                          0px 2px 4px 0px rgba(0, 0, 0, 0.10);
+    }
 }
 
 * {
@@ -1580,6 +1684,38 @@ button:active {
     transform: none;
 }
 
+/* Results actions container (PDF title + buttons) */
+.results-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* PDF title input */
+.pdf-title-input {
+    font: var(--md-typescale-label-medium);
+    padding: 5px 10px;
+    min-height: auto;
+    background: var(--rf-surface);
+    border: 1.5px solid var(--rf-line);
+    border-radius: 6px;
+    color: var(--rf-text);
+    width: 160px;
+    max-width: 200px;
+}
+
+.pdf-title-input::placeholder {
+    color: var(--rf-text-muted);
+    font-style: italic;
+}
+
+.pdf-title-input:focus {
+    outline: none;
+    border-color: var(--rf-blue);
+    box-shadow: 0 0 0 2px rgba(87, 117, 144, 0.2);
+}
+
 .button-group {
     display: flex;
     gap: 8px;
@@ -2171,6 +2307,232 @@ button:active {
 .settings-btn:hover {
     background: var(--rf-surface-hover);
     border-color: var(--rf-blue);
+}
+
+/* Theme Toggle Button */
+.theme-btn {
+    background: var(--rf-surface);
+    border: 1px solid var(--rf-line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-width: 40px;
+}
+
+.theme-btn:hover {
+    background: var(--rf-surface-hover);
+    border-color: var(--rf-blue);
+}
+
+/* ================================================================
+ * Appearance Settings UI
+ * ================================================================ */
+
+/* Theme Selector */
+.theme-selector {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.theme-option {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 8px;
+    background: var(--md-surface-container);
+    border: 2px solid transparent;
+    border-radius: var(--md-shape-small);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.theme-option:hover {
+    background: var(--md-surface-container-high);
+}
+
+.theme-option.active {
+    border-color: var(--rf-primary);
+    background: color-mix(in srgb, var(--rf-primary) 15%, var(--md-surface-container));
+}
+
+.theme-option .theme-icon {
+    font-size: 20px;
+}
+
+/* Format Selector */
+.format-selector {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.format-option {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 8px;
+    background: var(--md-surface-container);
+    border: 2px solid transparent;
+    border-radius: var(--md-shape-small);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+}
+
+.format-option:hover {
+    background: var(--md-surface-container-high);
+}
+
+.format-option.active {
+    border-color: var(--rf-primary);
+    background: color-mix(in srgb, var(--rf-primary) 15%, var(--md-surface-container));
+}
+
+.format-option span:first-child {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.format-option small {
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+/* Color Categories */
+.color-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.color-category-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    background: var(--md-surface-container);
+    border-radius: var(--md-shape-small);
+}
+
+.color-category-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.color-category-name {
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.color-category-desc {
+    font-size: 11px;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.color-swatch-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--md-shape-small);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+}
+
+.color-swatch-btn:hover {
+    transform: scale(1.1);
+}
+
+.color-swatch-btn.customized::after {
+    content: '✓';
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    background: var(--rf-primary);
+    color: white;
+    font-size: 10px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.color-reset-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    opacity: 0.5;
+    font-size: 14px;
+    transition: opacity 0.15s ease;
+}
+
+.color-reset-btn:hover {
+    opacity: 1;
+}
+
+.color-reset-btn:disabled {
+    opacity: 0.2;
+    cursor: default;
+}
+
+.reset-colors-btn {
+    margin-top: 12px;
+    width: 100%;
+}
+
+/* Color Picker Popup */
+.color-picker-popup {
+    position: fixed;
+    background: var(--md-surface-container-high);
+    border-radius: var(--md-shape-medium);
+    padding: 12px;
+    box-shadow: var(--md-elevation-3);
+    z-index: 1001;
+    display: none;
+}
+
+.color-picker-popup.visible {
+    display: block;
+}
+
+.color-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+}
+
+.color-picker-swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--md-shape-extra-small);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.1s ease;
+}
+
+.color-picker-swatch:hover {
+    transform: scale(1.15);
+}
+
+.color-picker-swatch.selected {
+    border-color: var(--rf-white);
+    box-shadow: 0 0 0 2px var(--rf-primary);
 }
 
 /* Settings Modal */

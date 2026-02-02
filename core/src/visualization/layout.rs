@@ -7,7 +7,7 @@ use super::types::{
     DimensionCallout, PositionedCallout, Point, Rect, Side, TextAnchor,
 };
 use super::style::DiagramStyle;
-use super::geometry::PlanViewGeometry;
+use super::geometry::{PlanViewGeometry, estimate_text_width};
 
 /// Result of layout calculation
 #[derive(Debug, Clone)]
@@ -177,9 +177,8 @@ fn layout_vertical_side(
 
 /// Estimate label width based on text length and font size
 fn estimate_label_width(text: &str, font_size: f64) -> f64 {
-    // Rough estimate: average character width is about 0.6 * font size
-    let char_width = font_size * 0.6;
-    text.len() as f64 * char_width
+    // Use shared character-aware width estimation
+    estimate_text_width(text, font_size)
 }
 
 /// Detect and resolve collisions between positioned callouts
@@ -310,7 +309,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -323,7 +322,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -342,7 +341,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -361,7 +360,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -383,7 +382,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
         let bounds = calculate_callout_bounds(&result.positioned_callouts);
@@ -413,7 +412,7 @@ mod tests {
 
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -423,7 +422,7 @@ mod tests {
         // Should have fewer callouts than with mat
         let with_mat_design = test_design();
         let with_mat_geometry = PlanViewGeometry::from_design(&with_mat_design, 800.0, 600.0, &style);
-        let with_mat_callouts = generate_plan_callouts(&with_mat_design, &with_mat_geometry, false, &style);
+        let with_mat_callouts = generate_plan_callouts(&with_mat_design, &with_mat_geometry, false, false, &style);
         let with_mat_result = layout_plan_callouts(&with_mat_callouts, &with_mat_geometry, &style);
 
         assert!(result.positioned_callouts.len() <= with_mat_result.positioned_callouts.len());

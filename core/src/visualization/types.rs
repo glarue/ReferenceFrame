@@ -346,6 +346,10 @@ pub struct DiagramOptions {
     /// Use tape measure segmented format (e.g., "3/4 - 1/32" instead of "23/32")
     /// Only applies when unit_mm is false (inches mode)
     pub use_tape_segments: bool,
+
+    /// Whether to show dimension callouts (default true)
+    /// Set to false for minimal preview diagrams
+    pub show_callouts: bool,
 }
 
 impl Default for DiagramOptions {
@@ -358,6 +362,7 @@ impl Default for DiagramOptions {
             title_text: None,
             unit_mm: false,
             use_tape_segments: false, // Default off to avoid breaking existing behavior
+            show_callouts: true, // Default on for normal diagrams
         }
     }
 }

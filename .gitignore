@@ -40,6 +40,10 @@ platforms/web/wasm_bindings/pkg/
 # Mobile platform (local development only, not pushed to GitHub)
 platforms/mobile/
 
+# Mobile CI/CD workflows (private)
+.github/workflows/ios-release.yml
+.github/workflows/android-release.yml
+
 # Experimental directories (moved to legacy/experiments/)
 # These should NEVER be committed
 rust-flutter/

@@ -57,6 +57,16 @@ pub struct ValidationConfig {
     pub warn_artwork_opening_overlap: f64,
     /// Warn if aspect ratio exceeds this value
     pub warn_extreme_aspect_ratio: f64,
+
+    // Mat constraints
+    /// Minimum visible artwork through mat opening per side (inches)
+    pub min_visible_opening: f64,
+    /// Warn if mat opening dimension is smaller than this (inches)
+    pub warn_min_mat_opening: f64,
+    /// Minimum mat overlap (inches)
+    pub min_mat_overlap: f64,
+    /// Maximum mat overlap (inches)
+    pub max_mat_overlap: f64,
 }
 
 impl ValidationConfig {
@@ -114,6 +124,12 @@ impl Default for ValidationConfig {
             // Warning thresholds
             warn_artwork_opening_overlap: 0.25,  // 1/4" per side
             warn_extreme_aspect_ratio: 10.0,
+
+            // Mat constraints
+            min_visible_opening: 0.125,          // 1/8" minimum visible artwork per side
+            warn_min_mat_opening: 1.0,           // 1" minimum mat opening before warning
+            min_mat_overlap: 0.0625,             // 1/16" minimum
+            max_mat_overlap: 6.0,                // 6" maximum (very generous)
         }
     }
 }
@@ -570,6 +586,45 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
         ));
     }
 
+    // Mat overlap bounds (when mat is present)
+    if design.has_mat() {
+        if design.mat_overlap < config.min_mat_overlap {
+            result.add(ValidationIssue::error_with_details(
+                "mat_overlap",
+                &format!("Mat overlap must be at least {:.4}\"", config.min_mat_overlap),
+                &format!("Current: {:.3}\"", design.mat_overlap),
+            ));
+        }
+        if design.mat_overlap > config.max_mat_overlap {
+            result.add(ValidationIssue::error_with_details(
+                "mat_overlap",
+                &format!("Mat overlap must be at most {:.1}\"", config.max_mat_overlap),
+                &format!("Current: {:.3}\". This would make the mat opening negative!", design.mat_overlap),
+            ));
+        }
+
+        // Additional check: mat overlap must not exceed half the artwork dimensions
+        // (otherwise mat opening would be negative)
+        let max_safe_overlap_h = design.artwork_height / 2.0 - 0.5; // Leave at least 1" opening
+        let max_safe_overlap_w = design.artwork_width / 2.0 - 0.5;
+        if design.mat_overlap > max_safe_overlap_h {
+            result.add(ValidationIssue::error_with_details(
+                "mat_overlap",
+                &format!("Mat overlap ({:.2}\") too large for artwork height ({:.2}\")",
+                    design.mat_overlap, design.artwork_height),
+                &format!("Maximum safe overlap: {:.2}\" (would leave 1\" opening)", max_safe_overlap_h),
+            ));
+        }
+        if design.mat_overlap > max_safe_overlap_w {
+            result.add(ValidationIssue::error_with_details(
+                "mat_overlap",
+                &format!("Mat overlap ({:.2}\") too large for artwork width ({:.2}\")",
+                    design.mat_overlap, design.artwork_width),
+                &format!("Maximum safe overlap: {:.2}\" (would leave 1\" opening)", max_safe_overlap_w),
+            ));
+        }
+    }
+
     // === SOFT WARNINGS ===
 
     // Material stack overflow (already shown in viz, but also warn here)
@@ -587,6 +642,18 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
             &format!("Stack: {:.3}\", Rabbet: {:.3}\", Overflow: {:.3}\"",
                 total_stack, design.rabbet_depth, overflow),
         ));
+    }
+
+    // Mat opening size warning
+    if design.has_mat() {
+        let (mat_h, mat_w) = design.get_mat_opening_dimensions();
+        if mat_h < config.warn_min_mat_opening || mat_w < config.warn_min_mat_opening {
+            result.add(ValidationIssue::warning_with_details(
+                "mat_overlap",
+                &format!("Mat opening ({:.2}\" × {:.2}\") is very small", mat_h, mat_w),
+                "Check mat overlap setting",
+            ));
+        }
     }
 
     // Artwork vs visible opening warnings

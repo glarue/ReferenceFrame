@@ -5,11 +5,12 @@
 
 use wasm_bindgen::prelude::*;
 use referenceframe_core::{
-    conversions::{format_value, format_value_with_decimal, inches_to_mm, mm_to_inches, Unit},
+    conversions::{format_value, format_value_with_decimal, format_value_tape_measure, inches_to_mm, mm_to_inches, Unit},
     frame::FrameDesign,
     aspect_ratio::AspectLockState,
     shareable_url::{ShareableParams, generate_shareable_url, decode_shareable_url},
-    defaults::*,
+    presets,
+    history,
 };
 
 /// Get the WASM build version for debugging
@@ -356,6 +357,12 @@ pub fn wasm_format_value_with_decimal(value: f64, unit_mm: bool) -> String {
     format_value_with_decimal(value, unit)
 }
 
+#[wasm_bindgen(js_name = "formatValueTapeMeasure")]
+pub fn wasm_format_value_tape_measure(value: f64, unit_mm: bool) -> String {
+    let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
+    format_value_tape_measure(value, unit)
+}
+
 #[wasm_bindgen(js_name = "getAspectRatioDisplay")]
 pub fn wasm_get_aspect_ratio_display(height: f64, width: f64) -> String {
     referenceframe_core::aspect_ratio::get_aspect_ratio_display(height, width)
@@ -396,6 +403,7 @@ pub fn wasm_generate_plan_view_svg(
         title_text: None,
         unit_mm,
         use_tape_segments: false,
+        show_callouts: true,
     };
 
     let result = generate_diagram(&design.inner, &options);
@@ -420,6 +428,7 @@ pub fn wasm_generate_section_view_svg(
         title_text: None,
         unit_mm,
         use_tape_segments: false,
+        show_callouts: true,
     };
 
     let result = generate_diagram(&design.inner, &options);
@@ -462,6 +471,7 @@ pub fn wasm_generate_combined_view_svg_with_title(
         title_text,
         unit_mm,
         use_tape_segments: false,
+        show_callouts: true,
     };
 
     let style = if for_pdf {
@@ -500,21 +510,22 @@ pub fn wasm_generate_diagram(
 
 #[wasm_bindgen(js_name = "getDefaults")]
 pub fn get_defaults() -> String {
+    let d = presets::get_defaults();
     let defaults = serde_json::json!({
-        "artworkHeight": DEFAULT_ARTWORK_HEIGHT,
-        "artworkWidth": DEFAULT_ARTWORK_WIDTH,
-        "matWidth": DEFAULT_MAT_WIDTH,
-        "matOverlap": DEFAULT_MAT_OVERLAP,
-        "frameWidth": DEFAULT_FRAME_MATERIAL_WIDTH,
-        "frameDepth": DEFAULT_FRAME_THICKNESS,
-        "rabbet_width": DEFAULT_RABBET_DEPTH,  // Default to same as depth (square rabbet)
-        "rabbet_depth": DEFAULT_RABBET_DEPTH,
-        "glazingThickness": DEFAULT_GLAZING_THICKNESS,
-        "matboardThickness": DEFAULT_MATBOARD_THICKNESS,
-        "artworkThickness": DEFAULT_ARTWORK_THICKNESS,
-        "backingThickness": DEFAULT_BACKING_THICKNESS,
-        "bladeWidth": DEFAULT_BLADE_WIDTH,
-        "assemblyMargin": DEFAULT_ASSEMBLY_MARGIN,
+        "artworkHeight": d.artwork_height,
+        "artworkWidth": d.artwork_width,
+        "matWidth": d.mat_width,
+        "matOverlap": d.mat_overlap,
+        "frameWidth": d.frame_material_width,
+        "frameDepth": d.frame_material_depth,
+        "rabbet_width": d.rabbet_width,
+        "rabbet_depth": d.rabbet_depth,
+        "glazingThickness": d.glazing_thickness,
+        "matboardThickness": d.matboard_thickness,
+        "artworkThickness": d.artwork_thickness,
+        "backingThickness": d.backing_thickness,
+        "bladeWidth": d.blade_width,
+        "assemblyMargin": d.assembly_margin,
     });
     serde_json::to_string(&defaults).unwrap_or_default()
 }
@@ -906,4 +917,139 @@ pub fn validate_design_wasm(design: &WasmFrameDesign, config: &ValidationConfig)
     let result = validation::validate_design(&design.inner, &config.0);
     // Wrap ValidationResult in WasmValidationResult using constructor
     WasmValidationResult(validation::WasmValidationResult::new(result))
+}
+
+// ============================================================================
+// History Functions (JSON-based API for simplicity)
+// ============================================================================
+
+/// Create empty history with default max entries
+#[wasm_bindgen(js_name = "createHistory")]
+pub fn create_history() -> String {
+    let history = history::DesignHistory::new();
+    history.to_json().unwrap_or_else(|_| "{}".to_string())
+}
+
+/// Create empty history with custom max entries
+#[wasm_bindgen(js_name = "createHistoryWithMax")]
+pub fn create_history_with_max(max_entries: usize) -> String {
+    let history = history::DesignHistory::with_max_entries(max_entries);
+    history.to_json().unwrap_or_else(|_| "{}".to_string())
+}
+
+/// Add entry to history
+///
+/// Returns JSON with updated history and whether it was a new entry:
+/// { "history": "...", "isNew": true/false }
+/// If force_new is true, always creates a new entry even if design already exists.
+#[wasm_bindgen(js_name = "addToHistory")]
+pub fn add_to_history(history_json: &str, design_json: &str, timestamp: i64, title: &str, force_new: bool) -> String {
+    let mut hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+        Ok(h) => h,
+        Err(_) => {
+            return serde_json::json!({
+                "history": history_json,
+                "isNew": false
+            }).to_string();
+        }
+    };
+
+    let design: FrameDesign = match serde_json::from_str(design_json) {
+        Ok(d) => d,
+        Err(_) => {
+            return serde_json::json!({
+                "history": history_json,
+                "isNew": false
+            }).to_string();
+        }
+    };
+
+    let is_new = if title.is_empty() {
+        hist.add_entry_auto_title(design, timestamp, force_new)
+    } else {
+        hist.add_entry(design, timestamp, title.to_string(), force_new)
+    };
+
+    let updated_history = hist.to_json().unwrap_or_else(|_| history_json.to_string());
+    serde_json::json!({
+        "history": updated_history,
+        "isNew": is_new
+    }).to_string()
+}
+
+/// Get history entry at index as JSON
+///
+/// Returns entry JSON or empty string if index invalid
+#[wasm_bindgen(js_name = "getHistoryEntry")]
+pub fn get_history_entry(history_json: &str, index: usize) -> String {
+    let hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+        Ok(h) => h,
+        Err(_) => return String::new(),
+    };
+
+    match hist.get(index) {
+        Some(entry) => serde_json::to_string(entry).unwrap_or_default(),
+        None => String::new(),
+    }
+}
+
+/// Remove history entry at index
+///
+/// Returns updated history JSON
+#[wasm_bindgen(js_name = "removeHistoryEntry")]
+pub fn remove_history_entry(history_json: &str, index: usize) -> String {
+    let mut hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+        Ok(h) => h,
+        Err(_) => return history_json.to_string(),
+    };
+
+    hist.remove(index);
+    hist.to_json().unwrap_or_else(|_| history_json.to_string())
+}
+
+/// Update history entry title
+///
+/// Returns updated history JSON
+#[wasm_bindgen(js_name = "updateHistoryTitle")]
+pub fn update_history_title(history_json: &str, index: usize, title: &str) -> String {
+    let mut hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+        Ok(h) => h,
+        Err(_) => return history_json.to_string(),
+    };
+
+    hist.update_title(index, title.to_string());
+    hist.to_json().unwrap_or_else(|_| history_json.to_string())
+}
+
+/// Clear all history entries
+///
+/// Returns empty history JSON
+#[wasm_bindgen(js_name = "clearHistory")]
+pub fn clear_history() -> String {
+    let history = history::DesignHistory::new();
+    history.to_json().unwrap_or_else(|_| "{}".to_string())
+}
+
+/// Get history length
+#[wasm_bindgen(js_name = "getHistoryLength")]
+pub fn get_history_length(history_json: &str) -> usize {
+    let hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+        Ok(h) => h,
+        Err(_) => return 0,
+    };
+    hist.len()
+}
+
+/// Set max entries and enforce limit
+///
+/// Returns updated history JSON
+#[wasm_bindgen(js_name = "setHistoryMaxEntries")]
+pub fn set_history_max_entries(history_json: &str, max_entries: usize) -> String {
+    let mut hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+        Ok(h) => h,
+        Err(_) => return history_json.to_string(),
+    };
+
+    hist.set_max_entries(max_entries);
+    hist.to_json().unwrap_or_else(|_| history_json.to_string())
 }
