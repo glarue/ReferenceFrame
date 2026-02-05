@@ -2055,27 +2055,27 @@ fn build_section_svg(
 
     // Replace fixed viewBox with dynamic one
     if let Some(viewbox_start) = svg.find("viewBox=\"") {
-        let viewbox_end = svg[viewbox_start..].find('"').unwrap() + viewbox_start + 1;
-        
-        // Find closing quote of the attribute
-        if let Some(closing_quote_offset) = svg[viewbox_end..].find('"') {
-            let after_viewbox = viewbox_end + closing_quote_offset;
+        if let Some(quote_offset) = svg[viewbox_start..].find('"') {
+            let viewbox_end = viewbox_start + quote_offset + 1;
 
-            // Build new SVG with dynamic viewBox
-            let mut svg_with_dynamic_viewbox = String::new();
-            svg_with_dynamic_viewbox.push_str(&svg[..viewbox_start]);
-            svg_with_dynamic_viewbox.push_str(&format!(
-                "viewBox=\"{:.2} {:.2} {:.2} {:.2}\"",
-                min_x, min_y, viewbox_width, viewbox_height
-            ));
-            
-            // Skip the original closing quote since we added our own
-            if after_viewbox + 1 < svg.len() {
-                svg_with_dynamic_viewbox.push_str(&svg[after_viewbox + 1..]);
-            } else {
-                // End of string? Unlikely for valid SVG but safe fallback
+            // Find closing quote of the attribute
+            if let Some(closing_quote_offset) = svg[viewbox_end..].find('"') {
+                let after_viewbox = viewbox_end + closing_quote_offset;
+
+                // Build new SVG with dynamic viewBox
+                let mut svg_with_dynamic_viewbox = String::new();
+                svg_with_dynamic_viewbox.push_str(&svg[..viewbox_start]);
+                svg_with_dynamic_viewbox.push_str(&format!(
+                    "viewBox=\"{:.2} {:.2} {:.2} {:.2}\"",
+                    min_x, min_y, viewbox_width, viewbox_height
+                ));
+
+                // Skip the original closing quote since we added our own
+                if after_viewbox + 1 < svg.len() {
+                    svg_with_dynamic_viewbox.push_str(&svg[after_viewbox + 1..]);
+                }
+                svg = svg_with_dynamic_viewbox;
             }
-            svg = svg_with_dynamic_viewbox;
         }
     }
 
@@ -2869,17 +2869,11 @@ fn generate_title_block(
     let mut svg = String::new();
     svg.push_str("  <g id=\"title-block\">\n");
 
-    // Check if custom title is provided
-    let has_custom_title = options.title_text
+    let title = options.title_text
         .as_ref()
-        .map(|t| !t.trim().is_empty())
-        .unwrap_or(false);
-
-    let title = if has_custom_title {
-        html_escape(options.title_text.as_ref().unwrap().trim())
-    } else {
-        "Frame Design".to_string()
-    };
+        .filter(|t| !t.trim().is_empty())
+        .map(|t| html_escape(t.trim()))
+        .unwrap_or_else(|| "Frame Design".to_string());
 
     svg.push_str(&format!(
         r#"    <text x="{:.2}" y="30" fill="{}" font-family="{}" font-size="{}" font-weight="bold" text-anchor="middle">{}</text>"#,
@@ -2888,6 +2882,9 @@ fn generate_title_block(
     svg.push('\n');
 
     // Only show subtitle (dimensions) when using default title
+    let has_custom_title = options.title_text
+        .as_ref()
+        .map_or(false, |t| !t.trim().is_empty());
     if !has_custom_title {
         let (outside_h, outside_w) = design.get_frame_outside_dimensions();
         let subtitle = format!(
