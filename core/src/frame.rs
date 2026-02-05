@@ -285,6 +285,64 @@ impl FrameDesign {
             }],
         }
     }
+
+    /// Create an interpolated design between two designs for animation.
+    /// 
+    /// This function linearly interpolates ALL numeric fields between `from` and `to`
+    /// based on parameter `t`. This is used by the Flutter preview animation to create
+    /// smooth, springy transitions when design values change.
+    /// 
+    /// # Parameters
+    /// - `from`: The starting design state (before the change)
+    /// - `to`: The target design state (after the change)
+    /// - `t`: Interpolation parameter
+    ///   - t=0.0 → returns `from` (start)
+    ///   - t=1.0 → returns `to` (target)
+    ///   - t>1.0 → extrapolates PAST target (spring overshoot)
+    ///   - t<1.0 and t>0 → interpolates toward target
+    /// 
+    /// # Animation System Context
+    /// 
+    /// The Flutter animation uses Curves.elasticOut which outputs t values that
+    /// oscillate around 1.0 (overshoot, undershoot, settle). By passing these
+    /// directly to interpolate(), we get a springy bounce effect in the actual
+    /// frame geometry - all dimensions animate together maintaining consistency.
+    /// 
+    /// For example, with elasticOut:
+    /// - t≈1.1 (overshoot): frame dimensions extrapolate 10% past target
+    /// - t≈0.97 (undershoot): frame bounces back, slightly smaller than target
+    /// - t=1.0 (settle): frame arrives at exact target dimensions
+    /// 
+    /// # Boolean Fields
+    /// 
+    /// Boolean fields (`symmetrical_mat`, `no_artwork_margin`) use the destination
+    /// value immediately - they cannot be meaningfully interpolated. Toggle changes
+    /// are detected and skip animation entirely in the Flutter layer.
+    pub fn interpolate(from: &FrameDesign, to: &FrameDesign, t: f64) -> FrameDesign {
+        fn lerp(a: f64, b: f64, t: f64) -> f64 {
+            a + (b - a) * t
+        }
+
+        FrameDesign {
+            artwork_width: lerp(from.artwork_width, to.artwork_width, t),
+            artwork_height: lerp(from.artwork_height, to.artwork_height, t),
+            mat_width_top_bottom: lerp(from.mat_width_top_bottom, to.mat_width_top_bottom, t),
+            mat_width_sides: lerp(from.mat_width_sides, to.mat_width_sides, t),
+            mat_overlap: lerp(from.mat_overlap, to.mat_overlap, t),
+            rabbet_width: lerp(from.rabbet_width, to.rabbet_width, t),
+            rabbet_depth: lerp(from.rabbet_depth, to.rabbet_depth, t),
+            frame_material_width: lerp(from.frame_material_width, to.frame_material_width, t),
+            matboard_thickness: lerp(from.matboard_thickness, to.matboard_thickness, t),
+            artwork_thickness: lerp(from.artwork_thickness, to.artwork_thickness, t),
+            backing_thickness: lerp(from.backing_thickness, to.backing_thickness, t),
+            glazing_thickness: lerp(from.glazing_thickness, to.glazing_thickness, t),
+            frame_material_depth: lerp(from.frame_material_depth, to.frame_material_depth, t),
+            assembly_margin: lerp(from.assembly_margin, to.assembly_margin, t),
+            // Boolean fields: use destination value (can't interpolate booleans)
+            symmetrical_mat: to.symmetrical_mat,
+            no_artwork_margin: to.no_artwork_margin,
+        }
+    }
 }
 
 /// Represents a piece of frame material with dimensions

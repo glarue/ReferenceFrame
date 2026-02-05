@@ -137,5 +137,71 @@
       "_comment": "1/16\" tight, 1/8\" standard clearance",
       "values": [0.0625, 0.125]
     }
+  },
+
+  "aspect_ratios": {
+    "_comment": "Common aspect ratios with standard print sizes. Ratios shown as larger:smaller (e.g., 3:2). Sizes shown as short×long edge (e.g., 4x6).",
+    "1:1": {
+      "ratio": 1.0,
+      "name": "Square 1:1",
+      "common_sizes": [
+        {"short": 5, "long": 5, "name": "5×5"},
+        {"short": 8, "long": 8, "name": "8×8"},
+        {"short": 10, "long": 10, "name": "10×10"},
+        {"short": 12, "long": 12, "name": "12×12"},
+        {"short": 16, "long": 16, "name": "16×16"},
+        {"short": 20, "long": 20, "name": "20×20"}
+      ]
+    },
+    "5:4": {
+      "ratio": 1.25,
+      "name": "5:4",
+      "common_sizes": [
+        {"short": 4, "long": 5, "name": "4×5"},
+        {"short": 8, "long": 10, "name": "8×10"},
+        {"short": 11, "long": 14, "name": "11×14"},
+        {"short": 16, "long": 20, "name": "16×20"}
+      ]
+    },
+    "4:3": {
+      "ratio": 1.3333,
+      "name": "4:3 Standard",
+      "common_sizes": [
+        {"short": 6, "long": 8, "name": "6×8"},
+        {"short": 9, "long": 12, "name": "9×12"},
+        {"short": 12, "long": 16, "name": "12×16"},
+        {"short": 18, "long": 24, "name": "18×24"}
+      ]
+    },
+    "7:5": {
+      "ratio": 1.4,
+      "name": "7:5 Photo",
+      "common_sizes": [
+        {"short": 5, "long": 7, "name": "5×7"},
+        {"short": 10, "long": 14, "name": "10×14"},
+        {"short": 15, "long": 21, "name": "15×21"}
+      ]
+    },
+    "3:2": {
+      "ratio": 1.5,
+      "name": "3:2 Classic",
+      "common_sizes": [
+        {"short": 4, "long": 6, "name": "4×6"},
+        {"short": 6, "long": 9, "name": "6×9"},
+        {"short": 8, "long": 12, "name": "8×12"},
+        {"short": 12, "long": 18, "name": "12×18"},
+        {"short": 16, "long": 24, "name": "16×24"},
+        {"short": 20, "long": 30, "name": "20×30"}
+      ]
+    },
+    "16:9": {
+      "ratio": 1.7778,
+      "name": "16:9 Widescreen",
+      "common_sizes": [
+        {"short": 9, "long": 16, "name": "9×16"},
+        {"short": 13.5, "long": 24, "name": "13.5×24"},
+        {"short": 18, "long": 32, "name": "18×32"}
+      ]
+    }
   }
 }
