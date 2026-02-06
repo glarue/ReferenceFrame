@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# commit-msg hook — Enforce conventional commit prefixes
+#
+# Accepted prefixes (Conventional Commits 1.0.0):
+#
+#   feat:      New feature (→ minor bump)
+#   fix:       Bug fix (→ patch bump)
+#   perf:      Performance improvement (→ patch bump)
+#   docs:      Documentation only
+#   style:     Formatting, whitespace, missing semicolons (no logic change)
+#   refactor:  Code restructuring (no feature or fix)
+#   test:      Adding or updating tests
+#   build:     Build system or external dependencies
+#   ci:        CI/CD configuration
+#   chore:     Maintenance tasks (deps, tooling, release commits)
+#   revert:    Reverts a previous commit
+#
+# Optional scope in parentheses: feat(parser): ...
+# Breaking changes: feat!: ... or fix!: ... (→ major bump)
+#
+# Examples:
+#   feat: add custom title support
+#   fix(svg): eliminate potential panics in generation
+#   feat!: redesign configuration API
+#   chore(release): core v1.1.0
+# ─────────────────────────────────────────────────────────────────────────────
+
+commit_msg_file="$1"
+commit_msg=$(head -1 "$commit_msg_file")
+
+# Allow merge commits and fixup/squash commits
+skip_re='^(Merge |fixup! |squash! |amend! )'
+if [[ "$commit_msg" =~ $skip_re ]]; then
+    exit 0
+fi
+
+# Conventional commit pattern: type(!)?[(scope)]: description
+pattern='^(feat|fix|perf|docs|style|refactor|test|build|ci|chore|revert)(!)?(\([a-zA-Z0-9_/-]+\))?: .+'
+
+if [[ ! "$commit_msg" =~ $pattern ]]; then
+    echo ""
+    echo "ERROR: Commit message must use a conventional commit prefix."
+    echo ""
+    echo "  Format:  <type>[optional scope]: <description>"
+    echo ""
+    echo "  Types:   feat fix perf docs style refactor test build ci chore revert"
+    echo "  Breaking: feat!: ... or fix!: ..."
+    echo ""
+    echo "  Your message: $commit_msg"
+    echo ""
+    exit 1
+fi
