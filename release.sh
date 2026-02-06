@@ -253,7 +253,7 @@ for scope in "${SCOPES[@]}"; do
         version_file="$(get_version_file "$scope")"
         git -C "$local_git_dir" add "$version_file"
         git -C "$local_git_dir" commit -m "chore(release): ${scope} v${new_ver}"
-        git -C "$local_git_dir" tag "${tag_prefix}${new_ver}"
+        git -C "$local_git_dir" tag -a "${tag_prefix}${new_ver}" -m "${scope} v${new_ver}"
         echo "[${scope}] Created tag ${tag_prefix}${new_ver}"
         echo ""
     fi
