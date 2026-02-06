@@ -219,8 +219,14 @@ mod tests {
             unit_mm: false,
         };
 
-        let url = generate_shareable_url(&params);
-        assert!(url.starts_with("https://glarue.github.io/ReferenceFrame/?d="));
+        let encoded = generate_shareable_url(&params);
+        // generate_shareable_url returns raw base64, not a full URL
+        assert!(!encoded.is_empty());
+        // Verify roundtrip by constructing a URL for decode
+        let url = format!("https://example.com/?d={}", encoded);
+        let decoded = decode_shareable_url(&url).unwrap();
+        assert!((decoded.artwork_height - 12.5).abs() < 0.0001);
+        assert!((decoded.artwork_width - 18.75).abs() < 0.0001);
     }
 
     #[test]
@@ -242,7 +248,8 @@ mod tests {
             unit_mm: false,
         };
 
-        let url = generate_shareable_url(&params);
+        let encoded = generate_shareable_url(&params);
+        let url = format!("https://example.com/?d={}", encoded);
         let decoded = decode_shareable_url(&url).unwrap();
 
         assert!((decoded.rabbet_width - 0.25).abs() < 0.0001);
