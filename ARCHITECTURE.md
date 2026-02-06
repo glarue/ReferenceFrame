@@ -1,6 +1,6 @@
 # ReferenceFrame Architecture
 
-**Last Updated**: 2026-01-05
+**Last Updated**: 2026-02-06
 
 ## Directory Structure (OFFICIAL)
 
@@ -38,8 +38,11 @@ ReferenceFrame/
 │   │   ├── serve.py
 │   │   └── build.sh            # ⚠️ CRITICAL: Use this to build!
 │   │
-│   └── mobile/                 # 🚧 PLANNED: Flutter app (iOS + Android)
-│       └── README.md
+│   └── mobile/                 # ✅ PRODUCTION: Flutter iOS app (separate git repo)
+│       ├── lib/                # Dart source
+│       ├── rust/               # FFI bridge to core (Cargo.toml)
+│       ├── ios/                # Xcode project + Fastlane
+│       └── pubspec.yaml        # App version (semver+build)
 │
 ├── legacy/                     # 📦 ARCHIVED: Old implementations
 │   └── pyscript/               # Original PyScript version
@@ -179,11 +182,28 @@ grep "from.*pkg/" platforms/web/index.html
 # Should show: './pkg/referenceframe_wasm.js'
 ```
 
-## Migration Status
+## Release & Versioning
 
-- **PyScript Version**: Fully functional, currently deployed
-- **WASM Version**: In development, not yet committed to git
-- **Mobile Version**: Planned, not started
+Three independently versioned scopes, managed by `./release.sh`:
+
+| Scope | Version file | Tag format | Repo |
+|-------|-------------|------------|------|
+| core | `core/Cargo.toml` | `core-v1.1.0` | root |
+| app | `platforms/mobile/pubspec.yaml` | `app-v1.1.0` | mobile |
+| bridge | `platforms/mobile/rust/Cargo.toml` | `bridge-v1.0.0` | mobile |
+
+**Conventional commits** enforced by `hooks/commit-msg` (shared via `core.hooksPath`):
+- `feat:` → minor, `fix:/perf:` → patch, `feat!:` → major
+- `docs: style: refactor: test: build: ci: chore: revert:` → no version bump
+- Build numbers (`pubspec.yaml +N`) managed by Fastlane, not release.sh
+
+**Workflow**: `./release.sh` (dry run) → `./release.sh --apply` → `git push --follow-tags`
+
+## Platform Status
+
+- **WASM Web**: Production at https://glarue.github.io/ReferenceFrame
+- **iOS Mobile**: Production on App Store (Fastlane deployment)
+- **PyScript**: Archived in `legacy/pyscript/`
 
 ## Key Files for PDF Export Feature
 
