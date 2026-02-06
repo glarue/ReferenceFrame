@@ -65,9 +65,9 @@
     "_comment": "Default values for new frame designs. All dimensions in inches.",
     "_units": "inches",
 
-    "_artwork_comment": "Default artwork: 12.5 x 18.75 inches (common medium format)",
-    "artwork_height": 12.5,
-    "artwork_width": 18.75,
+    "_artwork_comment": "Default artwork: 8 x 12 inches (common print size)",
+    "artwork_height": 8.0,
+    "artwork_width": 12.0,
 
     "_mat_comment": "Mat enabled by default with 2 inch borders, 1/8 inch overlap onto artwork",
     "include_mat": true,
