@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// Raw JSON embedded at compile time
 const PRESETS_JSON: &str = include_str!("../data/presets.json");
@@ -117,19 +118,20 @@ pub struct Presets {
     pub assembly_margin: PresetCategory,
 }
 
-/// Get all presets data (defaults + preset arrays)
-pub fn get_presets_data() -> PresetsData {
-    serde_json::from_str(PRESETS_JSON).expect("Invalid presets.json")
+/// Get all presets data (parsed once, cached for lifetime of process)
+pub fn get_presets_data() -> &'static PresetsData {
+    static DATA: OnceLock<PresetsData> = OnceLock::new();
+    DATA.get_or_init(|| serde_json::from_str(PRESETS_JSON).expect("Invalid presets.json"))
 }
 
 /// Get just the defaults
-pub fn get_defaults() -> Defaults {
-    get_presets_data().defaults
+pub fn get_defaults() -> &'static Defaults {
+    &get_presets_data().defaults
 }
 
 /// Get just the preset arrays
-pub fn get_presets() -> Presets {
-    get_presets_data().presets
+pub fn get_presets() -> &'static Presets {
+    &get_presets_data().presets
 }
 
 /// Get raw JSON string (for passing to FFI/WASM)
@@ -138,21 +140,21 @@ pub fn get_presets_json() -> &'static str {
 }
 
 /// Get preset values for a specific field
-pub fn get_preset_values(field: &str) -> Vec<f64> {
+pub fn get_preset_values(field: &str) -> &'static [f64] {
     let presets = get_presets();
     match field {
-        "frame_face_width" | "frame_material_width" => presets.frame_face_width.values,
-        "frame_depth" | "frame_material_depth" => presets.frame_depth.values,
-        "rabbet_width" => presets.rabbet_width.values,
-        "rabbet_depth" => presets.rabbet_depth.values,
-        "mat_width" | "mat_width_top_bottom" | "mat_width_sides" => presets.mat_width.values,
-        "mat_overlap" => presets.mat_overlap.values,
-        "glazing" | "glazing_thickness" => presets.glazing.values,
-        "matboard" | "matboard_thickness" => presets.matboard.values,
-        "artwork" | "artwork_thickness" => presets.artwork.values,
-        "backing" | "backing_thickness" => presets.backing.values,
-        "assembly_margin" => presets.assembly_margin.values,
-        _ => vec![],
+        "frame_face_width" | "frame_material_width" => &presets.frame_face_width.values,
+        "frame_depth" | "frame_material_depth" => &presets.frame_depth.values,
+        "rabbet_width" => &presets.rabbet_width.values,
+        "rabbet_depth" => &presets.rabbet_depth.values,
+        "mat_width" | "mat_width_top_bottom" | "mat_width_sides" => &presets.mat_width.values,
+        "mat_overlap" => &presets.mat_overlap.values,
+        "glazing" | "glazing_thickness" => &presets.glazing.values,
+        "matboard" | "matboard_thickness" => &presets.matboard.values,
+        "artwork" | "artwork_thickness" => &presets.artwork.values,
+        "backing" | "backing_thickness" => &presets.backing.values,
+        "assembly_margin" => &presets.assembly_margin.values,
+        _ => &[],
     }
 }
 
@@ -183,8 +185,8 @@ pub fn get_default_value(field: &str) -> Option<f64> {
 // ============================================================================
 
 /// Get the full color palette
-pub fn get_colors() -> ColorPalette {
-    get_presets_data().colors
+pub fn get_colors() -> &'static ColorPalette {
+    &get_presets_data().colors
 }
 
 /// Get a color hex value by name (without # prefix)
