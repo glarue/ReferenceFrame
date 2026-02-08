@@ -446,100 +446,37 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
         ));
     }
 
-    // Opening/inside dimensions - computed from artwork and mat settings
+    // Helper: check value against min/max and add error if out of range
+    let mut check_range = |field: &str, label: &str, value: f64, min: f64, max: f64| {
+        if value < min {
+            result.add(ValidationIssue::error(
+                field,
+                &format!("{} ({}) must be at least {}",
+                    label, conversions::format_inches_as_fraction(value),
+                    conversions::format_inches_as_fraction(min)),
+            ));
+        }
+        if value > max {
+            result.add(ValidationIssue::error(
+                field,
+                &format!("{} ({}) must be at most {}",
+                    label, conversions::format_inches_as_fraction(value),
+                    conversions::format_inches_as_fraction(max)),
+            ));
+        }
+    };
+
+    // Opening/inside dimensions
     let (opening_height, opening_width) = design.get_frame_inside_dimensions();
-    
-    // Opening bounds
-    if opening_width < config.min_opening {
-        result.add(ValidationIssue::error(
-            "artwork_width",
-            &format!("Frame opening width ({:.3}\") must be at least {:.3}\"", opening_width, config.min_opening),
-        ));
-    }
-    if opening_width > config.max_opening {
-        result.add(ValidationIssue::error(
-            "artwork_width",
-            &format!("Frame opening width ({:.1}\") must be at most {:.0}\"", opening_width, config.max_opening),
-        ));
-    }
-    if opening_height < config.min_opening {
-        result.add(ValidationIssue::error(
-            "artwork_height",
-            &format!("Frame opening height ({:.3}\") must be at least {:.3}\"", opening_height, config.min_opening),
-        ));
-    }
-    if opening_height > config.max_opening {
-        result.add(ValidationIssue::error(
-            "artwork_height",
-            &format!("Frame opening height ({:.1}\") must be at most {:.0}\"", opening_height, config.max_opening),
-        ));
-    }
+    check_range("artwork_width", "Frame opening width", opening_width, config.min_opening, config.max_opening);
+    check_range("artwork_height", "Frame opening height", opening_height, config.min_opening, config.max_opening);
 
     // Material thickness bounds
-    if design.glazing_thickness < config.min_glazing {
-        result.add(ValidationIssue::error(
-            "glazing_thickness",
-            &format!("Glazing thickness must be at least {:.3}\"", config.min_glazing),
-        ));
-    }
-    if design.glazing_thickness > config.max_glazing {
-        result.add(ValidationIssue::error(
-            "glazing_thickness",
-            &format!("Glazing thickness must be at most {:.2}\"", config.max_glazing),
-        ));
-    }
-
-    if design.matboard_thickness < config.min_matboard {
-        result.add(ValidationIssue::error(
-            "matboard_thickness",
-            &format!("Matboard thickness must be at least {:.3}\"", config.min_matboard),
-        ));
-    }
-    if design.matboard_thickness > config.max_matboard {
-        result.add(ValidationIssue::error(
-            "matboard_thickness",
-            &format!("Matboard thickness must be at most {:.2}\"", config.max_matboard),
-        ));
-    }
-
-    if design.artwork_thickness < config.min_artwork {
-        result.add(ValidationIssue::error(
-            "artwork_thickness",
-            &format!("Artwork thickness must be at least {:.4}\"", config.min_artwork),
-        ));
-    }
-    if design.artwork_thickness > config.max_artwork {
-        result.add(ValidationIssue::error(
-            "artwork_thickness",
-            &format!("Artwork thickness must be at most {:.1}\"", config.max_artwork),
-        ));
-    }
-
-    if design.backing_thickness < config.min_backing {
-        result.add(ValidationIssue::error(
-            "backing_thickness",
-            &format!("Backing thickness must be at least {:.4}\"", config.min_backing),
-        ));
-    }
-    if design.backing_thickness > config.max_backing {
-        result.add(ValidationIssue::error(
-            "backing_thickness",
-            &format!("Backing thickness must be at most {:.2}\"", config.max_backing),
-        ));
-    }
-
-    if design.assembly_margin < config.min_margin {
-        result.add(ValidationIssue::error(
-            "assembly_margin",
-            &format!("Assembly margin must be at least {:.3}\"", config.min_margin),
-        ));
-    }
-    if design.assembly_margin > config.max_margin {
-        result.add(ValidationIssue::error(
-            "assembly_margin",
-            &format!("Assembly margin must be at most {:.2}\"", config.max_margin),
-        ));
-    }
+    check_range("glazing_thickness", "Glazing thickness", design.glazing_thickness, config.min_glazing, config.max_glazing);
+    check_range("matboard_thickness", "Matboard thickness", design.matboard_thickness, config.min_matboard, config.max_matboard);
+    check_range("artwork_thickness", "Artwork thickness", design.artwork_thickness, config.min_artwork, config.max_artwork);
+    check_range("backing_thickness", "Backing thickness", design.backing_thickness, config.min_backing, config.max_backing);
+    check_range("assembly_margin", "Assembly margin", design.assembly_margin, config.min_margin, config.max_margin);
 
     // Mat overlap bounds (when mat is present)
     if design.has_mat() {
