@@ -291,22 +291,12 @@ fn normalize_unicode(input: &str) -> String {
     result
 }
 
-/// Greatest common divisor for fraction reduction
-fn gcd(mut a: u32, mut b: u32) -> u32 {
-    while b != 0 {
-        let t = b;
-        b = a % b;
-        a = t;
-    }
-    a
-}
-
 /// Reduce a fraction to lowest terms
 fn reduce_fraction(num: u32, den: u32) -> (u32, u32) {
     if den == 0 {
         return (num, den);
     }
-    let g = gcd(num, den);
+    let g = crate::conversions::gcd(num as i32, den as i32) as u32;
     (num / g, den / g)
 }
 

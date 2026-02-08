@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::conversions;
 use crate::frame::FrameDesign;
 
 /// Validation configuration with user-adjustable limits
@@ -180,7 +181,7 @@ impl TypicalRanges {
         if use_mm {
             format!("Typical: {:.1}mm - {:.1}mm", min * 25.4, max * 25.4)
         } else {
-            format!("Typical: {}\" - {}\"", format_fraction(min), format_fraction(max))
+            format!("Typical: {} - {}", conversions::format_inches_as_fraction(min), conversions::format_inches_as_fraction(max))
         }
     }
 }
@@ -208,52 +209,6 @@ impl Default for TypicalRanges {
             margin_max: 0.0625,        // 1/16"
         }
     }
-}
-
-/// Format a decimal as a fraction string (for common fractions)
-fn format_fraction(val: f64) -> String {
-    // Common fractions in picture framing
-    let fractions = [
-        (0.0, "0"),
-        (0.001, "0.001"),
-        (0.01, "0.01"),
-        (0.03125, "1/32"),
-        (0.0625, "1/16"),
-        (0.125, "1/8"),
-        (0.1875, "3/16"),
-        (0.25, "1/4"),
-        (0.3125, "5/16"),
-        (0.375, "3/8"),
-        (0.4375, "7/16"),
-        (0.5, "1/2"),
-        (0.5625, "9/16"),
-        (0.625, "5/8"),
-        (0.6875, "11/16"),
-        (0.75, "3/4"),
-        (0.8125, "13/16"),
-        (0.875, "7/8"),
-        (0.9375, "15/16"),
-        (1.0, "1"),
-    ];
-
-    // Check if it's a whole number or close to a common fraction
-    let whole = val.floor() as i32;
-    let frac = val - whole as f64;
-
-    for (f, s) in fractions.iter() {
-        if (frac - f).abs() < 0.001 {
-            if whole == 0 {
-                return s.to_string();
-            } else if *f == 0.0 {
-                return whole.to_string();
-            } else {
-                return format!("{} {}", whole, s);
-            }
-        }
-    }
-
-    // Fallback to decimal
-    format!("{:.3}", val)
 }
 
 /// Severity level for validation issues
