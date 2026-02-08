@@ -88,6 +88,69 @@ fn arrow_line_endpoint_for_target_y(target_y: f64, stroke_width: f64, is_start_m
     }
 }
 
+// ============================================================================
+// AXIS BREAK HELPERS
+// ============================================================================
+
+/// Axis break visual constants
+const ZIGZAG_AMPLITUDE: f64 = 5.0;
+const ZIGZAG_PROUD_AMOUNT: f64 = 8.0;
+
+/// Interpolate y at given x along a line segment between two points
+fn y_at_x(p1: (f64, f64), p2: (f64, f64), x: f64) -> f64 {
+    let (x1, y1) = p1;
+    let (x2, y2) = p2;
+    if (x2 - x1).abs() < 0.001 { return y1; }
+    y1 + (x - x1) * (y2 - y1) / (x2 - x1)
+}
+
+/// Interpolate x at given y along a line segment between two points
+fn x_at_y(p1: (f64, f64), p2: (f64, f64), y: f64) -> f64 {
+    let (x1, y1) = p1;
+    let (x2, y2) = p2;
+    if (y2 - y1).abs() < 0.001 { return x1; }
+    x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+}
+
+/// Four control points defining a zigzag break indicator line
+struct ZigzagPoints {
+    p0: (f64, f64),
+    p1: (f64, f64),
+    p2: (f64, f64),
+    p3: (f64, f64),
+}
+
+/// Compute horizontal zigzag control points (spans left-to-right at a given y)
+fn horizontal_zigzag(center_y: f64, frame_x: f64, frame_w: f64) -> ZigzagPoints {
+    ZigzagPoints {
+        p0: (frame_x - ZIGZAG_PROUD_AMOUNT, center_y),
+        p1: (frame_x + frame_w * 0.15, center_y - ZIGZAG_AMPLITUDE),
+        p2: (frame_x + frame_w * 0.85, center_y + ZIGZAG_AMPLITUDE),
+        p3: (frame_x + frame_w + ZIGZAG_PROUD_AMOUNT, center_y),
+    }
+}
+
+/// Compute vertical zigzag control points (spans top-to-bottom at a given x)
+fn vertical_zigzag(center_x: f64, frame_y: f64, frame_h: f64) -> ZigzagPoints {
+    ZigzagPoints {
+        p0: (center_x, frame_y - ZIGZAG_PROUD_AMOUNT),
+        p1: (center_x - ZIGZAG_AMPLITUDE, frame_y + frame_h * 0.15),
+        p2: (center_x + ZIGZAG_AMPLITUDE, frame_y + frame_h * 0.85),
+        p3: (center_x, frame_y + frame_h + ZIGZAG_PROUD_AMOUNT),
+    }
+}
+
+/// Render a dashed zigzag indicator line
+fn render_zigzag_line(svg: &mut String, zz: &ZigzagPoints, line_color: &str, break_line_width: f64) {
+    svg.push_str(&format!(
+        r#"    <path d="M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
+        zz.p0.0, zz.p0.1, zz.p1.0, zz.p1.1,
+        zz.p2.0, zz.p2.1, zz.p3.0, zz.p3.1,
+        line_color, break_line_width
+    ));
+    svg.push('\n');
+}
+
 /// Generate SVG polygon element for an arrowhead
 ///
 /// # Arguments
@@ -974,46 +1037,16 @@ fn build_section_svg(
     
     if geometry.use_axis_break_y && !geometry.use_axis_break {
         // Vertical break only (no horizontal break)
-        let break_start_y = geometry.axis_break_start_y;
-        let break_end_y = geometry.axis_break_end_y;
-        let _outer_edge_depth_s = geometry.outer_edge_depth * geometry.scale;
-
-        // Break indicator geometry for vertical breaks
-        let zigzag_amplitude = 5.0;
         let break_line_width = style.frame_stroke_width * 0.5;
-        let proud_amount = 8.0;
 
-        // Define the 4 control points of the zigzag (left to right)
-        let x_left = frame_x - proud_amount;
-        let x_right = frame_x + frame_w + proud_amount;
-        let peak1_x = frame_x + frame_w * 0.15;
-        let peak2_x = frame_x + frame_w * 0.85;
-
-        // Top zigzag control points
-        let top_p0 = (x_left, break_start_y);
-        let top_p1 = (peak1_x, break_start_y - zigzag_amplitude);
-        let top_p2 = (peak2_x, break_start_y + zigzag_amplitude);
-        let top_p3 = (x_right, break_start_y);
-
-        // Bottom zigzag control points
-        let bottom_p0 = (x_left, break_end_y);
-        let bottom_p1 = (peak1_x, break_end_y - zigzag_amplitude);
-        let bottom_p2 = (peak2_x, break_end_y + zigzag_amplitude);
-        let bottom_p3 = (x_right, break_end_y);
-
-        // Helper: interpolate y at given x along a line segment
-        fn y_at_x(p1: (f64, f64), p2: (f64, f64), x: f64) -> f64 {
-            let (x1, y1) = p1;
-            let (x2, y2) = p2;
-            if (x2 - x1).abs() < 0.001 { return y1; }
-            y1 + (x - x1) * (y2 - y1) / (x2 - x1)
-        }
+        let top_zz = horizontal_zigzag(geometry.axis_break_start_y, frame_x, frame_w);
+        let bottom_zz = horizontal_zigzag(geometry.axis_break_end_y, frame_x, frame_w);
 
         // Calculate where zigzag crosses frame boundaries
-        let top_y_at_left = y_at_x(top_p0, top_p1, frame_x);
-        let top_y_at_right = y_at_x(top_p2, top_p3, frame_x + frame_w);
-        let bottom_y_at_left = y_at_x(bottom_p0, bottom_p1, frame_x);
-        let bottom_y_at_right = y_at_x(bottom_p2, bottom_p3, frame_x + frame_w);
+        let top_y_at_left = y_at_x(top_zz.p0, top_zz.p1, frame_x);
+        let top_y_at_right = y_at_x(top_zz.p2, top_zz.p3, frame_x + frame_w);
+        let bottom_y_at_left = y_at_x(bottom_zz.p0, bottom_zz.p1, frame_x);
+        let bottom_y_at_right = y_at_x(bottom_zz.p2, bottom_zz.p3, frame_x + frame_w);
 
         // Top portion: simple rectangle (front face)
         let top_fill_path = format!(
@@ -1021,8 +1054,8 @@ fn build_section_svg(
             frame_x, frame_y,
             frame_x + frame_w, frame_y,
             frame_x + frame_w, top_y_at_right,
-            top_p2.0, top_p2.1,
-            top_p1.0, top_p1.1,
+            top_zz.p2.0, top_zz.p2.1,
+            top_zz.p1.0, top_zz.p1.1,
             frame_x, top_y_at_left,
         );
         svg.push_str(&format!(
@@ -1049,8 +1082,8 @@ fn build_section_svg(
         let bottom_fill_path = format!(
             "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z",
             frame_x, bottom_y_at_left,
-            bottom_p1.0, bottom_p1.1,
-            bottom_p2.0, bottom_p2.1,
+            bottom_zz.p1.0, bottom_zz.p1.1,
+            bottom_zz.p2.0, bottom_zz.p2.1,
             frame_x + frame_w, bottom_y_at_right,
             frame_x + frame_w, frame_y + frame_h - rabbet_h,
             frame_x + frame_w - rabbet_w, frame_y + frame_h - rabbet_h,
@@ -1079,102 +1112,27 @@ fn build_section_svg(
         svg.push('\n');
 
         // Break indicator: dashed zigzag lines
-        let top_zigzag_path = format!(
-            "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}",
-            top_p0.0, top_p0.1,
-            top_p1.0, top_p1.1,
-            top_p2.0, top_p2.1,
-            top_p3.0, top_p3.1,
-        );
-        svg.push_str(&format!(
-            r#"    <path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
-            top_zigzag_path, style.line_color, break_line_width
-        ));
-        svg.push('\n');
-
-        let bottom_zigzag_path = format!(
-            "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}",
-            bottom_p0.0, bottom_p0.1,
-            bottom_p1.0, bottom_p1.1,
-            bottom_p2.0, bottom_p2.1,
-            bottom_p3.0, bottom_p3.1,
-        );
-        svg.push_str(&format!(
-            r#"    <path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
-            bottom_zigzag_path, style.line_color, break_line_width
-        ));
-        svg.push('\n');
+        render_zigzag_line(&mut svg, &top_zz, &style.line_color, break_line_width);
+        render_zigzag_line(&mut svg, &bottom_zz, &style.line_color, break_line_width);
     } else if geometry.use_axis_break && geometry.use_axis_break_y {
         // Both horizontal and vertical breaks active
         // OVERLAY APPROACH: Draw full L-shape, then overlay white zigzag-shaped gap bands
-        let h_break_start = geometry.axis_break_start_x;
-        let h_break_end = geometry.axis_break_end_x;
-        let v_break_start = geometry.axis_break_start_y;
-        let v_break_end = geometry.axis_break_end_y;
-
-        let zigzag_amplitude = 5.0;
         let break_line_width = style.frame_stroke_width * 0.5;
-        let proud_amount = 8.0;
 
-        // Horizontal zigzag control points (for vertical break - top/bottom)
-        let h_x_left = frame_x - proud_amount;
-        let h_x_right = frame_x + frame_w + proud_amount;
-        let h_peak1_x = frame_x + frame_w * 0.15;
-        let h_peak2_x = frame_x + frame_w * 0.85;
-
-        // Top zigzag (horizontal)
-        let top_zz_p0 = (h_x_left, v_break_start);
-        let top_zz_p1 = (h_peak1_x, v_break_start - zigzag_amplitude);
-        let top_zz_p2 = (h_peak2_x, v_break_start + zigzag_amplitude);
-        let top_zz_p3 = (h_x_right, v_break_start);
-
-        // Bottom zigzag (horizontal)
-        let bot_zz_p0 = (h_x_left, v_break_end);
-        let bot_zz_p1 = (h_peak1_x, v_break_end - zigzag_amplitude);
-        let bot_zz_p2 = (h_peak2_x, v_break_end + zigzag_amplitude);
-        let bot_zz_p3 = (h_x_right, v_break_end);
-
-        // Vertical zigzag control points (for horizontal break - left/right)
-        let v_y_top = frame_y - proud_amount;
-        let v_y_bottom = frame_y + frame_h + proud_amount;
-        let v_peak1_y = frame_y + frame_h * 0.15;
-        let v_peak2_y = frame_y + frame_h * 0.85;
-
-        // Left zigzag (vertical)
-        let left_zz_p0 = (h_break_start, v_y_top);
-        let left_zz_p1 = (h_break_start - zigzag_amplitude, v_peak1_y);
-        let left_zz_p2 = (h_break_start + zigzag_amplitude, v_peak2_y);
-        let left_zz_p3 = (h_break_start, v_y_bottom);
-
-        // Right zigzag (vertical)
-        let right_zz_p0 = (h_break_end, v_y_top);
-        let right_zz_p1 = (h_break_end - zigzag_amplitude, v_peak1_y);
-        let right_zz_p2 = (h_break_end + zigzag_amplitude, v_peak2_y);
-        let right_zz_p3 = (h_break_end, v_y_bottom);
-
-        // Helper functions for intersection calculations
-        fn y_at_x(p1: (f64, f64), p2: (f64, f64), x: f64) -> f64 {
-            let (x1, y1) = p1;
-            let (x2, y2) = p2;
-            if (x2 - x1).abs() < 0.001 { return y1; }
-            y1 + (x - x1) * (y2 - y1) / (x2 - x1)
-        }
-        fn x_at_y(p1: (f64, f64), p2: (f64, f64), y: f64) -> f64 {
-            let (x1, y1) = p1;
-            let (x2, y2) = p2;
-            if (y2 - y1).abs() < 0.001 { return x1; }
-            x1 + (y - y1) * (x2 - x1) / (y2 - y1)
-        }
+        let top_zz = horizontal_zigzag(geometry.axis_break_start_y, frame_x, frame_w);
+        let bot_zz = horizontal_zigzag(geometry.axis_break_end_y, frame_x, frame_w);
+        let left_zz = vertical_zigzag(geometry.axis_break_start_x, frame_y, frame_h);
+        let right_zz = vertical_zigzag(geometry.axis_break_end_x, frame_y, frame_h);
 
         // Calculate intersections for strokes
-        let top_y_at_left = y_at_x(top_zz_p0, top_zz_p1, frame_x);
-        let top_y_at_right = y_at_x(top_zz_p2, top_zz_p3, frame_x + frame_w);
-        let bot_y_at_left = y_at_x(bot_zz_p0, bot_zz_p1, frame_x);
-        let bot_y_at_right = y_at_x(bot_zz_p2, bot_zz_p3, frame_x + frame_w);
-        let left_x_at_top = x_at_y(left_zz_p0, left_zz_p1, frame_y);
-        let left_x_at_bottom = x_at_y(left_zz_p2, left_zz_p3, frame_y + frame_h);
-        let right_x_at_top = x_at_y(right_zz_p0, right_zz_p1, frame_y);
-        let right_x_at_bottom = x_at_y(right_zz_p2, right_zz_p3, frame_y + frame_h);
+        let top_y_at_left = y_at_x(top_zz.p0, top_zz.p1, frame_x);
+        let top_y_at_right = y_at_x(top_zz.p2, top_zz.p3, frame_x + frame_w);
+        let bot_y_at_left = y_at_x(bot_zz.p0, bot_zz.p1, frame_x);
+        let bot_y_at_right = y_at_x(bot_zz.p2, bot_zz.p3, frame_x + frame_w);
+        let left_x_at_top = x_at_y(left_zz.p0, left_zz.p1, frame_y);
+        let left_x_at_bottom = x_at_y(left_zz.p2, left_zz.p3, frame_y + frame_h);
+        let right_x_at_top = x_at_y(right_zz.p0, right_zz.p1, frame_y);
+        let right_x_at_bottom = x_at_y(right_zz.p2, right_zz.p3, frame_y + frame_h);
 
         // STEP 1: Draw full L-shape frame fill (same as no-break case)
         let frame_fill_path = format!(
@@ -1196,14 +1154,14 @@ fn build_section_svg(
         // Traces: top zigzag left-to-right, then bottom zigzag right-to-left
         let h_gap_path = format!(
             "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z",
-            top_zz_p0.0, top_zz_p0.1,
-            top_zz_p1.0, top_zz_p1.1,
-            top_zz_p2.0, top_zz_p2.1,
-            top_zz_p3.0, top_zz_p3.1,
-            bot_zz_p3.0, bot_zz_p3.1,
-            bot_zz_p2.0, bot_zz_p2.1,
-            bot_zz_p1.0, bot_zz_p1.1,
-            bot_zz_p0.0, bot_zz_p0.1,
+            top_zz.p0.0, top_zz.p0.1,
+            top_zz.p1.0, top_zz.p1.1,
+            top_zz.p2.0, top_zz.p2.1,
+            top_zz.p3.0, top_zz.p3.1,
+            bot_zz.p3.0, bot_zz.p3.1,
+            bot_zz.p2.0, bot_zz.p2.1,
+            bot_zz.p1.0, bot_zz.p1.1,
+            bot_zz.p0.0, bot_zz.p0.1,
         );
         svg.push_str(&format!(
             r#"    <path d="{}" fill="{}" stroke="none"/>"#,
@@ -1215,14 +1173,14 @@ fn build_section_svg(
         // Traces: left zigzag top-to-bottom, then right zigzag bottom-to-top
         let v_gap_path = format!(
             "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z",
-            left_zz_p0.0, left_zz_p0.1,
-            left_zz_p1.0, left_zz_p1.1,
-            left_zz_p2.0, left_zz_p2.1,
-            left_zz_p3.0, left_zz_p3.1,
-            right_zz_p3.0, right_zz_p3.1,
-            right_zz_p2.0, right_zz_p2.1,
-            right_zz_p1.0, right_zz_p1.1,
-            right_zz_p0.0, right_zz_p0.1,
+            left_zz.p0.0, left_zz.p0.1,
+            left_zz.p1.0, left_zz.p1.1,
+            left_zz.p2.0, left_zz.p2.1,
+            left_zz.p3.0, left_zz.p3.1,
+            right_zz.p3.0, right_zz.p3.1,
+            right_zz.p2.0, right_zz.p2.1,
+            right_zz.p1.0, right_zz.p1.1,
+            right_zz.p0.0, right_zz.p0.1,
         );
         svg.push_str(&format!(
             r#"    <path d="{}" fill="{}" stroke="none"/>"#,
@@ -1286,109 +1244,30 @@ fn build_section_svg(
         svg.push('\n');
 
         // STEP 5: Draw zigzag indicator lines (dashed)
-        // Top horizontal zigzag
-        let top_zigzag_path = format!(
-            "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}",
-            top_zz_p0.0, top_zz_p0.1, top_zz_p1.0, top_zz_p1.1, 
-            top_zz_p2.0, top_zz_p2.1, top_zz_p3.0, top_zz_p3.1,
-        );
-        svg.push_str(&format!(
-            r#"    <path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
-            top_zigzag_path, style.line_color, break_line_width
-        ));
-        svg.push('\n');
-
-        // Bottom horizontal zigzag
-        let bottom_zigzag_path = format!(
-            "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}",
-            bot_zz_p0.0, bot_zz_p0.1, bot_zz_p1.0, bot_zz_p1.1, 
-            bot_zz_p2.0, bot_zz_p2.1, bot_zz_p3.0, bot_zz_p3.1,
-        );
-        svg.push_str(&format!(
-            r#"    <path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
-            bottom_zigzag_path, style.line_color, break_line_width
-        ));
-        svg.push('\n');
-
-        // Left vertical zigzag
-        let left_zigzag_path = format!(
-            "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}",
-            left_zz_p0.0, left_zz_p0.1, left_zz_p1.0, left_zz_p1.1, 
-            left_zz_p2.0, left_zz_p2.1, left_zz_p3.0, left_zz_p3.1,
-        );
-        svg.push_str(&format!(
-            r#"    <path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
-            left_zigzag_path, style.line_color, break_line_width
-        ));
-        svg.push('\n');
-
-        // Right vertical zigzag
-        let right_zigzag_path = format!(
-            "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}",
-            right_zz_p0.0, right_zz_p0.1, right_zz_p1.0, right_zz_p1.1, 
-            right_zz_p2.0, right_zz_p2.1, right_zz_p3.0, right_zz_p3.1,
-        );
-        svg.push_str(&format!(
-            r#"    <path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
-            right_zigzag_path, style.line_color, break_line_width
-        ));
-        svg.push('\n');
+        render_zigzag_line(&mut svg, &top_zz, &style.line_color, break_line_width);
+        render_zigzag_line(&mut svg, &bot_zz, &style.line_color, break_line_width);
+        render_zigzag_line(&mut svg, &left_zz, &style.line_color, break_line_width);
+        render_zigzag_line(&mut svg, &right_zz, &style.line_color, break_line_width);
     } else if geometry.use_axis_break && !geometry.use_axis_break_y {
         // Horizontal break only (no vertical break)
-        let break_start = geometry.axis_break_start_x;
-        let break_end = geometry.axis_break_end_x;
-
-        // Break indicator geometry - define the zigzag path ONCE, then derive everything from it
-        // Pattern: center → left peak (steep) → right peak (long) → center (steep)
-        let zigzag_amplitude = 5.0;  // How far each peak extends left/right
         let break_line_width = style.frame_stroke_width * 0.5;
-        let proud_amount = 8.0;  // How far zigzags extend beyond frame edges
 
-        // Define the 4 control points of the zigzag (top to bottom)
-        // Point 0: top extension (above frame)
-        // Point 1: first peak (near top, goes left)
-        // Point 2: second peak (near bottom, goes right)
-        // Point 3: bottom extension (below frame)
-        let y_top = frame_y - proud_amount;
-        let y_bottom = frame_y + frame_h + proud_amount;
-        let peak1_y = frame_y + frame_h * 0.15;
-        let peak2_y = frame_y + frame_h * 0.85;
-
-        // Left zigzag control points
-        let left_p0 = (break_start, y_top);
-        let left_p1 = (break_start - zigzag_amplitude, peak1_y);
-        let left_p2 = (break_start + zigzag_amplitude, peak2_y);
-        let left_p3 = (break_start, y_bottom);
-
-        // Right zigzag control points (identical shape, translated)
-        let right_p0 = (break_end, y_top);
-        let right_p1 = (break_end - zigzag_amplitude, peak1_y);
-        let right_p2 = (break_end + zigzag_amplitude, peak2_y);
-        let right_p3 = (break_end, y_bottom);
-
-        // Helper: interpolate x at given y along a line segment
-        fn x_at_y(p1: (f64, f64), p2: (f64, f64), y: f64) -> f64 {
-            let (x1, y1) = p1;
-            let (x2, y2) = p2;
-            if (y2 - y1).abs() < 0.001 { return x1; }
-            x1 + (y - y1) * (x2 - x1) / (y2 - y1)
-        }
+        let left_zz = vertical_zigzag(geometry.axis_break_start_x, frame_y, frame_h);
+        let right_zz = vertical_zigzag(geometry.axis_break_end_x, frame_y, frame_h);
 
         // Calculate where zigzag crosses frame boundaries
-        // Top edge (y = frame_y): on segment p0 → p1
-        let left_x_at_top = x_at_y(left_p0, left_p1, frame_y);
-        let right_x_at_top = x_at_y(right_p0, right_p1, frame_y);
-        // Bottom edge (y = frame_y + frame_h): on segment p2 → p3
-        let left_x_at_bottom = x_at_y(left_p2, left_p3, frame_y + frame_h);
-        let right_x_at_bottom = x_at_y(right_p2, right_p3, frame_y + frame_h);
+        let left_x_at_top = x_at_y(left_zz.p0, left_zz.p1, frame_y);
+        let right_x_at_top = x_at_y(right_zz.p0, right_zz.p1, frame_y);
+        let left_x_at_bottom = x_at_y(left_zz.p2, left_zz.p3, frame_y + frame_h);
+        let right_x_at_bottom = x_at_y(right_zz.p2, right_zz.p3, frame_y + frame_h);
 
         // Left portion: fill edge follows zigzag exactly
         let left_fill_path = format!(
             "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z",
             frame_x, frame_y,                      // Top-left corner
             left_x_at_top, frame_y,                // Where zigzag crosses top edge
-            left_p1.0, left_p1.1,                  // First peak
-            left_p2.0, left_p2.1,                  // Second peak
+            left_zz.p1.0, left_zz.p1.1,           // First peak
+            left_zz.p2.0, left_zz.p2.1,           // Second peak
             left_x_at_bottom, frame_y + frame_h,   // Where zigzag crosses bottom edge
             frame_x, frame_y + frame_h,            // Bottom-left corner
         );
@@ -1420,8 +1299,8 @@ fn build_section_svg(
             frame_x + frame_w - rabbet_w, frame_y + frame_h - rabbet_h, // Step left
             frame_x + frame_w - rabbet_w, frame_y + frame_h,    // Down to bottom
             right_x_at_bottom, frame_y + frame_h,               // Where zigzag crosses bottom edge
-            right_p2.0, right_p2.1,                             // Second peak - going up
-            right_p1.0, right_p1.1,                             // First peak
+            right_zz.p2.0, right_zz.p2.1,                      // Second peak - going up
+            right_zz.p1.0, right_zz.p1.1,                      // First peak
         );
         svg.push_str(&format!(
             r#"    <path d="{}" fill="{}" stroke="none"/>"#,
@@ -1444,33 +1323,9 @@ fn build_section_svg(
         ));
         svg.push('\n');
 
-        // Break indicator: dashed zigzag lines extending proud of frame
-        // Uses exact same control points as fill edges
-        let left_zigzag_path = format!(
-            "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}",
-            left_p0.0, left_p0.1,
-            left_p1.0, left_p1.1,
-            left_p2.0, left_p2.1,
-            left_p3.0, left_p3.1,
-        );
-        svg.push_str(&format!(
-            r#"    <path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
-            left_zigzag_path, style.line_color, break_line_width
-        ));
-        svg.push('\n');
-
-        let right_zigzag_path = format!(
-            "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}",
-            right_p0.0, right_p0.1,
-            right_p1.0, right_p1.1,
-            right_p2.0, right_p2.1,
-            right_p3.0, right_p3.1,
-        );
-        svg.push_str(&format!(
-            r#"    <path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
-            right_zigzag_path, style.line_color, break_line_width
-        ));
-        svg.push('\n');
+        // Break indicator: dashed zigzag lines
+        render_zigzag_line(&mut svg, &left_zz, &style.line_color, break_line_width);
+        render_zigzag_line(&mut svg, &right_zz, &style.line_color, break_line_width);
     } else {
         // No axis break - draw full L-shape
         let l_shape_points = format!(
@@ -2753,5 +2608,23 @@ mod tests {
         // Should have axis break indicators
         assert!(result.svg.contains("stroke-dasharray"));
         println!("HORIZONTAL AXIS BREAK SVG:\n{}", result.svg);
+    }
+
+    #[test]
+    fn test_both_axis_breaks() {
+        let mut design = test_design();
+        design.frame_material_width = 5.0; // Wide frame > 4" threshold
+        design.frame_material_depth = 5.0; // Deep frame > 4" threshold
+
+        let options = DiagramOptions {
+            view: ViewOption::SectionOnly,
+            ..Default::default()
+        };
+
+        let result = generate_diagram(&design, &options);
+
+        // Should have axis break indicators
+        assert!(result.svg.contains("stroke-dasharray"));
+        println!("BOTH AXIS BREAKS SVG:\n{}", result.svg);
     }
 }
