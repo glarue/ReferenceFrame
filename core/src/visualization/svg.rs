@@ -2120,9 +2120,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     // Determine color based on dimension type
     use super::types::DimensionType;
     let dim_color = match callout.callout.dimension_type {
-        DimensionType::FrameInsideWidth
-        | DimensionType::FrameInsideHeight
-        | DimensionType::FrameInsideWidthInterior
+        DimensionType::FrameInsideWidthInterior
         | DimensionType::FrameInsideHeightInterior => &style.inside_dimension_color,
         DimensionType::FrameOutsideWidth
         | DimensionType::FrameOutsideHeight => &style.outside_dimension_color,

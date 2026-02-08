@@ -251,18 +251,11 @@ impl FrameDesign {
 
     /// Calculate required rabbet z-axis depth based on material thicknesses
     pub fn get_rabbet_z_depth_required(&self) -> f64 {
-        let mut materials = vec![
-            self.glazing_thickness,
-            self.artwork_thickness,
-            self.backing_thickness,
-        ];
-
-        // Add matboard if used
-        if self.has_mat() {
-            materials.push(self.matboard_thickness);
-        }
-
-        materials.iter().sum::<f64>() + self.assembly_margin
+        self.glazing_thickness
+            + self.artwork_thickness
+            + self.backing_thickness
+            + if self.has_mat() { self.matboard_thickness } else { 0.0 }
+            + self.assembly_margin
     }
 
     /// Generate cut list with dimensions for each frame piece

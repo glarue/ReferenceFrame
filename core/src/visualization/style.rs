@@ -200,16 +200,6 @@ impl DiagramStyle {
         style
     }
 
-    /// Create a high-contrast style (for accessibility)
-    pub fn high_contrast() -> Self {
-        let mut style = Self::default();
-        style.background_color = "#FFFFFF".to_string();
-        style.line_color = "#000000".to_string();
-        style.dimension_color = "#333333".to_string();
-        style.frame_stroke_width = 2.5;
-        style
-    }
-
     /// Get the offset for a given dimension level
     pub fn get_dimension_offset(&self, level: u8) -> f64 {
         self.dimension_offset_base + (level as f64 * self.dimension_offset_step)

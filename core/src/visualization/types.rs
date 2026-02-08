@@ -125,8 +125,6 @@ pub enum DimensionType {
     // Plan view dimensions
     FrameOutsideWidth,
     FrameOutsideHeight,
-    FrameInsideWidth,
-    FrameInsideHeight,
     FrameInsideWidthInterior,  // Inside width shown inside the frame opening
     FrameInsideHeightInterior, // Inside height shown inside the frame opening
     MatVisibleWidth,
@@ -157,8 +155,6 @@ impl DimensionType {
     pub fn priority(&self) -> u8 {
         match self {
             // Inside dimensions closest to frame
-            DimensionType::FrameInsideWidth => 1,
-            DimensionType::FrameInsideHeight => 1,
             DimensionType::FrameInsideWidthInterior => 1,
             DimensionType::FrameInsideHeightInterior => 1,
 
@@ -199,8 +195,6 @@ impl DimensionType {
             DimensionType::FrameOutsideHeight => Side::Right,
 
             // Inside dimensions - Interior variants used for display, non-Interior are legacy
-            DimensionType::FrameInsideWidth => Side::Bottom,  // Not used in plan view anymore
-            DimensionType::FrameInsideHeight => Side::Left,  // Not used in plan view anymore
             DimensionType::FrameInsideWidthInterior => Side::Top,
             DimensionType::FrameInsideHeightInterior => Side::Right,
 
@@ -423,7 +417,7 @@ mod tests {
     #[test]
     fn test_dimension_priority() {
         // Inside dimensions have priority 1 (closest to frame)
-        assert_eq!(DimensionType::FrameInsideWidth.priority(), 1);
+        assert_eq!(DimensionType::FrameInsideWidthInterior.priority(), 1);
         // Outside dimensions have priority 2 (further from frame)
         assert_eq!(DimensionType::FrameOutsideWidth.priority(), 2);
         // Nice to have dimensions have lower priority
