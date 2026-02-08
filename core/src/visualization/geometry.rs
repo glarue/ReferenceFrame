@@ -122,40 +122,13 @@ pub struct SectionViewGeometry {
 }
 
 impl PlanViewGeometry {
-    /// Calculate geometry from a frame design
-    pub fn from_design(
-        design: &FrameDesign,
-        canvas_width: f64,
-        canvas_height: f64,
-        style: &DiagramStyle,
-    ) -> Self {
-        // Get dimensions in inches
+    /// Build all rectangles from pre-computed scale and origin
+    fn build_rects(design: &FrameDesign, scale: f64, origin_x: f64, origin_y: f64) -> Self {
         let (frame_outer_height, frame_outer_width) = design.get_frame_outside_dimensions();
         let (frame_inner_height, frame_inner_width) = design.get_frame_inside_dimensions();
 
-        // Calculate available canvas area (accounting for margins and dimension callouts)
-        let available_width = canvas_width - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
-        let available_height = canvas_height - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
-
-        // Calculate scale to fit
-        let scale_x = available_width / frame_outer_width;
-        let scale_y = available_height / frame_outer_height;
-        let scale = scale_x.min(scale_y);
-
-        // Calculate origin to center the diagram
-        let scaled_width = frame_outer_width * scale;
-        let scaled_height = frame_outer_height * scale;
-
-        // Ensure minimum offset from edges to leave room for dimension callouts + labels
-        // Labels extend above the dimension line by (font_size/2 + 2) and have height (font_size * 1.2)
-        let label_extension = style.dimension_font_size + 4.0;
-        let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
-        let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
-        let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
         let origin = Point::new(origin_x, origin_y);
-
-        // Calculate rectangles
-        let frame_outer = Rect::new(origin_x, origin_y, scaled_width, scaled_height);
+        let frame_outer = Rect::new(origin_x, origin_y, frame_outer_width * scale, frame_outer_height * scale);
 
         let frame_width_scaled = design.frame_material_width * scale;
         let frame_inner = Rect::new(
@@ -171,18 +144,10 @@ impl PlanViewGeometry {
             let mat_opening_scaled_w = mat_opening_width * scale;
             let mat_opening_scaled_h = mat_opening_height * scale;
 
-            // Mat visible area = frame inner
             let mat_vis = Some(frame_inner);
-
-            // Mat opening (centered within mat visible)
             let opening_x = frame_inner.x + (frame_inner.width - mat_opening_scaled_w) / 2.0;
             let opening_y = frame_inner.y + (frame_inner.height - mat_opening_scaled_h) / 2.0;
-            let mat_open = Some(Rect::new(
-                opening_x,
-                opening_y,
-                mat_opening_scaled_w,
-                mat_opening_scaled_h,
-            ));
+            let mat_open = Some(Rect::new(opening_x, opening_y, mat_opening_scaled_w, mat_opening_scaled_h));
 
             (mat_vis, mat_open)
         } else {
@@ -202,7 +167,6 @@ impl PlanViewGeometry {
         let artwork_scaled_w = design.artwork_width * scale;
         let artwork_scaled_h = design.artwork_height * scale;
         let artwork = if design.has_mat() {
-            // With mat, artwork is positioned relative to content area
             Rect::new(
                 content_area.x + (content_area.width - artwork_scaled_w) / 2.0,
                 content_area.y + (content_area.height - artwork_scaled_h) / 2.0,
@@ -210,7 +174,6 @@ impl PlanViewGeometry {
                 artwork_scaled_h,
             )
         } else {
-            // Without mat, artwork = content area
             content_area
         };
 
@@ -224,6 +187,35 @@ impl PlanViewGeometry {
             scale,
             origin,
         }
+    }
+
+    /// Calculate geometry from a frame design
+    pub fn from_design(
+        design: &FrameDesign,
+        canvas_width: f64,
+        canvas_height: f64,
+        style: &DiagramStyle,
+    ) -> Self {
+        let (frame_outer_height, frame_outer_width) = design.get_frame_outside_dimensions();
+
+        // Calculate available canvas area (accounting for margins and dimension callouts)
+        let available_width = canvas_width - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
+        let available_height = canvas_height - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
+
+        let scale_x = available_width / frame_outer_width;
+        let scale_y = available_height / frame_outer_height;
+        let scale = scale_x.min(scale_y);
+
+        let scaled_width = frame_outer_width * scale;
+        let scaled_height = frame_outer_height * scale;
+
+        // Ensure minimum offset from edges to leave room for dimension callouts + labels
+        let label_extension = style.dimension_font_size + 4.0;
+        let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
+        let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
+        let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
+
+        Self::build_rects(design, scale, origin_x, origin_y)
     }
 
     /// Convert a dimension value (inches) to canvas units
@@ -242,101 +234,22 @@ impl PlanViewGeometry {
         canvas_height: f64,
         style: &DiagramStyle,
     ) -> Self {
-        // Get actual dimensions in inches
         let (frame_outer_height, frame_outer_width) = design.get_frame_outside_dimensions();
-        let (frame_inner_height, frame_inner_width) = design.get_frame_inside_dimensions();
 
-        // Calculate available canvas area (minimal margins, no callout space needed)
-        let margin = style.margin;
-        let available_width = canvas_width - 2.0 * margin;
-        let available_height = canvas_height - 2.0 * margin;
+        // Minimal margins, no callout space needed
+        let available_width = canvas_width - 2.0 * style.margin;
+        let available_height = canvas_height - 2.0 * style.margin;
 
-        // Scale to fit actual frame, maximizing canvas usage
         let scale_x = available_width / frame_outer_width;
         let scale_y = available_height / frame_outer_height;
         let scale = scale_x.min(scale_y);
 
-        // Calculate scaled dimensions
-        let scaled_outer_width = frame_outer_width * scale;
-        let scaled_outer_height = frame_outer_height * scale;
-        let scaled_artwork_width = design.artwork_width * scale;
-        let scaled_artwork_height = design.artwork_height * scale;
+        let scaled_width = frame_outer_width * scale;
+        let scaled_height = frame_outer_height * scale;
+        let origin_x = (canvas_width - scaled_width) / 2.0;
+        let origin_y = (canvas_height - scaled_height) / 2.0;
 
-        // Center in canvas
-        let origin_x = (canvas_width - scaled_outer_width) / 2.0;
-        let origin_y = (canvas_height - scaled_outer_height) / 2.0;
-
-        // Scaled component dimensions
-        let frame_width_scaled = design.frame_material_width * scale;
-        let rabbet_width_scaled = design.rabbet_width * scale;
-        let origin = Point::new(origin_x, origin_y);
-
-        // Calculate rectangles (same as from_design but with preview-computed origin/scale)
-        let frame_outer = Rect::new(origin_x, origin_y, scaled_outer_width, scaled_outer_height);
-
-        let frame_inner = Rect::new(
-            origin_x + frame_width_scaled,
-            origin_y + frame_width_scaled,
-            frame_inner_width * scale,
-            frame_inner_height * scale,
-        );
-
-        // Mat geometry (if mat is present)
-        let (mat_visible, mat_opening) = if design.has_mat() {
-            let (mat_opening_height, mat_opening_width) = design.get_mat_opening_dimensions();
-            let mat_opening_scaled_w = mat_opening_width * scale;
-            let mat_opening_scaled_h = mat_opening_height * scale;
-
-            // Mat visible area = frame inner
-            let mat_vis = Some(frame_inner);
-
-            // Mat opening (centered within mat visible)
-            let opening_x = frame_inner.x + (frame_inner.width - mat_opening_scaled_w) / 2.0;
-            let opening_y = frame_inner.y + (frame_inner.height - mat_opening_scaled_h) / 2.0;
-            let mat_open = Some(Rect::new(
-                opening_x,
-                opening_y,
-                mat_opening_scaled_w,
-                mat_opening_scaled_h,
-            ));
-
-            (mat_vis, mat_open)
-        } else {
-            (None, None)
-        };
-
-        // Content area (extends under rabbet lip by rabbet_width)
-        let content_area = Rect::new(
-            frame_inner.x - rabbet_width_scaled,
-            frame_inner.y - rabbet_width_scaled,
-            frame_inner.width + 2.0 * rabbet_width_scaled,
-            frame_inner.height + 2.0 * rabbet_width_scaled,
-        );
-
-        // Artwork rectangle
-        let artwork = if design.has_mat() {
-            // With mat, artwork is positioned relative to content area
-            Rect::new(
-                content_area.x + (content_area.width - scaled_artwork_width) / 2.0,
-                content_area.y + (content_area.height - scaled_artwork_height) / 2.0,
-                scaled_artwork_width,
-                scaled_artwork_height,
-            )
-        } else {
-            // Without mat, artwork = content area
-            content_area
-        };
-
-        Self {
-            frame_outer,
-            frame_inner,
-            mat_visible,
-            mat_opening,
-            artwork,
-            content_area,
-            scale,
-            origin,
-        }
+        Self::build_rects(design, scale, origin_x, origin_y)
     }
 
     /// Get a point on the frame outer boundary
