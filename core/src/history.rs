@@ -35,12 +35,17 @@ impl HistoryEntry {
 
     /// Create entry with auto-generated title based on artwork dimensions
     pub fn with_auto_title(design: FrameDesign, timestamp: i64) -> Self {
-        let title = format!(
+        let title = Self::generate_title(&design);
+        Self::new(design, timestamp, title)
+    }
+
+    /// Generate a default title from design dimensions
+    pub fn generate_title(design: &FrameDesign) -> String {
+        format!(
             "{:.1}\" × {:.1}\" Frame",
             design.artwork_height,
             design.artwork_width
-        );
-        Self::new(design, timestamp, title)
+        )
     }
 
     /// Get the most recent timestamp
@@ -127,21 +132,8 @@ impl DesignHistory {
     ///
     /// Returns true if this was a new design (or forced new), false if it was a duplicate.
     pub fn add_entry_auto_title(&mut self, design: FrameDesign, timestamp: i64, force_new: bool) -> bool {
-        // Check for existing identical design first (unless forcing new)
-        if !force_new {
-            if let Some(idx) = self.find_matching_design(&design) {
-                self.entries[idx].add_timestamp(timestamp);
-                let entry = self.entries.remove(idx);
-                self.entries.insert(0, entry);
-                return false;
-            }
-        }
-
-        // New design
-        let entry = HistoryEntry::with_auto_title(design, timestamp);
-        self.entries.insert(0, entry);
-        self.enforce_limit();
-        true
+        let title = HistoryEntry::generate_title(&design);
+        self.add_entry(design, timestamp, title, force_new)
     }
 
     /// Find index of entry with matching design
