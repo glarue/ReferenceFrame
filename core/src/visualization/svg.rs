@@ -89,6 +89,43 @@ fn arrow_line_endpoint_for_target_y(target_y: f64, stroke_width: f64, is_start_m
 }
 
 // ============================================================================
+// SVG RENDERING CONSTANTS
+// ============================================================================
+// Cosmetic values that don't belong in DiagramStyle (not user-configurable)
+// but should be named for clarity and consistency.
+
+// Dash patterns: "dash,gap" in SVG units
+const DASH_BREAK_INDICATOR: &str = "4,3";    // Axis break zigzag lines
+const DASH_BOUNDARY: &str = "6,3";           // Content boundary outline
+const DASH_ASSEMBLY_MARGIN: &str = "4,2";    // Assembly margin indicator
+const DASH_CLEARANCE: &str = "3,2";          // Clearance/interference line
+
+// Opacity values
+const OPACITY_CONTENT_BOUNDARY: f64 = 0.5;   // Content boundary outline
+const OPACITY_ASSEMBLY_MARGIN: f64 = 0.7;    // Assembly margin rect
+const OPACITY_LABEL_BACKGROUND: f64 = 0.85;  // Artwork indicator label bg
+const OPACITY_RABBET_BACKGROUND: f64 = 0.5;  // Rabbet indicator bg
+
+// Dimension line break symbols (spark/zigzag on broken dimension lines)
+const SPARK_VERTICAL_WIDTH: f64 = 4.0;       // Horizontal extent of vertical spark
+const SPARK_VERTICAL_HEIGHT: f64 = 8.0;      // Vertical extent of vertical spark
+const SPARK_HORIZONTAL_WIDTH: f64 = 8.0;     // Horizontal extent of horizontal spark
+const SPARK_HORIZONTAL_HEIGHT: f64 = 4.0;    // Vertical extent of horizontal spark
+
+// Label layout
+const LABEL_MASK_PADDING_X: f64 = 4.0;       // Horizontal padding around label text
+const LABEL_MASK_PADDING_Y: f64 = 2.0;       // Vertical padding around label text
+const LEADER_LINE_LENGTH: f64 = 10.0;        // Material label leader horizontal segment
+const LEADER_STROKE_RATIO: f64 = 0.7;        // Leader line width as fraction of extension_stroke
+
+// Legend
+const LEGEND_SWATCH_SIZE: f64 = 12.0;        // Legend color swatch width/height
+const LEGEND_SWATCH_STROKE: f64 = 0.5;       // Legend swatch border width
+const LEGEND_SWATCH_GAP: f64 = 8.0;          // Gap between swatch and text
+const LEGEND_ITEM_GAP: f64 = 16.0;           // Gap between legend items
+const LEGEND_CHAR_WIDTH_RATIO: f64 = 0.55;   // Average character width as fraction of font size
+
+// ============================================================================
 // AXIS BREAK HELPERS
 // ============================================================================
 
@@ -143,10 +180,10 @@ fn vertical_zigzag(center_x: f64, frame_y: f64, frame_h: f64) -> ZigzagPoints {
 /// Render a dashed zigzag indicator line
 fn render_zigzag_line(svg: &mut String, zz: &ZigzagPoints, line_color: &str, break_line_width: f64) {
     svg.push_str(&format!(
-        r#"    <path d="M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="4,3" stroke-linecap="round" stroke-linejoin="round"/>"#,
+        r#"    <path d="M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="{}" stroke-linecap="round" stroke-linejoin="round"/>"#,
         zz.p0.0, zz.p0.1, zz.p1.0, zz.p1.1,
         zz.p2.0, zz.p2.1, zz.p3.0, zz.p3.1,
-        line_color, break_line_width
+        line_color, break_line_width, DASH_BREAK_INDICATOR
     ));
     svg.push('\n');
 }
@@ -679,13 +716,13 @@ fn build_plan_svg(
         );
         // Semi-transparent fill (ring shape)
         svg.push_str(&format!(
-            "    <path d=\"{}\" fill=\"#8B7355\" fill-opacity=\"0.15\" fill-rule=\"evenodd\" stroke=\"none\"/>\n",
-            path_d
+            "    <path d=\"{}\" fill=\"{}\" fill-opacity=\"0.15\" fill-rule=\"evenodd\" stroke=\"none\"/>\n",
+            path_d, style.content_boundary_color
         ));
         // Dashed stroke on outer edge only
         svg.push_str(&format!(
-            "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"none\" stroke=\"#8B7355\" stroke-width=\"{:.2}\" stroke-dasharray=\"4,2\" stroke-opacity=\"0.5\"/>\n",
-            ox, oy, ow, oh, style.extension_stroke_width * 0.8
+            "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{:.2}\" stroke-dasharray=\"{}\" stroke-opacity=\"{}\"/>\n",
+            ox, oy, ow, oh, style.content_boundary_color, style.extension_stroke_width * 0.8, DASH_ASSEMBLY_MARGIN, OPACITY_CONTENT_BOUNDARY
         ));
 
         svg.push_str("  </g>\n");
@@ -695,10 +732,10 @@ fn build_plan_svg(
     // This is the content_area boundary (matboard outer edge that sits in the rabbet)
     svg.push_str("  <g id=\"content-boundary\">\n");
     svg.push_str(&format!(
-        "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"6,3\" fill=\"none\" opacity=\"0.5\"/>\n",
+        "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"{}\" fill=\"none\" opacity=\"{}\"/>\n",
         geometry.content_area.x, geometry.content_area.y,
         geometry.content_area.width, geometry.content_area.height,
-        "#8B7355", style.extension_stroke_width
+        style.content_boundary_color, style.extension_stroke_width, DASH_BOUNDARY, OPACITY_CONTENT_BOUNDARY
     ));
     svg.push_str("  </g>\n");
 
@@ -815,19 +852,20 @@ fn build_plan_svg(
         );
 
         // Calculate background rectangle dimensions
-        let mask_margin = 4.0;
+        let mask_margin = LABEL_MASK_PADDING_X;
         let text_bg_w = estimate_text_width(&artwork_label, style.label_font_size) + mask_margin * 2.0;
         let text_bg_h = style.label_font_size * 1.3 + mask_margin * 2.0;
 
         // Draw background rectangle FIRST (so it appears behind the text)
         // Centered on artwork_center
         svg.push_str(&format!(
-            r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="0.85" stroke="none" rx="2"/>"#,
+            r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="{}" stroke="none" rx="2"/>"#,
             artwork_center.x - text_bg_w / 2.0,
             artwork_center.y - text_bg_h / 2.0,
             text_bg_w,
             text_bg_h,
-            style.background_color
+            style.background_color,
+            OPACITY_LABEL_BACKGROUND
         ));
         svg.push('\n');
 
@@ -1013,10 +1051,11 @@ fn build_section_svg(
     // This represents the tolerance/clearance allowed for assembly
     if geometry.assembly_margin.height > 0.5 { // Only show if visible
         svg.push_str(&format!(
-            r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" stroke="{}" stroke-width="{}" stroke-dasharray="4,2" fill="none" opacity="0.7"/>"#,
+            r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" stroke="{}" stroke-width="{}" stroke-dasharray="{}" fill="none" opacity="{}"/>"#,
             geometry.assembly_margin.x, geometry.assembly_margin.y,
             geometry.assembly_margin.width, geometry.assembly_margin.height,
-            style.dimension_color, style.extension_stroke_width
+            style.dimension_color, style.extension_stroke_width,
+            DASH_ASSEMBLY_MARGIN, OPACITY_ASSEMBLY_MARGIN
         ));
         svg.push('\n');
     }
@@ -1383,8 +1422,8 @@ fn build_section_svg(
         let axis_break_start_y = geometry.axis_break_start_y;
         let axis_break_end_y = geometry.axis_break_end_y;
         let break_center_y = (axis_break_start_y + axis_break_end_y) / 2.0;
-        let spark_width = 4.0;  // Horizontal extent of zigzag
-        let spark_height = 8.0; // Vertical extent of zigzag
+        let spark_width = SPARK_VERTICAL_WIDTH;
+        let spark_height = SPARK_VERTICAL_HEIGHT;
         
         // Line from top arrow to break
         svg.push_str(&generate_line_with_arrows(
@@ -1474,8 +1513,8 @@ fn build_section_svg(
     if geometry.use_axis_break {
         // Break symbol parameters
         let break_center = (geometry.axis_break_start_x + geometry.axis_break_end_x) / 2.0;
-        let spark_width = 8.0;  // Total width of spark symbol
-        let spark_height = 4.0; // Amplitude of spark
+        let spark_width = SPARK_HORIZONTAL_WIDTH;
+        let spark_height = SPARK_HORIZONTAL_HEIGHT;
 
         // Line from left arrow to break
         svg.push_str(&generate_line_with_arrows(
@@ -1538,12 +1577,13 @@ fn build_section_svg(
 
     // Add semi-transparent background behind rabbet indicator for legibility
     svg.push_str(&format!(
-        r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="0.5" stroke="none" rx="1"/>"#,
+        r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="{}" stroke="none" rx="1"/>"#,
         geometry.rabbet_area.x,
         geometry.rabbet_area.y,
         geometry.rabbet_area.width,
         geometry.rabbet_area.height,
-        style.background_color
+        style.background_color,
+        OPACITY_RABBET_BACKGROUND
     ));
     svg.push('\n');
     
@@ -1652,13 +1692,13 @@ fn build_section_svg(
 
         // Dog-leg leader line:
         // 1. Horizontal from material edge (shorter for compact layout)
-        let horiz_length = 10.0;
+        let horiz_length = LEADER_LINE_LENGTH;
         let horiz_end_x = mat.right_edge + horiz_length;
 
         svg.push_str(&generate_line_with_arrows(
             mat.right_edge + 3.0, mat.center_y,
             horiz_end_x, mat.center_y,
-            dim_color, style.extension_stroke_width * 0.7,
+            dim_color, style.extension_stroke_width * LEADER_STROKE_RATIO,
             true, false, true, // arrow_start only, is_leader
         ));
 
@@ -1668,7 +1708,7 @@ fn build_section_svg(
             r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
             horiz_end_x, mat.center_y,
             label_base_x - 5.0, label_y,
-            dim_color, style.extension_stroke_width * 0.7
+            dim_color, style.extension_stroke_width * LEADER_STROKE_RATIO
         ));
         svg.push('\n');
 
@@ -1746,10 +1786,10 @@ fn build_section_svg(
     // Rabbet label - below the frame with leader from rabbet area
     let rabbet_label_y = frame_y + frame_h + 18.0;
     svg.push_str(&format!(
-        r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}" stroke-dasharray="3,2"/>"#,
+        r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}" stroke-dasharray="{}"/>"#,
         rabbet_center_x, geometry.rabbet_area.y + rabbet_h + 2.0,
         rabbet_center_x, rabbet_label_y - 6.0,
-        dim_color, style.extension_stroke_width
+        dim_color, style.extension_stroke_width, DASH_CLEARANCE
     ));
     svg.push('\n');
 
@@ -1819,18 +1859,13 @@ fn build_section_svg(
         vec!["Frame", "Glazing", "Artwork", "Backing"]
     };
 
-    const RECT_WIDTH: f64 = 12.0;
-    const RECT_TO_TEXT_GAP: f64 = 8.0;
-    const INTER_ITEM_GAP: f64 = 16.0;
-    const CHAR_WIDTH_RATIO: f64 = 0.55;
-
     let mut item_widths: Vec<f64> = material_names.iter().map(|name| {
-        let text_width = name.len() as f64 * style.label_font_size * CHAR_WIDTH_RATIO;
-        RECT_WIDTH + RECT_TO_TEXT_GAP + text_width + INTER_ITEM_GAP
+        let text_width = name.len() as f64 * style.label_font_size * LEGEND_CHAR_WIDTH_RATIO;
+        LEGEND_SWATCH_SIZE + LEGEND_SWATCH_GAP + text_width + LEGEND_ITEM_GAP
     }).collect();
 
     if let Some(last_width) = item_widths.last_mut() {
-        *last_width -= INTER_ITEM_GAP;
+        *last_width -= LEGEND_ITEM_GAP;
     }
 
     let total_width: f64 = item_widths.iter().sum();
@@ -2183,8 +2218,8 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
 
     // Estimate label dimensions for masking
     let label_text_width = estimate_text_width(&callout.callout.label, style.label_font_size);
-    let mask_padding_x = 4.0;  // Horizontal padding around text
-    let mask_padding_y = 2.0;  // Vertical padding around text
+    let mask_padding_x = LABEL_MASK_PADDING_X;
+    let mask_padding_y = LABEL_MASK_PADDING_Y;
     let mask_width = label_text_width + mask_padding_x * 2.0;
     let mask_height = style.label_font_size + mask_padding_y * 2.0;
 
@@ -2285,21 +2320,14 @@ fn generate_section_legend(
         .filter(|(name, _)| *name != "Matboard" || design.has_mat())
         .collect();
 
-    // Calculate actual width needed for each item based on text length
-    // Components: rect (12px) + gap (8px) + text_width + inter_item_spacing (16px)
-    const RECT_WIDTH: f64 = 12.0;
-    const RECT_TO_TEXT_GAP: f64 = 8.0;
-    const INTER_ITEM_GAP: f64 = 16.0;
-    const CHAR_WIDTH_RATIO: f64 = 0.55; // Average character width as fraction of font size
-
     let mut item_widths: Vec<f64> = materials.iter().map(|(name, _)| {
-        let text_width = name.len() as f64 * style.label_font_size * CHAR_WIDTH_RATIO;
-        RECT_WIDTH + RECT_TO_TEXT_GAP + text_width + INTER_ITEM_GAP
+        let text_width = name.len() as f64 * style.label_font_size * LEGEND_CHAR_WIDTH_RATIO;
+        LEGEND_SWATCH_SIZE + LEGEND_SWATCH_GAP + text_width + LEGEND_ITEM_GAP
     }).collect();
 
     // Don't add inter-item gap after the last item
     if let Some(last_width) = item_widths.last_mut() {
-        *last_width -= INTER_ITEM_GAP;
+        *last_width -= LEGEND_ITEM_GAP;
     }
 
     let total_width: f64 = item_widths.iter().sum();
@@ -2321,12 +2349,12 @@ fn generate_section_legend(
     for ((name, pattern), item_width) in materials.iter().zip(item_widths.iter()) {
         let fill = get_fill_for_pattern(pattern);
         svg.push_str(&format!(
-            r#"    <rect x="{:.2}" y="{:.2}" width="12" height="12" fill="{}" stroke="{}" stroke-width="0.5"/>"#,
-            current_x, legend_y - 10.0, fill, style.line_color
+            r#"    <rect x="{:.2}" y="{:.2}" width="{}" height="{}" fill="{}" stroke="{}" stroke-width="{}"/>"#,
+            current_x, legend_y - 10.0, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE, fill, style.line_color, LEGEND_SWATCH_STROKE
         ));
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}</text>"#,
-            current_x + RECT_WIDTH + RECT_TO_TEXT_GAP, legend_y, style.dimension_color, style.font_family, style.label_font_size, name
+            current_x + LEGEND_SWATCH_SIZE + LEGEND_SWATCH_GAP, legend_y, style.dimension_color, style.font_family, style.label_font_size, name
         ));
         svg.push('\n');
         current_x += item_width;

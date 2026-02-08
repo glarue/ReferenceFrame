@@ -75,6 +75,8 @@ pub struct DiagramStyle {
     pub artwork_dimension_color: String,
     /// Accent color for highlights
     pub accent_color: String,
+    /// Content boundary color (dashed outline showing matboard/content edge)
+    pub content_boundary_color: String,
     /// Warning/alert color (for interference)
     pub warning_color: String,
     /// Success color (for clearance OK)
@@ -147,6 +149,7 @@ impl Default for DiagramStyle {
             mat_dimension_color: "#f3722c".to_string(),     // Atomic Tangerine - mat dimensions
             artwork_dimension_color: "#f8961e".to_string(), // Carrot Orange - artwork dimensions
             accent_color: "#43aa8b".to_string(),            // Seagrass - accent
+            content_boundary_color: "#8B7355".to_string(),  // Warm brown - content boundary
             warning_color: "#f94144".to_string(),           // Strawberry Red - error
             success_color: "#90be6d".to_string(),           // Willow Green - success
 
