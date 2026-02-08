@@ -2590,6 +2590,10 @@ mod tests {
         };
 
         let result = generate_diagram(&design, &options);
+        assert!(result.svg.contains("<svg"));
+        assert!(result.svg.contains("section-geometry"));
+        assert!(result.svg.contains("section-dimensions"));
+        assert!(result.warnings.is_empty());
         println!("SECTION SVG:\n{}", result.svg);
     }
 
@@ -2599,6 +2603,10 @@ mod tests {
         let options = DiagramOptions::default();
 
         let result = generate_diagram(&design, &options);
+        assert!(result.svg.contains("<svg"));
+        assert!(result.svg.contains("geometry"));
+        assert!(result.svg.contains("dimensions"));
+        assert!(result.warnings.is_empty());
         println!("PLAN SVG:\n{}", result.svg);
     }
 

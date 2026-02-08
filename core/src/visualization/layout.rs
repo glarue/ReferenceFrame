@@ -96,7 +96,7 @@ fn layout_horizontal_side(
         };
 
         // Estimate label bounds for collision detection
-        let label_width = estimate_label_width(&callout.label, style.dimension_font_size);
+        let label_width = estimate_text_width(&callout.label, style.dimension_font_size);
         let label_height = style.dimension_font_size * 1.2;
         let label_bounds = Rect::new(
             label_x - label_width / 2.0,
@@ -152,7 +152,7 @@ fn layout_vertical_side(
 
         // Estimate label bounds for collision detection
         // For vertical labels, we might rotate text, so swap width/height conceptually
-        let label_width = estimate_label_width(&callout.label, style.dimension_font_size);
+        let label_width = estimate_text_width(&callout.label, style.dimension_font_size);
         let label_height = style.dimension_font_size * 1.2;
         let label_bounds = Rect::new(
             label_x - label_width / 2.0,
@@ -173,12 +173,6 @@ fn layout_vertical_side(
     }
 
     positioned
-}
-
-/// Estimate label width based on text length and font size
-fn estimate_label_width(text: &str, font_size: f64) -> f64 {
-    // Use shared character-aware width estimation
-    estimate_text_width(text, font_size)
 }
 
 /// Detect and resolve collisions between positioned callouts
@@ -394,12 +388,12 @@ mod tests {
     }
 
     #[test]
-    fn test_estimate_label_width() {
+    fn test_estimate_text_width() {
         let short_label = "10\"";
         let long_label = "24 3/4\"";
 
-        let short_width = estimate_label_width(short_label, 12.0);
-        let long_width = estimate_label_width(long_label, 12.0);
+        let short_width = estimate_text_width(short_label, 12.0);
+        let long_width = estimate_text_width(long_label, 12.0);
 
         assert!(long_width > short_width);
     }

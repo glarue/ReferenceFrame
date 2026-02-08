@@ -6,7 +6,7 @@
 use crate::frame::FrameDesign;
 use crate::conversions::{format_dimension, Unit};
 use super::types::{
-    DimensionCallout, DimensionType, Point, Side,
+    DimensionCallout, DimensionType, Point,
 };
 use super::geometry::PlanViewGeometry;
 use super::style::DiagramStyle;
@@ -200,37 +200,27 @@ pub fn generate_section_callouts(
     callouts
 }
 
-/// Filter callouts by side
-pub fn filter_by_side(callouts: &[DimensionCallout], side: Side) -> Vec<&DimensionCallout> {
-    callouts
-        .iter()
-        .filter(|c| c.preferred_side == side)
-        .collect()
-}
-
-/// Group callouts by their preferred side
-pub fn group_by_side(callouts: &[DimensionCallout]) -> (
-    Vec<&DimensionCallout>, // Top
-    Vec<&DimensionCallout>, // Right
-    Vec<&DimensionCallout>, // Bottom
-    Vec<&DimensionCallout>, // Left
-) {
-    let top = filter_by_side(callouts, Side::Top);
-    let right = filter_by_side(callouts, Side::Right);
-    let bottom = filter_by_side(callouts, Side::Bottom);
-    let left = filter_by_side(callouts, Side::Left);
-    (top, right, bottom, left)
-}
-
-/// Sort callouts by priority (highest priority first)
-pub fn sort_by_priority(callouts: &mut [&DimensionCallout]) {
-    callouts.sort_by_key(|c| c.priority);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::visualization::types::Side;
     use crate::visualization::style::DiagramStyle;
+
+    fn filter_by_side(callouts: &[DimensionCallout], side: Side) -> Vec<&DimensionCallout> {
+        callouts.iter().filter(|c| c.preferred_side == side).collect()
+    }
+
+    fn group_by_side(callouts: &[DimensionCallout]) -> (
+        Vec<&DimensionCallout>, Vec<&DimensionCallout>,
+        Vec<&DimensionCallout>, Vec<&DimensionCallout>,
+    ) {
+        (filter_by_side(callouts, Side::Top), filter_by_side(callouts, Side::Right),
+         filter_by_side(callouts, Side::Bottom), filter_by_side(callouts, Side::Left))
+    }
+
+    fn sort_by_priority(callouts: &mut [&DimensionCallout]) {
+        callouts.sort_by_key(|c| c.priority);
+    }
 
     fn test_design() -> FrameDesign {
         let mut design = FrameDesign::new(12.0, 16.0);
