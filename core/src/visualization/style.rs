@@ -138,17 +138,17 @@ impl Default for DiagramStyle {
             //   #f8961e Carrot Orange    - cut dimensions
             //   #f9c74f Tuscan Sun       - warnings
             //   #90be6d Willow Green     - success/material
-            //   #43aa8b Seagrass         - accent/incidental
+            //   #46af8f Seaweed          - accent/incidental
             //   #577590 Blue Slate       - primary
             // ================================================================
             background_color: "#FFFFFF".to_string(),        // White
             line_color: "#333333".to_string(),              // Dark gray for frame lines
             dimension_color: "#577590".to_string(),         // Blue Slate - primary/default
-            inside_dimension_color: "#43aa8b".to_string(),  // Seagrass - inside dims
+            inside_dimension_color: "#46af8f".to_string(),  // Seaweed - inside dims
             outside_dimension_color: "#577590".to_string(), // Blue Slate - outside dims
             mat_dimension_color: "#f3722c".to_string(),     // Atomic Tangerine - mat dimensions
             artwork_dimension_color: "#f8961e".to_string(), // Carrot Orange - artwork dimensions
-            accent_color: "#43aa8b".to_string(),            // Seagrass - accent
+            accent_color: "#46af8f".to_string(),            // Seaweed - accent
             content_boundary_color: "#8B7355".to_string(),  // Warm brown - content boundary
             warning_color: "#f94144".to_string(),           // Strawberry Red - error
             success_color: "#90be6d".to_string(),           // Willow Green - success

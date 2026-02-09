@@ -17,7 +17,7 @@
       "orange": "F8961E",
       "yellow": "F9C74F",
       "green": "90BE6D",
-      "teal": "43AA8B",
+      "teal": "46AF8F",
       "blue": "577590"
     },
     "palette_light": {
@@ -26,7 +26,7 @@
       "orange": "FBBB6D",
       "yellow": "FBDA8B",
       "green": "B8D4A2",
-      "teal": "8AC9B5",
+      "teal": "7EC7B1",
       "blue": "94A7B8"
     },
     "palette_dark": {
@@ -35,7 +35,7 @@
       "orange": "AE6915",
       "yellow": "AE8B37",
       "green": "65854C",
-      "teal": "2F7761",
+      "teal": "317B64",
       "blue": "3D5265"
     },
     "neutrals": {

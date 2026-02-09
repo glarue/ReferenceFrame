@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn test_color_get() {
         // Direct palette color
-        assert_eq!(get_color("teal"), Some("43AA8B".to_string()));
+        assert_eq!(get_color("teal"), Some("46AF8F".to_string()));
         // Semantic color resolves to palette
         assert_eq!(get_color("primary"), Some("577590".to_string()));
         // Neutral color
@@ -248,6 +248,6 @@ mod tests {
 
     #[test]
     fn test_color_hex() {
-        assert_eq!(get_color_hex("teal"), Some("#43AA8B".to_string()));
+        assert_eq!(get_color_hex("teal"), Some("#46AF8F".to_string()));
     }
 }
