@@ -16,8 +16,9 @@ set -euo pipefail
 # Commit prefix → bump:
 #   feat:           → minor
 #   fix: / perf:    → patch
+#   style: / refactor: / build: / ci: / chore: / revert: → patch
 #   feat!: / BREAKING CHANGE → major
-#   (all others)    → no bump
+#   docs: / test:   → no bump
 #
 # Usage:
 #   ./release.sh                # Dry run — show what would be bumped
@@ -101,12 +102,15 @@ determine_bump() {
         # Map prefix to bump level
         local feat_re='^feat(\(.+\))?: '
         local fix_re='^(fix|perf)(\(.+\))?: '
+        local patch_re='^(style|refactor|build|ci|chore|revert)(\(.+\))?: '
         if [[ "$subject" =~ $feat_re ]]; then
             [[ "$level" != "major" ]] && level="minor"
         elif [[ "$subject" =~ $fix_re ]]; then
             [[ "$level" == "none" ]] && level="patch"
+        elif [[ "$subject" =~ $patch_re ]]; then
+            [[ "$level" == "none" ]] && level="patch"
         fi
-        # Other prefixes (docs, test, chore, style, refactor, ci) → no bump
+        # Remaining prefixes (docs, test) → no bump
     done
     echo "$level"
 }
@@ -252,6 +256,24 @@ for scope in "${SCOPES[@]}"; do
         # Commit and tag
         version_file="$(get_version_file "$scope")"
         git -C "$local_git_dir" add "$version_file"
+
+        # If core or bridge Cargo.toml changed, update the mobile Cargo.lock
+        if [[ "$scope" == "core" || "$scope" == "bridge" ]]; then
+            cargo update --manifest-path "$MOBILE_DIR/rust/Cargo.toml" --quiet 2>/dev/null || true
+            local_lock="$MOBILE_DIR/rust/Cargo.lock"
+            if git -C "$MOBILE_DIR" diff --quiet "$local_lock" 2>/dev/null; then
+                : # No lock change
+            else
+                git -C "$MOBILE_DIR" add "$local_lock"
+                if [[ "$scope" == "core" ]]; then
+                    # Core bumps happen in root repo; lock file is in mobile repo — commit separately
+                    git -C "$MOBILE_DIR" commit -m "build: update Cargo.lock for ${scope} v${new_ver}"
+                    echo "[${scope}] Updated mobile Cargo.lock"
+                fi
+                # For bridge scope, the lock file is in the same repo — include in the version commit
+            fi
+        fi
+
         git -C "$local_git_dir" commit -m "chore(release): ${scope} v${new_ver}"
         git -C "$local_git_dir" tag -a "${tag_prefix}${new_ver}" -m "${scope} v${new_ver}"
         echo "[${scope}] Created tag ${tag_prefix}${new_ver}"
