@@ -2,10 +2,11 @@
 
 A cross-platform picture frame design calculator built with a shared Rust core.
 
-![ReferenceFrame Web Interface](docs/images/main_interface.png)
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/referenceframe/id6758589669)
 
-**Web:** https://glarue.github.io/ReferenceFrame
-**iOS:** https://apps.apple.com/us/app/referenceframe/id6758589669
+**Web app:** https://glarue.github.io/ReferenceFrame
+
+![ReferenceFrame Web Interface](docs/images/main_interface.png)
 
 ## Architecture
 
