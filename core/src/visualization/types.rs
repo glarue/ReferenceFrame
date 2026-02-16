@@ -344,6 +344,10 @@ pub struct DiagramOptions {
     /// Whether to show dimension callouts (default true)
     /// Set to false for minimal preview diagrams
     pub show_callouts: bool,
+
+    /// How to handle thin frame layers in plan view
+    #[serde(default)]
+    pub detail_mode: DetailMode,
 }
 
 impl Default for DiagramOptions {
@@ -357,6 +361,7 @@ impl Default for DiagramOptions {
             unit_mm: false,
             use_tape_segments: false, // Default off to avoid breaking existing behavior
             show_callouts: true, // Default on for normal diagrams
+            detail_mode: DetailMode::Auto,
         }
     }
 }
@@ -367,6 +372,25 @@ pub enum ViewOption {
     PlanOnly,
     SectionOnly,
     Both, // For PDF export
+}
+
+/// How to handle thin frame layers in plan view
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DetailMode {
+    /// Automatic: corner detail when layers are thin, axis breaks when frame is huge
+    Auto,
+    /// Always use corner detail inset (no axis breaks)
+    CornerDetail,
+    /// Always use axis breaks (no corner detail)
+    AxisBreaks,
+    /// No detail enhancements (no corner detail, no axis breaks)
+    None,
+}
+
+impl Default for DetailMode {
+    fn default() -> Self {
+        DetailMode::Auto
+    }
 }
 
 /// Result of diagram generation

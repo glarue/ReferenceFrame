@@ -622,6 +622,43 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_cut_list_outside_length_trig_derivation() {
+        // Orthogonal test: derive outside length from first principles using 45° miter geometry
+        //
+        // When frame pieces are cut with 45° miters at each end:
+        //   - Each corner forms a 45-45-90 right triangle in cross-section
+        //   - One leg of the triangle = frame_material_width (W)
+        //   - The other leg = additional length added to outside edge
+        //
+        // For a 45-45-90 triangle, both legs are equal, so:
+        //   additional_length_per_end = W
+        //
+        // Therefore:
+        //   outside_length = inside_length + 2W
+        //
+        // This can also be derived using trig:
+        //   tan(45°) = opposite / adjacent = W / extension
+        //   Since tan(45°) = 1, extension = W
+
+        let design = FrameDesign::new(10.0, 14.0);
+        let cut = design.get_cut_list();
+        let fw = design.frame_material_width;
+
+        // Verify using 45-45-90 triangle identity
+        let miter_angle = std::f64::consts::FRAC_PI_4; // 45° in radians
+        let extension_per_end = fw / miter_angle.tan(); // Should equal fw since tan(45°) = 1
+
+        for piece in &cut.horizontal_pieces {
+            let expected_outside = piece.inside_length + (2.0 * extension_per_end);
+            assert_close(piece.outside_length, expected_outside, "horiz_trig_derived");
+        }
+        for piece in &cut.vertical_pieces {
+            let expected_outside = piece.inside_length + (2.0 * extension_per_end);
+            assert_close(piece.outside_length, expected_outside, "vert_trig_derived");
+        }
+    }
+
     // ========================================================================
     // no_artwork_margin flag
     // ========================================================================

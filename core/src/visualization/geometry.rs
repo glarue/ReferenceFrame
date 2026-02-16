@@ -5,7 +5,7 @@
 
 use crate::frame::FrameDesign;
 use crate::conversions::{format_value, Unit};
-use super::types::{Point, Rect};
+use super::types::{DetailMode, Point, Rect};
 use super::style::DiagramStyle;
 
 // SVG layout constants - must match values in svg.rs
@@ -45,6 +45,17 @@ pub fn estimate_text_width(text: &str, font_size: f64) -> f64 {
     width * 1.05
 }
 
+/// Geometry for the corner detail inset overlay
+#[derive(Debug, Clone)]
+pub struct CornerDetailGeometry {
+    /// White background box position/size in SVG coords
+    pub box_rect: Rect,
+    /// Where the outside corner of the zoomed L-shape sits in SVG coords
+    pub corner_origin: Point,
+    /// Pixels per inch for the zoomed view
+    pub detail_scale: f64,
+}
+
 /// Computed geometry for rendering a plan view
 #[derive(Debug, Clone)]
 pub struct PlanViewGeometry {
@@ -64,6 +75,22 @@ pub struct PlanViewGeometry {
     pub scale: f64,
     /// Origin offset (for centering)
     pub origin: Point,
+    /// Whether to use axis break on X axis (horizontal compression)
+    pub use_axis_break_x: bool,
+    /// Whether to use axis break on Y axis (vertical compression)
+    pub use_axis_break_y: bool,
+    /// Canvas X where break gap begins
+    pub break_x_start: f64,
+    /// Canvas X where break gap ends
+    pub break_x_end: f64,
+    /// Canvas Y where break gap begins
+    pub break_y_start: f64,
+    /// Canvas Y where break gap ends
+    pub break_y_end: f64,
+    /// Proportional thumbnail rect (true aspect ratio silhouette), shown only when breaks active
+    pub thumbnail: Option<Rect>,
+    /// Corner detail inset overlay (shown when breaks active)
+    pub corner_detail: Option<CornerDetailGeometry>,
 }
 
 /// Computed geometry for rendering a section view
@@ -186,6 +213,106 @@ impl PlanViewGeometry {
             content_area,
             scale,
             origin,
+            use_axis_break_x: false,
+            use_axis_break_y: false,
+            break_x_start: 0.0,
+            break_x_end: 0.0,
+            break_y_start: 0.0,
+            break_y_end: 0.0,
+            thumbnail: None,
+            corner_detail: None,
+        }
+    }
+
+    /// Build rectangles using display (compressed) artwork dimensions for axis breaks.
+    /// Frame band, mat border, and rabbet use actual design dimensions at the new scale.
+    /// Only the artwork rect and the regions it affects use display dimensions.
+    fn build_rects_with_display_artwork(
+        design: &FrameDesign,
+        scale: f64,
+        origin_x: f64,
+        origin_y: f64,
+        display_artwork_w: f64,
+        display_artwork_h: f64,
+        display_outer_w: f64,
+        display_outer_h: f64,
+    ) -> Self {
+        // Display inner = actual_inner dimensions adjusted for compressed artwork
+        // The difference between outer and inner is always 2 * frame_material_width
+        let display_inner_w = display_outer_w - 2.0 * design.frame_material_width;
+        let display_inner_h = display_outer_h - 2.0 * design.frame_material_width;
+
+        let origin = Point::new(origin_x, origin_y);
+        let frame_outer = Rect::new(origin_x, origin_y, display_outer_w * scale, display_outer_h * scale);
+
+        let frame_width_scaled = design.frame_material_width * scale;
+        let frame_inner = Rect::new(
+            origin_x + frame_width_scaled,
+            origin_y + frame_width_scaled,
+            display_inner_w * scale,
+            display_inner_h * scale,
+        );
+
+        // Mat geometry (if mat is present)
+        let (mat_visible, mat_opening) = if design.has_mat() {
+            let (mat_opening_height, mat_opening_width) = design.get_mat_opening_dimensions();
+            // Display mat opening: compressed similarly to artwork
+            // mat_opening = artwork + 2*mat_overlap, so compress by same amount as artwork
+            let display_mat_opening_w = mat_opening_width - (design.artwork_width - display_artwork_w);
+            let display_mat_opening_h = mat_opening_height - (design.artwork_height - display_artwork_h);
+            let mat_opening_scaled_w = display_mat_opening_w * scale;
+            let mat_opening_scaled_h = display_mat_opening_h * scale;
+
+            let mat_vis = Some(frame_inner);
+            let opening_x = frame_inner.x + (frame_inner.width - mat_opening_scaled_w) / 2.0;
+            let opening_y = frame_inner.y + (frame_inner.height - mat_opening_scaled_h) / 2.0;
+            let mat_open = Some(Rect::new(opening_x, opening_y, mat_opening_scaled_w, mat_opening_scaled_h));
+
+            (mat_vis, mat_open)
+        } else {
+            (None, None)
+        };
+
+        // Content area (extends under rabbet lip by rabbet_width)
+        let rabbet_width_scaled = design.rabbet_width * scale;
+        let content_area = Rect::new(
+            frame_inner.x - rabbet_width_scaled,
+            frame_inner.y - rabbet_width_scaled,
+            frame_inner.width + 2.0 * rabbet_width_scaled,
+            frame_inner.height + 2.0 * rabbet_width_scaled,
+        );
+
+        // Artwork rectangle uses display dimensions
+        let artwork_scaled_w = display_artwork_w * scale;
+        let artwork_scaled_h = display_artwork_h * scale;
+        let artwork = if design.has_mat() {
+            Rect::new(
+                content_area.x + (content_area.width - artwork_scaled_w) / 2.0,
+                content_area.y + (content_area.height - artwork_scaled_h) / 2.0,
+                artwork_scaled_w,
+                artwork_scaled_h,
+            )
+        } else {
+            content_area
+        };
+
+        Self {
+            frame_outer,
+            frame_inner,
+            mat_visible,
+            mat_opening,
+            artwork,
+            content_area,
+            scale,
+            origin,
+            use_axis_break_x: false,
+            use_axis_break_y: false,
+            break_x_start: 0.0,
+            break_x_end: 0.0,
+            break_y_start: 0.0,
+            break_y_end: 0.0,
+            thumbnail: None,
+            corner_detail: None,
         }
     }
 
@@ -196,26 +323,230 @@ impl PlanViewGeometry {
         canvas_height: f64,
         style: &DiagramStyle,
     ) -> Self {
+        Self::from_design_with_mode(design, canvas_width, canvas_height, style, DetailMode::Auto)
+    }
+
+    /// Calculate geometry with explicit detail mode
+    pub fn from_design_with_mode(
+        design: &FrameDesign,
+        canvas_width: f64,
+        canvas_height: f64,
+        style: &DiagramStyle,
+        detail_mode: DetailMode,
+    ) -> Self {
         let (frame_outer_height, frame_outer_width) = design.get_frame_outside_dimensions();
 
         // Calculate available canvas area (accounting for margins and dimension callouts)
         let available_width = canvas_width - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
         let available_height = canvas_height - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
 
-        let scale_x = available_width / frame_outer_width;
-        let scale_y = available_height / frame_outer_height;
+        // Trial scale to detect if frame band is too small to see
+        let trial_scale_x = available_width / frame_outer_width;
+        let trial_scale_y = available_height / frame_outer_height;
+        let trial_scale = trial_scale_x.min(trial_scale_y);
+
+        // Per-axis break decision: only break an axis if IT is the one causing
+        // the frame band to be too small. A 100"×5" frame should only break Y.
+        let min_frame_band_px = 8.0;
+        let needs_break_x = frame_outer_width > 0.0
+            && design.frame_material_width * trial_scale_x < min_frame_band_px;
+        let needs_break_y = frame_outer_height > 0.0
+            && design.frame_material_width * trial_scale_y < min_frame_band_px;
+
+        // DetailMode controls whether we use axis breaks or corner detail
+        let use_breaks = match detail_mode {
+            DetailMode::Auto => needs_break_x || needs_break_y,
+            DetailMode::CornerDetail => false, // Never use breaks
+            DetailMode::AxisBreaks => needs_break_x || needs_break_y, // Use breaks when needed
+            DetailMode::None => false,         // No enhancements
+        };
+
+        let use_corner_detail = match detail_mode {
+            DetailMode::Auto => !use_breaks, // Corner detail only when no breaks
+            DetailMode::CornerDetail => true, // Always corner detail
+            DetailMode::AxisBreaks => false,  // Never corner detail
+            DetailMode::None => false,        // No enhancements
+        };
+
+        let (use_break_x, use_break_y) = if use_breaks {
+            (needs_break_x, needs_break_y)
+        } else {
+            (false, false)
+        };
+
+        if !use_break_x && !use_break_y {
+            // No breaks — standard path
+            let scale = trial_scale;
+            let scaled_width = frame_outer_width * scale;
+            let scaled_height = frame_outer_height * scale;
+
+            let label_extension = style.dimension_font_size + 4.0;
+            let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
+            let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
+            let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
+
+            let mut geo = Self::build_rects(design, scale, origin_x, origin_y);
+
+            // Show corner detail when layers are too thin to see clearly
+            let min_rabbet_px = 20.0;
+            if use_corner_detail
+                && design.rabbet_width * scale < min_rabbet_px
+                && design.frame_material_width > 0.0
+            {
+                geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
+            }
+
+            return geo;
+        }
+
+        // Axis break compression: uniform compression factor preserves aspect ratio
+        //
+        // target_scale picks a scale where the frame band is comfortably visible.
+        // D = uniform compression fraction applied to artwork on both axes so the
+        // displayed artwork is proportional to the real artwork.
+        let target_band_px = 12.0_f64;
+        let target_scale = target_band_px / design.frame_material_width;
+
+        // Non-artwork overhead per axis (frame + mat + rabbet on both sides)
+        let non_artwork_w = frame_outer_width - design.artwork_width;
+        let non_artwork_h = frame_outer_height - design.artwork_height;
+
+        // Max displayable artwork fraction per axis at target_scale
+        let d_w = if design.artwork_width > 0.0 {
+            (available_width / target_scale - non_artwork_w) / design.artwork_width
+        } else { 1.0 };
+        let d_h = if design.artwork_height > 0.0 {
+            (available_height / target_scale - non_artwork_h) / design.artwork_height
+        } else { 1.0 };
+
+        // Uniform D preserves aspect ratio
+        let d = d_w.min(d_h).clamp(0.0, 1.0);
+
+        let min_display = 3.0_f64; // minimum inches of artwork to show per axis
+        let display_artwork_w = if use_break_x {
+            (d * design.artwork_width).max(min_display).min(design.artwork_width)
+        } else {
+            design.artwork_width
+        };
+        let display_artwork_h = if use_break_y {
+            (d * design.artwork_height).max(min_display).min(design.artwork_height)
+        } else {
+            design.artwork_height
+        };
+
+        // Re-evaluate: only actually break an axis if compression is needed
+        let use_break_x = display_artwork_w < design.artwork_width;
+        let use_break_y = display_artwork_h < design.artwork_height;
+
+        // Display outer = actual_outer - actual_artwork + display_artwork
+        let display_outer_w = frame_outer_width - design.artwork_width + display_artwork_w;
+        let display_outer_h = frame_outer_height - design.artwork_height + display_artwork_h;
+
+        // Recompute scale from display dimensions
+        let scale_x = available_width / display_outer_w;
+        let scale_y = available_height / display_outer_h;
         let scale = scale_x.min(scale_y);
 
-        let scaled_width = frame_outer_width * scale;
-        let scaled_height = frame_outer_height * scale;
+        let scaled_width = display_outer_w * scale;
+        let scaled_height = display_outer_h * scale;
 
-        // Ensure minimum offset from edges to leave room for dimension callouts + labels
         let label_extension = style.dimension_font_size + 4.0;
         let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
         let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
         let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
 
-        Self::build_rects(design, scale, origin_x, origin_y)
+        // Build rects using display artwork dimensions
+        // Frame band, mat border, rabbet all use actual dimensions at new scale
+        let mut geo = Self::build_rects_with_display_artwork(
+            design, scale, origin_x, origin_y,
+            display_artwork_w, display_artwork_h,
+            display_outer_w, display_outer_h,
+        );
+
+        // Fixed pixel gap for break indicator (not scale-dependent)
+        let break_gap_px = 11.0_f64;
+
+        // Compute break positions in canvas coords
+        // Offset breaks so the top-left corner gets more visible area:
+        // X break biased rightward (75%), Y break biased upward (25%)
+        let break_center_x = geo.artwork.x + geo.artwork.width * 0.75;
+        let break_center_y = geo.artwork.y + geo.artwork.height * 0.25;
+
+        geo.use_axis_break_x = use_break_x;
+        geo.use_axis_break_y = use_break_y;
+
+        if use_break_x {
+            geo.break_x_start = break_center_x - break_gap_px / 2.0;
+            geo.break_x_end = break_center_x + break_gap_px / 2.0;
+        }
+        if use_break_y {
+            geo.break_y_start = break_center_y - break_gap_px / 2.0;
+            geo.break_y_end = break_center_y + break_gap_px / 2.0;
+        }
+
+        // Proportional thumbnail: true aspect ratio silhouette to the left of the main diagram
+        let thumbnail_max_w = 80.0;
+        let thumbnail_max_h = 120.0;
+        let thumbnail_gap = 24.0;
+        // Fit within both max width and max height, with a minimum short-side dimension
+        let scale_w = thumbnail_max_w / frame_outer_width;
+        let scale_h = thumbnail_max_h / frame_outer_height;
+        let thumb_scale = scale_w.min(scale_h);
+        let thumbnail_min_px = 5.0;
+        let thumb_w = (frame_outer_width * thumb_scale).max(thumbnail_min_px);
+        let thumb_h = (frame_outer_height * thumb_scale).max(thumbnail_min_px);
+        let thumb_x = geo.frame_outer.left() - thumbnail_gap - thumb_w;
+        let thumb_y = geo.frame_outer.top()
+            + (geo.frame_outer.height - thumb_h) / 2.0;
+        geo.thumbnail = Some(Rect::new(thumb_x, thumb_y, thumb_w, thumb_h));
+
+        geo
+    }
+
+    /// Compute corner detail geometry for the inset overlay.
+    /// Box size is proportional to the frame diagram so it stays visually balanced.
+    /// Corner origin is at bottom-left of the box; L-shape extends RIGHT and UP.
+    fn compute_corner_detail(design: &FrameDesign, geo: &Self, canvas_width: f64, style: &super::DiagramStyle) -> CornerDetailGeometry {
+        // Size the box relative to canvas width — the viewBox includes callout
+        // margins so frame_outer is much smaller than the visible canvas.
+        // Target: box should be ~35% of canvas width for readable labels.
+        let target_w = canvas_width * 0.35;
+        let box_w = target_w.clamp(120.0, 250.0);
+        let box_h = box_w / 1.15; // maintain aspect ratio (~245/235 from reference)
+
+        // Anchor: weighted blend between artwork center and frame_outer corner.
+        // 65% toward artwork center biases the box inward (toward frame center)
+        // while keeping it overlapping the bottom-left corner region.
+        // Works consistently for both portrait and landscape orientations because
+        // both reference points scale proportionally with frame geometry.
+        let artwork_center_x = geo.artwork.x + geo.artwork.width / 2.0;
+        let artwork_center_y = geo.artwork.y + geo.artwork.height / 2.0;
+        let center_weight = 0.65;
+        let anchor_x = artwork_center_x * center_weight + geo.frame_outer.left() * (1.0 - center_weight);
+        let anchor_y = artwork_center_y * center_weight + geo.frame_outer.bottom() * (1.0 - center_weight);
+        let margin = 3.0;
+        let box_x = anchor_x - margin - box_w;
+        let box_y = anchor_y + margin;
+
+        // Detail scale: zoom out so frame band is ~28% of box width
+        // This leaves more room for labels while keeping construction detail visible
+        let target_frame_band = box_w * 0.28;
+        let detail_scale = target_frame_band / design.frame_material_width;
+
+        // Corner origin X: must leave room for "Rabbet" label to the left.
+        // The label chain is: text(end-anchored) ← 4px gap ← dim_line(cx-6) ← corner(cx).
+        // So we need: cx - 10 - text_width("Rabbet", label_font) >= box_x + padding.
+        let label_font = (box_h * 0.065).min(style.dimension_font_size * 0.75);
+        let rabbet_text_w = estimate_text_width("Rabbet", label_font);
+        let min_corner_x = box_x + 6.0 + rabbet_text_w + 10.0 + 4.0; // pad + text + dim_offset + gap
+        let corner_x = min_corner_x.max(box_x + box_w * 0.30);
+        let corner_y = box_y + box_h * 0.76;
+
+        CornerDetailGeometry {
+            box_rect: Rect::new(box_x, box_y, box_w, box_h),
+            corner_origin: Point::new(corner_x, corner_y),
+            detail_scale,
+        }
     }
 
     /// Convert a dimension value (inches) to canvas units
@@ -774,7 +1105,120 @@ mod tests {
             geo.frame_profile.height, geo.scale, 5.0 * geo.scale);
         
         // Actual frame depth should still be recorded
-        assert!((geo.actual_frame_depth - 5.0).abs() < 0.01, 
+        assert!((geo.actual_frame_depth - 5.0).abs() < 0.01,
             "actual_frame_depth should be 5.0, got {}", geo.actual_frame_depth);
+    }
+
+    #[test]
+    fn test_plan_view_large_frame_both_breaks() {
+        // 250"×375" artwork with 3/4" frame — both axes need breaks
+        let mut design = FrameDesign::new(375.0, 250.0);
+        design.frame_material_width = 0.75;
+        design.mat_width_top_bottom = 0.0;
+        design.mat_width_sides = 0.0;
+
+        let style = DiagramStyle::default();
+        let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+
+        assert!(geo.use_axis_break_x, "X axis break should be triggered for 375\" wide artwork");
+        assert!(geo.use_axis_break_y, "Y axis break should be triggered for 250\" tall artwork");
+        assert!(geo.break_x_start > 0.0);
+        assert!(geo.break_x_end > geo.break_x_start);
+        assert!(geo.break_y_start > 0.0);
+        assert!(geo.break_y_end > geo.break_y_start);
+
+        // Frame band should now be visible (>= 8px)
+        let frame_band_px = design.frame_material_width * geo.scale;
+        assert!(frame_band_px >= 7.0, "Frame band should be visible: {} px", frame_band_px);
+    }
+
+    #[test]
+    fn test_plan_view_normal_frame_no_breaks() {
+        // 8"×12" artwork with 3/4" frame — no breaks needed
+        let mut design = FrameDesign::new(12.0, 8.0);
+        design.frame_material_width = 0.75;
+        design.mat_width_top_bottom = 2.0;
+        design.mat_width_sides = 2.0;
+
+        let style = DiagramStyle::default();
+        let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+
+        assert!(!geo.use_axis_break_x, "No X break needed for normal frame");
+        assert!(!geo.use_axis_break_y, "No Y break needed for normal frame");
+    }
+
+    #[test]
+    fn test_plan_view_tall_only_y_break() {
+        // 200" tall × 8" wide artwork — Y break needed, X may or may not
+        let mut design = FrameDesign::new(200.0, 8.0);
+        design.frame_material_width = 0.75;
+        design.mat_width_top_bottom = 0.0;
+        design.mat_width_sides = 0.0;
+
+        let style = DiagramStyle::default();
+        let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+
+        // Y break triggered because height is dominant and frame band would be subpixel
+        assert!(geo.use_axis_break_y, "Y axis break should be triggered for 200\" tall artwork");
+        assert!(geo.break_y_start > 0.0);
+        assert!(geo.break_y_end > geo.break_y_start);
+    }
+
+    #[test]
+    fn test_plan_view_aspect_ratio_preserved() {
+        // 250"×375" artwork — both axes huge, both should break
+        let mut design = FrameDesign::new(375.0, 250.0);
+        design.frame_material_width = 0.75;
+        design.mat_width_top_bottom = 2.0;
+        design.mat_width_sides = 2.0;
+
+        let style = DiagramStyle::default();
+        let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+
+        assert!(geo.use_axis_break_x && geo.use_axis_break_y,
+            "Both axis breaks should be triggered for 250\"×375\" artwork");
+
+        // Uniform compression preserves aspect ratio: display should be taller than wide (3:2 H:W)
+        let ratio = geo.frame_outer.height / geo.frame_outer.width;
+        assert!(ratio > 1.2,
+            "Height/width ratio should be > 1.2 (was {:.2}), preserving portrait aspect", ratio);
+    }
+
+    #[test]
+    fn test_plan_view_single_axis_break() {
+        // 100"×50" artwork — only Y axis needs break, X fits without compression
+        let mut design = FrameDesign::new(100.0, 50.0);
+        design.frame_material_width = 0.75;
+        design.mat_width_top_bottom = 2.0;
+        design.mat_width_sides = 2.0;
+
+        let style = DiagramStyle::default();
+        let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+
+        assert!(geo.use_axis_break_y,
+            "Y axis break should be triggered for 100\" height");
+        assert!(!geo.use_axis_break_x,
+            "X axis break should NOT be triggered for 50\" width");
+    }
+
+    #[test]
+    fn test_plan_view_break_gap_fixed_pixels() {
+        // Verify the break gap is a fixed pixel size, not scale-dependent
+        let mut design = FrameDesign::new(375.0, 250.0);
+        design.frame_material_width = 0.75;
+        design.mat_width_top_bottom = 0.0;
+        design.mat_width_sides = 0.0;
+
+        let style = DiagramStyle::default();
+        let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+
+        if geo.use_axis_break_x {
+            let gap = geo.break_x_end - geo.break_x_start;
+            assert!((gap - 11.0).abs() < 0.1, "X break gap should be ~11px, was {:.1}", gap);
+        }
+        if geo.use_axis_break_y {
+            let gap = geo.break_y_end - geo.break_y_start;
+            assert!((gap - 11.0).abs() < 0.1, "Y break gap should be ~11px, was {:.1}", gap);
+        }
     }
 }

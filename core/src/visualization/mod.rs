@@ -16,7 +16,7 @@ pub mod svg;
 // Re-export commonly used types
 pub use types::{
     Point, Rect, Side, DimensionType, DimensionCallout,
-    PositionedCallout, ViewType, ViewOption, DiagramOptions, DiagramResult,
+    PositionedCallout, ViewType, ViewOption, DetailMode, DiagramOptions, DiagramResult,
     TextAnchor,
 };
 pub use style::{DiagramStyle, MaterialPatterns, FillPattern};

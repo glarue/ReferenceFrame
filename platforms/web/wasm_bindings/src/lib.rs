@@ -404,6 +404,7 @@ pub fn wasm_generate_plan_view_svg(
         unit_mm,
         use_tape_segments: false,
         show_callouts: true,
+        ..Default::default()
     };
 
     let result = generate_diagram(&design.inner, &options);
@@ -429,6 +430,7 @@ pub fn wasm_generate_section_view_svg(
         unit_mm,
         use_tape_segments: false,
         show_callouts: true,
+        ..Default::default()
     };
 
     let result = generate_diagram(&design.inner, &options);
@@ -472,6 +474,7 @@ pub fn wasm_generate_combined_view_svg_with_title(
         unit_mm,
         use_tape_segments: false,
         show_callouts: true,
+        ..Default::default()
     };
 
     let style = if for_pdf {

@@ -80,14 +80,29 @@ pub fn generate_plan_callouts(
             // Mat cut WIDTH (horizontal dimension, uses left/right borders)
             let mat_visible_sides = design.mat_width_sides;
             let mat_cut_width = mat_visible_sides + design.rabbet_width;
+            // Place at bottom-right when corner detail is present to avoid overlap,
+            // otherwise bottom-left (original position)
+            let (mat_cut_start, mat_cut_end) = if geometry.corner_detail.is_some() {
+                // Bottom-right: from mat opening right edge to content area right edge
+                (
+                    Point::new(mat_opening.right() - mat_half_stroke, geometry.frame_inner.bottom() - frame_half_stroke),
+                    Point::new(geometry.content_area.right(), geometry.frame_inner.bottom() - frame_half_stroke),
+                )
+            } else {
+                // Bottom-left: from content area left edge to mat opening left edge
+                (
+                    Point::new(geometry.content_area.left(), geometry.frame_inner.bottom() - frame_half_stroke),
+                    Point::new(mat_opening.left() + mat_half_stroke, geometry.frame_inner.bottom() - frame_half_stroke),
+                )
+            };
             callouts.push(DimensionCallout::new(
                 mat_cut_width,
                 format!("Mat Cut: {} ({} visible)",
                     fmt(mat_cut_width),
                     fmt(mat_visible_sides)),
                 DimensionType::MatCutWidth,
-                Point::new(geometry.content_area.left(), geometry.frame_inner.bottom() - frame_half_stroke),
-                Point::new(mat_opening.left() + mat_half_stroke, geometry.frame_inner.bottom() - frame_half_stroke),
+                mat_cut_start,
+                mat_cut_end,
             ));
 
             // Mat cut HEIGHT (vertical dimension, uses top/bottom borders) - only if different from width
@@ -281,7 +296,7 @@ mod tests {
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
         let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
 
-        let (top, right, bottom, left) = group_by_side(&callouts);
+        let (top, right, _bottom, _left) = group_by_side(&callouts);
 
         // Frame outside width on top
         assert!(top.iter().any(|c| c.dimension_type == DimensionType::FrameOutsideWidth));
