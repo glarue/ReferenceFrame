@@ -4,7 +4,7 @@
 set -e  # Exit on error
 
 # Ensure cargo and wasm-pack are in PATH
-export PATH="/home/glarue/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/glarue/.cargo/bin:/usr/bin:/bin:$PATH"
+export PATH="$HOME/.cargo/bin:$PATH"
 
 echo "🔍 Validating build environment..."
 
@@ -22,7 +22,7 @@ if [ ! -f "$CORE_PATH/Cargo.toml" ]; then
     echo "Expected: $(cd .. && cd .. && pwd)/core/"
     echo ""
     echo "The build MUST use the official core library at:"
-    echo "  /home/glarue/code/ReferenceFrame/core/"
+    echo "  $(cd ../.. && pwd)/core/"
     echo ""
     echo "NOT experimental directories like rust-flutter/rust_core/"
     exit 1

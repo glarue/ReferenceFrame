@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}Building ReferenceFrame WASM...${NC}"
 
 # Setup PATH for Rust toolchain
-export PATH="/home/glarue/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:/home/glarue/.cargo/bin:/usr/bin:/bin:$PATH"
+export PATH="$HOME/.cargo/bin:$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH"
 
 # Build WASM
 echo -e "${BLUE}Running wasm-pack build...${NC}"
