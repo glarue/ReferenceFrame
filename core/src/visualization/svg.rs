@@ -4,7 +4,7 @@
 // frame designs with adaptive dimension callouts.
 
 use crate::frame::FrameDesign;
-use crate::conversions::{format_value, Unit};
+use crate::conversions::{format_dimension, Unit};
 use super::types::{
     DiagramOptions, DiagramResult, ViewOption, PositionedCallout,
     Rect, Side,
@@ -827,6 +827,7 @@ fn calculate_fit_transform(
 fn render_corner_detail(
     design: &FrameDesign,
     cd: &CornerDetailGeometry,
+    options: &DiagramOptions,
     style: &DiagramStyle,
 ) -> String {
     let mut svg = String::new();
@@ -943,11 +944,12 @@ fn render_corner_detail(
     ));
     svg.push_str(&format!("    <g clip-path=\"url(#{})\">\n", annot_clip_id));
 
-    let unit = Unit::Inches;
+    let unit = if options.unit_mm { Unit::Millimeters } else { Unit::Inches };
+    let fmt = |v: f64| format_dimension(v, unit, options.use_tape_segments, options.use_decimal_display);
     let label_font = (bh * 0.065).min(style.dimension_font_size * 0.75);
 
     // 1. Frame width: horizontal dimension between outer and inner, below the corner
-    let frame_label = format!("Frame: {}", format_value(design.frame_material_width, unit));
+    let frame_label = format!("Frame: {}", fmt(design.frame_material_width));
     let fw_dim_y = cy + 12.0; // dimension line position below corner
     let fw_arrow = DimensionArrow::new(cx, cx + frame_w, fw_dim_y, true)
         .color(&style.outside_dimension_color)
@@ -976,7 +978,7 @@ fn render_corner_detail(
         "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}\" text-anchor=\"end\" font-weight=\"bold\">{}</text>\n",
         rb_label_x, rabbet_mid_y + label_font,
         style.inside_dimension_color, style.font_family, label_font,
-        html_escape(&format_value(design.rabbet_width, unit))
+        html_escape(&fmt(design.rabbet_width))
     ));
 
     // 3. Content label ("matboard" or "artwork") — dog-leg leader with white background
@@ -1401,10 +1403,11 @@ fn build_plan_svg(
         let v_line_y2 = arrow_line_endpoint_for_target_y(target_bottom, arrow_stroke_width, false);
 
         // Artwork dimension label (compute size first so arrow lines can stop at label edges)
+        let fmt = |v: f64| format_dimension(v, unit, options.use_tape_segments, options.use_decimal_display);
         let artwork_label = format!(
             "{} × {}",
-            format_value(design.artwork_height, unit),
-            format_value(design.artwork_width, unit)
+            fmt(design.artwork_height),
+            fmt(design.artwork_width)
         );
         let mask_margin = LABEL_MASK_PADDING_X;
         let text_bg_w = estimate_text_width(&artwork_label, style.label_font_size) + mask_margin * 2.0;
@@ -1564,7 +1567,7 @@ fn build_plan_svg(
 
     // Corner detail inset overlay (only when breaks active)
     if let Some(cd) = &geometry.corner_detail {
-        svg.push_str(&render_corner_detail(design, cd, style));
+        svg.push_str(&render_corner_detail(design, cd, options, style));
     }
 
     // Proportional thumbnail — true aspect ratio silhouette (only when breaks active)
@@ -1607,8 +1610,8 @@ fn build_section_svg(
     options: &DiagramOptions,
     style: &DiagramStyle,
 ) -> String {
-    use crate::conversions::{format_value, Unit};
     let unit = if options.unit_mm { Unit::Millimeters } else { Unit::Inches };
+    let fmt = |v: f64| format_dimension(v, unit, options.use_tape_segments, options.use_decimal_display);
 
     // Section view uses black for all dimension lines/text (not the colored scheme from plan view)
     let dim_color = &style.line_color;
@@ -2173,7 +2176,7 @@ fn build_section_svg(
         depth_label_x, depth_label_y,
         dim_color, style.font_family, style.label_font_size,
         depth_label_x, depth_label_y,
-        format_value(depth_value, unit)
+        fmt(depth_value)
     ));
     svg.push('\n');
 
@@ -2258,7 +2261,7 @@ fn build_section_svg(
         r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">Width: {}</text>"#,
         (fw_x1 + fw_x2) / 2.0, fw_label_y,
         dim_color, style.font_family, style.label_font_size,
-        format_value(geometry.actual_frame_width, unit)
+        fmt(geometry.actual_frame_width)
     ));
     svg.push('\n');
 
@@ -2415,7 +2418,7 @@ fn build_section_svg(
             r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}: {}</text>"#,
             label_base_x, text_y,
             dim_color, style.font_family, style.label_font_size,
-            mat.name, format_value(mat.thickness, unit)
+            mat.name, fmt(mat.thickness)
         ));
         svg.push('\n');
     }
@@ -2427,7 +2430,7 @@ fn build_section_svg(
     // Estimate max label width by checking each label
     let max_label_width = materials.iter()
         .map(|m| {
-            let label = format!("{}: {}", m.name, format_value(m.thickness, unit));
+            let label = format!("{}: {}", m.name, fmt(m.thickness));
             estimate_text_width(&label, style.label_font_size * 0.85)
         })
         .fold(0.0_f64, |a, b| a.max(b));
@@ -2498,17 +2501,17 @@ fn build_section_svg(
     // Format rabbet dimensions - show both if different (non-square rabbet)
     let rabbet_label = if (design.rabbet_width - design.rabbet_depth).abs() < 0.001 {
         // Square rabbet - just show one value
-        format!("Rabbet: {}", format_value(design.rabbet_depth, unit))
+        format!("Rabbet: {}", fmt(design.rabbet_depth))
     } else {
         // Non-square rabbet - show width × depth
-        format!("Rabbet: {} × {}", format_value(design.rabbet_width, unit), format_value(design.rabbet_depth, unit))
+        format!("Rabbet: {} × {}", fmt(design.rabbet_width), fmt(design.rabbet_depth))
     };
 
     // Clearance/interference text on separate line to avoid overlap with material labels
     let clearance_line = if geometry.has_interference() {
-        format!("(INTERFERENCE: {})", format_value(-geometry.clearance, unit))
+        format!("(INTERFERENCE: {})", fmt(-geometry.clearance))
     } else {
-        format!("(clearance: {})", format_value(geometry.clearance, unit))
+        format!("(clearance: {})", fmt(geometry.clearance))
     };
 
     // Estimate text width of rabbet label to prevent clipping at left edge
