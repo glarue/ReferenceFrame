@@ -340,18 +340,30 @@ impl PlanViewGeometry {
         let available_width = canvas_width - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
         let available_height = canvas_height - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
 
-        // Trial scale to detect if frame band is too small to see
+        // Trial scale per axis: how many pixels per inch at full fit
         let trial_scale_x = available_width / frame_outer_width;
         let trial_scale_y = available_height / frame_outer_height;
         let trial_scale = trial_scale_x.min(trial_scale_y);
 
-        // Per-axis break decision: only break an axis if IT is the one causing
-        // the frame band to be too small. A 100"×5" frame should only break Y.
-        let min_frame_band_px = 8.0;
+        // Break trigger: based on FRAME BAND visibility, not internal detail.
+        // Corner detail handles the "internal elements too thin" case by showing
+        // a zoomed inset. Breaks are only needed when the frame band itself is
+        // too thin to draw as a visible border (< 3px).
+        let min_band_px = 3.0;
+        let frame_band = design.frame_material_width.max(0.001);
         let needs_break_x = frame_outer_width > 0.0
-            && design.frame_material_width * trial_scale_x < min_frame_band_px;
+            && frame_band * trial_scale_x < min_band_px;
         let needs_break_y = frame_outer_height > 0.0
-            && design.frame_material_width * trial_scale_y < min_frame_band_px;
+            && frame_band * trial_scale_y < min_band_px;
+
+        // Thinnest critical element — used for detail visibility scale in break layout
+        let _min_detail = {
+            let mut d = design.frame_material_width.min(design.rabbet_width);
+            if design.has_mat() {
+                d = d.min(design.mat_width_sides).min(design.mat_width_top_bottom);
+            }
+            d.max(0.001)
+        };
 
         // DetailMode controls whether we use axis breaks or corner detail
         let use_breaks = match detail_mode {
@@ -399,50 +411,95 @@ impl PlanViewGeometry {
             return geo;
         }
 
-        // Axis break compression: uniform compression factor preserves aspect ratio
+        // Axis break compression: maximize the broken axis while maintaining
+        // enough detail visibility in frame construction elements.
         //
-        // target_scale picks a scale where the frame band is comfortably visible.
-        // D = uniform compression fraction applied to artwork on both axes so the
-        // displayed artwork is proportional to the real artwork.
-        let target_band_px = 12.0_f64;
-        let target_scale = target_band_px / design.frame_material_width;
-
-        // Non-artwork overhead per axis (frame + mat + rabbet on both sides)
+        // Two strategies depending on how many axes break:
+        //
+        // Single-axis break: the non-broken axis keeps full artwork and sets
+        // the natural scale. The broken axis displays as much as fits at that
+        // scale (or bumps scale up if detail visibility requires it).
+        //
+        // Both-axis break: uniform compression preserves aspect ratio. Scale
+        // is set by detail visibility, and both axes compress equally.
         let non_artwork_w = frame_outer_width - design.artwork_width;
         let non_artwork_h = frame_outer_height - design.artwork_height;
 
-        // Max displayable artwork fraction per axis at target_scale
-        let d_w = if design.artwork_width > 0.0 {
-            (available_width / target_scale - non_artwork_w) / design.artwork_width
-        } else { 1.0 };
-        let d_h = if design.artwork_height > 0.0 {
-            (available_height / target_scale - non_artwork_h) / design.artwork_height
-        } else { 1.0 };
-
-        // Uniform D preserves aspect ratio
-        let d = d_w.min(d_h).clamp(0.0, 1.0);
-
+        // Minimum scale for break mode: the frame band should be visible (~6px).
+        // We use frame_band here, not min_detail — in break mode, fine details
+        // like rabbet are already compromised; we just need the band to read as
+        // a border with some thickness, not be a hairline.
+        let target_band_px = 6.0_f64;
+        let min_scale = target_band_px / frame_band;
         let min_display = 3.0_f64; // minimum inches of artwork to show per axis
-        let display_artwork_w = if use_break_x {
-            (d * design.artwork_width).max(min_display).min(design.artwork_width)
-        } else {
-            design.artwork_width
-        };
-        let display_artwork_h = if use_break_y {
-            (d * design.artwork_height).max(min_display).min(design.artwork_height)
-        } else {
-            design.artwork_height
+
+        // Helper: compute dual-axis uniform compression (preserves aspect ratio)
+        let dual_axis_uniform = |scale: f64| -> (f64, f64) {
+            let d_w = if design.artwork_width > 0.0 {
+                (available_width / scale - non_artwork_w) / design.artwork_width
+            } else { 1.0 };
+            let d_h = if design.artwork_height > 0.0 {
+                (available_height / scale - non_artwork_h) / design.artwork_height
+            } else { 1.0 };
+            let d = d_w.min(d_h).clamp(0.0, 1.0);
+            (
+                (d * design.artwork_width).max(min_display).min(design.artwork_width),
+                (d * design.artwork_height).max(min_display).min(design.artwork_height),
+            )
         };
 
-        // Re-evaluate: only actually break an axis if compression is needed
-        let use_break_x = display_artwork_w < design.artwork_width;
-        let use_break_y = display_artwork_h < design.artwork_height;
+        let (display_artwork_w, display_artwork_h, use_break_x, use_break_y) = match (use_break_x, use_break_y) {
+            (true, true) => {
+                // Both axes break: uniform compression preserves aspect ratio
+                let (dw, dh) = dual_axis_uniform(min_scale);
+                (dw, dh, dw < design.artwork_width, dh < design.artwork_height)
+            }
+            (true, false) => {
+                // Only X breaks: Y is full, Y sets natural scale
+                let scale = trial_scale_y.max(min_scale);
+                let fits = (available_width / scale - non_artwork_w).max(min_display);
+                let dw = fits.min(design.artwork_width);
+                let dh = design.artwork_height;
+                // Check if this would flip orientation
+                let disp_outer_w = non_artwork_w + dw;
+                let disp_outer_h = non_artwork_h + dh;
+                let true_landscape = frame_outer_width >= frame_outer_height;
+                let disp_landscape = disp_outer_w >= disp_outer_h;
+                if true_landscape != disp_landscape {
+                    // Orientation would flip — use dual-axis uniform compression
+                    let (dw, dh) = dual_axis_uniform(min_scale);
+                    (dw, dh, dw < design.artwork_width, dh < design.artwork_height)
+                } else {
+                    (dw, dh, dw < design.artwork_width, false)
+                }
+            }
+            (false, true) => {
+                // Only Y breaks: X is full, X sets natural scale
+                let scale = trial_scale_x.max(min_scale);
+                let fits = (available_height / scale - non_artwork_h).max(min_display);
+                let dw = design.artwork_width;
+                let dh = fits.min(design.artwork_height);
+                // Check if this would flip orientation
+                let disp_outer_w = non_artwork_w + dw;
+                let disp_outer_h = non_artwork_h + dh;
+                let true_landscape = frame_outer_width >= frame_outer_height;
+                let disp_landscape = disp_outer_w >= disp_outer_h;
+                if true_landscape != disp_landscape {
+                    // Orientation would flip — use dual-axis uniform compression
+                    let (dw, dh) = dual_axis_uniform(min_scale);
+                    (dw, dh, dw < design.artwork_width, dh < design.artwork_height)
+                } else {
+                    (dw, dh, false, dh < design.artwork_height)
+                }
+            }
+            _ => (design.artwork_width, design.artwork_height, false, false),
+        };
 
         // Display outer = actual_outer - actual_artwork + display_artwork
         let display_outer_w = frame_outer_width - design.artwork_width + display_artwork_w;
         let display_outer_h = frame_outer_height - design.artwork_height + display_artwork_h;
 
-        // Recompute scale from display dimensions
+        // Final scale from display dimensions
         let scale_x = available_width / display_outer_w;
         let scale_y = available_height / display_outer_h;
         let scale = scale_x.min(scale_y);
@@ -1127,9 +1184,9 @@ mod tests {
         assert!(geo.break_y_start > 0.0);
         assert!(geo.break_y_end > geo.break_y_start);
 
-        // Frame band should now be visible (>= 8px)
+        // Frame band should now be visible (>= 6px target)
         let frame_band_px = design.frame_material_width * geo.scale;
-        assert!(frame_band_px >= 7.0, "Frame band should be visible: {} px", frame_band_px);
+        assert!(frame_band_px >= 5.5, "Frame band should be visible: {:.1} px", frame_band_px);
     }
 
     #[test]
@@ -1186,8 +1243,8 @@ mod tests {
 
     #[test]
     fn test_plan_view_single_axis_break() {
-        // 100"×50" artwork — only Y axis needs break, X fits without compression
-        let mut design = FrameDesign::new(100.0, 50.0);
+        // 200"w × 50"h landscape artwork — only X axis needs break, Y fits
+        let mut design = FrameDesign::new(50.0, 200.0);
         design.frame_material_width = 0.75;
         design.mat_width_top_bottom = 2.0;
         design.mat_width_sides = 2.0;
@@ -1195,10 +1252,10 @@ mod tests {
         let style = DiagramStyle::default();
         let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
 
-        assert!(geo.use_axis_break_y,
-            "Y axis break should be triggered for 100\" height");
-        assert!(!geo.use_axis_break_x,
-            "X axis break should NOT be triggered for 50\" width");
+        assert!(geo.use_axis_break_x,
+            "X axis break should be triggered for 200\" width");
+        assert!(!geo.use_axis_break_y,
+            "Y axis break should NOT be triggered for 50\" height");
     }
 
     #[test]
