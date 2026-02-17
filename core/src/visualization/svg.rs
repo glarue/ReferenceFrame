@@ -103,7 +103,7 @@ const DASH_CLEARANCE: &str = "3,2";          // Clearance/interference line
 // Opacity values
 const OPACITY_CONTENT_BOUNDARY: f64 = 0.5;   // Content boundary outline
 const OPACITY_ASSEMBLY_MARGIN: f64 = 0.7;    // Assembly margin rect
-const OPACITY_LABEL_BACKGROUND: f64 = 0.95;  // Artwork indicator label bg
+const OPACITY_LABEL_BACKGROUND: f64 = 0.75;  // Artwork indicator label bg
 const OPACITY_RABBET_BACKGROUND: f64 = 0.5;  // Rabbet indicator bg
 
 // Dimension line break symbols (spark/zigzag on broken dimension lines)
@@ -196,92 +196,6 @@ fn render_zigzag_line_with_opacity(svg: &mut String, zz: &ZigzagPoints, line_col
         zz.p2.0, zz.p2.1, zz.p3.0, zz.p3.1,
         line_color, break_line_width, DASH_BREAK_INDICATOR, opacity_attr
     ));
-}
-
-/// Render corner stroke segments for a rectangle, terminating at zigzag intersection points.
-///
-/// When axis breaks are active, full rect strokes would bleed through the break gap.
-/// Instead, we draw 4 corner L-paths that start/end exactly where the zigzag crosses
-/// the rect edge, so strokes mate cleanly with the zigzag indicators.
-fn render_rect_corner_strokes(
-    svg: &mut String,
-    rect: &Rect,
-    x_break: Option<&(ZigzagPoints, ZigzagPoints)>,  // (left_zz, right_zz)
-    y_break: Option<&(ZigzagPoints, ZigzagPoints)>,  // (top_zz, bot_zz)
-    color: &str,
-    width: f64,
-    dasharray: Option<&str>,
-    opacity: f64,
-) {
-    let left = rect.left();
-    let right = rect.right();
-    let top = rect.top();
-    let bottom = rect.bottom();
-
-    // Build style attributes
-    let dash_attr = if let Some(da) = dasharray {
-        format!(r#" stroke-dasharray="{}""#, da)
-    } else {
-        String::new()
-    };
-    let opacity_attr = if (opacity - 1.0).abs() > 0.001 {
-        format!(r#" opacity="{:.2}""#, opacity)
-    } else {
-        String::new()
-    };
-
-    // Helper to emit a line segment
-    let mut line = |x1: f64, y1: f64, x2: f64, y2: f64| {
-        svg.push_str(&format!(
-            r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}" fill="none"{}{}/>
-"#,
-            x1, y1, x2, y2, color, width, dash_attr, opacity_attr
-        ));
-    };
-
-    // Each edge drawn independently:
-    // If that edge's axis has a break, split into two segments around the break gap.
-    // If no break on that axis, draw one full segment.
-
-    // Top edge (horizontal at y=top)
-    if let Some((ref left_zz, ref right_zz)) = x_break {
-        let x_min = x_at_y(left_zz.p0, left_zz.p1, top);
-        let x_max = x_at_y(right_zz.p0, right_zz.p1, top);
-        line(left, top, x_min, top);
-        line(x_max, top, right, top);
-    } else {
-        line(left, top, right, top);
-    }
-
-    // Bottom edge (horizontal at y=bottom)
-    if let Some((ref left_zz, ref right_zz)) = x_break {
-        let x_min = x_at_y(left_zz.p2, left_zz.p3, bottom);
-        let x_max = x_at_y(right_zz.p2, right_zz.p3, bottom);
-        line(left, bottom, x_min, bottom);
-        line(x_max, bottom, right, bottom);
-    } else {
-        line(left, bottom, right, bottom);
-    }
-
-    // Left edge (vertical at x=left)
-    if let Some((ref top_zz, ref bot_zz)) = y_break {
-        let y_min = y_at_x(top_zz.p0, top_zz.p1, left);
-        let y_max = y_at_x(bot_zz.p0, bot_zz.p1, left);
-        line(left, top, left, y_min);
-        line(left, y_max, left, bottom);
-    } else {
-        line(left, top, left, bottom);
-    }
-
-    // Right edge (vertical at x=right)
-    if let Some((ref top_zz, ref bot_zz)) = y_break {
-        let y_min = y_at_x(top_zz.p2, top_zz.p3, right);
-        let y_max = y_at_x(bot_zz.p2, bot_zz.p3, right);
-        line(right, top, right, y_min);
-        line(right, y_max, right, bottom);
-    } else {
-        line(right, top, right, bottom);
-    }
 }
 
 /// Generate SVG polygon element for an arrowhead
@@ -692,7 +606,7 @@ fn generate_plan_view(
 
     // Only generate callouts if requested (default true)
     let (callouts, layout) = if options.show_callouts {
-        let callouts = generate_plan_callouts(design, &geometry, options.unit_mm, options.use_tape_segments, style);
+        let callouts = generate_plan_callouts(design, &geometry, options.unit_mm, options.use_tape_segments, options.use_decimal_display, style);
         let layout = layout_plan_callouts(&callouts, &geometry, style);
         (callouts, layout)
     } else {
@@ -726,7 +640,7 @@ fn generate_section_view(
 
     // Only generate callouts if requested (default true)
     let callouts = if options.show_callouts {
-        generate_section_callouts(design, options.unit_mm, options.use_tape_segments)
+        generate_section_callouts(design, options.unit_mm, options.use_tape_segments, options.use_decimal_display)
     } else {
         Vec::new()
     };
@@ -1003,25 +917,17 @@ fn render_corner_detail(
         ci_x, ci_y, ci_x, top_y, content_color
     ));
 
-    // Frame outer L-shape (thick dark)
+    // Frame outer L-shape (thick dark) — polyline for clean corner join
     let outer_sw = style.frame_stroke_width;
     svg.push_str(&format!(
-        "    <line x1=\"{:.2}\" y1=\"{:.2}\" x2=\"{:.2}\" y2=\"{:.2}\" stroke=\"{}\" stroke-width=\"{:.1}\"/>\n",
-        cx, cy, cx + arm_right, cy, style.line_color, outer_sw
-    ));
-    svg.push_str(&format!(
-        "    <line x1=\"{:.2}\" y1=\"{:.2}\" x2=\"{:.2}\" y2=\"{:.2}\" stroke=\"{}\" stroke-width=\"{:.1}\"/>\n",
-        cx, cy, cx, top_y, style.line_color, outer_sw
+        "    <polyline points=\"{:.2},{:.2} {:.2},{:.2} {:.2},{:.2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{:.1}\" stroke-linejoin=\"miter\"/>\n",
+        cx, top_y, cx, cy, cx + arm_right, cy, style.line_color, outer_sw
     ));
 
-    // Frame inner L-shape (thick dark)
+    // Frame inner L-shape (thick dark) — polyline for clean corner join
     svg.push_str(&format!(
-        "    <line x1=\"{:.2}\" y1=\"{:.2}\" x2=\"{:.2}\" y2=\"{:.2}\" stroke=\"{}\" stroke-width=\"{:.1}\"/>\n",
-        fi_x, fi_y, cx + arm_right, fi_y, style.line_color, outer_sw
-    ));
-    svg.push_str(&format!(
-        "    <line x1=\"{:.2}\" y1=\"{:.2}\" x2=\"{:.2}\" y2=\"{:.2}\" stroke=\"{}\" stroke-width=\"{:.1}\"/>\n",
-        fi_x, fi_y, fi_x, top_y, style.line_color, outer_sw
+        "    <polyline points=\"{:.2},{:.2} {:.2},{:.2} {:.2},{:.2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{:.1}\" stroke-linejoin=\"miter\"/>\n",
+        fi_x, top_y, fi_x, fi_y, cx + arm_right, fi_y, style.line_color, outer_sw
     ));
 
     svg.push_str("    </g>\n"); // end clipped group (geometry only)
@@ -1074,12 +980,22 @@ fn render_corner_detail(
     ));
 
     // 3. Content label ("matboard" or "artwork") — dog-leg leader with white background
+    // Clamp so label + background stays within box boundary
     let content_label = if design.has_mat() { "matboard" } else { "artwork" };
+    let cl_font = label_font * 0.9;
+    let cl_text_w = estimate_text_width(content_label, cl_font);
+    let box_right = bx + bw - annot_pad;
+    let box_top = by + annot_pad;
+
     let leader_start_x = cx + arm_right * 0.5;
     let leader_start_y = ci_y;
-    let leader_bend_x = leader_start_x + 6.0;
-    let leader_bend_y = ci_y - 8.0;
-    let leader_end_x = leader_bend_x + 4.0;
+    // Compute ideal end position, then clamp rightward extent to box boundary
+    let ideal_end_x = leader_start_x + 6.0 + 4.0;
+    let cl_bg_pad = 2.0;
+    let max_end_x = box_right - cl_text_w - cl_bg_pad * 2.0 - 2.0; // background padding + safety margin
+    let leader_end_x = ideal_end_x.min(max_end_x);
+    let leader_bend_x = leader_end_x - 4.0;
+    let leader_bend_y = (ci_y - 8.0).max(box_top + cl_font);
     let leader_end_y = leader_bend_y;
     // Dog-leg polyline
     svg.push_str(&format!(
@@ -1090,18 +1006,18 @@ fn render_corner_detail(
         content_color
     ));
     // White background behind label for contrast
-    let cl_font = label_font * 0.9;
-    let cl_text_w = estimate_text_width(content_label, cl_font);
-    let cl_bg_x = leader_end_x;
-    let cl_bg_y = leader_end_y - cl_font * 0.7;
+    // Text y is the baseline; cap-height ~0.7em above, descender ~0.25em below.
+    // Center the background on the text's visual midpoint (baseline - 0.225em).
     let cl_bg_h = cl_font * 1.2;
+    let cl_bg_x = leader_end_x;
+    let cl_bg_y = leader_end_y - cl_font * 0.225 - cl_bg_h * 0.5;
     svg.push_str(&format!(
         "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"{}\" stroke=\"none\" rx=\"1\"/>\n",
-        cl_bg_x, cl_bg_y, cl_text_w + 2.0, cl_bg_h, style.background_color
+        cl_bg_x, cl_bg_y, cl_text_w + cl_bg_pad * 2.0, cl_bg_h, style.background_color
     ));
     svg.push_str(&format!(
         "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}\" font-weight=\"bold\" opacity=\"0.8\">{}</text>\n",
-        leader_end_x + 1.0, leader_end_y,
+        leader_end_x + cl_bg_pad, leader_end_y,
         content_color, style.font_family, cl_font,
         content_label
     ));
@@ -1346,41 +1262,8 @@ fn build_plan_svg(
             None
         };
 
-        // STEP 1: Zigzag ribbon masks (white-filled closed paths)
-        if let Some((ref left_zz, ref right_zz)) = x_zigzags {
-            // Vertical ribbon: left zigzag top-to-bottom, right zigzag bottom-to-top
-            let ribbon = format!(
-                "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z",
-                left_zz.p0.0, left_zz.p0.1, left_zz.p1.0, left_zz.p1.1,
-                left_zz.p2.0, left_zz.p2.1, left_zz.p3.0, left_zz.p3.1,
-                right_zz.p3.0, right_zz.p3.1, right_zz.p2.0, right_zz.p2.1,
-                right_zz.p1.0, right_zz.p1.1, right_zz.p0.0, right_zz.p0.1,
-            );
-            svg.push_str(&format!(
-                r#"    <path d="{}" fill="{}" stroke="none"/>"#,
-                ribbon, style.background_color
-            ));
-            svg.push('\n');
-        }
-
-        if let Some((ref top_zz, ref bot_zz)) = y_zigzags {
-            // Horizontal ribbon: top zigzag left-to-right, bottom zigzag right-to-left
-            let ribbon = format!(
-                "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z",
-                top_zz.p0.0, top_zz.p0.1, top_zz.p1.0, top_zz.p1.1,
-                top_zz.p2.0, top_zz.p2.1, top_zz.p3.0, top_zz.p3.1,
-                bot_zz.p3.0, bot_zz.p3.1, bot_zz.p2.0, bot_zz.p2.1,
-                bot_zz.p1.0, bot_zz.p1.1, bot_zz.p0.0, bot_zz.p0.1,
-            );
-            svg.push_str(&format!(
-                r#"    <path d="{}" fill="{}" stroke="none"/>"#,
-                ribbon, style.background_color
-            ));
-            svg.push('\n');
-        }
-
-        // STEP 2: Corner strokes for all rects, terminating at zigzag intersections
-        // Collect rects with their stroke properties: (rect, color, width, dash_opt, opacity)
+        // STEP 1: Full rect strokes (ribbon masks in step 2 will clip break zones)
+        // Drawing full <rect> elements gives clean mitered corners without join artifacts.
         struct RectStroke<'a> {
             rect: &'a Rect,
             color: &'a str,
@@ -1397,25 +1280,65 @@ fn build_plan_svg(
             rect_strokes.push(RectStroke { rect: mat_opening, color: &style.line_color, width: style.mat_stroke_width, dasharray: None, opacity: 1.0 });
             rect_strokes.push(RectStroke { rect: &geometry.artwork, color: &style.artwork_color, width: style.extension_stroke_width, dasharray: Some("4,2"), opacity: 0.6 });
         }
-        // Also add rabbet overlap outer stroke
         if rabbet_scaled > 0.5 {
             rect_strokes.push(RectStroke { rect: &geometry.content_area, color: content_edge_color, width: style.extension_stroke_width * 0.8, dasharray: Some(DASH_ASSEMBLY_MARGIN), opacity: OPACITY_CONTENT_BOUNDARY });
         }
-        // Mat overlap outer stroke
         if let Some(ref mat_opening) = geometry.mat_opening {
             let mat_overlap_scaled = design.mat_overlap * geometry.scale;
             if mat_overlap_scaled > 0.5 && design.has_mat() {
                 rect_strokes.push(RectStroke { rect: &geometry.artwork, color: "#888888", width: style.extension_stroke_width * 0.8, dasharray: Some("3,2"), opacity: 0.4 });
-                let _ = mat_opening; // already used above
+                let _ = mat_opening;
             }
         }
 
         for rs in &rect_strokes {
-            render_rect_corner_strokes(
-                &mut svg, rs.rect,
-                x_zigzags.as_ref(), y_zigzags.as_ref(),
-                rs.color, rs.width, rs.dasharray, rs.opacity,
+            let dash_attr = if let Some(da) = rs.dasharray {
+                format!(r#" stroke-dasharray="{}""#, da)
+            } else {
+                String::new()
+            };
+            let opacity_attr = if (rs.opacity - 1.0).abs() > 0.001 {
+                format!(r#" opacity="{:.2}""#, rs.opacity)
+            } else {
+                String::new()
+            };
+            svg.push_str(&format!(
+                r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="none" stroke="{}" stroke-width="{}"{}{}/>"#,
+                rs.rect.x, rs.rect.y, rs.rect.width, rs.rect.height,
+                rs.color, rs.width, dash_attr, opacity_attr
+            ));
+            svg.push('\n');
+        }
+
+        // STEP 2: Zigzag ribbon masks (white-filled closed paths that hide break zones)
+        if let Some((ref left_zz, ref right_zz)) = x_zigzags {
+            let ribbon = format!(
+                "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z",
+                left_zz.p0.0, left_zz.p0.1, left_zz.p1.0, left_zz.p1.1,
+                left_zz.p2.0, left_zz.p2.1, left_zz.p3.0, left_zz.p3.1,
+                right_zz.p3.0, right_zz.p3.1, right_zz.p2.0, right_zz.p2.1,
+                right_zz.p1.0, right_zz.p1.1, right_zz.p0.0, right_zz.p0.1,
             );
+            svg.push_str(&format!(
+                r#"    <path d="{}" fill="{}" stroke="none"/>"#,
+                ribbon, style.background_color
+            ));
+            svg.push('\n');
+        }
+
+        if let Some((ref top_zz, ref bot_zz)) = y_zigzags {
+            let ribbon = format!(
+                "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z",
+                top_zz.p0.0, top_zz.p0.1, top_zz.p1.0, top_zz.p1.1,
+                top_zz.p2.0, top_zz.p2.1, top_zz.p3.0, top_zz.p3.1,
+                bot_zz.p3.0, bot_zz.p3.1, bot_zz.p2.0, bot_zz.p2.1,
+                bot_zz.p1.0, bot_zz.p1.1, bot_zz.p0.0, bot_zz.p0.1,
+            );
+            svg.push_str(&format!(
+                r#"    <path d="{}" fill="{}" stroke="none"/>"#,
+                ribbon, style.background_color
+            ));
+            svg.push('\n');
         }
 
         // STEP 3: Zigzag indicator lines (dashed, reduced opacity so artwork indicators stay legible)

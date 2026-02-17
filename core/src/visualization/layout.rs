@@ -303,7 +303,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -316,7 +316,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -335,7 +335,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -354,7 +354,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -376,7 +376,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
         let bounds = calculate_callout_bounds(&result.positioned_callouts);
@@ -406,7 +406,7 @@ mod tests {
 
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         let result = layout_plan_callouts(&callouts, &geometry, &style);
 
@@ -416,7 +416,7 @@ mod tests {
         // Should have fewer callouts than with mat
         let with_mat_design = test_design();
         let with_mat_geometry = PlanViewGeometry::from_design(&with_mat_design, 800.0, 600.0, &style);
-        let with_mat_callouts = generate_plan_callouts(&with_mat_design, &with_mat_geometry, false, false, &style);
+        let with_mat_callouts = generate_plan_callouts(&with_mat_design, &with_mat_geometry, false, false, false, &style);
         let with_mat_result = layout_plan_callouts(&with_mat_callouts, &with_mat_geometry, &style);
 
         assert!(result.positioned_callouts.len() <= with_mat_result.positioned_callouts.len());

@@ -345,6 +345,10 @@ pub struct DiagramOptions {
     /// Set to false for minimal preview diagrams
     pub show_callouts: bool,
 
+    /// Use decimal display for inches (e.g., "4.75" instead of "4 3/4")
+    /// Only applies when unit_mm is false (inches mode)
+    pub use_decimal_display: bool,
+
     /// How to handle thin frame layers in plan view
     #[serde(default)]
     pub detail_mode: DetailMode,
@@ -360,6 +364,7 @@ impl Default for DiagramOptions {
             title_text: None,
             unit_mm: false,
             use_tape_segments: false, // Default off to avoid breaking existing behavior
+            use_decimal_display: false,
             show_callouts: true, // Default on for normal diagrams
             detail_mode: DetailMode::Auto,
         }

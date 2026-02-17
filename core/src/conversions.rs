@@ -395,18 +395,33 @@ pub fn format_value_with_decimal(value: f64, unit: Unit) -> String {
 /// Default denominators for tape measure conversion
 pub const DEFAULT_DENOMS: &[i32] = &[2, 4, 8, 16, 32];
 
-/// Format a measurement value with configurable tape measure segmentation
+/// Format a measurement value with configurable display options
 ///
 /// # Arguments
 /// * `value` - Measurement in inches
 /// * `unit` - Display unit (Inches or Millimeters)
 /// * `use_segments` - If true and unit is Inches, use segmented format (e.g., "3/4 - 1/32")
+/// * `use_decimal` - If true and unit is Inches, use decimal format (e.g., "4.75")
 ///
+/// Priority: decimal > segments > default fractions. mm mode ignores both flags.
 /// This is the primary formatting function for dimension labels.
-pub fn format_dimension(value: f64, unit: Unit, use_segments: bool) -> String {
+pub fn format_dimension(value: f64, unit: Unit, use_segments: bool, use_decimal: bool) -> String {
     match unit {
+        Unit::Inches if use_decimal => format_inches_decimal(value),
         Unit::Inches if use_segments => format_value_tape_measure(value, unit),
         _ => format_value(value, unit),
+    }
+}
+
+/// Format an inches value as decimal (e.g., "4.75\"")
+/// Trims trailing zeros: 4.0 → "4\"", 4.50 → "4.5\""
+fn format_inches_decimal(value: f64) -> String {
+    let formatted = format!("{:.4}", value);
+    let trimmed = formatted.trim_end_matches('0').trim_end_matches('.');
+    if trimmed.is_empty() {
+        "0\"".to_string()
+    } else {
+        format!("{}\"", trimmed)
     }
 }
 

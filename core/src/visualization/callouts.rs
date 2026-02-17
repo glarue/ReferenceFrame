@@ -19,12 +19,13 @@ pub fn generate_plan_callouts(
     geometry: &PlanViewGeometry,
     unit_mm: bool,
     use_tape_segments: bool,
+    use_decimal: bool,
     style: &DiagramStyle,
 ) -> Vec<DimensionCallout> {
     let mut callouts = Vec::new();
     let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
     // Helper closure for formatting dimensions
-    let fmt = |value: f64| format_dimension(value, unit, use_tape_segments);
+    let fmt = |value: f64| format_dimension(value, unit, use_tape_segments, use_decimal);
 
     // Stroke width adjustments - stroke is centered on the path
     // Visual edge is at rect_position ± stroke_width/2
@@ -135,11 +136,12 @@ pub fn generate_section_callouts(
     design: &FrameDesign,
     unit_mm: bool,
     use_tape_segments: bool,
+    use_decimal: bool,
 ) -> Vec<DimensionCallout> {
     let mut callouts = Vec::new();
     let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
     // Helper closure for formatting dimensions
-    let fmt = |value: f64| format_dimension(value, unit, use_tape_segments);
+    let fmt = |value: f64| format_dimension(value, unit, use_tape_segments, use_decimal);
 
     // These will use placeholder positions - actual positions
     // calculated by SectionViewGeometry during layout
@@ -250,7 +252,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         // Should have at least frame outside and inside dimensions
         assert!(callouts.len() >= 4);
@@ -270,7 +272,7 @@ mod tests {
 
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         // Should not have mat callouts
         let has_mat = callouts.iter().any(|c| c.dimension_type == DimensionType::MatOpeningWidth);
@@ -280,7 +282,7 @@ mod tests {
     #[test]
     fn test_generate_section_callouts() {
         let design = test_design();
-        let callouts = generate_section_callouts(&design, false, false);
+        let callouts = generate_section_callouts(&design, false, false, false);
 
         // Should have frame depth and material thicknesses
         assert!(callouts.len() >= 5);
@@ -294,7 +296,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         let (top, right, _bottom, _left) = group_by_side(&callouts);
 
@@ -316,7 +318,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         let mut refs: Vec<&DimensionCallout> = callouts.iter().collect();
         sort_by_priority(&mut refs);
@@ -332,7 +334,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
 
         // Labels should contain inch marks
         let frame_width_callout = callouts.iter()
@@ -346,7 +348,7 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, true, false, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, true, false, false, &style);
 
         // Labels should contain mm
         let frame_width_callout = callouts.iter()
