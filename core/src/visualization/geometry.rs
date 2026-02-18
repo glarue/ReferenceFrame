@@ -89,6 +89,8 @@ pub struct PlanViewGeometry {
     pub break_y_end: f64,
     /// Proportional thumbnail rect (true aspect ratio silhouette), shown only when breaks active
     pub thumbnail: Option<Rect>,
+    /// Whether thumbnail is positioned below (landscape) vs left (portrait)
+    pub thumbnail_below: bool,
     /// Corner detail inset overlay (shown when breaks active)
     pub corner_detail: Option<CornerDetailGeometry>,
 }
@@ -220,6 +222,7 @@ impl PlanViewGeometry {
             break_y_start: 0.0,
             break_y_end: 0.0,
             thumbnail: None,
+            thumbnail_below: false,
             corner_detail: None,
         }
     }
@@ -312,6 +315,7 @@ impl PlanViewGeometry {
             break_y_start: 0.0,
             break_y_end: 0.0,
             thumbnail: None,
+            thumbnail_below: false,
             corner_detail: None,
         }
     }
@@ -345,16 +349,23 @@ impl PlanViewGeometry {
         let trial_scale_y = available_height / frame_outer_height;
         let trial_scale = trial_scale_x.min(trial_scale_y);
 
-        // Break trigger: based on FRAME BAND visibility, not internal detail.
-        // Corner detail handles the "internal elements too thin" case by showing
-        // a zoomed inset. Breaks are only needed when the frame band itself is
-        // too thin to draw as a visible border (< 3px).
-        let min_band_px = 3.0;
+        // Ratio-based thresholds — canvas-size-independent.
+        // min_ratio = frame_band / longer_outer_dimension (the tightest axis).
+        //
+        // Auto zones:
+        //   min_ratio < 2.5% → axis breaks (frame band too thin to show proportionally)
+        //   2.5% ≤ min < 6%  → corner detail (frame visible but internal detail worth showing)
+        //   min_ratio ≥ 6%   → nothing (small/chunky frame, everything clearly visible)
+        const AXIS_BREAK_RATIO: f64 = 0.025;
+        const CORNER_DETAIL_RATIO: f64 = 0.060;
         let frame_band = design.frame_material_width.max(0.001);
         let needs_break_x = frame_outer_width > 0.0
-            && frame_band * trial_scale_x < min_band_px;
+            && frame_band / frame_outer_width < AXIS_BREAK_RATIO;
         let needs_break_y = frame_outer_height > 0.0
-            && frame_band * trial_scale_y < min_band_px;
+            && frame_band / frame_outer_height < AXIS_BREAK_RATIO;
+        let min_ratio = (frame_band / frame_outer_width.max(0.001))
+            .min(frame_band / frame_outer_height.max(0.001));
+        let needs_corner_detail = min_ratio < CORNER_DETAIL_RATIO;
 
         // Thinnest critical element — used for detail visibility scale in break layout
         let _min_detail = {
@@ -374,7 +385,7 @@ impl PlanViewGeometry {
         };
 
         let use_corner_detail = match detail_mode {
-            DetailMode::Auto => !use_breaks, // Corner detail only when no breaks
+            DetailMode::Auto => !use_breaks && needs_corner_detail,
             DetailMode::CornerDetail => true, // Always corner detail
             DetailMode::AxisBreaks => false,  // Never corner detail
             DetailMode::None => false,        // No enhancements
@@ -458,42 +469,76 @@ impl PlanViewGeometry {
                 // Only X breaks: Y is full, Y sets natural scale
                 let scale = trial_scale_y.max(min_scale);
                 let fits = (available_width / scale - non_artwork_w).max(min_display);
-                let dw = fits.min(design.artwork_width);
                 let dh = design.artwork_height;
-                // Check if this would flip orientation
-                let disp_outer_w = non_artwork_w + dw;
-                let disp_outer_h = non_artwork_h + dh;
-                let true_landscape = frame_outer_width >= frame_outer_height;
-                let disp_landscape = disp_outer_w >= disp_outer_h;
-                if true_landscape != disp_landscape {
-                    // Orientation would flip — use dual-axis uniform compression
-                    let (dw, dh) = dual_axis_uniform(min_scale);
-                    (dw, dh, dw < design.artwork_width, dh < design.artwork_height)
-                } else {
-                    (dw, dh, dw < design.artwork_width, false)
-                }
+                // Floor dw so display stays landscape (same orientation as true frame).
+                // This prevents orientation flipping without adding an unnecessary Y break.
+                let min_dw = (non_artwork_h + dh - non_artwork_w).max(min_display);
+                let dw = fits.min(design.artwork_width).max(min_dw);
+                (dw, dh, dw < design.artwork_width, false)
             }
             (false, true) => {
                 // Only Y breaks: X is full, X sets natural scale
                 let scale = trial_scale_x.max(min_scale);
                 let fits = (available_height / scale - non_artwork_h).max(min_display);
                 let dw = design.artwork_width;
-                let dh = fits.min(design.artwork_height);
-                // Check if this would flip orientation
-                let disp_outer_w = non_artwork_w + dw;
-                let disp_outer_h = non_artwork_h + dh;
-                let true_landscape = frame_outer_width >= frame_outer_height;
-                let disp_landscape = disp_outer_w >= disp_outer_h;
-                if true_landscape != disp_landscape {
-                    // Orientation would flip — use dual-axis uniform compression
-                    let (dw, dh) = dual_axis_uniform(min_scale);
-                    (dw, dh, dw < design.artwork_width, dh < design.artwork_height)
-                } else {
-                    (dw, dh, false, dh < design.artwork_height)
-                }
+                // Floor dh so display stays portrait (same orientation as true frame).
+                // This prevents orientation flipping without adding an unnecessary X break.
+                let min_dh = (non_artwork_w + dw - non_artwork_h).max(min_display);
+                let dh = fits.min(design.artwork_height).max(min_dh);
+                (dw, dh, false, dh < design.artwork_height)
             }
             _ => (design.artwork_width, design.artwork_height, false, false),
         };
+
+        // Cap the display aspect ratio so the frame can scale up larger on
+        // portrait screens. Without this, very wide landscape frames render
+        // with tiny frame details because the display remains too landscape.
+        let max_display_ratio = 1.3_f64;
+        let mut display_artwork_w = display_artwork_w;
+        let mut display_artwork_h = display_artwork_h;
+        let mut use_break_x = use_break_x;
+        let mut use_break_y = use_break_y;
+        {
+            let disp_w = non_artwork_w + display_artwork_w;
+            let disp_h = non_artwork_h + display_artwork_h;
+            let ratio = disp_w / disp_h;
+            if ratio > max_display_ratio {
+                // Compress width further to cap ratio
+                let target_w = disp_h * max_display_ratio;
+                display_artwork_w = (target_w - non_artwork_w).max(min_display);
+                use_break_x = display_artwork_w < design.artwork_width;
+            } else if ratio > 0.0 && 1.0 / ratio > max_display_ratio {
+                // Compress height further to cap ratio
+                let target_h = disp_w * max_display_ratio;
+                display_artwork_h = (target_h - non_artwork_h).max(min_display);
+                use_break_y = display_artwork_h < design.artwork_height;
+            }
+        }
+
+        // If break computation determined everything fits uncompressed,
+        // fall back to the standard path which can still apply corner detail.
+        if !use_break_x && !use_break_y {
+            let scale = trial_scale;
+            let scaled_width = frame_outer_width * scale;
+            let scaled_height = frame_outer_height * scale;
+
+            let label_extension = style.dimension_font_size + 4.0;
+            let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
+            let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
+            let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
+
+            let mut geo = Self::build_rects(design, scale, origin_x, origin_y);
+
+            let min_rabbet_px = 20.0;
+            if use_corner_detail
+                && design.rabbet_width * scale < min_rabbet_px
+                && design.frame_material_width > 0.0
+            {
+                geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
+            }
+
+            return geo;
+        }
 
         // Display outer = actual_outer - actual_artwork + display_artwork
         let display_outer_w = frame_outer_width - design.artwork_width + display_artwork_w;
@@ -541,21 +586,32 @@ impl PlanViewGeometry {
             geo.break_y_end = break_center_y + break_gap_px / 2.0;
         }
 
-        // Proportional thumbnail: true aspect ratio silhouette to the left of the main diagram
-        let thumbnail_max_w = 80.0;
-        let thumbnail_max_h = 120.0;
+        // Proportional thumbnail: true aspect ratio silhouette
+        // Portrait frames: thumbnail to the left, centered vertically
+        // Landscape frames: thumbnail below, centered horizontally
+        let is_portrait = frame_outer_height >= frame_outer_width;
+        let thumbnail_max_w = if is_portrait { 80.0 } else { 120.0 };
+        let thumbnail_max_h = if is_portrait { 120.0 } else { 60.0 };
         let thumbnail_gap = 24.0;
-        // Fit within both max width and max height, with a minimum short-side dimension
         let scale_w = thumbnail_max_w / frame_outer_width;
         let scale_h = thumbnail_max_h / frame_outer_height;
         let thumb_scale = scale_w.min(scale_h);
         let thumbnail_min_px = 5.0;
         let thumb_w = (frame_outer_width * thumb_scale).max(thumbnail_min_px);
         let thumb_h = (frame_outer_height * thumb_scale).max(thumbnail_min_px);
-        let thumb_x = geo.frame_outer.left() - thumbnail_gap - thumb_w;
-        let thumb_y = geo.frame_outer.top()
-            + (geo.frame_outer.height - thumb_h) / 2.0;
+        let (thumb_x, thumb_y) = if is_portrait {
+            // Left of diagram, vertically centered
+            let x = geo.frame_outer.left() - thumbnail_gap - thumb_w;
+            let y = geo.frame_outer.top() + (geo.frame_outer.height - thumb_h) / 2.0;
+            (x, y)
+        } else {
+            // Below diagram, right-aligned to avoid mat cut callout text on the left
+            let x = geo.frame_outer.right() - thumb_w;
+            let y = geo.frame_outer.bottom() + thumbnail_gap;
+            (x, y)
+        };
         geo.thumbnail = Some(Rect::new(thumb_x, thumb_y, thumb_w, thumb_h));
+        geo.thumbnail_below = !is_portrait;
 
         geo
     }
@@ -1243,8 +1299,9 @@ mod tests {
 
     #[test]
     fn test_plan_view_single_axis_break() {
-        // 200"w × 50"h landscape artwork — only X axis needs break, Y fits
-        let mut design = FrameDesign::new(50.0, 200.0);
+        // 100"w × 10"h extreme landscape — X axis needs break (~0.71%), Y doesn't (~4.9%)
+        // (ratio threshold is 3%; outer dims: ~105" wide, ~15" tall)
+        let mut design = FrameDesign::new(10.0, 100.0);
         design.frame_material_width = 0.75;
         design.mat_width_top_bottom = 2.0;
         design.mat_width_sides = 2.0;
@@ -1253,9 +1310,9 @@ mod tests {
         let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
 
         assert!(geo.use_axis_break_x,
-            "X axis break should be triggered for 200\" width");
+            "X axis break should be triggered for 100\" width");
         assert!(!geo.use_axis_break_y,
-            "Y axis break should NOT be triggered for 50\" height");
+            "Y axis break should NOT be triggered for 10\" height");
     }
 
     #[test]
