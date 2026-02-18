@@ -113,8 +113,8 @@ const SPARK_HORIZONTAL_WIDTH: f64 = 8.0;     // Horizontal extent of horizontal 
 const SPARK_HORIZONTAL_HEIGHT: f64 = 4.0;    // Vertical extent of horizontal spark
 
 // Label layout
-const LABEL_MASK_PADDING_X: f64 = 4.0;       // Horizontal padding around label text
-const LABEL_MASK_PADDING_Y: f64 = 2.0;       // Vertical padding around label text
+const LABEL_MASK_PADDING_X: f64 = 2.0;       // Horizontal padding around label text (along text direction)
+const LABEL_MASK_PADDING_Y: f64 = 1.0;       // Vertical padding around label text (perpendicular to text)
 const LEADER_LINE_LENGTH: f64 = 10.0;        // Material label leader horizontal segment
 const LEADER_STROKE_RATIO: f64 = 0.7;        // Leader line width as fraction of extension_stroke
 
@@ -506,14 +506,14 @@ impl DimensionArrow {
                     let weight = if *bold { r#" font-weight="bold""# } else { "" };
                     if self.horizontal {
                         svg.push_str(&format!(
-                            r#"    <text x="{:.2}" y="{:.2}" font-family="{}" font-size="{:.1}" fill="{}"{} text-anchor="middle">{}</text>"#,
+                            r#"    <text x="{:.2}" y="{:.2}" font-family="{}" font-size="{:.1}px" fill="{}"{} text-anchor="middle">{}</text>"#,
                             mid, self.dim_line_pos + self.label_offset,
                             self.font_family, self.font_size, color, weight,
                             html_escape(text)
                         ));
                     } else {
                         svg.push_str(&format!(
-                            r#"    <text x="{:.2}" y="{:.2}" font-family="{}" font-size="{:.1}" fill="{}"{} text-anchor="end">{}</text>"#,
+                            r#"    <text x="{:.2}" y="{:.2}" font-family="{}" font-size="{:.1}px" fill="{}"{} text-anchor="end">{}</text>"#,
                             self.dim_line_pos - self.label_offset, mid,
                             self.font_family, self.font_size, color, weight,
                             html_escape(text)
@@ -525,14 +525,14 @@ impl DimensionArrow {
                     // Two lines, right-aligned to left of vertical dimension line
                     let label_x = self.dim_line_pos - self.label_offset;
                     svg.push_str(&format!(
-                        r#"    <text x="{:.2}" y="{:.2}" font-family="{}" font-size="{:.1}" fill="{}" text-anchor="end" font-weight="bold">{}</text>"#,
+                        r#"    <text x="{:.2}" y="{:.2}" font-family="{}" font-size="{:.1}px" fill="{}" text-anchor="end" font-weight="bold">{}</text>"#,
                         label_x, mid - 1.0,
                         self.font_family, self.font_size, color,
                         html_escape(line1)
                     ));
                     svg.push('\n');
                     svg.push_str(&format!(
-                        r#"    <text x="{:.2}" y="{:.2}" font-family="{}" font-size="{:.1}" fill="{}" text-anchor="end" font-weight="bold">{}</text>"#,
+                        r#"    <text x="{:.2}" y="{:.2}" font-family="{}" font-size="{:.1}px" fill="{}" text-anchor="end" font-weight="bold">{}</text>"#,
                         label_x, mid + self.font_size + 1.0,
                         self.font_family, self.font_size, color,
                         html_escape(line2)
@@ -618,10 +618,12 @@ fn generate_plan_view(
     };
 
     let svg = build_plan_svg(design, &geometry, &callouts, &layout, options, style);
+    let frame_center_x = Some(geometry.frame_outer.center().x);
 
     DiagramResult {
         svg,
         warnings: layout.warnings,
+        frame_center_x,
     }
 }
 
@@ -649,6 +651,7 @@ fn generate_section_view(
     DiagramResult {
         svg,
         warnings: Vec::new(),
+        frame_center_x: None,
     }
 }
 
@@ -659,28 +662,24 @@ fn generate_combined_view(
     style: &DiagramStyle,
 ) -> DiagramResult {
     // Vertical stacking: plan view (top), section view (bottom)
-    // Add gap between views for breathing room
-    // Extra space needed for mat cut label offset (41px downward)
-    let gap_between_views = 40.0; // Increased to prevent overlaps
-    
-    // Account for title block height if present (prevents overlap at top)
-    // Title at y=30, subtitle at y=70, then diagram content starts at y=95
-    let title_height = if options.include_title_block { 95.0 } else { 0.0 };
-    
-    // Calculate available height for diagrams
-    let available_height = options.canvas_height - gap_between_views - title_height;
-    
-    // Distribute available height: 58% plan, 42% section
-    let plan_height = available_height * 0.58;
-    let section_height = available_height * 0.42;
+    let gap_between_views = 30.0;
 
-    // Use full PDF font sizes without scaling - dynamic viewBox handles fitting
-    // Previously scaled by 0.8× but this made fonts unnecessarily small (17.6pt instead of 22pt)
+    // Account for title block height if present
+    let title_height = if options.include_title_block { 95.0 } else { 0.0 };
+
+    // Available height budget (gap and title reserved)
+    let available_height = options.canvas_height - gap_between_views - title_height;
+
+    // Initial rough split used only to generate the SVG content.
+    // The actual zone heights are derived from viewBox aspect ratios below.
+    let plan_height_init = available_height * 0.58;
+    let section_height_init = available_height * 0.42;
+
+    // Use full PDF font sizes without scaling — dynamic viewBox handles fitting
     let plan_style = style.clone();
 
-    // Section view typically has narrower content, causing larger viewBox scaling
-    // Compensate by reducing font sizes proportionally (~24% reduction empirically)
-    // This makes rendered font sizes match between plan and section views
+    // Section view typically has narrower content, causing larger viewBox scaling.
+    // Reduce font sizes proportionally so rendered sizes match between views.
     let mut section_style = style.clone();
     section_style.label_font_size = (style.label_font_size * 0.76).round();
     section_style.dimension_offset_base = style.dimension_offset_base * 0.9;
@@ -688,67 +687,90 @@ fn generate_combined_view(
 
     let plan_options = DiagramOptions {
         view: ViewOption::PlanOnly,
-        canvas_height: plan_height,
+        canvas_height: plan_height_init,
         ..options.clone()
     };
-
     let section_options = DiagramOptions {
         view: ViewOption::SectionOnly,
-        canvas_height: section_height,
+        canvas_height: section_height_init,
         ..options.clone()
     };
 
     let plan_result = generate_plan_view(design, &plan_options, &plan_style);
     let section_result = generate_section_view(design, &section_options, &section_style);
 
-    // Extract viewBoxes from both views to preserve their coordinate systems
+    // Extract viewBoxes from both views
     let plan_viewbox = extract_viewbox(&plan_result.svg);
     let section_viewbox = extract_viewbox(&section_result.svg);
 
-    // Combine into single SVG
+    // Content-aware zone heights derived from viewBox aspect ratios.
+    // Natural height = the height each view needs to fill canvas_width with no side whitespace.
+    // Strategy: proportional scaling when both can't fit at natural size, flooring section at
+    // 70% of its natural height so the legend stays readable for portrait frames.
+    let (plan_zone_h, section_zone_h) = match (plan_viewbox, section_viewbox) {
+        (Some((_, _, pvw, pvh)), Some((_, _, svw, svh)))
+            if pvw > 0.0 && pvh > 0.0 && svw > 0.0 && svh > 0.0 =>
+        {
+            let plan_natural = options.canvas_width * pvh / pvw;
+            let section_natural = options.canvas_width * svh / svw;
+
+            if plan_natural + section_natural <= available_height {
+                // Both fit at natural height — no side whitespace anywhere
+                (plan_natural, section_natural)
+            } else {
+                // Scale both proportionally, but keep section ≥ 70% natural so legend stays readable
+                let scale = available_height / (plan_natural + section_natural);
+                let section_h = (section_natural * scale)
+                    .max(section_natural * 0.70)
+                    .min(available_height * 0.50);
+                let plan_h = (available_height - section_h).max(available_height * 0.25);
+                (plan_h, section_h)
+            }
+        }
+        _ => (plan_height_init, section_height_init), // fallback: fixed split
+    };
+
+    // Combined SVG height matches actual content — eliminates dead space at bottom
+    let combined_h = title_height + plan_zone_h + gap_between_views + section_zone_h;
+
     let mut svg = String::new();
     svg.push_str(&format!(
-        r#"<svg viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">"#,
-        options.canvas_width, options.canvas_height
+        r#"<svg viewBox="0 0 {:.2} {:.2}" xmlns="http://www.w3.org/2000/svg">"#,
+        options.canvas_width, combined_h
     ));
     svg.push('\n');
 
-    // Title block if requested
     if options.include_title_block {
         svg.push_str(&generate_title_block(design, options, style));
     }
 
-    // Use simple <g> transforms instead of nested <svg> elements
-    // This approach is more compatible with flutter_svg and other SVG renderers
-    // We manually calculate the transform that emulates the viewBox "meet" behavior
-    
-    // Plan View Transform (starts after title block)
+    // Plan view — horizontally centered on the frame body, not the viewBox midpoint
     let plan_content = extract_svg_content(&plan_result.svg);
     if let Some((vx, vy, vw, vh)) = plan_viewbox {
         let (tx, ty, scale) = calculate_fit_transform(
             vx, vy, vw, vh,
-            0.0, title_height, options.canvas_width, plan_height,
-            true // Align top (YMin)
+            0.0, title_height, options.canvas_width, plan_zone_h,
+            true,
+            plan_result.frame_center_x,
         );
         svg.push_str(&format!(
             r#"  <g id="plan-view" transform="translate({:.2}, {:.2}) scale({:.4})">{}</g>"#,
             tx, ty, scale, plan_content
         ));
     } else {
-        svg.push_str(&format!(
-            r#"  <g id="plan-view">{}</g>"#,
-            plan_content
-        ));
+        svg.push_str(&format!(r#"  <g id="plan-view">{}</g>"#, plan_content));
     }
     svg.push('\n');
 
-    // Section View Transform (starts after plan view + gap)
+    // Section view — viewBox-centered (section is symmetric, frame center not needed)
+    let section_y = title_height + plan_zone_h + gap_between_views;
     let section_content = extract_svg_content(&section_result.svg);
     if let Some((vx, vy, vw, vh)) = section_viewbox {
         let (tx, ty, scale) = calculate_fit_transform(
             vx, vy, vw, vh,
-            0.0, title_height + plan_height + gap_between_views, options.canvas_width, section_height,
-            true // Align top (YMin)
+            0.0, section_y, options.canvas_width, section_zone_h,
+            true,
+            None,
         );
         svg.push_str(&format!(
             r#"  <g id="section-view" transform="translate({:.2}, {:.2}) scale({:.4})">{}</g>"#,
@@ -756,9 +778,8 @@ fn generate_combined_view(
         ));
     } else {
         svg.push_str(&format!(
-            r#"  <g id="section-view" transform="translate(0, {})">{}</g>"#,
-            title_height + plan_height + gap_between_views,
-            section_content
+            r#"  <g id="section-view" transform="translate(0, {:.2})">{}</g>"#,
+            section_y, section_content
         ));
     }
     svg.push('\n');
@@ -768,50 +789,53 @@ fn generate_combined_view(
     let mut warnings = plan_result.warnings;
     warnings.extend(section_result.warnings);
 
-    DiagramResult { svg, warnings }
+    DiagramResult { svg, warnings, frame_center_x: None }
 }
 
-/// Calculate transform (tx, ty, scale) to fit a source rect into a target rect
-/// Preserves aspect ratio (meet)
-/// align_top: if true, aligns to top of target (YMin), else centers vertically (YMid)
+/// Calculate transform (tx, ty, scale) to fit a source rect into a target rect.
+/// Preserves aspect ratio (meet).
+/// - align_top: aligns to top of target (YMin) if true, else centers vertically (YMid)
+/// - frame_center_x: if Some, horizontally centers the frame body (not the viewBox midpoint)
+///   in the dest rect, clamped to keep content within bounds.
 fn calculate_fit_transform(
     src_x: f64, src_y: f64, src_w: f64, src_h: f64,
     dest_x: f64, dest_y: f64, dest_w: f64, dest_h: f64,
     align_top: bool,
+    frame_center_x: Option<f64>,
 ) -> (f64, f64, f64) {
     if src_w <= 0.0 || src_h <= 0.0 || dest_w <= 0.0 || dest_h <= 0.0 {
         return (dest_x, dest_y, 1.0);
     }
-    
-    // Safety check for non-finite values (Infinity/NaN)
     if !src_w.is_finite() || !src_h.is_finite() || !dest_w.is_finite() || !dest_h.is_finite() {
         return (dest_x, dest_y, 1.0);
     }
 
-    // Calculate scale to fit (meet)
     let scale_x = dest_w / src_w;
     let scale_y = dest_h / src_h;
     let scale = scale_x.min(scale_y);
 
-    // Calculate centering offsets
     let new_w = src_w * scale;
     let new_h = src_h * scale;
 
-    let offset_x = (dest_w - new_w) / 2.0;
-    
-    let offset_y = if align_top {
-        0.0 // YMin
+    // Horizontal: center frame body if available, else center viewBox (XMid)
+    let offset_x = if let Some(fc_x) = frame_center_x {
+        // Place the scaled frame center at the horizontal midpoint of dest
+        let raw = dest_w / 2.0 - scale * (fc_x - src_x);
+        // Clamp so content stays within dest bounds
+        raw.max(0.0).min(dest_w - new_w)
     } else {
-        (dest_h - new_h) / 2.0 // YMid
+        (dest_w - new_w) / 2.0
     };
 
-    // Calculate translation
-    // transform = translate(tx, ty) scale(s)
-    
+    let offset_y = if align_top {
+        0.0
+    } else {
+        (dest_h - new_h) / 2.0
+    };
+
     let tx = dest_x + offset_x - scale * src_x;
     let ty = dest_y + offset_y - scale * src_y;
 
-    // Final safety check
     if !tx.is_finite() || !ty.is_finite() || !scale.is_finite() {
         return (dest_x, dest_y, 1.0);
     }
@@ -1047,11 +1071,23 @@ fn build_plan_svg(
         let mut min_y = geometry.frame_outer.top() - style.frame_stroke_width / 2.0;
         let mut max_y = geometry.frame_outer.bottom() + style.frame_stroke_width / 2.0;
 
+        // Determine outermost level per side (matches rendering logic)
+        let max_level_per_side = |side: Side| -> u8 {
+            layout.positioned_callouts.iter()
+                .filter(|c| c.actual_side == side)
+                .map(|c| c.offset_level)
+                .max()
+                .unwrap_or(0)
+        };
+        let max_top = max_level_per_side(Side::Top);
+        let max_bottom = max_level_per_side(Side::Bottom);
+        let max_right = max_level_per_side(Side::Right);
+        let max_left = max_level_per_side(Side::Left);
+
         // Include dimension callouts in bounds
         for callout in &layout.positioned_callouts {
             use super::types::DimensionType;
 
-            // Dimension lines extend beyond geometry
             let dim_line_pos = callout.dimension_line_position;
             let extent_start = &callout.callout.extent_start;
             let extent_end = &callout.callout.extent_end;
@@ -1062,38 +1098,65 @@ fn build_plan_svg(
             min_y = min_y.min(extent_start.y.min(extent_end.y) - style.dimension_offset_step);
             max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
 
-            // Account for dimension labels using actual label text length
-            let label_text_width = estimate_text_width(&callout.callout.label, style.label_font_size);
-            let label_height = style.label_font_size * 1.2;
+            // Two-line split: vertical sides always, horizontal only when alone on side
+            let is_horizontal_dim = (extent_start.y - extent_end.y).abs() < 1.0;
+            let max_for_side = match callout.actual_side {
+                Side::Top => max_top,
+                Side::Bottom => max_bottom,
+                Side::Right => max_right,
+                Side::Left => max_left,
+            };
+            let is_outermost = callout.offset_level == max_for_side;
+            let is_two_line = (!is_horizontal_dim || is_outermost)
+                && callout.callout.label.contains(": ");
 
-            // Mat cut dimensions get extra offset - calculate it here
-            let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0 + style.dimension_offset_base;
-
-            // Only extend bounds in the direction perpendicular to the dimension line
-            // Horizontal dimensions: label centered above/below line
-            if (extent_start.y - extent_end.y).abs() < 1.0 {
-                // Check if this is a mat cut width dimension (needs extra downward offset)
-                let extra_offset = if callout.callout.dimension_type == DimensionType::MatCutWidth {
-                    mat_cut_offset
+            let label_text_width = if is_two_line {
+                if let Some(pos) = callout.callout.label.find(": ") {
+                    let prefix = &callout.callout.label[..pos + 1];
+                    let value = callout.callout.label[pos + 2..].trim_start();
+                    estimate_text_width(prefix, style.label_font_size)
+                        .max(estimate_text_width(value, style.label_font_size))
                 } else {
-                    0.0
-                };
+                    estimate_text_width(&callout.callout.label, style.label_font_size)
+                }
+            } else {
+                estimate_text_width(&callout.callout.label, style.label_font_size)
+            };
+
+            let line_gap = style.label_font_size * 0.2;
+            let label_height = if is_two_line {
+                style.label_font_size * 2.0 + line_gap
+            } else {
+                style.label_font_size * 1.2
+            };
+
+            // Mat cut offset: always single-line, matches original formula.
+            let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0
+                + style.dimension_offset_base;
+
+            // Extend bounds based on dimension orientation
+            if is_horizontal_dim {
+                let extra_offset = if matches!(callout.callout.dimension_type,
+                    DimensionType::MatCutWidth) { mat_cut_offset } else { 0.0 };
                 min_y = min_y.min(dim_line_pos - label_height);
                 max_y = max_y.max(dim_line_pos + label_height + extra_offset);
-                // Horizontal extent of centered text
                 let mid_x = (extent_start.x + extent_end.x) / 2.0;
                 min_x = min_x.min(mid_x - label_text_width / 2.0);
                 max_x = max_x.max(mid_x + label_text_width / 2.0);
             } else {
-                // Vertical dimensions: rotated label (text width becomes vertical extent)
-                // Check if this is a mat cut height dimension (needs extra leftward offset)
-                let extra_offset = if callout.callout.dimension_type == DimensionType::MatCutHeight {
-                    mat_cut_offset
+                let extra_offset = if matches!(callout.callout.dimension_type,
+                    DimensionType::MatCutHeight) { mat_cut_offset } else { 0.0 };
+                if is_two_line && is_outermost {
+                    // Outermost: shifted outward, extends label_height from dim line
+                    match callout.actual_side {
+                        Side::Right => max_x = max_x.max(dim_line_pos + label_height + extra_offset),
+                        Side::Left => min_x = min_x.min(dim_line_pos - label_height - extra_offset),
+                        _ => {}
+                    }
                 } else {
-                    0.0
-                };
-                min_x = min_x.min(dim_line_pos - label_height - extra_offset);
-                max_x = max_x.max(dim_line_pos + label_height);
+                    min_x = min_x.min(dim_line_pos - label_height / 2.0 - extra_offset);
+                    max_x = max_x.max(dim_line_pos + label_height / 2.0 + extra_offset);
+                }
                 let mid_y = (extent_start.y + extent_end.y) / 2.0;
                 min_y = min_y.min(mid_y - label_text_width / 2.0);
                 max_y = max_y.max(mid_y + label_text_width / 2.0);
@@ -1103,10 +1166,17 @@ fn build_plan_svg(
         // Include proportional thumbnail in bounds
         if let Some(thumb) = &geometry.thumbnail {
             min_x = min_x.min(thumb.left());
-            max_x = max_x.max(thumb.right());
             min_y = min_y.min(thumb.top());
-            // Two label lines: 10px gap + 8px line + 10px gap + 8px line
-            max_y = max_y.max(thumb.bottom() + 10.0 + 10.0 + 8.0);
+            if geometry.thumbnail_below {
+                // Landscape: label text to the right of thumbnail
+                let label_w = estimate_text_width("proportions", 8.0);
+                max_x = max_x.max(thumb.right() + 8.0 + label_w);
+                max_y = max_y.max(thumb.bottom());
+            } else {
+                // Portrait: label text below thumbnail
+                max_x = max_x.max(thumb.right());
+                max_y = max_y.max(thumb.bottom() + 10.0 + 10.0 + 8.0);
+            }
         }
 
         // Include corner detail inset in bounds
@@ -1359,10 +1429,37 @@ fn build_plan_svg(
 
     // Dimensions group (only if callouts are enabled)
     if options.show_callouts {
+        // Determine which callouts are at the outermost level on their side.
+        // Only outermost labels can safely split into two lines (unlimited outward space).
+        let max_level_per_side = |side: Side| -> u8 {
+            layout.positioned_callouts.iter()
+                .filter(|c| c.actual_side == side)
+                .map(|c| c.offset_level)
+                .max()
+                .unwrap_or(0)
+        };
+        let max_top = max_level_per_side(Side::Top);
+        let max_bottom = max_level_per_side(Side::Bottom);
+        let max_right = max_level_per_side(Side::Right);
+        let max_left = max_level_per_side(Side::Left);
+
+        // Two-pass rendering: draw lines/masks first, then labels on top.
+        // This prevents an outer level's mask from covering an inner level's label.
+        let mut dimension_labels = String::new();
         svg.push_str("  <g id=\"dimensions\">\n");
         for callout in &layout.positioned_callouts {
-            svg.push_str(&svg_dimension(callout, style, geometry));
+            let max_for_side = match callout.actual_side {
+                Side::Top => max_top,
+                Side::Bottom => max_bottom,
+                Side::Right => max_right,
+                Side::Left => max_left,
+            };
+            let is_outermost = callout.offset_level == max_for_side;
+            let (geom_svg, label_svg) = svg_dimension(callout, style, geometry, is_outermost);
+            svg.push_str(&geom_svg);
+            dimension_labels.push_str(&label_svg);
         }
+        svg.push_str(&dimension_labels);
         svg.push_str("  </g>\n");
     }
 
@@ -1420,9 +1517,11 @@ fn build_plan_svg(
         let label_bottom = artwork_center_y + text_bg_h / 2.0;
 
         // Horizontal line with arrows (with spark symbol if X break active)
-        // Split into left and right segments that stop at label edges
+        // Spark is placed on the OPPOSITE side of the artwork center from the frame break
+        // so it doesn't compete for visual space with the frame's zigzag indicators.
         if geometry.use_axis_break_x {
-            let break_center_x = (geometry.break_x_start + geometry.break_x_end) / 2.0;
+            let frame_break_cx = (geometry.break_x_start + geometry.break_x_end) / 2.0;
+            let break_center_x = 2.0 * artwork_center.x - frame_break_cx;
             let sw = SPARK_HORIZONTAL_WIDTH;
             let sh = SPARK_HORIZONTAL_HEIGHT;
 
@@ -1475,9 +1574,10 @@ fn build_plan_svg(
         }
 
         // Vertical line with arrows (with spark symbol if Y break active)
-        // Split into top and bottom segments that stop at label edges
+        // Spark on OPPOSITE side from frame break (mirrors across artwork center)
         if geometry.use_axis_break_y {
-            let break_center_y = (geometry.break_y_start + geometry.break_y_end) / 2.0;
+            let frame_break_cy = (geometry.break_y_start + geometry.break_y_end) / 2.0;
+            let break_center_y = 2.0 * artwork_center_y - frame_break_cy;
             let sw = SPARK_VERTICAL_WIDTH;
             let sh = SPARK_VERTICAL_HEIGHT;
 
@@ -1556,7 +1656,7 @@ fn build_plan_svg(
         // DECISION: Accept imperfect PDF rendering rather than engineering complexity.
         // The browser rendering is correct, and the PDF issue is a minor aesthetic imperfection.
         svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{:.2}" text-anchor="middle" dominant-baseline="middle">{}</text>"#,
+            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{:.2}px" text-anchor="middle" dominant-baseline="middle">{}</text>"#,
             artwork_center.x, artwork_center_y,
             artwork_indicator_color, style.font_family, style.label_font_size,
             html_escape(&artwork_label)
@@ -1577,16 +1677,31 @@ fn build_plan_svg(
             "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"#999\" stroke-width=\"0.75\" fill=\"none\"/>\n",
             thumb.x, thumb.y, thumb.width, thumb.height
         ));
-        let label_x = thumb.x + thumb.width / 2.0;
-        let label_y = thumb.bottom() + 10.0;
-        svg.push_str(&format!(
-            "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8\" text-anchor=\"middle\">Actual</text>\n",
-            label_x, label_y, style.font_family
-        ));
-        svg.push_str(&format!(
-            "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8\" text-anchor=\"middle\">proportions</text>\n",
-            label_x, label_y + 10.0, style.font_family
-        ));
+        if geometry.thumbnail_below {
+            // Landscape: label to the right of thumbnail
+            let label_x = thumb.right() + 8.0;
+            let label_y = thumb.y + thumb.height / 2.0 - 1.0;
+            svg.push_str(&format!(
+                "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8px\" text-anchor=\"start\">Actual</text>\n",
+                label_x, label_y, style.font_family
+            ));
+            svg.push_str(&format!(
+                "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8px\" text-anchor=\"start\">proportions</text>\n",
+                label_x, label_y + 10.0, style.font_family
+            ));
+        } else {
+            // Portrait: label below thumbnail
+            let label_x = thumb.x + thumb.width / 2.0;
+            let label_y = thumb.bottom() + 10.0;
+            svg.push_str(&format!(
+                "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8px\" text-anchor=\"middle\">Actual</text>\n",
+                label_x, label_y, style.font_family
+            ));
+            svg.push_str(&format!(
+                "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8px\" text-anchor=\"middle\">proportions</text>\n",
+                label_x, label_y + 10.0, style.font_family
+            ));
+        }
         svg.push_str("  </g>\n");
     }
 
@@ -2172,7 +2287,7 @@ fn build_section_svg(
         design.frame_material_depth
     };
     svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">Depth: {}</text>"#,
+        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">Depth: {}</text>"#,
         depth_label_x, depth_label_y,
         dim_color, style.font_family, style.label_font_size,
         depth_label_x, depth_label_y,
@@ -2258,7 +2373,7 @@ fn build_section_svg(
 
     // Show actual frame width (not display width) in label
     svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">Width: {}</text>"#,
+        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle">Width: {}</text>"#,
         (fw_x1 + fw_x2) / 2.0, fw_label_y,
         dim_color, style.font_family, style.label_font_size,
         fmt(geometry.actual_frame_width)
@@ -2415,7 +2530,7 @@ fn build_section_svg(
         // This makes dog-leg line hit visual center regardless of baseline rendering
         let text_y = label_y + style.label_font_size * 0.35;
         svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}: {}</text>"#,
+            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px">{}: {}</text>"#,
             label_base_x, text_y,
             dim_color, style.font_family, style.label_font_size,
             mat.name, fmt(mat.thickness)
@@ -2472,7 +2587,7 @@ fn build_section_svg(
         track_x!(stack_label_x + style.label_font_size / 2.0);
 
         svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">{}</text>"#,
+            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">{}</text>"#,
             stack_label_x, stack_label_y,
             dim_color, style.font_family, style.label_font_size,
             stack_label_x, stack_label_y,
@@ -2529,7 +2644,7 @@ fn build_section_svg(
 
     // Rabbet dimensions on first line
     svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="{}">{}</text>"#,
+        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="{}">{}</text>"#,
         text_x, rabbet_label_y,
         indicator_color, style.font_family, style.label_font_size,
         text_anchor, rabbet_label
@@ -2538,7 +2653,7 @@ fn build_section_svg(
 
     // Clearance/interference on second line
     svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="{}">{}</text>"#,
+        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="{}">{}</text>"#,
         text_x, rabbet_label_y + line_height,
         indicator_color, style.font_family, style.label_font_size,
         text_anchor, clearance_line
@@ -2703,7 +2818,11 @@ fn svg_rect(rect: &Rect, stroke: &str, stroke_width: f64, fill: Option<&str>) ->
 /// - Extension lines start from geometry with small gap, extend past dimension line
 /// - Dimension line shortened so arrow tips end before extension lines
 /// - Labels positioned with buffer from dimension line
-fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &PlanViewGeometry) -> String {
+/// Returns (geometry_svg, label_svg) so labels can be rendered in a second pass
+/// on top of all masks, preventing adjacent-level masks from hiding labels.
+/// `is_outermost`: true if this callout is at the outermost level on its side,
+/// meaning two-line labels can safely extend outward without overlapping adjacent levels.
+fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &PlanViewGeometry, is_outermost: bool) -> (String, String) {
     let mut svg = String::new();
 
     // Determine color based on dimension type
@@ -2743,9 +2862,13 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
 
         // Extension line endpoints:
         // Start: small gap from geometry
-        // End: past the dimension line by EXTENSION_OVERSHOOT
+        // End: past this dimension's own line by EXTENSION_OVERSHOOT
         let ext_start_y = if going_up { geom_y - style.extension_line_gap } else { geom_y + style.extension_line_gap };
-        let ext_end_y = if going_up { dim_y - style.extension_line_overshoot } else { dim_y + style.extension_line_overshoot };
+        let ext_end_y = if going_up {
+            dim_y - style.extension_line_overshoot
+        } else {
+            dim_y + style.extension_line_overshoot
+        };
 
         // Extension lines - special case for MatCutWidth: both lines extend to same y-value
         // at the mat opening's bottom edge (with small offset)
@@ -2872,9 +2995,13 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
 
         // Extension line endpoints:
         // Start: small gap from geometry
-        // End: past the dimension line by EXTENSION_OVERSHOOT
+        // End: past this dimension's own line by EXTENSION_OVERSHOOT
         let ext_start_x = if going_right { geom_x + style.extension_line_gap } else { geom_x - style.extension_line_gap };
-        let ext_end_x = if going_right { dim_x + style.extension_line_overshoot } else { dim_x - style.extension_line_overshoot };
+        let ext_end_x = if going_right {
+            dim_x + style.extension_line_overshoot
+        } else {
+            dim_x - style.extension_line_overshoot
+        };
 
         // Top extension line
         svg.push_str(&format!(
@@ -2976,63 +3103,140 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
         }
     }
 
+    // Collect arrowhead polygons to re-render after label mask
+    // (ensures arrows are visible even when mask overlaps compressed dimensions)
+    // In tight_space mode the stubs are outside the extent boundaries and never
+    // covered by the mask, so no overlay is needed (and re-rendering inward
+    // arrowheads would produce phantom arrows inside the narrow span).
+    let tight_space_overlay = {
+        let tip = arrow_geometry::tip_extension(style.dimension_stroke_width);
+        if is_horizontal {
+            (callout.callout.extent_end.x - callout.callout.extent_start.x).abs() < tip * 3.0
+        } else {
+            (callout.callout.extent_end.y - callout.callout.extent_start.y).abs() < tip * 3.0
+        }
+    };
+    let mut arrow_overlay = String::new();
+    if !style.use_tick_marks && !tight_space_overlay {
+        if is_horizontal {
+            let dim_y = callout.dimension_line_position;
+            let x1 = arrow_line_endpoint_for_target(callout.callout.extent_start.x, style.dimension_stroke_width, true);
+            let x2 = arrow_line_endpoint_for_target(callout.callout.extent_end.x, style.dimension_stroke_width, false);
+            // Start arrow (pointing left)
+            arrow_overlay.push_str(&generate_arrow_polygon(x2, dim_y, x1, dim_y, dim_color, style.dimension_stroke_width, false));
+            arrow_overlay.push('\n');
+            // End arrow (pointing right)
+            arrow_overlay.push_str(&generate_arrow_polygon(x1, dim_y, x2, dim_y, dim_color, style.dimension_stroke_width, false));
+            arrow_overlay.push('\n');
+        } else {
+            let dim_x = callout.dimension_line_position;
+            let y1 = arrow_line_endpoint_for_target_y(callout.callout.extent_start.y, style.dimension_stroke_width, true);
+            let y2 = arrow_line_endpoint_for_target_y(callout.callout.extent_end.y, style.dimension_stroke_width, false);
+            // Start arrow (pointing up)
+            arrow_overlay.push_str(&generate_arrow_polygon(dim_x, y2, dim_x, y1, dim_color, style.dimension_stroke_width, false));
+            arrow_overlay.push('\n');
+            // End arrow (pointing down)
+            arrow_overlay.push_str(&generate_arrow_polygon(dim_x, y1, dim_x, y2, dim_color, style.dimension_stroke_width, false));
+            arrow_overlay.push('\n');
+        }
+    }
+
     // Label - centered directly ON the dimension line with masking
     // This creates a compact layout: |<--- Label --->|
 
-    // Estimate label dimensions for masking
-    let label_text_width = estimate_text_width(&callout.callout.label, style.label_font_size);
-    let mask_padding_x = LABEL_MASK_PADDING_X;
-    let mask_padding_y = LABEL_MASK_PADDING_Y;
-    let mask_width = label_text_width + mask_padding_x * 2.0;
-    let mask_height = style.label_font_size + mask_padding_y * 2.0;
-
-    let (label_x, label_y, offset_applied) = if is_horizontal {
-        // Horizontal dimension: label centered on the dimension line
-        let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
-        let base_y = callout.dimension_line_position;
-
-        // Mat cut width labels need extra padding from extension lines
-        // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
-        let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0 + style.dimension_offset_base;
-        let (label_y, offset) = if callout.callout.dimension_type == crate::visualization::DimensionType::MatCutWidth {
-            (base_y + mat_cut_offset, true)
-        } else {
-            (base_y, false)
-        };
-
-        (mid_x, label_y, offset)
+    // Split colon-prefixed labels into two lines when safe:
+    // - Vertical sides (Left/Right): always split — shortens rotated label extent
+    // - Horizontal sides: only split when alone on the side AND not a mat cut
+    //   (mat cut labels have custom offset positioning that handles their placement).
+    //   Multiple levels on horizontal sides stay single-line to avoid crowding.
+    let label = &callout.callout.label;
+    let is_mat_cut = matches!(callout.callout.dimension_type,
+        crate::visualization::DimensionType::MatCutWidth | super::types::DimensionType::MatCutHeight);
+    let can_split = !is_horizontal || is_outermost;
+    let two_line: Option<(&str, &str)> = if can_split {
+        label.find(": ").map(|pos| {
+            (&label[..pos + 1], label[pos + 2..].trim_start())
+        })
     } else {
-        // Vertical dimension: label centered on the dimension line (will be rotated)
-        let mid_y = (callout.callout.extent_start.y + callout.callout.extent_end.y) / 2.0;
-        let base_x = callout.dimension_line_position;
-
-        // Mat cut height labels need extra padding from extension lines
-        // Calculate offset based on scaled properties (automatically adapts to combined vs inline view)
-        let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0 + style.dimension_offset_base;
-        let (label_x, offset) = if callout.callout.dimension_type == super::types::DimensionType::MatCutHeight {
-            (base_x - mat_cut_offset, true)
-        } else {
-            (base_x, false)
-        };
-
-        (label_x, mid_y, offset)
+        None
     };
 
-    // Debug: Add SVG comment showing dimension type and whether offset was applied
-    svg.push_str(&format!(
-        "      <!-- Dimension type: {:?}, offset applied: {} -->\n",
-        callout.callout.dimension_type, offset_applied
-    ));
+    // Estimate label dimensions for masking
+    // Mask is always single-line sized — for two-line labels the outward line
+    // extends beyond the mask into clear space (safe because it's outermost).
+    // Horizontal labels keep original padding for visual clearance from arrowheads.
+    // Vertical labels use tight padding since two-line split already shortens the mask.
+    let mask_padding_x = if is_horizontal { LABEL_MASK_PADDING_X * 2.0 } else { LABEL_MASK_PADDING_X };
+    let mask_padding_y = LABEL_MASK_PADDING_Y;
+    let line_gap = style.label_font_size * 0.2; // gap between lines
+    let half_line_offset = (style.label_font_size + line_gap) / 2.0;
+
+    let (mask_width, mask_height) = if let Some((prefix, value)) = two_line {
+        let max_line_width = estimate_text_width(prefix, style.label_font_size)
+            .max(estimate_text_width(value, style.label_font_size));
+        (
+            max_line_width + mask_padding_x * 2.0,
+            style.label_font_size + mask_padding_y * 2.0, // single-line height for mask
+        )
+    } else {
+        let label_text_width = estimate_text_width(label, style.label_font_size);
+        (
+            label_text_width + mask_padding_x * 2.0,
+            style.label_font_size + mask_padding_y * 2.0,
+        )
+    };
+
+    // Mat cut labels are positioned BELOW (or outside) the dim line.
+    // Mat cut is always single-line so use the original formula directly.
+    let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0
+        + style.dimension_offset_base;
+
+    let (label_x, label_y) = if is_horizontal {
+        let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
+        let base_y = callout.dimension_line_position;
+        let label_y = if callout.callout.dimension_type == crate::visualization::DimensionType::MatCutWidth {
+            base_y + mat_cut_offset
+        } else {
+            base_y
+        };
+        (mid_x, label_y)
+    } else {
+        let mid_y = (callout.callout.extent_start.y + callout.callout.extent_end.y) / 2.0;
+        let base_x = callout.dimension_line_position;
+        let label_x = if callout.callout.dimension_type == super::types::DimensionType::MatCutHeight {
+            base_x - mat_cut_offset
+        } else {
+            base_x
+        };
+        (label_x, mid_y)
+    };
+
+    // For two-line labels: outermost shifts outward (prefix on dim line, value
+    // extends into clear space). Inner labels stay centered on their dim line.
+    // The mask always stays centered at (label_x, label_y).
+    // Mat cut: no outermost shift — label_y already positions the block correctly.
+    // Other outermost callouts: shift so prefix is on the dim line, value extends outward.
+    let (text_x, text_y) = if two_line.is_some() && is_outermost && !is_mat_cut {
+        match callout.actual_side {
+            Side::Top => (label_x, label_y - half_line_offset),
+            Side::Bottom => (label_x, label_y + half_line_offset),
+            Side::Right => (label_x + half_line_offset, label_y),
+            Side::Left => (label_x - half_line_offset, label_y),
+        }
+    } else {
+        (label_x, label_y)
+    };
 
     // For vertical dimensions, rotate text 90° (reads bottom-to-top)
     let transform = if !is_horizontal {
-        format!(r#" transform="rotate(90 {:.2} {:.2})""#, label_x, label_y)
+        format!(r#" transform="rotate(90 {:.2} {:.2})""#, text_x, text_y)
     } else {
         String::new()
     };
 
-    // Mask rectangle - draw before text to create visual break in the dimension line
-    // For vertical dimensions, swap width/height since the mask rotates with the text
+    // Mask rectangle - creates a visual break in the dimension line.
+    // Stays centered on the dimension line position, not the shifted text position.
+    // For vertical dimensions, swap width/height since the mask aligns with the rotated text.
     let (mask_w, mask_h) = if is_horizontal {
         (mask_width, mask_height)
     } else {
@@ -3046,19 +3250,102 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     ));
     svg.push('\n');
 
-    // Text label centered on the dimension line
-    // Use dominant-baseline for better vertical centering
-    svg.push_str(&format!(
-        r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}" text-anchor="middle" dominant-baseline="central"{}>{}</text>"#,
-        label_x, label_y,
-        dim_color, style.font_family, style.label_font_size,
-        transform,
-        html_escape(&callout.callout.label)
-    ));
-    svg.push('\n');
+    // Re-render arrowhead polygons on top of the mask so they're never hidden
+    if !arrow_overlay.is_empty() {
+        for line in arrow_overlay.lines() {
+            svg.push_str("      ");
+            svg.push_str(line);
+            svg.push('\n');
+        }
+    }
 
     svg.push_str("    </g>\n");
-    svg
+
+    // Build label SVG separately — rendered in a second pass so no mask hides any label
+    let mut label_svg = String::new();
+    if let Some((prefix, value)) = two_line {
+        if is_horizontal {
+            // Horizontal two-line: always two separate <text> elements at absolute y positions.
+            // Avoids dominant-baseline + dy interaction issues in flutter_svg.
+            //
+            // Mat cut: label_y is already offset below the dim line, so center both lines there.
+            // Outermost non-mat-cut: prefix extends away from frame, value stays at the dim line.
+            let fs = style.label_font_size;
+            let (line1_y, line2_y) = if is_mat_cut {
+                (label_y - half_line_offset, label_y + half_line_offset)
+            } else {
+                match callout.actual_side {
+                    Side::Top    => (label_y - (fs + line_gap), label_y),
+                    Side::Bottom => (label_y,                   label_y + (fs + line_gap)),
+                    _            => (label_y - half_line_offset, label_y + half_line_offset),
+                }
+            };
+            label_svg.push_str(&format!(
+                r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text>"#,
+                label_x, line1_y, dim_color, style.font_family, fs, html_escape(prefix)
+            ));
+            label_svg.push('\n');
+            label_svg.push_str(&format!(
+                r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text>"#,
+                label_x, line2_y, dim_color, style.font_family, fs, html_escape(value)
+            ));
+        } else if is_mat_cut {
+            // Vertical mat cut: two <g> wrappers so flutter_svg handles group-level transforms.
+            let line1_y = label_y - half_line_offset;
+            let line2_y = label_y + half_line_offset;
+            label_svg.push_str(&format!(
+                r#"      <g transform="rotate(90 {:.2} {:.2})"><text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text></g>"#,
+                label_x, line1_y,
+                label_x, line1_y, dim_color, style.font_family, style.label_font_size,
+                html_escape(prefix)
+            ));
+            label_svg.push('\n');
+            label_svg.push_str(&format!(
+                r#"      <g transform="rotate(90 {:.2} {:.2})"><text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text></g>"#,
+                label_x, line2_y,
+                label_x, line2_y, dim_color, style.font_family, style.label_font_size,
+                html_escape(value)
+            ));
+        } else {
+            // Vertical non-mat-cut: two <g> wrappers, prefix on dim line, value extends outward.
+            let fs = style.label_font_size;
+            let (line1_x, line2_x) = match callout.actual_side {
+                Side::Right => (label_x,               label_x + (fs + line_gap)),
+                Side::Left  => (label_x - (fs + line_gap), label_x),
+                _           => (label_x - half_line_offset, label_x + half_line_offset),
+            };
+            label_svg.push_str(&format!(
+                r#"      <g transform="rotate(90 {:.2} {:.2})"><text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text></g>"#,
+                line1_x, label_y,
+                line1_x, label_y, dim_color, style.font_family, fs,
+                html_escape(prefix)
+            ));
+            label_svg.push('\n');
+            label_svg.push_str(&format!(
+                r#"      <g transform="rotate(90 {:.2} {:.2})"><text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text></g>"#,
+                line2_x, label_y,
+                line2_x, label_y, dim_color, style.font_family, fs,
+                html_escape(value)
+            ));
+        }
+    } else if !is_horizontal {
+        label_svg.push_str(&format!(
+            r#"      <g transform="rotate(90 {:.2} {:.2})"><text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text></g>"#,
+            text_x, text_y,
+            label_x, label_y, dim_color, style.font_family, style.label_font_size,
+            html_escape(label)
+        ));
+    } else {
+        label_svg.push_str(&format!(
+            r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text>"#,
+            label_x, label_y,
+            dim_color, style.font_family, style.label_font_size,
+            html_escape(label)
+        ));
+    }
+    label_svg.push('\n');
+
+    (svg, label_svg)
 }
 
 /// Generate section view legend (horizontal layout positioned below content)
@@ -3116,7 +3403,7 @@ fn generate_section_legend(
             current_x, legend_y - 10.0, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE, fill, style.line_color, LEGEND_SWATCH_STROKE
         ));
         svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}">{}</text>"#,
+            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px">{}</text>"#,
             current_x + LEGEND_SWATCH_SIZE + LEGEND_SWATCH_GAP, legend_y, style.dimension_color, style.font_family, style.label_font_size, name
         ));
         svg.push('\n');
@@ -3143,7 +3430,7 @@ fn generate_title_block(
         .unwrap_or_else(|| "Frame Design".to_string());
 
     svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="30" fill="{}" font-family="{}" font-size="{}" font-weight="bold" text-anchor="middle">{}</text>"#,
+        r#"    <text x="{:.2}" y="30" fill="{}" font-family="{}" font-size="{}px" font-weight="bold" text-anchor="middle">{}</text>"#,
         options.canvas_width / 2.0, style.line_color, style.font_family, style.title_font_size, title
     ));
     svg.push('\n');
@@ -3159,7 +3446,7 @@ fn generate_title_block(
             outside_h, outside_w
         );
         svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="70" fill="{}" font-family="{}" font-size="{}" text-anchor="middle">{}</text>"#,
+            r#"    <text x="{:.2}" y="70" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle">{}</text>"#,
             options.canvas_width / 2.0, style.dimension_color, style.font_family, style.label_font_size, subtitle
         ));
         svg.push('\n');

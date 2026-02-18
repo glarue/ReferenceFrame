@@ -18,6 +18,24 @@ pub struct LayoutResult {
     pub warnings: Vec<String>,
 }
 
+/// Estimate the effective label width, accounting for multi-line split on ": ".
+/// Labels with ": " are rendered as two lines, so the width is the max of the two parts.
+fn effective_label_width(label: &str, font_size: f64) -> f64 {
+    if let Some(pos) = label.find(": ") {
+        let prefix = &label[..pos + 1];
+        let value = label[pos + 2..].trim_start();
+        estimate_text_width(prefix, font_size)
+            .max(estimate_text_width(value, font_size))
+    } else {
+        estimate_text_width(label, font_size)
+    }
+}
+
+/// Whether a label will be rendered as two lines (contains ": ").
+fn is_two_line_label(label: &str) -> bool {
+    label.contains(": ")
+}
+
 /// Layout callouts for a plan view
 pub fn layout_plan_callouts(
     callouts: &[DimensionCallout],
@@ -90,14 +108,25 @@ fn layout_horizontal_side(
         // Calculate label position (centered on dimension line)
         let label_x = (callout.extent_start.x + callout.extent_end.x) / 2.0;
         let label_y = if side == Side::Top {
-            dim_line_y - style.dimension_font_size / 2.0 - 2.0
+            dim_line_y - style.label_font_size / 2.0 - 2.0
         } else {
-            dim_line_y + style.dimension_font_size / 2.0 + 2.0
+            dim_line_y + style.label_font_size / 2.0 + 2.0
         };
 
         // Estimate label bounds for collision detection
-        let label_width = estimate_text_width(&callout.label, style.dimension_font_size);
-        let label_height = style.dimension_font_size * 1.2;
+        // Horizontal labels split into two lines when alone on the side
+        let is_alone = sorted.len() == 1;
+        let is_two_line = is_alone && is_two_line_label(&callout.label);
+        let label_width = if is_two_line {
+            effective_label_width(&callout.label, style.label_font_size)
+        } else {
+            estimate_text_width(&callout.label, style.label_font_size)
+        };
+        let label_height = if is_two_line {
+            style.label_font_size * 2.4
+        } else {
+            style.label_font_size * 1.2
+        };
         let label_bounds = Rect::new(
             label_x - label_width / 2.0,
             label_y - label_height / 2.0,
@@ -145,20 +174,30 @@ fn layout_vertical_side(
         // Calculate label position (centered on dimension line)
         let label_y = (callout.extent_start.y + callout.extent_end.y) / 2.0;
         let label_x = if side == Side::Right {
-            dim_line_x + style.dimension_font_size / 2.0 + 2.0
+            dim_line_x + style.label_font_size / 2.0 + 2.0
         } else {
-            dim_line_x - style.dimension_font_size / 2.0 - 2.0
+            dim_line_x - style.label_font_size / 2.0 - 2.0
         };
 
         // Estimate label bounds for collision detection
-        // For vertical labels, we might rotate text, so swap width/height conceptually
-        let label_width = estimate_text_width(&callout.label, style.dimension_font_size);
-        let label_height = style.dimension_font_size * 1.2;
+        // All vertical-side labels with ": " render as two lines
+        let is_two_line = is_two_line_label(&callout.label);
+        let text_width = if is_two_line {
+            effective_label_width(&callout.label, style.label_font_size)
+        } else {
+            estimate_text_width(&callout.label, style.label_font_size)
+        };
+        let text_height = if is_two_line {
+            style.label_font_size * 2.4
+        } else {
+            style.label_font_size * 1.2
+        };
+        // After rotation: text_width becomes screen-vertical, text_height becomes screen-horizontal
         let label_bounds = Rect::new(
-            label_x - label_width / 2.0,
-            label_y - label_height / 2.0,
-            label_width,
-            label_height,
+            label_x - text_height / 2.0,
+            label_y - text_width / 2.0,
+            text_height,
+            text_width,
         );
 
         positioned.push(PositionedCallout {

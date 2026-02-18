@@ -406,6 +406,10 @@ pub struct DiagramResult {
 
     /// Any warnings (e.g., "Mat width dimension omitted due to space")
     pub warnings: Vec<String>,
+
+    /// Frame outer rect center in SVG coordinates — used by the combined view
+    /// for frame-centered horizontal alignment instead of viewBox-centered.
+    pub frame_center_x: Option<f64>,
 }
 
 #[cfg(test)]
