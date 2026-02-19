@@ -7,7 +7,7 @@ use crate::frame::FrameDesign;
 use crate::conversions::{format_dimension, Unit};
 use super::types::{
     DiagramOptions, DiagramResult, ViewOption, PositionedCallout,
-    Rect, Side,
+    Rect, Side, ThumbnailLabelPosition,
 };
 use super::style::{DiagramStyle, FillPattern};
 use super::geometry::{CornerDetailGeometry, PlanViewGeometry, SectionViewGeometry, estimate_text_width};
@@ -130,7 +130,7 @@ const LEGEND_CHAR_WIDTH_RATIO: f64 = 0.55;   // Average character width as fract
 // ============================================================================
 
 /// Axis break visual constants
-const ZIGZAG_AMPLITUDE: f64 = 5.0;
+const ZIGZAG_AMPLITUDE: f64 = 3.5;
 const ZIGZAG_PROUD_AMOUNT: f64 = 8.0;
 
 /// Interpolate y at given x along a line segment between two points
@@ -594,6 +594,8 @@ fn generate_plan_view(
             options.canvas_height,
             style,
             options.detail_mode,
+            options.corner_detail_enabled,
+            options.axis_breaks_enabled,
         )
     } else {
         PlanViewGeometry::from_design_preview(
@@ -696,18 +698,19 @@ fn generate_combined_view(
         ..options.clone()
     };
 
-    let plan_result = generate_plan_view(design, &plan_options, &plan_style);
-    let section_result = generate_section_view(design, &section_options, &section_style);
+    // First pass: probe both views to determine content-aware zone heights.
+    let plan_probe = generate_plan_view(design, &plan_options, &plan_style);
+    let section_probe = generate_section_view(design, &section_options, &section_style);
 
-    // Extract viewBoxes from both views
-    let plan_viewbox = extract_viewbox(&plan_result.svg);
-    let section_viewbox = extract_viewbox(&section_result.svg);
+    // Extract viewBoxes to determine content-aware zone heights.
+    let plan_viewbox_probe = extract_viewbox(&plan_probe.svg);
+    let section_viewbox_probe = extract_viewbox(&section_probe.svg);
 
     // Content-aware zone heights derived from viewBox aspect ratios.
     // Natural height = the height each view needs to fill canvas_width with no side whitespace.
     // Strategy: proportional scaling when both can't fit at natural size, flooring section at
     // 70% of its natural height so the legend stays readable for portrait frames.
-    let (plan_zone_h, section_zone_h) = match (plan_viewbox, section_viewbox) {
+    let (plan_zone_h, section_zone_h) = match (plan_viewbox_probe, section_viewbox_probe) {
         (Some((_, _, pvw, pvh)), Some((_, _, svw, svh)))
             if pvw > 0.0 && pvh > 0.0 && svw > 0.0 && svh > 0.0 =>
         {
@@ -729,6 +732,33 @@ fn generate_combined_view(
         }
         _ => (plan_height_init, section_height_init), // fallback: fixed split
     };
+
+    // Second pass: re-generate both views at their actual zone heights so geometry
+    // (axis breaks, thumbnail placement, corner detail) is computed for the real
+    // available space rather than the initial probe estimate.
+    let plan_result = if (plan_zone_h - plan_height_init).abs() > 5.0 {
+        let plan_options_final = DiagramOptions {
+            view: ViewOption::PlanOnly,
+            canvas_height: plan_zone_h,
+            ..options.clone()
+        };
+        generate_plan_view(design, &plan_options_final, &plan_style)
+    } else {
+        plan_probe
+    };
+    let plan_viewbox = extract_viewbox(&plan_result.svg);
+
+    let section_result = if (section_zone_h - section_height_init).abs() > 5.0 {
+        let section_options_final = DiagramOptions {
+            view: ViewOption::SectionOnly,
+            canvas_height: section_zone_h,
+            ..options.clone()
+        };
+        generate_section_view(design, &section_options_final, &section_style)
+    } else {
+        section_probe
+    };
+    let section_viewbox = extract_viewbox(&section_result.svg);
 
     // Combined SVG height matches actual content — eliminates dead space at bottom
     let combined_h = title_height + plan_zone_h + gap_between_views + section_zone_h;
@@ -1005,45 +1035,45 @@ fn render_corner_detail(
         html_escape(&fmt(design.rabbet_width))
     ));
 
-    // 3. Content label ("matboard" or "artwork") — dog-leg leader with white background
-    // Clamp so label + background stays within box boundary
+    // 3. Content label ("matboard" or "artwork") — centered inside the content interior.
+    // The interior is the open area bounded by ci_x (left), right_x (frame arm end),
+    // top_y (top of clip), and ci_y (horizontal content dashed line).
+    // Centering with text-anchor="middle" keeps the label away from both frame lines.
     let content_label = if design.has_mat() { "matboard" } else { "artwork" };
     let cl_font = label_font * 0.9;
     let cl_text_w = estimate_text_width(content_label, cl_font);
-    let box_right = bx + bw - annot_pad;
-    let box_top = by + annot_pad;
-
-    let leader_start_x = cx + arm_right * 0.5;
-    let leader_start_y = ci_y;
-    // Compute ideal end position, then clamp rightward extent to box boundary
-    let ideal_end_x = leader_start_x + 6.0 + 4.0;
     let cl_bg_pad = 2.0;
-    let max_end_x = box_right - cl_text_w - cl_bg_pad * 2.0 - 2.0; // background padding + safety margin
-    let leader_end_x = ideal_end_x.min(max_end_x);
-    let leader_bend_x = leader_end_x - 4.0;
-    let leader_bend_y = (ci_y - 8.0).max(box_top + cl_font);
-    let leader_end_y = leader_bend_y;
-    // Dog-leg polyline
+
+    // Horizontal center of the matboard interior, clamped to keep text inside
+    let interior_left = ci_x + 1.0;
+    let interior_right = right_x - 1.0;
+    let label_center_x = ((interior_left + interior_right) / 2.0)
+        .max(interior_left + cl_text_w / 2.0 + cl_bg_pad)
+        .min(interior_right - cl_text_w / 2.0 - cl_bg_pad);
+
+    // Vertical: upper-third of the interior, below title area
+    let label_y_raw = top_y + (ci_y - top_y) * 0.30;
+    let label_y = label_y_raw
+        .max(by + title_font + cl_font + 6.0)
+        .min(ci_y - 6.0);
+
+    // Leader: straight vertical from horizontal dashed line up to label
     svg.push_str(&format!(
-        "    <polyline points=\"{:.2},{:.2} {:.2},{:.2} {:.2},{:.2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"0.5\" opacity=\"0.5\"/>\n",
-        leader_start_x, leader_start_y,
-        leader_bend_x, leader_bend_y,
-        leader_end_x, leader_end_y,
+        "    <line x1=\"{:.2}\" y1=\"{:.2}\" x2=\"{:.2}\" y2=\"{:.2}\" stroke=\"{}\" stroke-width=\"0.5\" opacity=\"0.5\"/>\n",
+        label_center_x, ci_y, label_center_x, label_y + cl_font * 0.15,
         content_color
     ));
-    // White background behind label for contrast
-    // Text y is the baseline; cap-height ~0.7em above, descender ~0.25em below.
-    // Center the background on the text's visual midpoint (baseline - 0.225em).
+    // White background rect centered on the label text
     let cl_bg_h = cl_font * 1.2;
-    let cl_bg_x = leader_end_x;
-    let cl_bg_y = leader_end_y - cl_font * 0.225 - cl_bg_h * 0.5;
+    let cl_bg_x = label_center_x - cl_text_w / 2.0 - cl_bg_pad;
+    let cl_bg_y = label_y - cl_font * 0.75 - cl_bg_pad / 2.0;
     svg.push_str(&format!(
         "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"{}\" stroke=\"none\" rx=\"1\"/>\n",
         cl_bg_x, cl_bg_y, cl_text_w + cl_bg_pad * 2.0, cl_bg_h, style.background_color
     ));
     svg.push_str(&format!(
-        "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}\" font-weight=\"bold\" opacity=\"0.8\">{}</text>\n",
-        leader_end_x + cl_bg_pad, leader_end_y,
+        "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}\" text-anchor=\"middle\" font-weight=\"bold\" opacity=\"0.8\">{}</text>\n",
+        label_center_x, label_y,
         content_color, style.font_family, cl_font,
         content_label
     ));
@@ -1092,11 +1122,22 @@ fn build_plan_svg(
             let extent_start = &callout.callout.extent_start;
             let extent_end = &callout.callout.extent_end;
 
-            // Track dimension line and extension line bounds
-            min_x = min_x.min(extent_start.x.min(extent_end.x) - style.dimension_offset_step);
-            max_x = max_x.max(extent_start.x.max(extent_end.x) + style.dimension_offset_step);
-            min_y = min_y.min(extent_start.y.min(extent_end.y) - style.dimension_offset_step);
-            max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
+            // Track dimension line and extension line bounds.
+            // Only pad in the direction extension lines actually extend:
+            // horizontal dims have vertical extension lines (pad y, not x)
+            // vertical dims have horizontal extension lines (pad x, not y)
+            let is_horiz = (extent_start.y - extent_end.y).abs() < 1.0;
+            if is_horiz {
+                min_x = min_x.min(extent_start.x.min(extent_end.x));
+                max_x = max_x.max(extent_start.x.max(extent_end.x));
+                min_y = min_y.min(extent_start.y.min(extent_end.y) - style.dimension_offset_step);
+                max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
+            } else {
+                min_x = min_x.min(extent_start.x.min(extent_end.x) - style.dimension_offset_step);
+                max_x = max_x.max(extent_start.x.max(extent_end.x) + style.dimension_offset_step);
+                min_y = min_y.min(extent_start.y.min(extent_end.y));
+                max_y = max_y.max(extent_start.y.max(extent_end.y));
+            }
 
             // Two-line split: vertical sides always, horizontal only when alone on side
             let is_horizontal_dim = (extent_start.y - extent_end.y).abs() < 1.0;
@@ -1140,9 +1181,38 @@ fn build_plan_svg(
                     DimensionType::MatCutWidth) { mat_cut_offset } else { 0.0 };
                 min_y = min_y.min(dim_line_pos - label_height);
                 max_y = max_y.max(dim_line_pos + label_height + extra_offset);
-                let mid_x = (extent_start.x + extent_end.x) / 2.0;
-                min_x = min_x.min(mid_x - label_text_width / 2.0);
-                max_x = max_x.max(mid_x + label_text_width / 2.0);
+                if matches!(callout.callout.dimension_type, DimensionType::MatCutWidth) {
+                    // Mirror the adaptive anchor logic from svg_dimension so viewBox
+                    // matches actual rendering (center when fits, side-anchor when overflow).
+                    let mid_x = (extent_start.x + extent_end.x) / 2.0;
+                    let on_right = mid_x > geometry.frame_outer.center().x;
+                    let half_w = label_text_width / 2.0;
+                    if on_right {
+                        if mid_x + half_w <= geometry.content_area.right() {
+                            min_x = min_x.min(mid_x - half_w);
+                            max_x = max_x.max(mid_x + half_w);
+                        } else {
+                            // End-anchor: text extends leftward from rightmost extent
+                            let right_x = extent_start.x.max(extent_end.x);
+                            min_x = min_x.min(right_x - label_text_width);
+                            max_x = max_x.max(right_x);
+                        }
+                    } else {
+                        if mid_x - half_w >= geometry.content_area.left() {
+                            min_x = min_x.min(mid_x - half_w);
+                            max_x = max_x.max(mid_x + half_w);
+                        } else {
+                            // Start-anchor: text extends rightward from leftmost extent
+                            let left_x = extent_start.x.min(extent_end.x);
+                            min_x = min_x.min(left_x);
+                            max_x = max_x.max(left_x + label_text_width);
+                        }
+                    }
+                } else {
+                    let mid_x = (extent_start.x + extent_end.x) / 2.0;
+                    min_x = min_x.min(mid_x - label_text_width / 2.0);
+                    max_x = max_x.max(mid_x + label_text_width / 2.0);
+                }
             } else {
                 let extra_offset = if matches!(callout.callout.dimension_type,
                     DimensionType::MatCutHeight) { mat_cut_offset } else { 0.0 };
@@ -1163,28 +1233,32 @@ fn build_plan_svg(
             }
         }
 
-        // Include proportional thumbnail in bounds
+        // Include all floating annotation bounds (thumbnail, corner detail, etc.)
+        let ann = &geometry.annotation_bounds;
         if let Some(thumb) = &geometry.thumbnail {
+            let thumb_sf = style.label_font_size / 13.0;
+            let thumb_font = 8.0 * thumb_sf;
+            let thumb_label_gap = 8.0 * thumb_sf;
+            let thumb_line_h = 10.0 * thumb_sf;
             min_x = min_x.min(thumb.left());
             min_y = min_y.min(thumb.top());
-            if geometry.thumbnail_below {
-                // Landscape: label text to the right of thumbnail
-                let label_w = estimate_text_width("proportions", 8.0);
-                max_x = max_x.max(thumb.right() + 8.0 + label_w);
-                max_y = max_y.max(thumb.bottom());
-            } else {
-                // Portrait: label text below thumbnail
-                max_x = max_x.max(thumb.right());
-                max_y = max_y.max(thumb.bottom() + 10.0 + 10.0 + 8.0);
+            match ann.thumbnail_label_position {
+                ThumbnailLabelPosition::Right => {
+                    let label_w = estimate_text_width("proportions", thumb_font);
+                    max_x = max_x.max(thumb.right() + thumb_label_gap + label_w);
+                    max_y = max_y.max(thumb.bottom());
+                }
+                ThumbnailLabelPosition::Below => {
+                    max_x = max_x.max(thumb.right());
+                    max_y = max_y.max(thumb.bottom() + thumb_line_h + thumb_line_h + thumb_font);
+                }
             }
         }
-
-        // Include corner detail inset in bounds
-        if let Some(cd) = &geometry.corner_detail {
-            min_x = min_x.min(cd.box_rect.left());
-            max_x = max_x.max(cd.box_rect.right());
-            min_y = min_y.min(cd.box_rect.top());
-            max_y = max_y.max(cd.box_rect.bottom());
+        if let Some(cd_box) = &ann.corner_detail_box {
+            min_x = min_x.min(cd_box.left());
+            max_x = max_x.max(cd_box.right());
+            min_y = min_y.min(cd_box.top());
+            max_y = max_y.max(cd_box.bottom());
         }
 
         // Add padding for visual comfort
@@ -1414,7 +1488,7 @@ fn build_plan_svg(
         }
 
         // STEP 3: Zigzag indicator lines (dashed, reduced opacity so artwork indicators stay legible)
-        let zz_opacity = 0.45;
+        let zz_opacity = 0.34;
         if let Some((ref left_zz, ref right_zz)) = x_zigzags {
             render_zigzag_line_with_opacity(&mut svg, left_zz, &style.line_color, break_line_width, zz_opacity);
             render_zigzag_line_with_opacity(&mut svg, right_zz, &style.line_color, break_line_width, zz_opacity);
@@ -1517,11 +1591,9 @@ fn build_plan_svg(
         let label_bottom = artwork_center_y + text_bg_h / 2.0;
 
         // Horizontal line with arrows (with spark symbol if X break active)
-        // Spark is placed on the OPPOSITE side of the artwork center from the frame break
-        // so it doesn't compete for visual space with the frame's zigzag indicators.
+        // Spark co-occurs with the frame break — directly signals where the compression happens.
         if geometry.use_axis_break_x {
-            let frame_break_cx = (geometry.break_x_start + geometry.break_x_end) / 2.0;
-            let break_center_x = 2.0 * artwork_center.x - frame_break_cx;
+            let break_center_x = (geometry.break_x_start + geometry.break_x_end) / 2.0;
             let sw = SPARK_HORIZONTAL_WIDTH;
             let sh = SPARK_HORIZONTAL_HEIGHT;
 
@@ -1574,10 +1646,9 @@ fn build_plan_svg(
         }
 
         // Vertical line with arrows (with spark symbol if Y break active)
-        // Spark on OPPOSITE side from frame break (mirrors across artwork center)
+        // Spark co-occurs with the frame break — directly signals where the compression happens.
         if geometry.use_axis_break_y {
-            let frame_break_cy = (geometry.break_y_start + geometry.break_y_end) / 2.0;
-            let break_center_y = 2.0 * artwork_center_y - frame_break_cy;
+            let break_center_y = (geometry.break_y_start + geometry.break_y_end) / 2.0;
             let sw = SPARK_VERTICAL_WIDTH;
             let sh = SPARK_VERTICAL_HEIGHT;
 
@@ -1672,35 +1743,43 @@ fn build_plan_svg(
 
     // Proportional thumbnail — true aspect ratio silhouette (only when breaks active)
     if let Some(thumb) = &geometry.thumbnail {
+        let thumb_sf = style.label_font_size / 13.0;
+        let thumb_font = 8.0 * thumb_sf;
+        let thumb_label_gap = 8.0 * thumb_sf;
+        let thumb_line_h = 10.0 * thumb_sf;
+        let thumb_stroke = 0.75 * thumb_sf;
         svg.push_str("  <g id=\"thumbnail\">\n");
         svg.push_str(&format!(
-            "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"#999\" stroke-width=\"0.75\" fill=\"none\"/>\n",
-            thumb.x, thumb.y, thumb.width, thumb.height
+            "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"#999\" stroke-width=\"{:.2}\" fill=\"none\"/>\n",
+            thumb.x, thumb.y, thumb.width, thumb.height, thumb_stroke
         ));
-        if geometry.thumbnail_below {
-            // Landscape: label to the right of thumbnail
-            let label_x = thumb.right() + 8.0;
-            let label_y = thumb.y + thumb.height / 2.0 - 1.0;
-            svg.push_str(&format!(
-                "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8px\" text-anchor=\"start\">Actual</text>\n",
-                label_x, label_y, style.font_family
-            ));
-            svg.push_str(&format!(
-                "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8px\" text-anchor=\"start\">proportions</text>\n",
-                label_x, label_y + 10.0, style.font_family
-            ));
-        } else {
-            // Portrait: label below thumbnail
-            let label_x = thumb.x + thumb.width / 2.0;
-            let label_y = thumb.bottom() + 10.0;
-            svg.push_str(&format!(
-                "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8px\" text-anchor=\"middle\">Actual</text>\n",
-                label_x, label_y, style.font_family
-            ));
-            svg.push_str(&format!(
-                "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"8px\" text-anchor=\"middle\">proportions</text>\n",
-                label_x, label_y + 10.0, style.font_family
-            ));
+        match geometry.thumbnail_label_position {
+            ThumbnailLabelPosition::Right => {
+                // Label to the right of thumbnail
+                let label_x = thumb.right() + thumb_label_gap;
+                let label_y = thumb.y + thumb.height / 2.0 - 1.0;
+                svg.push_str(&format!(
+                    "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"start\">Actual</text>\n",
+                    label_x, label_y, style.font_family, thumb_font
+                ));
+                svg.push_str(&format!(
+                    "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"start\">proportions</text>\n",
+                    label_x, label_y + thumb_line_h, style.font_family, thumb_font
+                ));
+            }
+            ThumbnailLabelPosition::Below => {
+                // Label below thumbnail
+                let label_x = thumb.x + thumb.width / 2.0;
+                let label_y = thumb.bottom() + thumb_line_h;
+                svg.push_str(&format!(
+                    "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"middle\">Actual</text>\n",
+                    label_x, label_y, style.font_family, thumb_font
+                ));
+                svg.push_str(&format!(
+                    "    <text x=\"{:.2}\" y=\"{:.2}\" fill=\"#999\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"middle\">proportions</text>\n",
+                    label_x, label_y + thumb_line_h, style.font_family, thumb_font
+                ));
+            }
         }
         svg.push_str("  </g>\n");
     }
@@ -1964,8 +2043,8 @@ fn build_section_svg(
         svg.push('\n');
 
         // Break indicator: dashed zigzag lines
-        render_zigzag_line(&mut svg, &top_zz, &style.line_color, break_line_width);
-        render_zigzag_line(&mut svg, &bottom_zz, &style.line_color, break_line_width);
+        render_zigzag_line_with_opacity(&mut svg, &top_zz, &style.line_color, break_line_width, 0.75);
+        render_zigzag_line_with_opacity(&mut svg, &bottom_zz, &style.line_color, break_line_width, 0.75);
     } else if geometry.use_axis_break && geometry.use_axis_break_y {
         // Both horizontal and vertical breaks active
         // OVERLAY APPROACH: Draw full L-shape, then overlay white zigzag-shaped gap bands
@@ -2096,10 +2175,10 @@ fn build_section_svg(
         svg.push('\n');
 
         // STEP 5: Draw zigzag indicator lines (dashed)
-        render_zigzag_line(&mut svg, &top_zz, &style.line_color, break_line_width);
-        render_zigzag_line(&mut svg, &bot_zz, &style.line_color, break_line_width);
-        render_zigzag_line(&mut svg, &left_zz, &style.line_color, break_line_width);
-        render_zigzag_line(&mut svg, &right_zz, &style.line_color, break_line_width);
+        render_zigzag_line_with_opacity(&mut svg, &top_zz, &style.line_color, break_line_width, 0.75);
+        render_zigzag_line_with_opacity(&mut svg, &bot_zz, &style.line_color, break_line_width, 0.75);
+        render_zigzag_line_with_opacity(&mut svg, &left_zz, &style.line_color, break_line_width, 0.75);
+        render_zigzag_line_with_opacity(&mut svg, &right_zz, &style.line_color, break_line_width, 0.75);
     } else if geometry.use_axis_break && !geometry.use_axis_break_y {
         // Horizontal break only (no vertical break)
         let break_line_width = style.frame_stroke_width * 0.5;
@@ -2176,8 +2255,8 @@ fn build_section_svg(
         svg.push('\n');
 
         // Break indicator: dashed zigzag lines
-        render_zigzag_line(&mut svg, &left_zz, &style.line_color, break_line_width);
-        render_zigzag_line(&mut svg, &right_zz, &style.line_color, break_line_width);
+        render_zigzag_line_with_opacity(&mut svg, &left_zz, &style.line_color, break_line_width, 0.75);
+        render_zigzag_line_with_opacity(&mut svg, &right_zz, &style.line_color, break_line_width, 0.75);
     } else {
         // No axis break - draw full L-shape
         let l_shape_points = format!(
@@ -3191,15 +3270,34 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0
         + style.dimension_offset_base;
 
-    let (label_x, label_y) = if is_horizontal {
+    let is_mat_cut_width = callout.callout.dimension_type == crate::visualization::DimensionType::MatCutWidth;
+    // For mat cut width: prefer centering over the dim line midpoint.
+    // Fall back to a side anchor (inward toward frame) only when the centered label
+    // would overflow the content_area boundary on that side.
+    let mat_cut_anchor: &str = if is_mat_cut_width {
         let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
-        let base_y = callout.dimension_line_position;
-        let label_y = if callout.callout.dimension_type == crate::visualization::DimensionType::MatCutWidth {
-            base_y + mat_cut_offset
+        let on_right = mid_x > geometry.frame_outer.center().x;
+        let half_label_w = mask_width / 2.0;
+        if on_right {
+            if mid_x + half_label_w <= geometry.content_area.right() { "middle" } else { "end" }
         } else {
-            base_y
-        };
-        (mid_x, label_y)
+            if mid_x - half_label_w >= geometry.content_area.left() { "middle" } else { "start" }
+        }
+    } else { "middle" };
+    let (label_x, label_y) = if is_horizontal {
+        let base_y = callout.dimension_line_position;
+        if is_mat_cut_width {
+            let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
+            let anchor_x = match mat_cut_anchor {
+                "end"   => callout.callout.extent_start.x.max(callout.callout.extent_end.x),
+                "start" => callout.callout.extent_start.x.min(callout.callout.extent_end.x),
+                _       => mid_x,
+            };
+            (anchor_x, base_y + mat_cut_offset)
+        } else {
+            let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
+            (mid_x, base_y)
+        }
     } else {
         let mid_y = (callout.callout.extent_start.y + callout.callout.extent_end.y) / 2.0;
         let base_x = callout.dimension_line_position;
@@ -3228,7 +3326,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     };
 
     // For vertical dimensions, rotate text 90° (reads bottom-to-top)
-    let transform = if !is_horizontal {
+    let _transform = if !is_horizontal {
         format!(r#" transform="rotate(90 {:.2} {:.2})""#, text_x, text_y)
     } else {
         String::new()
@@ -3239,12 +3337,25 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     // For vertical dimensions, swap width/height since the mask aligns with the rotated text.
     let (mask_w, mask_h) = if is_horizontal {
         (mask_width, mask_height)
+    } else if two_line.is_some() && !is_outermost {
+        // Non-outermost vertical two-line: widen mask to cover both centered lines
+        let two_line_w = 2.0 * half_line_offset + mask_padding_y * 2.0;
+        (two_line_w, mask_width)
     } else {
         (mask_height, mask_width)  // Swapped for vertical orientation
     };
+    let mask_x = if is_mat_cut_width {
+        match mat_cut_anchor {
+            "end"   => label_x - mask_w + LABEL_MASK_PADDING_X,
+            "start" => label_x - LABEL_MASK_PADDING_X,
+            _       => label_x - mask_w / 2.0,
+        }
+    } else {
+        label_x - mask_w / 2.0
+    };
     svg.push_str(&format!(
         r#"      <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" stroke="none"/>"#,
-        label_x - mask_w / 2.0, label_y - mask_h / 2.0,
+        mask_x, label_y - mask_h / 2.0,
         mask_w, mask_h,
         style.background_color
     ));
@@ -3280,14 +3391,25 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
                     _            => (label_y - half_line_offset, label_y + half_line_offset),
                 }
             };
+            // When beside_mat_cut Strategy B shifts the label block right, both lines
+            // use "end" anchor at mat_cut_label_right so they form a right-aligned pair.
+            let (effective_x, effective_anchor) = if is_mat_cut_width {
+                if let Some(block_right) = geometry.mat_cut_label_right {
+                    (block_right, "end")
+                } else {
+                    (label_x, mat_cut_anchor)
+                }
+            } else {
+                (label_x, "middle")
+            };
             label_svg.push_str(&format!(
-                r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text>"#,
-                label_x, line1_y, dim_color, style.font_family, fs, html_escape(prefix)
+                r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="{}" dominant-baseline="central">{}</text>"#,
+                effective_x, line1_y, dim_color, style.font_family, fs, effective_anchor, html_escape(prefix)
             ));
             label_svg.push('\n');
             label_svg.push_str(&format!(
-                r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text>"#,
-                label_x, line2_y, dim_color, style.font_family, fs, html_escape(value)
+                r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="{}" dominant-baseline="central">{}</text>"#,
+                effective_x, line2_y, dim_color, style.font_family, fs, effective_anchor, html_escape(value)
             ));
         } else if is_mat_cut {
             // Vertical mat cut: two <g> wrappers so flutter_svg handles group-level transforms.
@@ -3307,12 +3429,19 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
                 html_escape(value)
             ));
         } else {
-            // Vertical non-mat-cut: two <g> wrappers, prefix on dim line, value extends outward.
+            // Vertical non-mat-cut: two <g> wrappers.
+            // Outermost: prefix on dim line, value extends outward into clear space.
+            // Non-outermost: center both lines on dim line to avoid overlap with adjacent levels.
             let fs = style.label_font_size;
-            let (line1_x, line2_x) = match callout.actual_side {
-                Side::Right => (label_x,               label_x + (fs + line_gap)),
-                Side::Left  => (label_x - (fs + line_gap), label_x),
-                _           => (label_x - half_line_offset, label_x + half_line_offset),
+            let (line1_x, line2_x) = if is_outermost {
+                match callout.actual_side {
+                    Side::Right => (label_x,                    label_x + (fs + line_gap)),
+                    Side::Left  => (label_x - (fs + line_gap),  label_x),
+                    _           => (label_x - half_line_offset, label_x + half_line_offset),
+                }
+            } else {
+                // Non-outermost: center both lines on the dimension line
+                (label_x - half_line_offset, label_x + half_line_offset)
             };
             label_svg.push_str(&format!(
                 r#"      <g transform="rotate(90 {:.2} {:.2})"><text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text></g>"#,
@@ -3336,10 +3465,11 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
             html_escape(label)
         ));
     } else {
+        let anchor = if is_mat_cut_width { mat_cut_anchor } else { "middle" };
         label_svg.push_str(&format!(
-            r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text>"#,
+            r#"      <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="{}" dominant-baseline="central">{}</text>"#,
             label_x, label_y,
-            dim_color, style.font_family, style.label_font_size,
+            dim_color, style.font_family, style.label_font_size, anchor,
             html_escape(label)
         ));
     }
@@ -3441,10 +3571,9 @@ fn generate_title_block(
         .map_or(false, |t| !t.trim().is_empty());
     if !has_custom_title {
         let (outside_h, outside_w) = design.get_frame_outside_dimensions();
-        let subtitle = format!(
-            "{:.2}\" × {:.2}\" outside",
-            outside_h, outside_w
-        );
+        let unit = if options.unit_mm { Unit::Millimeters } else { Unit::Inches };
+        let fmt_dim = |v: f64| format_dimension(v, unit, false, options.use_decimal_display);
+        let subtitle = format!("{} × {} outside", fmt_dim(outside_h), fmt_dim(outside_w));
         svg.push_str(&format!(
             r#"    <text x="{:.2}" y="70" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle">{}</text>"#,
             options.canvas_width / 2.0, style.dimension_color, style.font_family, style.label_font_size, subtitle
@@ -3787,5 +3916,89 @@ mod tests {
         let result = generate_diagram(&design, &options);
         std::fs::write("/tmp/plan_view_test.svg", &result.svg).unwrap();
         eprintln!("SVG written to /tmp/plan_view_test.svg ({} bytes)", result.svg.len());
+    }
+}
+
+#[cfg(test)]
+mod thumbnail_scale_tests {
+    use super::*;
+    use crate::frame::FrameDesign;
+
+    fn test_frame_18x32() -> FrameDesign {
+        let mut d = FrameDesign::new(18.0, 32.0);
+        d.mat_width_top_bottom = 2.125;
+        d.mat_width_sides = 2.125;
+        d.mat_overlap = 0.25;
+        d.frame_material_width = 0.75;
+        d.rabbet_width = 0.375;
+        d
+    }
+
+    fn thumb_screen_size(design: &FrameDesign, canvas_w: f64, canvas_h: f64, style: &DiagramStyle) -> f64 {
+        // Replicate generate_combined_view zone calculation to get the real plan scale.
+        let gap = 30.0;
+        let available_h = canvas_h - gap;
+        let plan_h_init = available_h * 0.58;
+        let section_h_init = available_h * 0.42;
+        let plan_opts = DiagramOptions {
+            view: ViewOption::PlanOnly,
+            canvas_width: canvas_w,
+            canvas_height: plan_h_init,
+            ..DiagramOptions::default()
+        };
+        let section_opts = DiagramOptions {
+            view: ViewOption::SectionOnly,
+            canvas_width: canvas_w,
+            canvas_height: section_h_init,
+            ..DiagramOptions::default()
+        };
+        let plan_result = generate_diagram_with_style(design, &plan_opts, style);
+        let section_probe = generate_diagram_with_style(design, &section_opts, style);
+        let plan_vb = extract_viewbox(&plan_result.svg);
+        let section_vb = extract_viewbox(&section_probe.svg);
+        let (pvw, pvh, svw, svh) = match (plan_vb, section_vb) {
+            (Some((_, _, pw, ph)), Some((_, _, sw, sh))) if pw > 0.0 && ph > 0.0 && sw > 0.0 && sh > 0.0 => (pw, ph, sw, sh),
+            _ => return 0.0,
+        };
+        let plan_natural = canvas_w * pvh / pvw;
+        let section_natural = canvas_w * svh / svw;
+        let plan_zone_h = if plan_natural + section_natural <= available_h {
+            plan_natural
+        } else {
+            let scale = available_h / (plan_natural + section_natural);
+            let section_h = (section_natural * scale).max(section_natural * 0.70).min(available_h * 0.50);
+            (available_h - section_h).max(available_h * 0.25)
+        };
+        let plan_scale = (canvas_w / pvw).min(plan_zone_h / pvh);
+        println!("  viewBox: {:.1}w x {:.1}h  plan_zone_h: {:.1}  scale: {:.3}  thumb: {:.1}px",
+            pvw, pvh, plan_zone_h, plan_scale, 95.0 * plan_scale);
+        95.0 * plan_scale
+    }
+
+    #[test]
+    fn test_thumbnail_scale_portrait_vs_landscape() {
+        let style = DiagramStyle::default();
+        let canvas_w = 358.0_f64;
+        let canvas_h = 638.0_f64;
+
+        // Portrait (18w x 32h)
+        let portrait = test_frame_18x32();
+        print!("Portrait  18×32: ");
+        let portrait_thumb = thumb_screen_size(&portrait, canvas_w, canvas_h, &style);
+
+        // Landscape (32w x 18h)
+        let mut landscape = FrameDesign::new(32.0, 18.0);
+        landscape.mat_width_top_bottom = 2.125;
+        landscape.mat_width_sides = 2.125;
+        landscape.mat_overlap = 0.25;
+        landscape.frame_material_width = 0.75;
+        landscape.rabbet_width = 0.375;
+        print!("Landscape 32×18: ");
+        let landscape_thumb = thumb_screen_size(&landscape, canvas_w, canvas_h, &style);
+
+        let diff_pct = ((portrait_thumb - landscape_thumb) / portrait_thumb * 100.0).abs();
+        println!("Difference: {:.1}%", diff_pct);
+        // Expect thumbnails to be within 15% of each other (was ~45% before)
+        assert!(diff_pct < 15.0, "Thumbnail size difference too large: {:.1}%", diff_pct);
     }
 }

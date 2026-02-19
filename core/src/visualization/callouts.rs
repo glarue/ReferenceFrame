@@ -6,9 +6,9 @@
 use crate::frame::FrameDesign;
 use crate::conversions::{format_dimension, Unit};
 use super::types::{
-    DimensionCallout, DimensionType, Point,
+    DimensionCallout, DimensionType, Point, Rect,
 };
-use super::geometry::PlanViewGeometry;
+use super::geometry::{PlanViewGeometry, estimate_text_width};
 use super::style::DiagramStyle;
 
 /// Generate all dimension callouts for a plan view
@@ -81,21 +81,18 @@ pub fn generate_plan_callouts(
             // Mat cut WIDTH (horizontal dimension, uses left/right borders)
             let mat_visible_sides = design.mat_width_sides;
             let mat_cut_width = mat_visible_sides + design.rabbet_width;
-            // Place at bottom-right when corner detail is present to avoid overlap,
-            // otherwise bottom-left (original position)
-            let (mat_cut_start, mat_cut_end) = if geometry.corner_detail.is_some() {
-                // Bottom-right: from mat opening right edge to content area right edge
-                (
-                    Point::new(mat_opening.right() - mat_half_stroke, geometry.frame_inner.bottom() - frame_half_stroke),
-                    Point::new(geometry.content_area.right(), geometry.frame_inner.bottom() - frame_half_stroke),
-                )
-            } else {
-                // Bottom-left: from content area left edge to mat opening left edge
-                (
-                    Point::new(geometry.content_area.left(), geometry.frame_inner.bottom() - frame_half_stroke),
-                    Point::new(mat_opening.left() + mat_half_stroke, geometry.frame_inner.bottom() - frame_half_stroke),
-                )
-            };
+            // Try bottom-left first; if it overlaps any placed annotation, use bottom-right.
+            let label_text = format!("Mat Cut: {} ({} visible)", fmt(mat_cut_width), fmt(mat_visible_sides));
+            let (mat_cut_start, mat_cut_end) = choose_mat_cut_side(
+                &geometry.frame_inner,
+                &geometry.content_area,
+                mat_opening,
+                &geometry.annotation_bounds.occupied_rects(),
+                &label_text,
+                style,
+                frame_half_stroke,
+                mat_half_stroke,
+            );
             callouts.push(DimensionCallout::new(
                 mat_cut_width,
                 format!("Mat Cut: {} ({} visible)",
@@ -129,6 +126,51 @@ pub fn generate_plan_callouts(
     // since they are depth/profile dimensions, not plan dimensions
 
     callouts
+}
+
+/// Choose which side to place the mat cut width dimension.
+///
+/// Tries bottom-left first. If the label bounding box overlaps any occupied
+/// annotation rect, falls back to bottom-right. This decouples mat cut
+/// placement from knowing specifically *what* occupies the bottom-left.
+fn choose_mat_cut_side(
+    frame_inner: &Rect,
+    content_area: &Rect,
+    mat_opening: &Rect,
+    occupied: &[Rect],
+    label_text: &str,
+    style: &DiagramStyle,
+    frame_half_stroke: f64,
+    mat_half_stroke: f64,
+) -> (Point, Point) {
+    // Estimate label bounds at bottom-left position
+    let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0
+        + style.dimension_offset_base;
+    let label_width = estimate_text_width(label_text, style.label_font_size);
+    let label_height = style.label_font_size * 2.5; // two-line label
+
+    let bottom_left_label = Rect::new(
+        content_area.left(),
+        frame_inner.bottom() + mat_cut_offset - label_height / 2.0,
+        label_width,
+        label_height,
+    );
+
+    let use_right = occupied.iter().any(|occ| bottom_left_label.overlaps_with_margin(occ, 6.0));
+
+    if use_right {
+        // Bottom-right: from mat opening right edge to content area right edge
+        (
+            Point::new(mat_opening.right() - mat_half_stroke, frame_inner.bottom() - frame_half_stroke),
+            Point::new(content_area.right(), frame_inner.bottom() - frame_half_stroke),
+        )
+    } else {
+        // Bottom-left: from content area left edge to mat opening left edge
+        (
+            Point::new(content_area.left(), frame_inner.bottom() - frame_half_stroke),
+            Point::new(mat_opening.left() + mat_half_stroke, frame_inner.bottom() - frame_half_stroke),
+        )
+    }
 }
 
 /// Generate callouts for section view

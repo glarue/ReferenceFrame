@@ -17,7 +17,7 @@ pub mod svg;
 pub use types::{
     Point, Rect, Side, DimensionType, DimensionCallout,
     PositionedCallout, ViewType, ViewOption, DetailMode, DiagramOptions, DiagramResult,
-    TextAnchor,
+    TextAnchor, AnnotationBounds, ThumbnailLabelPosition,
 };
 pub use style::{DiagramStyle, MaterialPatterns, FillPattern};
 pub use geometry::{PlanViewGeometry, SectionViewGeometry, estimate_text_width};

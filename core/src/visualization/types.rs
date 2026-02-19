@@ -86,6 +86,65 @@ impl Rect {
             height: self.height + 2.0 * margin,
         }
     }
+
+    /// Check if this rect overlaps with another, using an extra margin around both
+    pub fn overlaps_with_margin(&self, other: &Rect, margin: f64) -> bool {
+        self.expand(margin).overlaps(&other.expand(margin))
+    }
+
+    /// Union this rect with another, returning the bounding rect that contains both
+    pub fn union(&self, other: &Rect) -> Self {
+        let min_x = self.left().min(other.left());
+        let min_y = self.top().min(other.top());
+        let max_x = self.right().max(other.right());
+        let max_y = self.bottom().max(other.bottom());
+        Self::new(min_x, min_y, max_x - min_x, max_y - min_y)
+    }
+}
+
+/// Where the thumbnail label text is positioned relative to the thumbnail rect
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThumbnailLabelPosition {
+    /// Label text to the right of thumbnail (landscape, no obstruction)
+    Right,
+    /// Label text below thumbnail (portrait, or landscape with obstruction)
+    Below,
+}
+
+/// Bounding boxes for floating annotation elements, used for
+/// collision detection and viewBox calculation.
+#[derive(Debug, Clone)]
+pub struct AnnotationBounds {
+    /// Corner detail inset box (always bottom-left when present)
+    pub corner_detail_box: Option<Rect>,
+    /// Thumbnail rect including label area
+    pub thumbnail_box: Option<Rect>,
+    /// Where the thumbnail label is placed
+    pub thumbnail_label_position: ThumbnailLabelPosition,
+    /// Mat cut width label bounding box
+    pub mat_cut_width_label: Option<Rect>,
+    /// Mat cut height label bounding box
+    pub mat_cut_height_label: Option<Rect>,
+}
+
+impl AnnotationBounds {
+    /// Get all occupied rects (for collision checking)
+    pub fn occupied_rects(&self) -> Vec<Rect> {
+        let mut rects = Vec::new();
+        if let Some(r) = self.corner_detail_box {
+            rects.push(r);
+        }
+        if let Some(r) = self.thumbnail_box {
+            rects.push(r);
+        }
+        if let Some(r) = self.mat_cut_width_label {
+            rects.push(r);
+        }
+        if let Some(r) = self.mat_cut_height_label {
+            rects.push(r);
+        }
+        rects
+    }
 }
 
 /// Side of the diagram for placing dimensions
@@ -352,7 +411,17 @@ pub struct DiagramOptions {
     /// How to handle thin frame layers in plan view
     #[serde(default)]
     pub detail_mode: DetailMode,
+
+    /// Enable corner detail inset in Auto mode (default true)
+    #[serde(default = "default_true")]
+    pub corner_detail_enabled: bool,
+
+    /// Enable axis break compression in Auto mode (default true)
+    #[serde(default = "default_true")]
+    pub axis_breaks_enabled: bool,
 }
+
+fn default_true() -> bool { true }
 
 impl Default for DiagramOptions {
     fn default() -> Self {
@@ -367,6 +436,8 @@ impl Default for DiagramOptions {
             use_decimal_display: false,
             show_callouts: true, // Default on for normal diagrams
             detail_mode: DetailMode::Auto,
+            corner_detail_enabled: true,
+            axis_breaks_enabled: true,
         }
     }
 }
@@ -382,12 +453,8 @@ pub enum ViewOption {
 /// How to handle thin frame layers in plan view
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DetailMode {
-    /// Automatic: corner detail when layers are thin, axis breaks when frame is huge
+    /// Automatic: use corner detail / axis breaks when conditions are met
     Auto,
-    /// Always use corner detail inset (no axis breaks)
-    CornerDetail,
-    /// Always use axis breaks (no corner detail)
-    AxisBreaks,
     /// No detail enhancements (no corner detail, no axis breaks)
     None,
 }
