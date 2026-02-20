@@ -1169,9 +1169,7 @@ fn build_plan_svg(
                 Side::Left => max_left,
             };
             let is_outermost = callout.offset_level == max_for_side;
-            let is_mat_cut_dim = matches!(callout.callout.dimension_type,
-                crate::visualization::DimensionType::MatCutWidth | crate::visualization::DimensionType::MatCutHeight);
-            let is_two_line = !is_mat_cut_dim && callout.callout.label.contains(": ");
+            let is_two_line = callout.callout.label.contains(": ");
 
             let label_text_width = if is_two_line {
                 if let Some(pos) = callout.callout.label.find(": ") {
@@ -3245,22 +3243,15 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     // Label - centered directly ON the dimension line with masking
     // This creates a compact layout: |<--- Label --->|
 
-    // Split colon-prefixed labels into two lines when safe:
-    // - Vertical sides (Left/Right): always split — shortens rotated label extent
-    // - Horizontal sides: only split when alone on the side AND not a mat cut
-    //   (mat cut labels have custom offset positioning that handles their placement).
-    //   Multiple levels on horizontal sides stay single-line to avoid crowding.
+    // Split colon-prefixed labels into two lines.
+    // Mat cut labels are positioned via mat_cut_offset and handle two-line y via is_mat_cut check below.
+    // Outermost labels shift one line outward; non-outermost center both lines on the dim line.
     let label = &callout.callout.label;
     let is_mat_cut = matches!(callout.callout.dimension_type,
         crate::visualization::DimensionType::MatCutWidth | super::types::DimensionType::MatCutHeight);
-    let can_split = !is_mat_cut;
-    let two_line: Option<(&str, &str)> = if can_split {
-        label.find(": ").map(|pos| {
-            (&label[..pos + 1], label[pos + 2..].trim_start())
-        })
-    } else {
-        None
-    };
+    let two_line: Option<(&str, &str)> = label.find(": ").map(|pos| {
+        (&label[..pos + 1], label[pos + 2..].trim_start())
+    });
 
     // Estimate label dimensions for masking
     // Mask is always single-line sized — for two-line labels the outward line
