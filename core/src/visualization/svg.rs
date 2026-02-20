@@ -1521,6 +1521,11 @@ fn build_plan_svg(
         svg.push_str("  </g>\n");
     }
 
+    // Mat cut callouts are collected here so they can be rendered AFTER the corner
+    // detail box (declared outside show_callouts block for scope reasons).
+    let mut mat_cut_geom = String::new();
+    let mut mat_cut_labels = String::new();
+
     // Dimensions group (only if callouts are enabled)
     if options.show_callouts {
         // Determine which callouts are at the outermost level on their side.
@@ -1539,6 +1544,15 @@ fn build_plan_svg(
 
         // Two-pass rendering: draw lines/masks first, then labels on top.
         // This prevents an outer level's mask from covering an inner level's label.
+        //
+        // Mat cut callouts are collected separately and rendered AFTER the corner detail
+        // box (see below). For extreme-AR frames on small screens the corner detail box can
+        // geometrically overlap the mat cut extension lines — rendering mat cut on top
+        // ensures those measurements are always visible.
+        let is_mat_cut_callout = |c: &PositionedCallout| matches!(
+            c.callout.dimension_type,
+            super::types::DimensionType::MatCutWidth | super::types::DimensionType::MatCutHeight
+        );
         let mut dimension_labels = String::new();
         svg.push_str("  <g id=\"dimensions\">\n");
         for callout in &layout.positioned_callouts {
@@ -1550,8 +1564,13 @@ fn build_plan_svg(
             };
             let is_outermost = callout.offset_level == max_for_side;
             let (geom_svg, label_svg) = svg_dimension(callout, style, geometry, is_outermost);
-            svg.push_str(&geom_svg);
-            dimension_labels.push_str(&label_svg);
+            if is_mat_cut_callout(callout) {
+                mat_cut_geom.push_str(&geom_svg);
+                mat_cut_labels.push_str(&label_svg);
+            } else {
+                svg.push_str(&geom_svg);
+                dimension_labels.push_str(&label_svg);
+            }
         }
         svg.push_str(&dimension_labels);
         svg.push_str("  </g>\n");
@@ -1753,6 +1772,18 @@ fn build_plan_svg(
     // Corner detail inset overlay (only when breaks active)
     if let Some(cd) = &geometry.corner_detail {
         svg.push_str(&render_corner_detail(design, cd, options, style));
+    }
+
+    // Mat cut overlay — rendered after corner detail so extension lines and dimension
+    // line are never hidden behind the corner detail box's white background.
+    // For extreme-AR frames on small screens the corner detail box can cover the mat cut
+    // callout area entirely; there is no bounds-based way to prevent this (the box must
+    // be at least 80px wide and the mat cut lines are always in the frame interior).
+    if !mat_cut_geom.is_empty() {
+        svg.push_str("  <g id=\"mat-cut-overlay\">\n");
+        svg.push_str(&mat_cut_geom);
+        svg.push_str(&mat_cut_labels);
+        svg.push_str("  </g>\n");
     }
 
     // Proportional thumbnail — true aspect ratio silhouette (only when breaks active)
