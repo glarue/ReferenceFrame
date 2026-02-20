@@ -81,18 +81,24 @@ pub fn generate_plan_callouts(
             // Mat cut WIDTH (horizontal dimension, uses left/right borders)
             let mat_visible_sides = design.mat_width_sides;
             let mat_cut_width = mat_visible_sides + design.rabbet_width;
-            // Try bottom-left first; if it overlaps any placed annotation, use bottom-right.
+            // Use the pre-computed extent when available (two-pass: geometry.rs chose the side
+            // before thumbnail placement so the decision is consistent with what was reserved).
+            // Fall back to choose_mat_cut_side for callers that didn't go through from_design.
             let label_text = format!("Mat Cut: {} ({} visible)", fmt(mat_cut_width), fmt(mat_visible_sides));
-            let (mat_cut_start, mat_cut_end) = choose_mat_cut_side(
-                &geometry.frame_inner,
-                &geometry.content_area,
-                mat_opening,
-                &geometry.annotation_bounds.occupied_rects(),
-                &label_text,
-                style,
-                frame_half_stroke,
-                mat_half_stroke,
-            );
+            let (mat_cut_start, mat_cut_end) = if let Some((start, end)) = geometry.annotation_bounds.mat_cut_extent {
+                (start, end)
+            } else {
+                choose_mat_cut_side(
+                    &geometry.frame_inner,
+                    &geometry.content_area,
+                    mat_opening,
+                    &geometry.annotation_bounds.occupied_rects(),
+                    &label_text,
+                    style,
+                    frame_half_stroke,
+                    mat_half_stroke,
+                )
+            };
             callouts.push(DimensionCallout::new(
                 mat_cut_width,
                 format!("Mat Cut: {} ({} visible)",

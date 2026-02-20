@@ -1769,19 +1769,27 @@ fn build_plan_svg(
         svg.push_str("  </g>\n");
     }
 
-    // Corner detail inset overlay (only when breaks active)
+    // Mat cut geometry — rendered BEFORE the corner detail box so the corner detail's
+    // white background cleanly covers extension lines that pass through the frame corner.
+    // Extension lines start at mat_opening.bottom() which is inside the frame interior;
+    // for narrow portrait frames they inevitably enter the corner detail box x/y range.
+    if !mat_cut_geom.is_empty() {
+        svg.push_str("  <g id=\"mat-cut-geom\">\n");
+        svg.push_str(&mat_cut_geom);
+        svg.push_str("  </g>\n");
+    }
+
+    // Corner detail inset overlay — renders after mat cut geometry so the white box
+    // cleanly covers any overlapping extension lines inside the frame corner.
     if let Some(cd) = &geometry.corner_detail {
         svg.push_str(&render_corner_detail(design, cd, options, style));
     }
 
-    // Mat cut overlay — rendered after corner detail so extension lines and dimension
-    // line are never hidden behind the corner detail box's white background.
-    // For extreme-AR frames on small screens the corner detail box can cover the mat cut
-    // callout area entirely; there is no bounds-based way to prevent this (the box must
-    // be at least 80px wide and the mat cut lines are always in the frame interior).
-    if !mat_cut_geom.is_empty() {
-        svg.push_str("  <g id=\"mat-cut-overlay\">\n");
-        svg.push_str(&mat_cut_geom);
+    // Mat cut labels — rendered last so text appears on top of the corner detail box.
+    // The label y-position (dim_line_y + mat_cut_offset) is typically below the corner
+    // detail box bottom, so labels don't visually clash with the L-shape inside the box.
+    if !mat_cut_labels.is_empty() {
+        svg.push_str("  <g id=\"mat-cut-labels\">\n");
         svg.push_str(&mat_cut_labels);
         svg.push_str("  </g>\n");
     }
@@ -3309,28 +3317,14 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
         + style.dimension_offset_base;
 
     let is_mat_cut_width = callout.callout.dimension_type == crate::visualization::DimensionType::MatCutWidth;
-    // For mat cut width: prefer centering over the dim line midpoint.
-    // Fall back to a side anchor (inward toward frame) only when the centered label
-    // would overflow the content_area boundary on that side.
-    let mat_cut_anchor: &str = if is_mat_cut_width {
-        let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
-        let on_right = mid_x > geometry.frame_outer.center().x;
-        let half_label_w = mask_width / 2.0;
-        if on_right {
-            if mid_x + half_label_w <= geometry.content_area.right() { "middle" } else { "end" }
-        } else {
-            if mid_x - half_label_w >= geometry.content_area.left() { "middle" } else { "start" }
-        }
-    } else { "middle" };
+    // For mat cut width: left-align at the left edge of the callout span so the label
+    // reads naturally outward from where the arrow starts. Both lines share the same
+    // left anchor, matching the visual convention for dimension callouts.
+    let mat_cut_anchor: &str = if is_mat_cut_width { "start" } else { "middle" };
     let (label_x, label_y) = if is_horizontal {
         let base_y = callout.dimension_line_position;
         if is_mat_cut_width {
-            let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
-            let anchor_x = match mat_cut_anchor {
-                "end"   => callout.callout.extent_start.x.max(callout.callout.extent_end.x),
-                "start" => callout.callout.extent_start.x.min(callout.callout.extent_end.x),
-                _       => mid_x,
-            };
+            let anchor_x = callout.callout.extent_start.x.min(callout.callout.extent_end.x);
             (anchor_x, base_y + mat_cut_offset)
         } else {
             let mid_x = (callout.callout.extent_start.x + callout.callout.extent_end.x) / 2.0;
@@ -3422,21 +3416,20 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
             let fs = style.label_font_size;
             let (line1_y, line2_y) = if is_mat_cut {
                 (label_y - half_line_offset, label_y + half_line_offset)
-            } else {
+            } else if is_outermost {
+                // Outermost: prefix extends away from frame, value stays on the dim line.
                 match callout.actual_side {
                     Side::Top    => (label_y - (fs + line_gap), label_y),
                     Side::Bottom => (label_y,                   label_y + (fs + line_gap)),
                     _            => (label_y - half_line_offset, label_y + half_line_offset),
                 }
+            } else {
+                // Non-outermost horizontal: center both lines on the dim line to prevent
+                // overlap with the outermost label at the adjacent level above/below.
+                (label_y - half_line_offset, label_y + half_line_offset)
             };
-            // When beside_mat_cut Strategy B shifts the label block right, both lines
-            // use "end" anchor at mat_cut_label_right so they form a right-aligned pair.
             let (effective_x, effective_anchor) = if is_mat_cut_width {
-                if let Some(block_right) = geometry.mat_cut_label_right {
-                    (block_right, "end")
-                } else {
-                    (label_x, mat_cut_anchor)
-                }
+                (label_x, mat_cut_anchor)  // "start" at left edge of the callout span
             } else {
                 (label_x, "middle")
             };

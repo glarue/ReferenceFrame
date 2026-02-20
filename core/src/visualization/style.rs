@@ -174,7 +174,7 @@ impl Default for DiagramStyle {
             tick_size: 8.0,
             use_tick_marks: false, // Use arrows instead
             dimension_offset_base: 22.0, // Compact spacing from geometry
-            dimension_offset_step: 24.0, // Must be > 1.6 × label_font_size to prevent adjacent two-line labels from overlapping after 90° rotation
+            dimension_offset_step: 24.0, // Must be > 1.6 × label_font_size (= 20.8) for non-outermost centered labels to clear outermost on both horizontal and vertical sides
 
             // Materials
             material_patterns: MaterialPatterns::default(),
@@ -198,7 +198,7 @@ impl DiagramStyle {
 
         // Scale spacing proportionally to prevent overlap
         style.dimension_offset_base = 28.0;  // Was 22.0, scaled ~1.27×
-        style.dimension_offset_step = 30.0;  // Was 24.0 (web), scaled ~1.25× for PDF font size
+        style.dimension_offset_step = 44.0;  // 1.6 × 24px = 38.4 minimum; 44 gives same relative margin as web default
         style.extension_line_gap = 8.0;      // Was 6.0, scaled ~1.33×
         style.extension_line_overshoot = 5.0; // Was 4.0, scaled ~1.25×
 

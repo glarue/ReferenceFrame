@@ -92,6 +92,13 @@ impl Rect {
         self.expand(margin).overlaps(&other.expand(margin))
     }
 
+    /// Compute the area of overlap between this rect and another
+    pub fn overlap_area(&self, other: &Rect) -> f64 {
+        let x_overlap = (self.right().min(other.right()) - self.left().max(other.left())).max(0.0);
+        let y_overlap = (self.bottom().min(other.bottom()) - self.top().max(other.top())).max(0.0);
+        x_overlap * y_overlap
+    }
+
     /// Union this rect with another, returning the bounding rect that contains both
     pub fn union(&self, other: &Rect) -> Self {
         let min_x = self.left().min(other.left());
@@ -125,6 +132,10 @@ pub struct AnnotationBounds {
     pub mat_cut_width_label: Option<Rect>,
     /// Mat cut height label bounding box
     pub mat_cut_height_label: Option<Rect>,
+    /// Pre-computed mat cut width extent (start_point, end_point).
+    /// Avoids re-computing side selection in callouts.rs and ensures consistency
+    /// with the label bounds reserved during thumbnail placement.
+    pub mat_cut_extent: Option<(Point, Point)>,
 }
 
 impl AnnotationBounds {

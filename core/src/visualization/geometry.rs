@@ -239,6 +239,7 @@ impl PlanViewGeometry {
                 thumbnail_label_position: ThumbnailLabelPosition::Below,
                 mat_cut_width_label: None,
                 mat_cut_height_label: None,
+                mat_cut_extent: None,
             },
         }
     }
@@ -341,6 +342,7 @@ impl PlanViewGeometry {
                 thumbnail_label_position: ThumbnailLabelPosition::Below,
                 mat_cut_width_label: None,
                 mat_cut_height_label: None,
+                mat_cut_extent: None,
             },
         }
     }
@@ -451,14 +453,29 @@ impl PlanViewGeometry {
                 geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
             }
 
-            // Populate annotation_bounds so choose_mat_cut_side can detect corner detail.
-            // No thumbnail on the no-break path.
+            // Compute mat cut extent for consistent side selection with callouts.rs.
+            let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
+                geo.mat_opening.as_ref().map(|mat_opening| {
+                    Self::choose_mat_cut_extent(
+                        &geo.frame_inner,
+                        &geo.content_area,
+                        mat_opening,
+                        geo.corner_detail.as_ref().map(|cd| &cd.box_rect),
+                        style,
+                    )
+                })
+            } else {
+                None
+            };
+
+            // Populate annotation_bounds. No thumbnail on the no-break path.
             geo.annotation_bounds = AnnotationBounds {
                 corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
                 thumbnail_box: None,
                 thumbnail_label_position: ThumbnailLabelPosition::Below,
                 mat_cut_width_label: None,
                 mat_cut_height_label: None,
+                mat_cut_extent,
             };
 
             return geo;
@@ -608,14 +625,29 @@ impl PlanViewGeometry {
                 geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
             }
 
-            // Populate annotation_bounds so choose_mat_cut_side can detect corner detail.
-            // No thumbnail on the no-break path.
+            // Compute mat cut extent for consistent side selection with callouts.rs.
+            let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
+                geo.mat_opening.as_ref().map(|mat_opening| {
+                    Self::choose_mat_cut_extent(
+                        &geo.frame_inner,
+                        &geo.content_area,
+                        mat_opening,
+                        geo.corner_detail.as_ref().map(|cd| &cd.box_rect),
+                        style,
+                    )
+                })
+            } else {
+                None
+            };
+
+            // Populate annotation_bounds. No thumbnail on this no-break fallback path.
             geo.annotation_bounds = AnnotationBounds {
                 corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
                 thumbnail_box: None,
                 thumbnail_label_position: ThumbnailLabelPosition::Below,
                 mat_cut_width_label: None,
                 mat_cut_height_label: None,
+                mat_cut_extent,
             };
 
             return geo;
@@ -681,18 +713,31 @@ impl PlanViewGeometry {
         // Proportional thumbnail: true aspect ratio silhouette
         let is_portrait = frame_outer_height >= frame_outer_width;
 
-        // Build occupied list from already-placed elements (corner detail).
-        // When corner detail is present and there's a mat, the mat cut label will be
-        // placed on the right side — reserve that space too so the thumbnail avoids it.
+        // Two-pass placement: compute mat cut extent first (actual side choice + label bounds),
+        // then use those bounds in the occupied list so thumbnail placement is collision-free
+        // without the approximation loop of the old approach.
+        let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
+            geo.mat_opening.as_ref().map(|mat_opening| {
+                Self::choose_mat_cut_extent(
+                    &geo.frame_inner,
+                    &geo.content_area,
+                    mat_opening,
+                    geo.corner_detail.as_ref().map(|cd| &cd.box_rect),
+                    style,
+                )
+            })
+        } else {
+            None
+        };
+
+        // Build occupied list from already-placed elements (corner detail + mat cut label).
         let mut occupied: Vec<Rect> = Vec::new();
         if let Some(cd) = &geo.corner_detail {
             occupied.push(cd.box_rect);
-            if design.has_mat() {
-                if let Some(mat_opening) = &geo.mat_opening {
-                    occupied.push(Self::approx_mat_cut_right_label_bounds(
-                        &geo.frame_outer, &geo.frame_inner, &geo.content_area, mat_opening, style,
-                    ));
-                }
+            if let Some((ref start, ref end)) = mat_cut_extent {
+                occupied.push(Self::mat_cut_label_bounds_from_extent(
+                    &geo.frame_outer, start, end, style,
+                ));
             }
         }
 
@@ -746,20 +791,12 @@ impl PlanViewGeometry {
                 if !r.overlaps_with_margin(&occupied[0], 4.0) { Some(r) } else { None }
             };
 
-            // Strategy B: shift the entire mat cut label block rightward so both lines
-            // end-anchor at block_right, leaving room for the thumbnail at preferred size.
-            // block_right = thumbnail_right + gap + value_line_w (just enough for line2).
-            // Limit: block extends at most value_line_w past frame_outer.right(), keeping
-            // the label within the "below-frame right zone" which is clear of other elements.
-            let right_limit = geo.frame_outer.right() + value_line_w;
+            // Strategy B: place thumbnail at preferred size starting just right of the
+            // corner detail, without shifting the mat cut label (which is now left-anchored
+            // at the span left edge and does not need to yield space on the right).
             let try_b = |w: f64| -> Option<(Rect, Option<f64>)> {
                 let mini_x = corner_right + mini_gap;
-                let block_right = mini_x + w + mini_gap + value_line_w;
-                if block_right <= right_limit {
-                    place_thumb(w, mini_x).map(|r| (r, Some(block_right)))
-                } else {
-                    None
-                }
+                place_thumb(w, mini_x).map(|r| (r, None))
             };
 
             // Strategy A: natural gap, no label shift. Thumbnail centered before line2.
@@ -818,6 +855,7 @@ impl PlanViewGeometry {
             thumbnail_label_position: thumb_label_pos,
             mat_cut_width_label: None,  // Populated later by callout generation
             mat_cut_height_label: None,
+            mat_cut_extent,
         };
 
         geo
@@ -888,9 +926,11 @@ impl PlanViewGeometry {
                     Rect::new(x, y, total_w, thumb_h)
                 }
                 ThumbnailLabelPosition::Below => {
-                    // Label extends below thumbnail
+                    // Label is centered below thumbnail (svg renders text centered on thumb midpoint)
                     let total_h = thumb_h + label_below_h;
-                    Rect::new(x, y, thumb_w.max(label_right_w), total_h)
+                    let total_w = thumb_w.max(label_right_w);
+                    let left = x + (thumb_w - total_w) / 2.0;
+                    Rect::new(left, y, total_w, total_h)
                 }
             }
         };
@@ -930,10 +970,16 @@ impl PlanViewGeometry {
 
             // Fallback: shift upward to clear any occupied rect that overlaps our x range.
             // This handles corner detail boxes that extend into the left-of-frame area.
-            let thumb_right_x = primary_x + thumb_w;
+            // Use the actual right edge of the centered full_bounds so the filter correctly
+            // detects occupied rects that the label (centered on thumb) would overlap.
+            // For centered Below label: right = primary_x + (thumb_w + max(thumb_w, label_right_w)) / 2
+            let full_bounds_right = primary_x + (thumb_w + thumb_w.max(label_right_w)) / 2.0;
+            let in_x_range = |r: &Rect| {
+                r.left() < full_bounds_right + collision_margin
+                    && r.right() > primary_x - collision_margin
+            };
             let blocking_top = occupied.iter()
-                .filter(|r| r.left() < thumb_right_x + collision_margin
-                    && r.right() > primary_x - collision_margin)
+                .filter(|r| in_x_range(r))
                 .map(|r| r.top())
                 .fold(f64::INFINITY, f64::min);
             if blocking_top.is_finite() {
@@ -943,6 +989,22 @@ impl PlanViewGeometry {
                 candidates.push(Candidate {
                     x: primary_x,
                     y: shifted_y,
+                    below: false,
+                    label_pos: ThumbnailLabelPosition::Below,
+                });
+            }
+
+            // Additional escape: below all blocking rects in our x range.
+            // When both upward and primary positions collide, place below everything.
+            let occupied_bottom_in_range = occupied.iter()
+                .filter(|r| in_x_range(r))
+                .map(|r| r.bottom())
+                .fold(f64::NEG_INFINITY, f64::max);
+            if occupied_bottom_in_range.is_finite() {
+                let below_y = occupied_bottom_in_range + 2.0 * collision_margin;
+                candidates.push(Candidate {
+                    x: primary_x,
+                    y: below_y,
                     below: false,
                     label_pos: ThumbnailLabelPosition::Below,
                 });
@@ -1054,8 +1116,15 @@ impl PlanViewGeometry {
             }
         }
 
-        // Final fallback: use the first candidate regardless of collision
-        let c = &candidates[0];
+        // Final fallback: pick the candidate with minimum total overlap area rather than
+        // always returning candidates[0] (which may have the worst collision).
+        let c = candidates.iter().min_by(|a, b| {
+            let bounds_a = full_bounds(a.x, a.y, a.label_pos);
+            let bounds_b = full_bounds(b.x, b.y, b.label_pos);
+            let overlap_a: f64 = occupied.iter().map(|occ| bounds_a.overlap_area(occ)).sum();
+            let overlap_b: f64 = occupied.iter().map(|occ| bounds_b.overlap_area(occ)).sum();
+            overlap_a.partial_cmp(&overlap_b).unwrap_or(std::cmp::Ordering::Equal)
+        }).unwrap_or(&candidates[0]);
         (Rect::new(c.x, c.y, thumb_w, thumb_h), c.below, c.label_pos)
     }
 
@@ -1074,15 +1143,32 @@ impl PlanViewGeometry {
         // The canvas_width * 0.30 target already keeps the box proportional to the viewport;
         // frame_cap just prevents it from dominating an actually small canvas (PDF combined view).
         let frame_cap = geo.frame_outer.width.max(geo.frame_outer.height) * 0.80;
-        let box_w = (target_w.min(frame_cap)).clamp(80.0, 213.0);
+        let mut box_w = (target_w.min(frame_cap)).clamp(80.0, 213.0);
+
         let box_h = box_w / 1.15; // maintain aspect ratio (~245/235 from reference)
 
-        // X position: extend 15% of box_w to the LEFT of frame_outer.left().
-        // Since corner_x = box_x + box_w * 0.30, this places the L-corner at
-        // frame_outer.left() + box_w * 0.15 — symmetrically 15% inside the frame,
-        // matching the overlap fraction and scaling consistently with box size.
+        // X position: nominally extends 15% of box_w to the LEFT of frame_outer.left()
+        // so the L-corner aligns with the frame corner.  When a mat is present, the mat
+        // cut extension lines are vertical lines at mat_opening.right(); the corner detail
+        // box must not overlap them.  Shift the box LEFTWARD (there is always left margin
+        // space on the break path) until its right edge clears those lines.
         let margin = 3.0;
-        let mut box_x = geo.frame_outer.left() - box_w * 0.15;
+        let natural_box_x = geo.frame_outer.left() - box_w * 0.15;
+        let box_x = if let Some(mat_opening) = &geo.mat_opening {
+            let clearance = 4.0;
+            let natural_box_right = natural_box_x + box_w; // = frame_outer.left() + box_w * 0.85
+            let needed_box_right = mat_opening.right() - clearance;
+            if natural_box_right > needed_box_right {
+                // Shift box left so box_right = mat_opening.right() - clearance.
+                // Clamp to style.margin so we don't exit the canvas.
+                let shifted_x = needed_box_right - box_w;
+                shifted_x.max(style.margin)
+            } else {
+                natural_box_x
+            }
+        } else {
+            natural_box_x
+        };
 
         // Y position: box should overlap the bottom-left corner of the frame.
         // Standard formula: frame_outer.bottom() is always inside the box (0 < 0.85 < 1).
@@ -1099,17 +1185,6 @@ impl PlanViewGeometry {
         } else {
             standard_y
         };
-
-        // Shift box left if it would overlap the mat cut callout region.
-        // mat_opening.right() is the left boundary of the right-side mat cut annotation.
-        // Floor: don't go further left than one full box-width past the frame edge.
-        if let Some(mat_opening) = &geo.mat_opening {
-            let gap = 4.0;
-            if box_x + box_w > mat_opening.right() {
-                let left_limit = geo.frame_outer.left() - box_w;
-                box_x = (mat_opening.right() - box_w - gap).max(left_limit);
-            }
-        }
 
         // Detail scale: zoom out so frame band is ~21% of box width.
         // Smaller ratio = frame material drawn thinner = more room for labels,
@@ -1133,31 +1208,57 @@ impl PlanViewGeometry {
         }
     }
 
-    /// Estimate the bounding box of the mat cut width label when placed on the right side.
-    /// Used to reserve space for thumbnail placement when corner detail is also present.
-    fn approx_mat_cut_right_label_bounds(
-        frame_outer: &Rect,
-        _frame_inner: &Rect,
+    /// Choose extent points for the mat cut width dimension callout.
+    ///
+    /// Uses right side (mat_opening.right() → content_area.right()) when a corner detail
+    /// is present, since the corner detail occupies the bottom-left where the left-side
+    /// label would go.  Uses left side otherwise.
+    ///
+    /// Note: the SVG renderer pins extension line start to mat_opening.bottom()+3 regardless
+    /// of extent_y, and dimension line is anchored to frame_outer.bottom().  Overlap with
+    /// the corner detail box is handled purely by z-ordering in svg.rs (mat cut geometry
+    /// renders before corner detail; labels render after).
+    fn choose_mat_cut_extent(
+        frame_inner: &Rect,
         content_area: &Rect,
         mat_opening: &Rect,
+        corner_detail: Option<&Rect>,
+        style: &DiagramStyle,
+    ) -> (Point, Point) {
+        let frame_half_stroke = style.frame_stroke_width / 2.0;
+        let mat_half_stroke = style.mat_stroke_width / 2.0;
+        let extent_y = frame_inner.bottom() - frame_half_stroke;
+        if corner_detail.is_some() {
+            // Corner detail present → use right side so the label clears the corner detail box
+            (
+                Point::new(mat_opening.right() - mat_half_stroke, extent_y),
+                Point::new(content_area.right(), extent_y),
+            )
+        } else {
+            // No corner detail → use left side (natural placement)
+            (
+                Point::new(content_area.left(), extent_y),
+                Point::new(mat_opening.left() + mat_half_stroke, extent_y),
+            )
+        }
+    }
+
+    /// Estimate the bounding box of the mat cut width label given its extent points.
+    /// Used to reserve space for thumbnail placement.
+    fn mat_cut_label_bounds_from_extent(
+        frame_outer: &Rect,
+        extent_start: &Point,
+        extent_end: &Point,
         style: &DiagramStyle,
     ) -> Rect {
-        // Match the y formula used in svg_dimension:
-        //   dim_line_y = frame_outer.bottom() + get_dimension_offset(0)
-        //   label_y    = dim_line_y + mat_cut_offset
-        // where mat_cut_offset = extension_line_overshoot + label_font_size/2 + dimension_offset_base
         let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0
             + style.dimension_offset_base;
-        let dim_line_y = frame_outer.bottom() + style.get_dimension_offset(0);
-        // Conservative label width estimate (fraction format, ~18 chars)
+        // MatCutWidth is priority 2, typically level 0 on the bottom side.
+        let dim_line_y = frame_outer.bottom() + style.dimension_offset_base;
         let label_width = estimate_text_width("Mat Cut: 2 3/8\" (2\" visible)", style.label_font_size);
         let label_height = style.label_font_size * 2.5;
-        // The dim line spans mat_opening.right → content_area.right.
-        // Centering is the default; its leftmost extent is dim_mid_x - half_width.
-        // This is the most conservative (furthest-left) estimate, since "end" anchor
-        // would start at content_area.right - label_width (further right).
-        let dim_mid_x = (mat_opening.right() + content_area.right()) / 2.0;
-        let label_x = dim_mid_x - label_width / 2.0;
+        // Label anchors at the leftmost x of the extent (start anchor in svg_dimension)
+        let label_x = extent_start.x.min(extent_end.x);
         let label_center_y = dim_line_y + mat_cut_offset;
         Rect::new(label_x, label_center_y - label_height / 2.0, label_width, label_height)
     }
