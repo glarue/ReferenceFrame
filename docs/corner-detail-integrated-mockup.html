@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plan View with Corner Detail Inset</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 950px;
+            width: 100%;
+        }
+        h1 { color: #333; font-size: 22px; margin: 0 0 8px 0; }
+        .info { color: #666; font-size: 14px; margin-bottom: 16px; line-height: 1.5; }
+        .specs {
+            background: #f9f9f9; padding: 12px; border-radius: 4px;
+            font-size: 13px; color: #555; margin-bottom: 16px;
+        }
+        .specs strong { color: #333; }
+        svg { border: 1px solid #ddd; border-radius: 4px; background: #ffffff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Plan View with Corner Detail Inset</h1>
+        <div class="info">
+            The corner detail is overlaid at bottom-left of the plan view. The mat width callout
+            has been relocated to bottom-right to make room.
+        </div>
+
+        <div class="specs">
+            <strong>Frame:</strong> 8" × 12" artwork, 2" mat, 0.75" frame, 0.375" rabbet, 0.125" mat overlap<br>
+            <strong>Plan view scale:</strong> 35 px/inch &nbsp;|&nbsp;
+            <strong>Corner detail scale:</strong> 55 px/inch
+        </div>
+
+        <!--
+            Plan view at 35 px/inch:
+              Frame outer:   604 × 464  at (0, 0)
+              Content area:  578 × 438  at (13, 13)   [0.375" rabbet inset]
+              Frame inner:   552 × 412  at (26, 26)   [0.75" frame width inset]
+              Artwork:       420 × 280  at (92, 92)    [2.625" inset]
+              Mat opening:   411 × 271  at (96, 96)    [2.75" inset]
+
+            ViewBox includes space for callouts:
+              Top: ~55px for two dimension rows + labels
+              Right: ~120px for two dimension rows + labels
+              Bottom: ~45px for mat callout (now at right side)
+        -->
+        <svg viewBox="-12 -55 790 590" width="790" height="590" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- Blue Slate arrows -->
+                <marker id="arr-blue-s" markerWidth="6" markerHeight="4"
+                        refX="6" refY="2" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0,2 6,0 6,4" fill="#577590"/>
+                </marker>
+                <marker id="arr-blue-e" markerWidth="6" markerHeight="4"
+                        refX="0" refY="2" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0,0 6,2 0,4" fill="#577590"/>
+                </marker>
+                <!-- Seaweed arrows -->
+                <marker id="arr-teal-s" markerWidth="6" markerHeight="4"
+                        refX="6" refY="2" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0,2 6,0 6,4" fill="#46af8f"/>
+                </marker>
+                <marker id="arr-teal-e" markerWidth="6" markerHeight="4"
+                        refX="0" refY="2" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0,0 6,2 0,4" fill="#46af8f"/>
+                </marker>
+                <!-- Carrot Orange arrows (mat cut) -->
+                <marker id="arr-orange-s" markerWidth="6" markerHeight="4"
+                        refX="6" refY="2" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0,2 6,0 6,4" fill="#f8961e"/>
+                </marker>
+                <marker id="arr-orange-e" markerWidth="6" markerHeight="4"
+                        refX="0" refY="2" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0,0 6,2 0,4" fill="#f8961e"/>
+                </marker>
+                <!-- Atomic Tangerine arrows (mat visible in detail) -->
+                <marker id="arr-mat-s" markerWidth="6" markerHeight="4"
+                        refX="6" refY="2" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0,2 6,0 6,4" fill="#f3722c"/>
+                </marker>
+                <marker id="arr-mat-e" markerWidth="6" markerHeight="4"
+                        refX="0" refY="2" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0,0 6,2 0,4" fill="#f3722c"/>
+                </marker>
+            </defs>
+
+            <!-- ==================== PLAN VIEW GEOMETRY ==================== -->
+            <g id="plan-geometry">
+                <!-- Rabbet overlap zone (between content area and frame inner) -->
+                <path d="M13,13 h578 v438 h-578 Z M26,26 v412 h552 v-412 Z"
+                      fill="#f8961e" fill-opacity="0.06" fill-rule="evenodd"/>
+
+                <!-- Mat/artwork overlap zone -->
+                <path d="M92,92 h420 v280 h-420 Z M96,96 v271 h411 v-271 Z"
+                      fill="#90be6d" fill-opacity="0.08" fill-rule="evenodd"/>
+
+                <!-- Frame outer -->
+                <rect x="0" y="0" width="604" height="464"
+                      stroke="#333" stroke-width="2" fill="none"/>
+
+                <!-- Content area / matboard edge (dashed orange) -->
+                <rect x="13" y="13" width="578" height="438"
+                      stroke="#f8961e" stroke-width="0.7" stroke-dasharray="6,3"
+                      fill="none" opacity="0.5"/>
+
+                <!-- Frame inner / visible opening -->
+                <rect x="26" y="26" width="552" height="412"
+                      stroke="#333" stroke-width="2" fill="none"/>
+
+                <!-- Artwork boundary (dashed green) -->
+                <rect x="92" y="92" width="420" height="280"
+                      stroke="#90be6d" stroke-width="0.8" stroke-dasharray="5,3"
+                      fill="none" opacity="0.7"/>
+
+                <!-- Mat opening -->
+                <rect x="96" y="96" width="411" height="271"
+                      stroke="#333" stroke-width="1.5" fill="none"/>
+            </g>
+
+            <!-- ==================== DIMENSION CALLOUTS ==================== -->
+            <g id="dimensions" font-family="sans-serif">
+
+                <!-- TOP: Outside width -->
+                <line x1="0" y1="0" x2="0" y2="-34" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                <line x1="604" y1="0" x2="604" y2="-34" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                <line x1="6" y1="-30" x2="598" y2="-30" stroke="#577590" stroke-width="0.8"
+                      marker-start="url(#arr-blue-s)" marker-end="url(#arr-blue-e)"/>
+                <text x="302" y="-34" font-size="12" fill="#577590" text-anchor="middle"
+                      font-weight="bold">17 1/4"</text>
+
+                <!-- TOP: Inside width -->
+                <line x1="26" y1="0" x2="26" y2="-14" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                <line x1="578" y1="0" x2="578" y2="-14" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                <line x1="32" y1="-10" x2="572" y2="-10" stroke="#577590" stroke-width="0.8"
+                      marker-start="url(#arr-blue-s)" marker-end="url(#arr-blue-e)"/>
+                <text x="302" y="-14" font-size="11" fill="#577590" text-anchor="middle">15 3/4"</text>
+
+                <!-- RIGHT: Outside height -->
+                <line x1="604" y1="0" x2="638" y2="0" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                <line x1="604" y1="464" x2="638" y2="464" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                <line x1="634" y1="6" x2="634" y2="458" stroke="#577590" stroke-width="0.8"
+                      marker-start="url(#arr-blue-s)" marker-end="url(#arr-blue-e)"/>
+                <text x="640" y="236" font-size="12" fill="#577590"
+                      font-weight="bold" writing-mode="tb">13 1/4"</text>
+
+                <!-- RIGHT: Inside height -->
+                <line x1="578" y1="26" x2="618" y2="26" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                <line x1="578" y1="438" x2="618" y2="438" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                <line x1="614" y1="32" x2="614" y2="432" stroke="#577590" stroke-width="0.8"
+                      marker-start="url(#arr-blue-s)" marker-end="url(#arr-blue-e)"/>
+                <text x="620" y="236" font-size="11" fill="#577590"
+                      writing-mode="tb">11 3/4"</text>
+
+                <!-- BOTTOM-RIGHT: Mat cut width (RELOCATED from bottom-left) -->
+                <!-- Extension lines from content area right edge and mat opening right edge -->
+                <line x1="507" y1="367" x2="507" y2="490" stroke="#f8961e" stroke-width="0.6" opacity="0.6"/>
+                <line x1="591" y1="451" x2="591" y2="490" stroke="#f8961e" stroke-width="0.6" opacity="0.6"/>
+                <line x1="507" y1="486" x2="591" y2="486" stroke="#f8961e" stroke-width="0.8"
+                      marker-start="url(#arr-orange-s)" marker-end="url(#arr-orange-e)"/>
+                <text x="549" y="500" font-size="11" fill="#f8961e" text-anchor="middle"
+                      font-weight="bold">Mat: 2"</text>
+            </g>
+
+            <!-- ==================== CORNER DETAIL INDICATOR ==================== -->
+            <!-- Dashed red box on plan view showing which corner is detailed -->
+            <rect x="-2" y="416" width="52" height="52"
+                  stroke="#f94144" stroke-width="1.5" fill="none"
+                  stroke-dasharray="4,3" opacity="0.7"/>
+
+            <!-- ==================== CORNER DETAIL INSET ==================== -->
+            <!--
+                Positioned at bottom-left of plan view.
+                Shows bottom-left corner at 55 px/inch.
+
+                Bottom-left corner layers (distance from outside corner):
+                  Frame outer:   0"      = 0px
+                  Content area:  0.375"  = 21px
+                  Frame inner:   0.75"   = 41px
+                  Artwork:       2.625"  = 144px
+                  Mat opening:   2.75"   = 151px
+
+                Local coordinate system: origin at top-left of inset box.
+                Corner is at bottom-left of content area.
+                Lines go RIGHT along bottom edge, UP along left edge.
+            -->
+            <!--
+                CORNER DETAIL INSET
+                Scoped to frame edge construction only: outer, content area, inner.
+                This avoids zoom-level problems with large mats — mat/artwork dims
+                stay on the main plan view where they're already clear.
+
+                At 120 px/inch, corner origin at (55, 198):
+                  Frame outer:   0"      = 0px   → (55, 198)
+                  Content area:  0.375"  = 45px  → (100, 153)
+                  Frame inner:   0.75"   = 90px  → (145, 108)
+
+                Color logic driven by what sits in the rabbet:
+                  WITH mat:    overlap zone + content line + label = orange (#f8961e), "matboard edge"
+                  WITHOUT mat: overlap zone + content line + label = green (#90be6d), "artwork edge"
+                Rabbet callout stays teal in both cases (frame construction dim).
+            -->
+            <g id="corner-detail" transform="translate(-5, 250)">
+                <!-- Background -->
+                <rect x="0" y="0" width="245" height="235"
+                      fill="white" stroke="#999" stroke-width="1" rx="4"
+                      filter="url(#shadow)"/>
+
+                <!-- Title -->
+                <text x="122" y="17" font-family="sans-serif" font-size="11"
+                      fill="#555" text-anchor="middle" font-weight="bold">Corner Detail</text>
+
+                <!-- Clip to keep geometry inside the box -->
+                <clipPath id="detail-clip">
+                    <rect x="-5" y="22" width="248" height="208"/>
+                </clipPath>
+
+                <g clip-path="url(#detail-clip)">
+                    <!--
+                        Corner origin (outside corner) at (55, 198).
+                        Lines go RIGHT along bottom edge, UP along left edge.
+                        Geometry extends ~0.5" past frame inner for context.
+                        At 120px/inch: 0.5" = 60px beyond inner.
+                    -->
+
+                    <!-- ZONES (shaded areas) -->
+
+                    <!-- Matboard overlap zone: mat sitting in rabbet (orange, matches main diagram) -->
+                    <rect x="100" y="30" width="45" height="123" fill="#f8961e" fill-opacity="0.10"/>
+                    <rect x="145" y="108" width="65" height="45" fill="#f8961e" fill-opacity="0.10"/>
+
+                    <!-- LAYER LINES (L-shapes at bottom-left corner) -->
+
+                    <!-- Frame outer -->
+                    <line x1="55" y1="198" x2="210" y2="198" stroke="#333" stroke-width="2.5"/>
+                    <line x1="55" y1="198" x2="55" y2="30" stroke="#333" stroke-width="2.5"/>
+
+                    <!-- Content area / matboard edge (dashed orange, matches main diagram) -->
+                    <line x1="100" y1="153" x2="210" y2="153" stroke="#f8961e" stroke-width="1" stroke-dasharray="6,3" opacity="0.7"/>
+                    <line x1="100" y1="153" x2="100" y2="30" stroke="#f8961e" stroke-width="1" stroke-dasharray="6,3" opacity="0.7"/>
+
+                    <!-- Frame inner -->
+                    <line x1="145" y1="108" x2="210" y2="108" stroke="#333" stroke-width="2.5"/>
+                    <line x1="145" y1="108" x2="145" y2="30" stroke="#333" stroke-width="2.5"/>
+
+                    <!-- ============ DIMENSION CALLOUTS ============ -->
+
+                    <!-- 1. Frame width: 3/4" (between outer and inner, below corner) -->
+                    <line x1="55" y1="198" x2="55" y2="214" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                    <line x1="145" y1="198" x2="145" y2="214" stroke="#577590" stroke-width="0.6" opacity="0.6"/>
+                    <line x1="59" y1="210" x2="141" y2="210" stroke="#577590" stroke-width="0.8"
+                          marker-start="url(#arr-blue-s)" marker-end="url(#arr-blue-e)"/>
+                    <text x="100" y="224" font-family="sans-serif" font-size="9"
+                          fill="#577590" text-anchor="middle" font-weight="bold">Frame: 3/4"</text>
+
+                    <!-- 2. Rabbet: 3/8" (between content area and inner, left side vertical) -->
+                    <!-- Extension lines going left from horizontal geometry lines -->
+                    <line x1="100" y1="153" x2="32" y2="153" stroke="#46af8f" stroke-width="0.6" opacity="0.6"/>
+                    <line x1="145" y1="108" x2="32" y2="108" stroke="#46af8f" stroke-width="0.6" opacity="0.6"/>
+                    <!-- Vertical dimension line -->
+                    <line x1="36" y1="149" x2="36" y2="112" stroke="#46af8f" stroke-width="0.8"
+                          marker-start="url(#arr-teal-s)" marker-end="url(#arr-teal-e)"/>
+                    <!-- Label -->
+                    <text x="30" y="127" font-family="sans-serif" font-size="8"
+                          fill="#46af8f" text-anchor="end" font-weight="bold">Rabbet</text>
+                    <text x="30" y="137" font-family="sans-serif" font-size="8"
+                          fill="#46af8f" text-anchor="end" font-weight="bold">3/8"</text>
+
+                    <!-- Content area label (dogleg to right, orange to match main diagram) -->
+                    <line x1="175" y1="153" x2="185" y2="153" stroke="#f8961e" stroke-width="0.5" opacity="0.5"/>
+                    <line x1="185" y1="153" x2="192" y2="143" stroke="#f8961e" stroke-width="0.5" opacity="0.5"/>
+                    <text x="194" y="142" font-family="sans-serif" font-size="7"
+                          fill="#f8961e" font-weight="bold" opacity="0.8">matboard</text>
+                    <text x="194" y="150" font-family="sans-serif" font-size="7"
+                          fill="#f8961e" font-weight="bold" opacity="0.8">edge</text>
+                </g>
+            </g>
+
+            <!-- Shadow filter for inset box -->
+            <defs>
+                <filter id="shadow" x="-5%" y="-5%" width="115%" height="115%">
+                    <feDropShadow dx="1" dy="1" stdDeviation="3" flood-opacity="0.15"/>
+                </filter>
+            </defs>
+        </svg>
+
+        <div class="info" style="margin-top: 16px; font-size: 12px; color: #888;">
+            <strong>Layout notes:</strong><br>
+            • Corner detail scoped to <strong>frame edge only</strong> — frame outer, content area (matboard edge), frame inner<br>
+            • High zoom (120 px/inch vs 35 px/inch plan view) makes frame layers clearly distinguishable<br>
+            • Callouts: frame material width + rabbet depth — the two measurements that merge at normal zoom<br>
+            • Mat/artwork dimensions stay on the main plan view where they're already readable<br>
+            • Mat width callout relocated to bottom-right to make room for the inset<br>
+            • <strong>No-mat variant:</strong> overlap zone, content line, and label switch from orange to Willow Green (#90be6d), label becomes "artwork edge". Rabbet callout stays teal.
+        </div>
+    </div>
+</body>
+</html>

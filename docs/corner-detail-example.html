@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corner Detail View Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 900px;
+            width: 100%;
+        }
+        h1 { color: #333; font-size: 22px; margin: 0 0 8px 0; }
+        h2 { color: #555; font-size: 16px; margin: 16px 0 8px 0; }
+        .info { color: #666; font-size: 14px; margin-bottom: 16px; line-height: 1.5; }
+        .specs {
+            background: #f9f9f9; padding: 12px; border-radius: 4px;
+            font-size: 13px; color: #555; margin-bottom: 16px;
+        }
+        .specs strong { color: #333; }
+        .diagram-row {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+        .diagram-panel {
+            flex: 1;
+            min-width: 320px;
+        }
+        .diagram-panel h2 { text-align: center; }
+        svg { border: 1px solid #ddd; border-radius: 4px; background: #ffffff; display: block; margin: 0 auto; }
+        .legend {
+            display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px;
+            justify-content: center; font-size: 12px; color: #555;
+        }
+        .legend-item {
+            display: flex; align-items: center; gap: 4px;
+        }
+        .legend-swatch {
+            width: 20px; height: 3px; border-radius: 1px;
+        }
+        .legend-swatch.dashed {
+            background: repeating-linear-gradient(
+                90deg, currentColor 0px, currentColor 4px, transparent 4px, transparent 7px
+            );
+            height: 2px;
+        }
+        .legend-zone {
+            width: 16px; height: 12px; border-radius: 2px; border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Corner Detail View</h1>
+        <div class="info">
+            A zoomed-in view of one corner showing all frame layers clearly.
+            This solves the problem of large frames where nested rectangles merge together at normal zoom.
+        </div>
+
+        <div class="specs">
+            <strong>Frame:</strong> 8" x 12" artwork, 2" mat, 0.75" frame, 0.375" rabbet, 0.125" mat overlap
+        </div>
+
+        <div class="diagram-row">
+            <!-- Full plan view (small, for context) -->
+            <div class="diagram-panel">
+                <h2>Full Plan View</h2>
+                <!-- Scale: ~18 px/inch to fit in 320px width -->
+                <!-- Outside: 17.25" x 13.25" → 310 x 238 px -->
+                <svg viewBox="-5 -5 330 260" width="330" height="260" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Frame outer -->
+                    <rect x="0" y="0" width="310" height="238"
+                          stroke="#333" stroke-width="2.5" fill="none"/>
+                    <!-- Frame inner (visible opening) -->
+                    <rect x="13.5" y="13.5" width="283" height="211.5"
+                          stroke="#333" stroke-width="2.5" fill="none"/>
+                    <!-- Content area / matboard edge -->
+                    <rect x="6.75" y="6.75" width="296.5" height="225"
+                          stroke="#46af8f" stroke-width="0.5" stroke-dasharray="6,3"
+                          fill="none" opacity="0.5"/>
+                    <!-- Mat opening -->
+                    <rect x="49.5" y="49.5" width="211.5" height="139.5"
+                          stroke="#333" stroke-width="1.5" fill="none"/>
+                    <!-- Artwork boundary -->
+                    <rect x="47.25" y="47.25" width="216" height="144"
+                          stroke="#f8961e" stroke-width="0.5" stroke-dasharray="4,2"
+                          fill="none" opacity="0.6"/>
+
+                    <!-- Corner detail indicator box -->
+                    <rect x="-2" y="-2" width="72" height="72"
+                          stroke="#f94144" stroke-width="1.5" fill="none"
+                          stroke-dasharray="4,3" opacity="0.8"/>
+                    <text x="36" y="82" font-family="sans-serif" font-size="10"
+                          fill="#f94144" text-anchor="middle" font-weight="bold">Detail</text>
+                </svg>
+            </div>
+
+            <!-- Corner detail (zoomed in) -->
+            <div class="diagram-panel">
+                <h2>Corner Detail (Top-Left)</h2>
+                <!--
+                    Scale: 80 px/inch (4x the full view)
+                    Showing approx 4" x 4" of the top-left corner
+
+                    Layers from outside to inside (at top-left corner):
+                    - Frame outer:     x=0,    y=0       (0")
+                    - Content area:    x=30,   y=30      (0.375" = rabbet width from outer - frame width + rabbet)
+                    - Frame inner:     x=60,   y=60      (0.75" = frame material width)
+                    - Mat opening:     x=220,  y=220     (2.75" = frame_width + mat_visible_width)
+                    - Artwork:         x=210,  y=210     (2.625" = mat_opening - mat_overlap)
+
+                    At 80px/inch:
+                    - Frame outer:     (0, 0)
+                    - Content area:    (30, 30)        [0.375" × 80]
+                    - Frame inner:     (60, 60)        [0.75" × 80]
+                    - Mat opening:     (220, 220)      [2.75" × 80]
+                    - Artwork:         (210, 210)      [2.625" × 80]
+                -->
+                <svg viewBox="-20 -30 440 360" width="440" height="360" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Arrow markers (one pair per color for consistent styling) -->
+                    <defs>
+                        <!-- Blue Slate (frame dimensions) -->
+                        <marker id="arr-blue-s" markerWidth="6" markerHeight="4"
+                                refX="6" refY="2" orient="auto" markerUnits="strokeWidth">
+                            <polygon points="0,2 6,0 6,4" fill="#577590"/>
+                        </marker>
+                        <marker id="arr-blue-e" markerWidth="6" markerHeight="4"
+                                refX="0" refY="2" orient="auto" markerUnits="strokeWidth">
+                            <polygon points="0,0 6,2 0,4" fill="#577590"/>
+                        </marker>
+                        <!-- Seaweed (rabbet) -->
+                        <marker id="arr-teal-s" markerWidth="6" markerHeight="4"
+                                refX="6" refY="2" orient="auto" markerUnits="strokeWidth">
+                            <polygon points="0,2 6,0 6,4" fill="#46af8f"/>
+                        </marker>
+                        <marker id="arr-teal-e" markerWidth="6" markerHeight="4"
+                                refX="0" refY="2" orient="auto" markerUnits="strokeWidth">
+                            <polygon points="0,0 6,2 0,4" fill="#46af8f"/>
+                        </marker>
+                        <!-- Atomic Tangerine (mat dimensions) -->
+                        <marker id="arr-mat-s" markerWidth="6" markerHeight="4"
+                                refX="6" refY="2" orient="auto" markerUnits="strokeWidth">
+                            <polygon points="0,2 6,0 6,4" fill="#f3722c"/>
+                        </marker>
+                        <marker id="arr-mat-e" markerWidth="6" markerHeight="4"
+                                refX="0" refY="2" orient="auto" markerUnits="strokeWidth">
+                            <polygon points="0,0 6,2 0,4" fill="#f3722c"/>
+                        </marker>
+                        <!-- Carrot Orange (artwork/overlap) -->
+                        <marker id="arr-art-s" markerWidth="6" markerHeight="4"
+                                refX="6" refY="2" orient="auto" markerUnits="strokeWidth">
+                            <polygon points="0,2 6,0 6,4" fill="#f8961e"/>
+                        </marker>
+                        <marker id="arr-art-e" markerWidth="6" markerHeight="4"
+                                refX="0" refY="2" orient="auto" markerUnits="strokeWidth">
+                            <polygon points="0,0 6,2 0,4" fill="#f8961e"/>
+                        </marker>
+                    </defs>
+
+                    <!-- ZONES (filled areas showing overlaps) -->
+
+                    <!-- Frame material zone (between outer and inner) -->
+                    <path d="M0,0 h320 v320 h-320 Z M60,60 v260 h260 v-260 Z"
+                          fill="#8B6914" fill-opacity="0.08" fill-rule="evenodd"/>
+
+                    <!-- Rabbet overlap zone (between frame inner and content area) -->
+                    <path d="M30,30 h290 v290 h-290 Z M60,60 v260 h260 v-260 Z"
+                          fill="#46af8f" fill-opacity="0.12" fill-rule="evenodd"/>
+
+                    <!-- Mat/artwork overlap zone (between artwork and mat opening) -->
+                    <path d="M210,210 h110 v110 h-110 Z M220,220 v100 h100 v-100 Z"
+                          fill="#888888" fill-opacity="0.12" fill-rule="evenodd"/>
+
+                    <!-- LINES -->
+
+                    <!-- Frame outer (thickest) -->
+                    <line x1="0" y1="0" x2="320" y2="0" stroke="#333" stroke-width="2.5"/>
+                    <line x1="0" y1="0" x2="0" y2="320" stroke="#333" stroke-width="2.5"/>
+
+                    <!-- Content area / matboard edge (dashed, teal) -->
+                    <line x1="30" y1="30" x2="320" y2="30"
+                          stroke="#46af8f" stroke-width="0.8" stroke-dasharray="6,3" opacity="0.6"/>
+                    <line x1="30" y1="30" x2="30" y2="320"
+                          stroke="#46af8f" stroke-width="0.8" stroke-dasharray="6,3" opacity="0.6"/>
+
+                    <!-- Frame inner / visible opening (thick, same as outer) -->
+                    <line x1="60" y1="60" x2="320" y2="60" stroke="#333" stroke-width="2.5"/>
+                    <line x1="60" y1="60" x2="60" y2="320" stroke="#333" stroke-width="2.5"/>
+
+                    <!-- Artwork boundary (dashed, orange) -->
+                    <line x1="210" y1="210" x2="320" y2="210"
+                          stroke="#f8961e" stroke-width="1.0" stroke-dasharray="4,2" opacity="0.7"/>
+                    <line x1="210" y1="210" x2="210" y2="320"
+                          stroke="#f8961e" stroke-width="1.0" stroke-dasharray="4,2" opacity="0.7"/>
+
+                    <!-- Mat opening (medium weight) -->
+                    <line x1="220" y1="220" x2="320" y2="220" stroke="#333" stroke-width="1.5"/>
+                    <line x1="220" y1="220" x2="220" y2="320" stroke="#333" stroke-width="1.5"/>
+
+                    <!-- DIMENSION ANNOTATIONS (all with consistent extension lines + arrowheads) -->
+
+                    <!-- Frame material width: 0.75" (between outer and inner) -->
+                    <line x1="0" y1="0" x2="0" y2="-14" stroke="#577590" stroke-width="0.6" opacity="0.7"/>
+                    <line x1="60" y1="0" x2="60" y2="-14" stroke="#577590" stroke-width="0.6" opacity="0.7"/>
+                    <line x1="4" y1="-10" x2="56" y2="-10" stroke="#577590" stroke-width="0.7"
+                          marker-start="url(#arr-blue-s)" marker-end="url(#arr-blue-e)"/>
+                    <text x="30" y="-14" font-family="sans-serif" font-size="9"
+                          fill="#577590" text-anchor="middle" font-weight="bold">Frame: 3/4"</text>
+
+                    <!-- Rabbet width: 0.375" (between content area and frame inner) -->
+                    <line x1="30" y1="30" x2="30" y2="20" stroke="#46af8f" stroke-width="0.6" opacity="0.7"/>
+                    <line x1="60" y1="30" x2="60" y2="20" stroke="#46af8f" stroke-width="0.6" opacity="0.7"/>
+                    <line x1="34" y1="24" x2="56" y2="24" stroke="#46af8f" stroke-width="0.7"
+                          marker-start="url(#arr-teal-s)" marker-end="url(#arr-teal-e)"/>
+                    <text x="45" y="18" font-family="sans-serif" font-size="8"
+                          fill="#46af8f" text-anchor="middle" font-weight="bold">Rabbet: 3/8"</text>
+
+                    <!-- Mat visible width: 2" (between frame inner and mat opening) -->
+                    <line x1="60" y1="60" x2="60" y2="72" stroke="#f3722c" stroke-width="0.6" opacity="0.7"/>
+                    <line x1="220" y1="60" x2="220" y2="72" stroke="#f3722c" stroke-width="0.6" opacity="0.7"/>
+                    <line x1="64" y1="68" x2="216" y2="68" stroke="#f3722c" stroke-width="0.7"
+                          marker-start="url(#arr-mat-s)" marker-end="url(#arr-mat-e)"/>
+                    <text x="140" y="79" font-family="sans-serif" font-size="9"
+                          fill="#f3722c" text-anchor="middle" font-weight="bold">Mat visible: 2"</text>
+
+                    <!-- Mat overlap: 0.125" (between artwork and mat opening) -->
+                    <line x1="210" y1="220" x2="210" y2="248" stroke="#f8961e" stroke-width="0.6" opacity="0.7"/>
+                    <line x1="220" y1="220" x2="220" y2="248" stroke="#f8961e" stroke-width="0.6" opacity="0.7"/>
+                    <line x1="210" y1="244" x2="220" y2="244" stroke="#f8961e" stroke-width="0.7"
+                          marker-start="url(#arr-art-s)" marker-end="url(#arr-art-e)"/>
+                    <text x="215" y="260" font-family="sans-serif" font-size="9"
+                          fill="#f8961e" text-anchor="middle" font-weight="bold">Mat overlap: 1/8"</text>
+
+                    <!-- Layer labels (right side, with leader lines) -->
+                    <g font-family="sans-serif" font-size="9">
+                        <!-- Frame outer label -->
+                        <line x1="290" y1="0" x2="330" y2="0" stroke="#333" stroke-width="0.5" opacity="0.4"/>
+                        <line x1="330" y1="0" x2="340" y2="8" stroke="#333" stroke-width="0.5" opacity="0.4"/>
+                        <text x="344" y="11" fill="#333" font-weight="bold">Frame outer</text>
+
+                        <!-- Content area label -->
+                        <line x1="290" y1="30" x2="330" y2="30" stroke="#46af8f" stroke-width="0.5" opacity="0.4"/>
+                        <line x1="330" y1="30" x2="340" y2="30" stroke="#46af8f" stroke-width="0.5" opacity="0.4"/>
+                        <text x="344" y="33" fill="#46af8f" font-weight="bold">Matboard edge</text>
+
+                        <!-- Frame inner label -->
+                        <line x1="290" y1="60" x2="330" y2="60" stroke="#333" stroke-width="0.5" opacity="0.4"/>
+                        <line x1="330" y1="60" x2="340" y2="55" stroke="#333" stroke-width="0.5" opacity="0.4"/>
+                        <text x="344" y="58" fill="#333" font-weight="bold">Visible opening</text>
+
+                        <!-- Artwork label -->
+                        <line x1="290" y1="210" x2="330" y2="210" stroke="#f8961e" stroke-width="0.5" opacity="0.4"/>
+                        <line x1="330" y1="210" x2="340" y2="205" stroke="#f8961e" stroke-width="0.5" opacity="0.4"/>
+                        <text x="344" y="208" fill="#f8961e" font-weight="bold">Artwork edge</text>
+
+                        <!-- Mat opening label -->
+                        <line x1="290" y1="220" x2="330" y2="220" stroke="#333" stroke-width="0.5" opacity="0.4"/>
+                        <line x1="330" y1="220" x2="340" y2="225" stroke="#333" stroke-width="0.5" opacity="0.4"/>
+                        <text x="344" y="228" fill="#333" font-weight="bold">Mat opening</text>
+                    </g>
+                </svg>
+
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-swatch" style="background: #333; height: 3px;"></div>
+                        <span>Frame edges</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-swatch dashed" style="color: #46af8f;"></div>
+                        <span>Matboard edge</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-swatch dashed" style="color: #f8961e;"></div>
+                        <span>Artwork edge</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-zone" style="background: rgba(139,105,20,0.08);"></div>
+                        <span>Frame material</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-zone" style="background: rgba(70,175,143,0.12);"></div>
+                        <span>Rabbet overlap</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-zone" style="background: rgba(136,136,136,0.12);"></div>
+                        <span>Mat overlap</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info" style="margin-top: 20px; font-size: 12px; color: #888;">
+            <strong>Purpose:</strong> For large frames (e.g., 150" x 225"), the nested rectangles in the full plan view
+            merge into a single thick line. This corner detail view shows the layer relationships clearly regardless
+            of frame size, since it uses a fixed zoom level focused on the corner geometry.
+        </div>
+    </div>
+</body>
+</html>
