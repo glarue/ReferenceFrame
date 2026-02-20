@@ -400,17 +400,24 @@ impl PlanViewGeometry {
         // Per-axis: which dimensions are geometrically extreme?
         // Only axes where the band is a tiny fraction of outer need compression.
         const AXIS_BREAK_RATIO: f64 = 0.025;
+        const FORCE_BREAK_RATIO: f64 = 0.010; // ~1%: override user pref at extreme ratios
         let needs_break_x = frame_outer_width > 0.0
             && frame_band / frame_outer_width < AXIS_BREAK_RATIO;
         let needs_break_y = frame_outer_height > 0.0
             && frame_band / frame_outer_height < AXIS_BREAK_RATIO;
+
+        let force_break_x = frame_outer_width > 0.0
+            && frame_band / frame_outer_width < FORCE_BREAK_RATIO;
+        let force_break_y = frame_outer_height > 0.0
+            && frame_band / frame_outer_height < FORCE_BREAK_RATIO;
+        let force_breaks = force_break_x || force_break_y;
 
         let needs_corner_detail = detail_ratio > CORNER_STROKE_RATIO;
         let needs_breaks = needs_break_x || needs_break_y;
 
         // DetailMode + feature flags control whether we use axis breaks or corner detail
         let use_breaks = match detail_mode {
-            DetailMode::Auto => needs_breaks && axis_breaks_enabled,
+            DetailMode::Auto => (needs_breaks && axis_breaks_enabled) || force_breaks,
             DetailMode::None => false,
         };
 
@@ -422,7 +429,7 @@ impl PlanViewGeometry {
         };
 
         let (use_break_x, use_break_y) = if use_breaks {
-            (needs_break_x, needs_break_y)
+            (needs_break_x || force_break_x, needs_break_y || force_break_y)
         } else {
             (false, false)
         };
@@ -1049,19 +1056,34 @@ impl PlanViewGeometry {
         // frame_outer.left() + box_w * 0.15 — symmetrically 15% inside the frame,
         // matching the overlap fraction and scaling consistently with box size.
         let margin = 3.0;
-        let box_x = geo.frame_outer.left() - box_w * 0.15;
+        let mut box_x = geo.frame_outer.left() - box_w * 0.15;
 
-        // Y position: axis-break uses artwork-center blend (keeps box above thumbnail row).
-        // Standard path uses 85% overlap — box extends 15% of box_h below frame_outer.bottom(),
-        // matching the 15% rule applied to the left edge (box_x extends 15% of box_w left).
+        // Y position: box should overlap the bottom-left corner of the frame.
+        // Standard formula: frame_outer.bottom() is always inside the box (0 < 0.85 < 1).
+        // For axis-break frames, blend toward artwork center to push the box lower
+        // (more bottom-anchored) when space allows. But clamp at standard_y so the box
+        // never rises above the frame bottom — for tall portrait frames the blend would
+        // otherwise place the box in the middle of the frame, not at the corner.
+        let standard_y = geo.frame_outer.bottom() - box_h * 0.85;
         let artwork_center_y = geo.artwork.y + geo.artwork.height / 2.0;
         let box_y = if geo.use_axis_break_x || geo.use_axis_break_y {
             let center_weight = 0.65;
             let anchor_y = artwork_center_y * center_weight + geo.frame_outer.bottom() * (1.0 - center_weight);
-            anchor_y + margin
+            (anchor_y + margin).max(standard_y)
         } else {
-            geo.frame_outer.bottom() - box_h * 0.85
+            standard_y
         };
+
+        // Shift box left if it would overlap the mat cut callout region.
+        // mat_opening.right() is the left boundary of the right-side mat cut annotation.
+        // Floor: don't go further left than one full box-width past the frame edge.
+        if let Some(mat_opening) = &geo.mat_opening {
+            let gap = 4.0;
+            if box_x + box_w > mat_opening.right() {
+                let left_limit = geo.frame_outer.left() - box_w;
+                box_x = (mat_opening.right() - box_w - gap).max(left_limit);
+            }
+        }
 
         // Detail scale: zoom out so frame band is ~21% of box width.
         // Smaller ratio = frame material drawn thinner = more room for labels,

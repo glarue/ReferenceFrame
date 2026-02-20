@@ -664,13 +664,13 @@ fn generate_combined_view(
     style: &DiagramStyle,
 ) -> DiagramResult {
     // Vertical stacking: plan view (top), section view (bottom)
-    let gap_between_views = 30.0;
+    const MIN_GAP: f64 = 30.0; // minimum inter-view gap, always preserved
 
     // Account for title block height if present
     let title_height = if options.include_title_block { 95.0 } else { 0.0 };
 
-    // Available height budget (gap and title reserved)
-    let available_height = options.canvas_height - gap_between_views - title_height;
+    // Available height budget (minimum gap and title reserved)
+    let available_height = options.canvas_height - MIN_GAP - title_height;
 
     // Initial rough split used only to generate the SVG content.
     // The actual zone heights are derived from viewBox aspect ratios below.
@@ -718,14 +718,19 @@ fn generate_combined_view(
             let section_natural = options.canvas_width * svh / svw;
 
             if plan_natural + section_natural <= available_height {
-                // Both fit at natural height — no side whitespace anywhere
-                (plan_natural, section_natural)
+                // Plan gets its natural height; section stays near its historical size.
+                // Excess space becomes a larger inter-view gap rather than stretching either zone.
+                const SECTION_SCALE_CAP: f64 = 1.05; // section ≤ 5% above its init height
+                const SECTION_SCALE_FLOOR: f64 = 0.70; // section ≥ 70% of init height (readability)
+                let section_h = section_natural
+                    .min(section_height_init * SECTION_SCALE_CAP)
+                    .max(section_height_init * SECTION_SCALE_FLOOR);
+                (plan_natural, section_h)
             } else {
-                // Scale both proportionally, but keep section ≥ 70% natural so legend stays readable
-                let scale = available_height / (plan_natural + section_natural);
-                let section_h = (section_natural * scale)
-                    .max(section_natural * 0.70)
-                    .min(available_height * 0.50);
+                // Section gets its full natural height (fills canvas_width); plan gets the rest.
+                // Section content is roughly constant across frame sizes, so a hard floor at
+                // section_natural prevents it from being horizontally squished on portrait frames.
+                let section_h = section_natural.min(available_height * 0.50);
                 let plan_h = (available_height - section_h).max(available_height * 0.25);
                 (plan_h, section_h)
             }
@@ -748,6 +753,21 @@ fn generate_combined_view(
     };
     let plan_viewbox = extract_viewbox(&plan_result.svg);
 
+    // Width-limited plan height: the height at which the plan fills canvas_width exactly.
+    // The final render's viewBox may have a different aspect ratio than the probe used to
+    // compute plan_zone_h, which would leave horizontal margins. Recompute from actual viewBox.
+    let plan_render_h = match plan_viewbox {
+        Some((_, _, pvw, pvh)) if pvw > 0.0 => {
+            let h = pvh * options.canvas_width / pvw;
+            // Cap so combined views leave at least MIN_GAP
+            h.min(available_height - section_zone_h)
+        }
+        _ => plan_zone_h,
+    };
+
+    // Dynamic gap: absorbs leftover space so combined SVG fills the canvas height.
+    let gap_between_views = MIN_GAP + (available_height - plan_render_h - section_zone_h).max(0.0);
+
     let section_result = if (section_zone_h - section_height_init).abs() > 5.0 {
         let section_options_final = DiagramOptions {
             view: ViewOption::SectionOnly,
@@ -761,7 +781,7 @@ fn generate_combined_view(
     let section_viewbox = extract_viewbox(&section_result.svg);
 
     // Combined SVG height matches actual content — eliminates dead space at bottom
-    let combined_h = title_height + plan_zone_h + gap_between_views + section_zone_h;
+    let combined_h = title_height + plan_render_h + gap_between_views + section_zone_h;
 
     let mut svg = String::new();
     svg.push_str(&format!(
@@ -774,12 +794,13 @@ fn generate_combined_view(
         svg.push_str(&generate_title_block(design, options, style));
     }
 
-    // Plan view — horizontally centered on the frame body, not the viewBox midpoint
+    // Plan view — center on frame body when height-limited (portrait frames);
+    // when width-limited (landscape), offset_x clamps to 0 so frame_center_x is a no-op.
     let plan_content = extract_svg_content(&plan_result.svg);
     if let Some((vx, vy, vw, vh)) = plan_viewbox {
         let (tx, ty, scale) = calculate_fit_transform(
             vx, vy, vw, vh,
-            0.0, title_height, options.canvas_width, plan_zone_h,
+            0.0, title_height, options.canvas_width, plan_render_h,
             true,
             plan_result.frame_center_x,
         );
@@ -793,7 +814,7 @@ fn generate_combined_view(
     svg.push('\n');
 
     // Section view — viewBox-centered (section is symmetric, frame center not needed)
-    let section_y = title_height + plan_zone_h + gap_between_views;
+    let section_y = title_height + plan_render_h + gap_between_views;
     let section_content = extract_svg_content(&section_result.svg);
     if let Some((vx, vy, vw, vh)) = section_viewbox {
         let (tx, ty, scale) = calculate_fit_transform(
@@ -1004,7 +1025,7 @@ fn render_corner_detail(
 
     // 1. Frame width: horizontal dimension between outer and inner, below the corner
     let frame_label = format!("Frame: {}", fmt(design.frame_material_width));
-    let fw_dim_y = cy + 12.0; // dimension line position below corner
+    let fw_dim_y = cy + (frame_w * 0.45).clamp(7.0, 16.0); // dimension line position below corner
     let fw_arrow = DimensionArrow::new(cx, cx + frame_w, fw_dim_y, true)
         .color(&style.outside_dimension_color)
         .extension(cy, 2.0)
@@ -1014,7 +1035,7 @@ fn render_corner_detail(
     svg.push_str(&fw_arrow.render());
 
     // 2. Rabbet: vertical dimension between content area and inner, left side
-    let rb_dim_x = cx - 6.0; // dimension line position left of corner
+    let rb_dim_x = cx - (frame_w * 0.22).clamp(3.0, 9.0); // dimension line position left of corner
     let rb_arrow = DimensionArrow::new(ci_y, fi_y, rb_dim_x, false)
         .color(&style.inside_dimension_color)
         .extension(ci_x, -2.0) // extension lines go leftward from geometry
@@ -1148,8 +1169,9 @@ fn build_plan_svg(
                 Side::Left => max_left,
             };
             let is_outermost = callout.offset_level == max_for_side;
-            let is_two_line = (!is_horizontal_dim || is_outermost)
-                && callout.callout.label.contains(": ");
+            let is_mat_cut_dim = matches!(callout.callout.dimension_type,
+                crate::visualization::DimensionType::MatCutWidth | crate::visualization::DimensionType::MatCutHeight);
+            let is_two_line = !is_mat_cut_dim && callout.callout.label.contains(": ");
 
             let label_text_width = if is_two_line {
                 if let Some(pos) = callout.callout.label.find(": ") {
@@ -3231,7 +3253,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     let label = &callout.callout.label;
     let is_mat_cut = matches!(callout.callout.dimension_type,
         crate::visualization::DimensionType::MatCutWidth | super::types::DimensionType::MatCutHeight);
-    let can_split = !is_horizontal || is_outermost;
+    let can_split = !is_mat_cut;
     let two_line: Option<(&str, &str)> = if can_split {
         label.find(": ").map(|pos| {
             (&label[..pos + 1], label[pos + 2..].trim_start())
@@ -3435,7 +3457,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
             let fs = style.label_font_size;
             let (line1_x, line2_x) = if is_outermost {
                 match callout.actual_side {
-                    Side::Right => (label_x,                    label_x + (fs + line_gap)),
+                    Side::Right => (label_x + (fs + line_gap), label_x),
                     Side::Left  => (label_x - (fs + line_gap),  label_x),
                     _           => (label_x - half_line_offset, label_x + half_line_offset),
                 }
