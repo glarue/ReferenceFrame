@@ -568,6 +568,28 @@ impl PlanViewGeometry {
             }
         }
 
+        // Label-fit aspect ratio cap: ensure the compressed frame is never so narrow that
+        // horizontal labels can't fit comfortably. Unlike the true-ratio cap above (which
+        // only prevents the display from being MORE extreme than the real frame), this hard
+        // limit caps the visual ratio at MAX_VISUAL_ASPECT_RATIO regardless of frame shape.
+        // Extra canvas space around a capped frame is preferable to unreadably thin rendering.
+        const MAX_VISUAL_ASPECT_RATIO: f64 = 3.0;
+        {
+            let disp_w = non_artwork_w + display_artwork_w;
+            let disp_h = non_artwork_h + display_artwork_h;
+            if disp_h > disp_w * MAX_VISUAL_ASPECT_RATIO {
+                // Portrait: height too tall — compress it
+                let target_h = disp_w * MAX_VISUAL_ASPECT_RATIO;
+                display_artwork_h = (target_h - non_artwork_h).max(min_display);
+                use_break_y = display_artwork_h < design.artwork_height;
+            } else if disp_w > disp_h * MAX_VISUAL_ASPECT_RATIO {
+                // Landscape: width too wide — compress it
+                let target_w = disp_h * MAX_VISUAL_ASPECT_RATIO;
+                display_artwork_w = (target_w - non_artwork_w).max(min_display);
+                use_break_x = display_artwork_w < design.artwork_width;
+            }
+        }
+
         // If break computation determined everything fits uncompressed,
         // fall back to the standard path which can still apply corner detail.
         if !use_break_x && !use_break_y {
@@ -1047,7 +1069,11 @@ impl PlanViewGeometry {
         // Also cap relative to rendered frame size so the box doesn't dominate a
         // small frame (e.g. PDF combined view where plan canvas height is limited).
         let target_w = canvas_width * 0.30;
-        let frame_cap = geo.frame_outer.width.min(geo.frame_outer.height) * 0.80;
+        // Use max (not min) so that extreme AR frames, where the short rendered dimension
+        // is very small due to scale, don't shrink the corner detail to the 80px minimum.
+        // The canvas_width * 0.30 target already keeps the box proportional to the viewport;
+        // frame_cap just prevents it from dominating an actually small canvas (PDF combined view).
+        let frame_cap = geo.frame_outer.width.max(geo.frame_outer.height) * 0.80;
         let box_w = (target_w.min(frame_cap)).clamp(80.0, 213.0);
         let box_h = box_w / 1.15; // maintain aspect ratio (~245/235 from reference)
 

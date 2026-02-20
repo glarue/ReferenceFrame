@@ -1734,21 +1734,15 @@ fn build_plan_svg(
         svg.push('\n');
 
         // Draw text SECOND (so it appears on top)
-        // text-anchor="middle" ensures horizontal centering at artwork_center.x
-        // dominant-baseline="middle" ensures vertical centering at artwork_center.y
-        //
-        // KNOWN ISSUE: svg2pdf.js ignores dominant-baseline, causing text to sit above the line
-        // instead of being bisected by it in PDF exports. The proper fix would be to offset the
-        // y-coordinate by ~0.35em (half the text height), but this requires either:
-        //   1. Font metrics library (ttf-parser) - adds dependencies, requires bundling fonts
-        //   2. JavaScript post-processing - adds complexity, fragile
-        //   3. Hardcoded font-specific metrics - breaks with font fallbacks
-        //
-        // DECISION: Accept imperfect PDF rendering rather than engineering complexity.
-        // The browser rendering is correct, and the PDF issue is a minor aesthetic imperfection.
+        // text-anchor="middle" for horizontal centering. For vertical centering we avoid
+        // dominant-baseline="middle" (WebKit/Safari support is unreliable) and instead shift
+        // the baseline down by ~0.35em (half the typical cap height). This places the visual
+        // center of the glyphs at artwork_center_y, matching the background rect, and also
+        // works correctly in svg2pdf.js (which ignores dominant-baseline entirely).
+        let text_y = artwork_center_y + style.label_font_size * 0.35;
         svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{:.2}px" text-anchor="middle" dominant-baseline="middle">{}</text>"#,
-            artwork_center.x, artwork_center_y,
+            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{:.2}px" text-anchor="middle">{}</text>"#,
+            artwork_center.x, text_y,
             artwork_indicator_color, style.font_family, style.label_font_size,
             html_escape(&artwork_label)
         ));
