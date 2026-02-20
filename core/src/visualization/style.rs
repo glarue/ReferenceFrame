@@ -174,7 +174,7 @@ impl Default for DiagramStyle {
             tick_size: 8.0,
             use_tick_marks: false, // Use arrows instead
             dimension_offset_base: 22.0, // Compact spacing from geometry
-            dimension_offset_step: 24.0, // Must be > 1.6 × label_font_size (= 20.8) for non-outermost centered labels to clear outermost on both horizontal and vertical sides
+            dimension_offset_step: 28.0, // Must be > 1.6 × label_font_size (= 20.8); 28 gives 7.2px gap (was 24 = 3.2px, visually crowded on narrow screens)
 
             // Materials
             material_patterns: MaterialPatterns::default(),
