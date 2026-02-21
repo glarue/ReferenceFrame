@@ -13,6 +13,7 @@ use super::style::{DiagramStyle, FillPattern};
 use super::geometry::{CornerDetailGeometry, PlanViewGeometry, SectionViewGeometry, estimate_text_width};
 use super::callouts::{generate_plan_callouts, generate_section_callouts};
 use super::layout::{layout_plan_callouts, LayoutResult};
+use super::collision::{self, FlexElement, ElementId, FlexRule, Axis};
 
 // ============================================================================
 // VISUAL BOUNDARY HELPERS
@@ -587,7 +588,7 @@ fn generate_plan_view(
     style: &DiagramStyle,
 ) -> DiagramResult {
     // Use preview geometry (scales to artwork) when callouts disabled for stable sizing
-    let geometry = if options.show_callouts {
+    let mut geometry = if options.show_callouts {
         PlanViewGeometry::from_design_with_mode(
             design,
             options.canvas_width,
@@ -596,6 +597,9 @@ fn generate_plan_view(
             options.detail_mode,
             options.corner_detail_enabled,
             options.axis_breaks_enabled,
+            options.unit_mm,
+            options.use_tape_segments,
+            options.use_decimal_display,
         )
     } else {
         PlanViewGeometry::from_design_preview(
@@ -607,7 +611,7 @@ fn generate_plan_view(
     };
 
     // Only generate callouts if requested (default true)
-    let (callouts, layout) = if options.show_callouts {
+    let (callouts, mut layout) = if options.show_callouts {
         let callouts = generate_plan_callouts(design, &geometry, options.unit_mm, options.use_tape_segments, options.use_decimal_display, style);
         let layout = layout_plan_callouts(&callouts, &geometry, style);
         (callouts, layout)
@@ -619,6 +623,10 @@ fn generate_plan_view(
         })
     };
 
+    // Post-layout collision pass: detect and resolve overlaps between
+    // corner detail, arrow stubs, callout labels, and thumbnail.
+    run_collision_pass(&mut geometry, &mut layout, style);
+
     let svg = build_plan_svg(design, &geometry, &callouts, &layout, options, style);
     let frame_center_x = Some(geometry.frame_outer.center().x);
 
@@ -626,6 +634,174 @@ fn generate_plan_view(
         svg,
         warnings: layout.warnings,
         frame_center_x,
+    }
+}
+
+/// Post-layout collision pass: collect positioned elements, detect overlaps,
+/// and shift flexible elements to resolve collisions.
+fn run_collision_pass(
+    geometry: &mut PlanViewGeometry,
+    layout: &mut LayoutResult,
+    style: &DiagramStyle,
+) {
+    let mut elements: Vec<FlexElement> = Vec::new();
+
+    let arrow_tip_size = arrow_geometry::tip_extension(style.dimension_stroke_width);
+    let stub_len = arrow_tip_size * 2.5;
+
+    // Collect arrow stub rects from bottom callouts in tight-space mode
+    for (i, pc) in layout.positioned_callouts.iter().enumerate() {
+        if pc.actual_side != Side::Bottom {
+            continue;
+        }
+        let extent_span = (pc.callout.extent_end.x - pc.callout.extent_start.x).abs();
+        let tight_space = extent_span < arrow_tip_size * 3.0;
+        if !tight_space {
+            continue;
+        }
+
+        // Left stub: extends leftward from extent_start.x
+        let dim_y = pc.dimension_line_position;
+        let stub_height = arrow_tip_size * 2.0; // approximate visual height of arrow
+        elements.push(FlexElement {
+            id: ElementId::ArrowStub { callout: i, side: Side::Left },
+            bounds: Rect::new(
+                pc.callout.extent_start.x - stub_len,
+                dim_y - stub_height / 2.0,
+                stub_len,
+                stub_height,
+            ),
+            flex: FlexRule::None, // stubs are immovable
+            priority: 0,
+        });
+
+        // Right stub: extends rightward from extent_end.x
+        elements.push(FlexElement {
+            id: ElementId::ArrowStub { callout: i, side: Side::Right },
+            bounds: Rect::new(
+                pc.callout.extent_end.x,
+                dim_y - stub_height / 2.0,
+                stub_len,
+                stub_height,
+            ),
+            flex: FlexRule::None,
+            priority: 0,
+        });
+    }
+
+    // Corner detail box (can shift left)
+    if let Some(cd) = &geometry.corner_detail {
+        let max_shift_left = cd.box_rect.x - style.margin;
+        elements.push(FlexElement {
+            id: ElementId::CornerDetail,
+            bounds: cd.box_rect,
+            flex: FlexRule::ShiftAxis {
+                axis: Axis::X,
+                range: (-max_shift_left, 0.0),
+            },
+            priority: 2,
+        });
+    }
+
+    // Callout labels (can shift outward along their side's normal)
+    for (i, pc) in layout.positioned_callouts.iter().enumerate() {
+        let (axis, range) = match pc.actual_side {
+            Side::Top => (Axis::Y, (-style.dimension_offset_step * 3.0, 0.0)),
+            Side::Bottom => (Axis::Y, (0.0, style.dimension_offset_step * 3.0)),
+            Side::Left => (Axis::X, (-style.dimension_offset_step * 3.0, 0.0)),
+            Side::Right => (Axis::X, (0.0, style.dimension_offset_step * 3.0)),
+        };
+        elements.push(FlexElement {
+            id: ElementId::Callout(i),
+            bounds: pc.label_bounds,
+            flex: FlexRule::ShiftAxis { axis, range },
+            priority: 3,
+        });
+    }
+
+    // Thumbnail (can shift in both X and Y, but we use X for simplicity)
+    if let Some(thumb) = &geometry.thumbnail {
+        let max_shift_left = thumb.x - style.margin;
+        let max_shift_right = 50.0; // reasonable upper bound
+        elements.push(FlexElement {
+            id: ElementId::Thumbnail,
+            bounds: *thumb,
+            flex: FlexRule::ShiftAxis {
+                axis: Axis::X,
+                range: (-max_shift_left, max_shift_right),
+            },
+            priority: 4,
+        });
+    }
+
+    if elements.len() < 2 {
+        return;
+    }
+
+    // Run the resolver
+    let adjustments = collision::resolve(&mut elements, 4.0, 4);
+
+    // Apply adjustments
+    let mut corner_detail_dx = 0.0_f64;
+    for adj in &adjustments {
+        match adj.id {
+            ElementId::CornerDetail => {
+                if let Some(cd) = &mut geometry.corner_detail {
+                    corner_detail_dx = adj.new_bounds.x - cd.box_rect.x;
+                    cd.box_rect = adj.new_bounds;
+                    cd.corner_origin.x += corner_detail_dx;
+                    geometry.annotation_bounds.corner_detail_box = Some(adj.new_bounds);
+                }
+            }
+            ElementId::Thumbnail => {
+                if let Some(thumb) = &mut geometry.thumbnail {
+                    let dx = adj.new_bounds.x - thumb.x;
+                    let dy = adj.new_bounds.y - thumb.y;
+                    *thumb = adj.new_bounds;
+                    if let Some(ab) = &mut geometry.annotation_bounds.thumbnail_box {
+                        ab.x += dx;
+                        ab.y += dy;
+                    }
+                }
+            }
+            ElementId::Callout(idx) => {
+                if let Some(pc) = layout.positioned_callouts.get_mut(idx) {
+                    let dx = adj.new_bounds.x - pc.label_bounds.x;
+                    let dy = adj.new_bounds.y - pc.label_bounds.y;
+                    pc.label_bounds = adj.new_bounds;
+                    pc.label_position.x += dx;
+                    pc.label_position.y += dy;
+                    pc.dimension_line_position += dy;
+                }
+            }
+            ElementId::ArrowStub { .. } => {}
+        }
+    }
+
+    // Re-center thumbnail between corner detail and mat cut annotation,
+    // but only when they share the same horizontal band (landscape layout).
+    if let (Some(cd), Some(thumb)) = (&geometry.corner_detail, &geometry.thumbnail) {
+        let v_overlap = thumb.top() < cd.box_rect.bottom() && thumb.bottom() > cd.box_rect.top();
+        if v_overlap {
+            let mat_cut_left = geometry.annotation_bounds.mat_cut_extent.as_ref().map(|(start, _)| start.x);
+            if let Some(mat_left) = mat_cut_left {
+                let corner_right = cd.box_rect.right();
+                let mini_gap = 10.0;
+                let avail = mat_left - corner_right - 2.0 * mini_gap;
+                if avail >= thumb.width {
+                    let new_x = corner_right + mini_gap + (avail - thumb.width) / 2.0;
+                    let dx = new_x - thumb.x;
+                    if dx.abs() > 0.5 {
+                        if let Some(thumb) = &mut geometry.thumbnail {
+                            thumb.x = new_x;
+                        }
+                        if let Some(ab) = &mut geometry.annotation_bounds.thumbnail_box {
+                            ab.x += dx;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1202,32 +1378,11 @@ fn build_plan_svg(
                 min_y = min_y.min(dim_line_pos - label_height);
                 max_y = max_y.max(dim_line_pos + label_height + extra_offset);
                 if matches!(callout.callout.dimension_type, DimensionType::MatCutWidth) {
-                    // Mirror the adaptive anchor logic from svg_dimension so viewBox
-                    // matches actual rendering (center when fits, side-anchor when overflow).
-                    let mid_x = (extent_start.x + extent_end.x) / 2.0;
-                    let on_right = mid_x > geometry.frame_outer.center().x;
-                    let half_w = label_text_width / 2.0;
-                    if on_right {
-                        if mid_x + half_w <= geometry.content_area.right() {
-                            min_x = min_x.min(mid_x - half_w);
-                            max_x = max_x.max(mid_x + half_w);
-                        } else {
-                            // End-anchor: text extends leftward from rightmost extent
-                            let right_x = extent_start.x.max(extent_end.x);
-                            min_x = min_x.min(right_x - label_text_width);
-                            max_x = max_x.max(right_x);
-                        }
-                    } else {
-                        if mid_x - half_w >= geometry.content_area.left() {
-                            min_x = min_x.min(mid_x - half_w);
-                            max_x = max_x.max(mid_x + half_w);
-                        } else {
-                            // Start-anchor: text extends rightward from leftmost extent
-                            let left_x = extent_start.x.min(extent_end.x);
-                            min_x = min_x.min(left_x);
-                            max_x = max_x.max(left_x + label_text_width);
-                        }
-                    }
+                    // Mat cut width rendering always uses text-anchor="start" from
+                    // the leftmost extent point. Match that in the viewBox.
+                    let left_x = extent_start.x.min(extent_end.x);
+                    min_x = min_x.min(left_x);
+                    max_x = max_x.max(left_x + label_text_width);
                 } else {
                     let mid_x = (extent_start.x + extent_end.x) / 2.0;
                     min_x = min_x.min(mid_x - label_text_width / 2.0);
@@ -3471,8 +3626,13 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
                     _           => (label_x - half_line_offset, label_x + half_line_offset),
                 }
             } else {
-                // Non-outermost: center both lines on the dimension line
-                (label_x - half_line_offset, label_x + half_line_offset)
+                // Non-outermost: center both lines on the dimension line,
+                // but keep prefix on the outward side (away from frame).
+                match callout.actual_side {
+                    Side::Right => (label_x + half_line_offset, label_x - half_line_offset),
+                    Side::Left  => (label_x - half_line_offset, label_x + half_line_offset),
+                    _           => (label_x - half_line_offset, label_x + half_line_offset),
+                }
             };
             label_svg.push_str(&format!(
                 r#"      <g transform="rotate(90 {:.2} {:.2})"><text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" dominant-baseline="central">{}</text></g>"#,

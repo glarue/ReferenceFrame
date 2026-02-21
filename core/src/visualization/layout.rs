@@ -192,9 +192,11 @@ fn layout_vertical_side(
         } else {
             style.label_font_size * 1.2
         };
-        // After rotation: text_width becomes screen-vertical, text_height becomes screen-horizontal
+        // After rotation: text_width becomes screen-vertical, text_height becomes screen-horizontal.
+        // Center bounds on dim_line_x (not the offset label_x) because svg_dimension renders
+        // labels centered on the dimension line position, not at the layout's label_x.
         let label_bounds = Rect::new(
-            label_x - text_height / 2.0,
+            dim_line_x - text_height / 2.0,
             label_y - text_width / 2.0,
             text_height,
             text_width,
@@ -233,6 +235,13 @@ fn resolve_collisions(
             if bounds_i.overlaps(&bounds_j) {
                 // Same side collision - try to resolve by adjusting offset
                 if result[i].actual_side == result[j].actual_side {
+                    // Skip pairs already at different offset levels — they're
+                    // intentionally stacked and the overlap is just the
+                    // conservative text_height estimate exceeding offset_step.
+                    if result[i].offset_level != result[j].offset_level {
+                        continue;
+                    }
+
                     // Move the lower priority one further out
                     let (higher_pri, lower_pri) = if result[i].callout.priority <= result[j].callout.priority {
                         (i, j)

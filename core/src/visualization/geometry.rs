@@ -4,7 +4,7 @@
 // handling scaling to fit canvas with proper margins.
 
 use crate::frame::FrameDesign;
-use crate::conversions::{format_value, Unit};
+use crate::conversions::{format_dimension, format_value, Unit};
 use super::types::{AnnotationBounds, DetailMode, Point, Rect, ThumbnailLabelPosition};
 use super::style::DiagramStyle;
 
@@ -354,7 +354,7 @@ impl PlanViewGeometry {
         canvas_height: f64,
         style: &DiagramStyle,
     ) -> Self {
-        Self::from_design_with_mode(design, canvas_width, canvas_height, style, DetailMode::Auto, true, true)
+        Self::from_design_with_mode(design, canvas_width, canvas_height, style, DetailMode::Auto, true, true, false, false, false)
     }
 
     /// Calculate geometry with explicit detail mode and feature flags
@@ -366,12 +366,22 @@ impl PlanViewGeometry {
         detail_mode: DetailMode,
         corner_detail_enabled: bool,
         axis_breaks_enabled: bool,
+        unit_mm: bool,
+        use_tape_segments: bool,
+        use_decimal: bool,
     ) -> Self {
         let (frame_outer_height, frame_outer_width) = design.get_frame_outside_dimensions();
 
-        // Calculate available canvas area (accounting for margins and dimension callouts)
-        let available_width = canvas_width - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
-        let available_height = canvas_height - 2.0 * style.margin - 2.0 * style.dimension_offset_base - 2.0 * style.dimension_offset_step;
+        // Calculate available canvas area (accounting for margins and dimension callouts).
+        // Top and right always have callouts (frame dims); bottom and left only when mat present.
+        let callout_reservation = style.dimension_offset_base + style.dimension_offset_step;
+        let has_mat = design.has_mat();
+        let top_reserve = callout_reservation;
+        let bottom_reserve = if has_mat { callout_reservation } else { style.margin };
+        let right_reserve = callout_reservation;
+        let left_reserve = if has_mat { callout_reservation } else { style.margin };
+        let available_width = canvas_width - 2.0 * style.margin - right_reserve - left_reserve;
+        let available_height = canvas_height - 2.0 * style.margin - top_reserve - bottom_reserve;
 
         // Trial scale per axis: how many pixels per inch at full fit
         let native_scale_x = available_width / frame_outer_width;
@@ -412,7 +422,54 @@ impl PlanViewGeometry {
             && frame_band / frame_outer_width < FORCE_BREAK_RATIO;
         let force_break_y = frame_outer_height > 0.0
             && frame_band / frame_outer_height < FORCE_BREAK_RATIO;
-        let force_breaks = force_break_x || force_break_y;
+
+        // Minimum rendered dimension: if the short side would render too narrow
+        // for callout labels, force a break on the long axis to reclaim space.
+        // Compute the minimum from the actual outside/inside label text widths
+        // (the labels that span the short extent), accounting for two-line split.
+        let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
+        let fmt_dim = |v: f64| format_dimension(v, unit, use_tape_segments, use_decimal);
+        let (inside_h, inside_w) = design.get_frame_inside_dimensions();
+        let fs = style.label_font_size;
+
+        // For width callouts (horizontal, spanning frame width): label text runs
+        // horizontally along the extent. The extent must fit the longest label.
+        let width_labels = [
+            format!("Outside: {}", fmt_dim(frame_outer_width)),
+            format!("Inside: {}", fmt_dim(inside_w)),
+        ];
+        let min_width_px = width_labels.iter().map(|l| {
+            // Two-line labels split at ": " — extent needs to fit the longer part
+            if let Some(pos) = l.find(": ") {
+                let prefix = &l[..pos + 1];
+                let value = l[pos + 2..].trim_start();
+                estimate_text_width(prefix, fs).max(estimate_text_width(value, fs))
+            } else {
+                estimate_text_width(l, fs)
+            }
+        }).fold(0.0_f64, f64::max) + 8.0; // 8px padding for arrowheads
+
+        // For height callouts (vertical, spanning frame height): same logic.
+        let height_labels = [
+            format!("Outside: {}", fmt_dim(frame_outer_height)),
+            format!("Inside: {}", fmt_dim(inside_h)),
+        ];
+        let min_height_px = height_labels.iter().map(|l| {
+            if let Some(pos) = l.find(": ") {
+                let prefix = &l[..pos + 1];
+                let value = l[pos + 2..].trim_start();
+                estimate_text_width(prefix, fs).max(estimate_text_width(value, fs))
+            } else {
+                estimate_text_width(l, fs)
+            }
+        }).fold(0.0_f64, f64::max) + 8.0;
+
+        let scaled_width_native = frame_outer_width * native_scale;
+        let scaled_height_native = frame_outer_height * native_scale;
+        let force_break_x_label = scaled_height_native < min_height_px && frame_outer_width > frame_outer_height * 2.0;
+        let force_break_y_label = scaled_width_native < min_width_px && frame_outer_height > frame_outer_width * 2.0;
+
+        let force_breaks = force_break_x || force_break_y || force_break_x_label || force_break_y_label;
 
         let needs_corner_detail = detail_ratio > CORNER_STROKE_RATIO;
         let needs_breaks = needs_break_x || needs_break_y;
@@ -431,7 +488,8 @@ impl PlanViewGeometry {
         };
 
         let (use_break_x, use_break_y) = if use_breaks {
-            (needs_break_x || force_break_x, needs_break_y || force_break_y)
+            (needs_break_x || force_break_x || force_break_x_label,
+             needs_break_y || force_break_y || force_break_y_label)
         } else {
             (false, false)
         };
@@ -518,14 +576,15 @@ impl PlanViewGeometry {
             )
         };
 
-        // Shared break budget: asymmetric margins (near side = margin only, far side = full
-        // callout stack). Using min(w, h) ensures both orientations of the same artwork see
-        // the identical threshold — rotating portrait↔landscape never changes break behaviour.
+        // Break budget: asymmetric margins (near side = margin only, far side = full
+        // callout stack). For single-axis breaks, use the canvas dimension along the
+        // break axis so landscape frames on portrait screens (and vice versa) get the
+        // space the screen actually offers. For dual-axis breaks, use min(w, h) since
+        // both axes are constrained.
         let break_off_near = style.margin;
         let break_off_far = style.margin + style.dimension_offset_base + style.dimension_offset_step;
-        let break_avail = (canvas_width - break_off_near - break_off_far)
-            .min(canvas_height - break_off_near - break_off_far);
-
+        let break_avail_x = canvas_width - break_off_near - break_off_far;
+        let break_avail_y = canvas_height - break_off_near - break_off_far;
         let (display_artwork_w, display_artwork_h, use_break_x, use_break_y) = match (use_break_x, use_break_y) {
             (true, true) => {
                 // Both axes break: uniform compression preserves aspect ratio
@@ -533,9 +592,10 @@ impl PlanViewGeometry {
                 (dw, dh, dw < design.artwork_width, dh < design.artwork_height)
             }
             (true, false) => {
-                // Only X breaks: show maximum X artwork at min_scale.
+                // Only X breaks: use canvas width (not min) so landscape frames
+                // on portrait screens preserve their wider proportions.
                 let dh = design.artwork_height;
-                let max_fits = (break_avail / min_scale - non_artwork_w).max(min_display);
+                let max_fits = (break_avail_x / min_scale - non_artwork_w).max(min_display);
                 let dw = max_fits.min(design.artwork_width);
                 // Floor dw so display stays landscape (same orientation as true frame)
                 let min_dw = (non_artwork_h + dh - non_artwork_w).max(min_display);
@@ -543,9 +603,10 @@ impl PlanViewGeometry {
                 (dw, dh, dw < design.artwork_width, false)
             }
             (false, true) => {
-                // Only Y breaks: show maximum Y artwork at min_scale.
+                // Only Y breaks: use canvas height (not min) so portrait frames
+                // on landscape screens preserve their taller proportions.
                 let dw = design.artwork_width;
-                let max_fits = (break_avail / min_scale - non_artwork_h).max(min_display);
+                let max_fits = (break_avail_y / min_scale - non_artwork_h).max(min_display);
                 let dh = max_fits.min(design.artwork_height);
                 // Floor dh so display stays portrait (same orientation as true frame)
                 let min_dh = (non_artwork_w + dw - non_artwork_h).max(min_display);
@@ -722,6 +783,59 @@ impl PlanViewGeometry {
         // Display outer = actual_outer - actual_artwork + display_artwork
         let display_outer_w = frame_outer_width - design.artwork_width + display_artwork_w;
         let display_outer_h = frame_outer_height - design.artwork_height + display_artwork_h;
+
+        // Marginal break guard (single-axis only): if the break barely compresses
+        // the frame, the break gap (8px) can make the visual aspect ratio as extreme
+        // as (or more than) the actual frame. Skip the break when the rendered AR
+        // wouldn't improve over the true AR by at least 10%.
+        // Dual-axis breaks always compress meaningfully (both axes are extreme).
+        let is_single_axis = use_break_x != use_break_y;
+        {
+            let actual_ar = (frame_outer_width / frame_outer_height)
+                .max(frame_outer_height / frame_outer_width);
+            let display_ar = (display_outer_w / display_outer_h)
+                .max(display_outer_h / display_outer_w);
+            if is_single_axis && display_ar > actual_ar * 0.90 {
+                // Break doesn't meaningfully help — fall back to no-break path
+                let scale = native_scale;
+                let scaled_width = frame_outer_width * scale;
+                let scaled_height = frame_outer_height * scale;
+
+                let label_extension = style.dimension_font_size + 4.0;
+                let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
+                let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
+                let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
+
+                let mut geo = Self::build_rects(design, scale, origin_x, origin_y);
+
+                if use_corner_detail && design.frame_material_width > 0.0 {
+                    geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
+                }
+
+                let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
+                    geo.mat_opening.as_ref().map(|mat_opening| {
+                        Self::choose_mat_cut_extent(
+                            &geo.frame_inner, &geo.content_area, mat_opening,
+                            geo.corner_detail.as_ref().map(|cd| &cd.box_rect),
+                            style,
+                        )
+                    })
+                } else {
+                    None
+                };
+
+                geo.annotation_bounds = AnnotationBounds {
+                    corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
+                    thumbnail_box: None,
+                    thumbnail_label_position: ThumbnailLabelPosition::Below,
+                    mat_cut_width_label: None,
+                    mat_cut_height_label: None,
+                    mat_cut_extent,
+                };
+
+                return geo;
+            }
+        }
 
         // Final scale from display dimensions.
         // Axis break frames have no left-side callouts, so we can use asymmetric
@@ -1200,7 +1314,7 @@ impl PlanViewGeometry {
         // The canvas_width * 0.30 target already keeps the box proportional to the viewport;
         // frame_cap just prevents it from dominating an actually small canvas (PDF combined view).
         let frame_cap = geo.frame_outer.width.max(geo.frame_outer.height) * 0.80;
-        let mut box_w = (target_w.min(frame_cap)).clamp(80.0, 213.0);
+        let box_w = (target_w.min(frame_cap)).clamp(80.0, 213.0);
 
         let box_h = box_w / 1.15; // maintain aspect ratio (~245/235 from reference)
 
@@ -1211,16 +1325,13 @@ impl PlanViewGeometry {
         // space on the break path) until its right edge clears those lines.
         let margin = 3.0;
         let natural_box_x = geo.frame_outer.left() - box_w * 0.15;
+        // Basic clearance from mat opening extension lines (the post-layout
+        // collision pass in svg.rs handles arrow stub clearance dynamically).
+        let clearance = 4.0;
         let box_x = if let Some(mat_opening) = &geo.mat_opening {
-            // Clearance must account for the mat cut callout's outward-pointing arrow
-            // stub, which extends stub_len (≈10px) leftward from mat_opening.right().
-            let stub_len = 8.0 * style.dimension_stroke_width * 2.5; // arrow_tip * 2.5
-            let clearance = 4.0 + stub_len;
-            let natural_box_right = natural_box_x + box_w; // = frame_outer.left() + box_w * 0.85
+            let natural_box_right = natural_box_x + box_w;
             let needed_box_right = mat_opening.right() - clearance;
             if natural_box_right > needed_box_right {
-                // Shift box left so box_right = mat_opening.right() - clearance.
-                // Clamp to style.margin so we don't exit the canvas.
                 let shifted_x = needed_box_right - box_w;
                 shifted_x.max(style.margin)
             } else {
@@ -1255,6 +1366,17 @@ impl PlanViewGeometry {
             (anchor_y + margin).max(standard_y)
         } else {
             standard_y
+        };
+
+        // Cap: box top should not extend above the frame's horizontal centerline.
+        // On short landscape frames the box would otherwise dominate the frame height.
+        // Shift box down (extending below frame) rather than shrinking it.
+        let frame_center_y = geo.frame_outer.y + geo.frame_outer.height / 2.0;
+        let center_pad_y = 6.0;
+        let box_y = if box_y < frame_center_y + center_pad_y {
+            frame_center_y + center_pad_y
+        } else {
+            box_y
         };
 
         // Detail scale: zoom out so frame band is ~21% of box width.

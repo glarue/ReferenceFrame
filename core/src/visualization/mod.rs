@@ -11,6 +11,7 @@ pub mod style;
 pub mod geometry;
 pub mod callouts;
 pub mod layout;
+pub mod collision;
 pub mod svg;
 
 // Re-export commonly used types

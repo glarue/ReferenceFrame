@@ -1,0 +1,304 @@
+// Post-layout collision pass for plan view elements.
+//
+// After geometry and callout layout produce initial positions, this module
+// detects overlapping elements and shifts flexible ones to resolve collisions.
+// This centralizes collision avoidance that was previously scattered as ad-hoc
+// rules across geometry.rs and svg.rs.
+
+use super::types::{Rect, Side};
+
+/// Identifies which visual element a FlexElement represents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ElementId {
+    /// A positioned callout label (index into positioned_callouts)
+    Callout(usize),
+    /// The corner detail inset box
+    CornerDetail,
+    /// The proportional thumbnail silhouette
+    Thumbnail,
+    /// An outward-pointing arrow stub on a callout's extent boundary.
+    /// `callout` is the index, `side` indicates which end of the extent.
+    ArrowStub { callout: usize, side: Side },
+}
+
+/// Axis along which an element can be shifted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Axis {
+    X,
+    Y,
+}
+
+/// How a flex element is allowed to adjust its position.
+#[derive(Debug, Clone, Copy)]
+pub enum FlexRule {
+    /// Immovable (frame geometry, extension lines, etc.)
+    None,
+    /// Can shift along a single axis within [range.0, range.1] offset from current position.
+    /// Negative range values shift left/up, positive shift right/down.
+    ShiftAxis { axis: Axis, range: (f64, f64) },
+}
+
+/// An element participating in collision resolution.
+#[derive(Debug, Clone)]
+pub struct FlexElement {
+    pub id: ElementId,
+    /// Current bounding rect in SVG coordinates.
+    pub bounds: Rect,
+    /// How this element can adjust.
+    pub flex: FlexRule,
+    /// Lower priority = less willing to move. 0 = immovable.
+    pub priority: u8,
+}
+
+/// An adjustment produced by the resolver — the element should move to `new_bounds`.
+#[derive(Debug, Clone)]
+pub struct Adjustment {
+    pub id: ElementId,
+    pub new_bounds: Rect,
+}
+
+/// Resolve collisions between flex elements.
+///
+/// Iteratively finds overlapping pairs (with `margin` px clearance) and shifts
+/// the higher-priority-number (more flexible) element along its flex axis.
+/// Returns adjustments for elements whose bounds changed.
+pub fn resolve(elements: &mut [FlexElement], margin: f64, max_iter: u8) -> Vec<Adjustment> {
+    let n = elements.len();
+    if n < 2 {
+        return Vec::new();
+    }
+
+    for _iter in 0..max_iter {
+        let mut any_moved = false;
+
+        // Check all pairs; shift the more-flexible element
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if !elements[i].bounds.overlaps_with_margin(&elements[j].bounds, margin) {
+                    continue;
+                }
+
+                // Skip callout-vs-callout pairs: same-side label collisions
+                // are already resolved by layout.rs's resolve_collisions().
+                if matches!(elements[i].id, ElementId::Callout(_))
+                    && matches!(elements[j].id, ElementId::Callout(_))
+                {
+                    continue;
+                }
+
+                // Determine which element moves (higher priority number = more flexible)
+                let (fixed_idx, flex_idx) = if elements[i].priority >= elements[j].priority {
+                    (j, i)
+                } else {
+                    (i, j)
+                };
+
+                // If the flexible element can't move, skip
+                let shift = match elements[flex_idx].flex {
+                    FlexRule::None => continue,
+                    FlexRule::ShiftAxis { axis, range } => {
+                        compute_shift(
+                            &elements[fixed_idx].bounds,
+                            &elements[flex_idx].bounds,
+                            axis,
+                            range,
+                            margin,
+                        )
+                    }
+                };
+
+                if shift.abs() > 0.01 {
+                    apply_shift(&mut elements[flex_idx], shift);
+                    any_moved = true;
+                }
+            }
+        }
+
+        if !any_moved {
+            break;
+        }
+    }
+
+    // Collect adjustments (compare to see which elements moved)
+    // We return all elements that have flex rules, letting the caller
+    // use the final bounds regardless of whether they moved.
+    elements
+        .iter()
+        .filter(|e| !matches!(e.flex, FlexRule::None))
+        .map(|e| Adjustment {
+            id: e.id,
+            new_bounds: e.bounds,
+        })
+        .collect()
+}
+
+/// Compute how far to shift the flex element along its axis to clear the fixed element.
+fn compute_shift(
+    fixed: &Rect,
+    flex: &Rect,
+    axis: Axis,
+    range: (f64, f64),
+    margin: f64,
+) -> f64 {
+    match axis {
+        Axis::X => {
+            // Determine which direction clears faster
+            let shift_left = fixed.left() - margin - flex.right(); // negative
+            let shift_right = fixed.right() + margin - flex.left(); // positive
+
+            // Pick the smaller absolute shift
+            let shift = if shift_left.abs() < shift_right.abs() {
+                shift_left
+            } else {
+                shift_right
+            };
+
+            shift.clamp(range.0, range.1)
+        }
+        Axis::Y => {
+            let shift_up = fixed.top() - margin - flex.bottom(); // negative
+            let shift_down = fixed.bottom() + margin - flex.top(); // positive
+
+            let shift = if shift_up.abs() < shift_down.abs() {
+                shift_up
+            } else {
+                shift_down
+            };
+
+            shift.clamp(range.0, range.1)
+        }
+    }
+}
+
+/// Apply a shift to a flex element's bounds.
+fn apply_shift(element: &mut FlexElement, shift: f64) {
+    match element.flex {
+        FlexRule::ShiftAxis { axis: Axis::X, .. } => {
+            element.bounds.x += shift;
+        }
+        FlexRule::ShiftAxis { axis: Axis::Y, .. } => {
+            element.bounds.y += shift;
+        }
+        FlexRule::None => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_no_overlap_no_adjustment() {
+        let mut elements = vec![
+            FlexElement {
+                id: ElementId::CornerDetail,
+                bounds: Rect::new(0.0, 0.0, 50.0, 50.0),
+                flex: FlexRule::ShiftAxis {
+                    axis: Axis::X,
+                    range: (-100.0, 0.0),
+                },
+                priority: 1,
+            },
+            FlexElement {
+                id: ElementId::ArrowStub {
+                    callout: 0,
+                    side: Side::Left,
+                },
+                bounds: Rect::new(60.0, 0.0, 20.0, 10.0),
+                flex: FlexRule::None,
+                priority: 0,
+            },
+        ];
+
+        let adjustments = resolve(&mut elements, 2.0, 4);
+        // Corner detail didn't need to move
+        assert!((elements[0].bounds.x - 0.0).abs() < 0.1);
+        assert!(!adjustments.is_empty()); // still returns flex elements
+    }
+
+    #[test]
+    fn test_overlap_shifts_flexible_element() {
+        let mut elements = vec![
+            // Arrow stub (immovable) at x=40
+            FlexElement {
+                id: ElementId::ArrowStub {
+                    callout: 0,
+                    side: Side::Left,
+                },
+                bounds: Rect::new(40.0, 10.0, 20.0, 10.0),
+                flex: FlexRule::None,
+                priority: 0,
+            },
+            // Corner detail (flexible, can shift left) overlapping the stub
+            FlexElement {
+                id: ElementId::CornerDetail,
+                bounds: Rect::new(10.0, 0.0, 50.0, 50.0),
+                flex: FlexRule::ShiftAxis {
+                    axis: Axis::X,
+                    range: (-50.0, 0.0),
+                },
+                priority: 2,
+            },
+        ];
+
+        let _adjustments = resolve(&mut elements, 2.0, 4);
+        // Corner detail should have shifted left so its right edge clears stub left - margin
+        assert!(elements[1].bounds.right() <= 40.0 - 2.0 + 0.1);
+    }
+
+    #[test]
+    fn test_shift_clamped_to_range() {
+        let mut elements = vec![
+            // Fixed element
+            FlexElement {
+                id: ElementId::ArrowStub {
+                    callout: 0,
+                    side: Side::Left,
+                },
+                bounds: Rect::new(20.0, 0.0, 10.0, 10.0),
+                flex: FlexRule::None,
+                priority: 0,
+            },
+            // Flexible but with limited range
+            FlexElement {
+                id: ElementId::CornerDetail,
+                bounds: Rect::new(15.0, 0.0, 30.0, 30.0),
+                flex: FlexRule::ShiftAxis {
+                    axis: Axis::X,
+                    range: (-5.0, 0.0), // can only shift 5px left
+                },
+                priority: 2,
+            },
+        ];
+
+        resolve(&mut elements, 2.0, 4);
+        // Should shift left by at most 5px
+        assert!(elements[1].bounds.x >= 10.0 - 0.1);
+    }
+
+    #[test]
+    fn test_immovable_elements_dont_move() {
+        let mut elements = vec![
+            FlexElement {
+                id: ElementId::CornerDetail,
+                bounds: Rect::new(0.0, 0.0, 50.0, 50.0),
+                flex: FlexRule::None,
+                priority: 0,
+            },
+            FlexElement {
+                id: ElementId::ArrowStub {
+                    callout: 0,
+                    side: Side::Left,
+                },
+                bounds: Rect::new(30.0, 30.0, 20.0, 20.0),
+                flex: FlexRule::None,
+                priority: 0,
+            },
+        ];
+
+        resolve(&mut elements, 0.0, 4);
+        // Neither should move
+        assert!((elements[0].bounds.x - 0.0).abs() < 0.01);
+        assert!((elements[1].bounds.x - 30.0).abs() < 0.01);
+    }
+}
