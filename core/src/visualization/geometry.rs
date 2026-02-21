@@ -607,6 +607,72 @@ impl PlanViewGeometry {
             }
         }
 
+        // Label-fit refinement: if the widest label on the narrow axis won't fit
+        // in the pixel width available at the current aspect ratio, further compress
+        // the long axis (break direction) to give the narrow axis more room.
+        // This only applies when the scale is limited by the long axis (height for
+        // portrait, width for landscape), so shrinking the long axis increases scale
+        // and widens the narrow axis in pixels.
+        {
+            let disp_w = non_artwork_w + display_artwork_w;
+            let disp_h = non_artwork_h + display_artwork_h;
+            let is_portrait = disp_h > disp_w;
+
+            // Estimate the widest label on the narrow axis (inches, worst case)
+            let narrow_label_px = if is_portrait && use_break_y {
+                // Width callouts: "Outside: X", "Inside: X"
+                let outside_val = format_value(frame_outer_width, Unit::Inches);
+                let inside_val = format_value(design.artwork_width, Unit::Inches);
+                let outside_w = estimate_text_width("Outside:", style.label_font_size)
+                    .max(estimate_text_width(&outside_val, style.label_font_size));
+                let inside_w = estimate_text_width("Inside:", style.label_font_size)
+                    .max(estimate_text_width(&inside_val, style.label_font_size));
+                let mask_pad = 4.0 * 2.0; // LABEL_MASK_PADDING_X * 2.0 (horizontal) * 2 sides
+                outside_w.max(inside_w) + mask_pad
+            } else if !is_portrait && use_break_x {
+                // Height callouts on narrow axis (landscape)
+                let outside_val = format_value(frame_outer_height, Unit::Inches);
+                let inside_val = format_value(design.artwork_height, Unit::Inches);
+                let outside_w = estimate_text_width("Outside:", style.label_font_size)
+                    .max(estimate_text_width(&outside_val, style.label_font_size));
+                let inside_w = estimate_text_width("Inside:", style.label_font_size)
+                    .max(estimate_text_width(&inside_val, style.label_font_size));
+                let mask_pad = 4.0 * 2.0;
+                outside_w.max(inside_w) + mask_pad
+            } else {
+                0.0
+            };
+
+            if narrow_label_px > 0.0 {
+                // Current projected pixel width of narrow axis:
+                // scale = available_long / disp_long, pixel_narrow = disp_narrow * scale
+                let (projected_px, is_height_limited) = if is_portrait {
+                    (disp_w * available_height / disp_h, true)
+                } else {
+                    (disp_h * available_width / disp_w, false)
+                };
+
+                // Use 1.5× label width as threshold: the viewBox expands to include
+                // overflowing labels and right-side callouts, which reduces the frame's
+                // share of the rendered width. Combined view two-pass also changes
+                // effective canvas heights. The margin ensures labels fit comfortably.
+                if projected_px < narrow_label_px * 1.5 {
+                    // Compress the long axis until label fits with margin
+                    let target_label = narrow_label_px * 1.5;
+                    if is_height_limited {
+                        // target: disp_w * available_height / target_h >= target_label
+                        let target_h = disp_w * available_height / target_label;
+                        display_artwork_h = (target_h - non_artwork_h).max(min_display);
+                        use_break_y = display_artwork_h < design.artwork_height;
+                    } else {
+                        let target_w = disp_h * available_width / target_label;
+                        display_artwork_w = (target_w - non_artwork_w).max(min_display);
+                        use_break_x = display_artwork_w < design.artwork_width;
+                    }
+                }
+            }
+        }
+
         // If break computation determined everything fits uncompressed,
         // fall back to the standard path which can still apply corner detail.
         if !use_break_x && !use_break_y {
@@ -770,17 +836,8 @@ impl PlanViewGeometry {
             let thumbnail_gap = 24.0 * thumb_sf;
             let corner_right = occupied[0].right();
 
-            // Conservative estimate of the value line ("2 3/4\" (2\" visible)" typical max).
-            let value_line_w = estimate_text_width("2 3/4\" (2\" visible)", style.label_font_size);
-
-            // Natural left edge of line 2: where it sits with no shift applied.
-            // Use the more conservative (leftward) of centered vs end-anchored modes.
-            let dim_mid_x = mat_cut_rect.center().x;
-            let line2_natural_left = {
-                let from_centered = dim_mid_x - value_line_w / 2.0;
-                let from_end = geo.content_area.right() - value_line_w;
-                from_centered.min(from_end)
-            };
+            // Left edge of the mat cut annotation (extent start x)
+            let mat_cut_left = mat_cut_rect.left();
 
             let mini_y = geo.frame_outer.bottom() + thumbnail_gap;
 
@@ -799,9 +856,9 @@ impl PlanViewGeometry {
                 place_thumb(w, mini_x).map(|r| (r, None))
             };
 
-            // Strategy A: natural gap, no label shift. Thumbnail centered before line2.
+            // Strategy A: center thumbnail between corner detail and mat cut annotation.
             let try_a = |w: f64| -> Option<(Rect, Option<f64>)> {
-                let avail = line2_natural_left - corner_right - 2.0 * mini_gap;
+                let avail = mat_cut_left - corner_right - 2.0 * mini_gap;
                 if avail >= w {
                     let mini_x = corner_right + mini_gap + (avail - w) / 2.0;
                     place_thumb(w, mini_x).map(|r| (r, None))
@@ -810,11 +867,11 @@ impl PlanViewGeometry {
                 }
             };
 
-            // Priority order: shift only when needed, don't shift when there's enough space.
-            // 1. A at preferred size: natural gap fits → thumbnail centered, no label shift
-            // 2. B at preferred size: natural gap too narrow → shift label, preserve thumbnail
-            // 3. A with capped size: last resort → shrink thumbnail to natural gap
-            let avail_a = line2_natural_left - corner_right - 2.0 * mini_gap;
+            // Priority order:
+            // 1. A at preferred size: centered in gap between corner detail and mat cut
+            // 2. B at preferred size: flush right of corner detail (gap too narrow)
+            // 3. A with capped size: shrink thumbnail to fit gap
+            let avail_a = mat_cut_left - corner_right - 2.0 * mini_gap;
             let result = try_a(preferred_mini_w)
                 .or_else(|| try_b(preferred_mini_w))
                 .or_else(|| {
@@ -1155,7 +1212,10 @@ impl PlanViewGeometry {
         let margin = 3.0;
         let natural_box_x = geo.frame_outer.left() - box_w * 0.15;
         let box_x = if let Some(mat_opening) = &geo.mat_opening {
-            let clearance = 4.0;
+            // Clearance must account for the mat cut callout's outward-pointing arrow
+            // stub, which extends stub_len (≈10px) leftward from mat_opening.right().
+            let stub_len = 8.0 * style.dimension_stroke_width * 2.5; // arrow_tip * 2.5
+            let clearance = 4.0 + stub_len;
             let natural_box_right = natural_box_x + box_w; // = frame_outer.left() + box_w * 0.85
             let needed_box_right = mat_opening.right() - clearance;
             if natural_box_right > needed_box_right {
@@ -1168,6 +1228,17 @@ impl PlanViewGeometry {
             }
         } else {
             natural_box_x
+        };
+
+        // Cap: box right edge should not extend past the frame's vertical centerline.
+        // On wide landscape frames this is a no-op (box is much smaller than half the frame).
+        // On narrow portrait frames this shifts the box left so it doesn't dominate the frame.
+        let frame_center_x = geo.frame_outer.x + geo.frame_outer.width / 2.0;
+        let center_pad = 6.0;
+        let box_x = if box_x + box_w > frame_center_x - center_pad {
+            (frame_center_x - center_pad - box_w).max(style.margin)
+        } else {
+            box_x
         };
 
         // Y position: box should overlap the bottom-left corner of the frame.
