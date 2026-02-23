@@ -59,11 +59,6 @@ pub fn layout_plan_callouts(
     positioned.extend(layout_vertical_side(&right, geometry, style, Side::Right));
     positioned.extend(layout_vertical_side(&left, geometry, style, Side::Left));
 
-    // Check for collisions between positioned callouts and resolve
-    let (resolved, collision_warnings) = resolve_collisions(&positioned, style);
-    positioned = resolved;
-    warnings.extend(collision_warnings);
-
     LayoutResult {
         positioned_callouts: positioned,
         warnings,
@@ -204,94 +199,6 @@ fn layout_vertical_side(
     positioned
 }
 
-/// Detect and resolve collisions between positioned callouts
-fn resolve_collisions(
-    callouts: &[PositionedCallout],
-    style: &DiagramStyle,
-) -> (Vec<PositionedCallout>, Vec<String>) {
-    let mut result = callouts.to_vec();
-    let mut warnings = Vec::new();
-
-    // Check for label-label collisions
-    let collision_margin = style.label_spacing;
-
-    for i in 0..result.len() {
-        for j in (i + 1)..result.len() {
-            let bounds_i = result[i].label_bounds.expand(collision_margin / 2.0);
-            let bounds_j = result[j].label_bounds.expand(collision_margin / 2.0);
-
-            if bounds_i.overlaps(&bounds_j) {
-                // Same side collision - try to resolve by adjusting offset
-                if result[i].actual_side == result[j].actual_side {
-                    // Skip pairs already at different offset levels — they're
-                    // intentionally stacked and the overlap is just the
-                    // conservative text_height estimate exceeding offset_step.
-                    if result[i].offset_level != result[j].offset_level {
-                        continue;
-                    }
-
-                    // Move the lower priority one further out
-                    let (higher_pri, lower_pri) = if result[i].callout.priority <= result[j].callout.priority {
-                        (i, j)
-                    } else {
-                        (j, i)
-                    };
-
-                    let new_level = result[higher_pri].offset_level + 1;
-                    let additional_offset = style.dimension_offset_step;
-
-                    // Adjust position based on side
-                    match result[lower_pri].actual_side {
-                        Side::Top => {
-                            result[lower_pri].dimension_line_position -= additional_offset;
-                            result[lower_pri].label_position.y -= additional_offset;
-                            result[lower_pri].label_bounds.y -= additional_offset;
-                        }
-                        Side::Bottom => {
-                            result[lower_pri].dimension_line_position += additional_offset;
-                            result[lower_pri].label_position.y += additional_offset;
-                            result[lower_pri].label_bounds.y += additional_offset;
-                        }
-                        Side::Right => {
-                            result[lower_pri].dimension_line_position += additional_offset;
-                            result[lower_pri].label_position.x += additional_offset;
-                            result[lower_pri].label_bounds.x += additional_offset;
-                        }
-                        Side::Left => {
-                            result[lower_pri].dimension_line_position -= additional_offset;
-                            result[lower_pri].label_position.x -= additional_offset;
-                            result[lower_pri].label_bounds.x -= additional_offset;
-                        }
-                    }
-                    result[lower_pri].offset_level = new_level;
-                }
-            }
-        }
-    }
-
-    // After adjustment, check if any labels are still colliding
-    // If priority 4+ callouts can't fit, warn and potentially hide them
-    for i in 0..result.len() {
-        for j in (i + 1)..result.len() {
-            let bounds_i = result[i].label_bounds.expand(collision_margin / 2.0);
-            let bounds_j = result[j].label_bounds.expand(collision_margin / 2.0);
-
-            if bounds_i.overlaps(&bounds_j) {
-                // If one is low priority, add warning
-                if result[i].callout.priority >= 4 || result[j].callout.priority >= 4 {
-                    let low_pri_type = if result[i].callout.priority >= result[j].callout.priority {
-                        &result[i].callout.dimension_type
-                    } else {
-                        &result[j].callout.dimension_type
-                    };
-                    warnings.push(format!("{:?} dimension may overlap with adjacent label", low_pri_type));
-                }
-            }
-        }
-    }
-
-    (result, warnings)
-}
 
 /// Calculate the bounding box of all dimension lines and labels
 pub fn calculate_callout_bounds(callouts: &[PositionedCallout]) -> Option<Rect> {
