@@ -1,0 +1,22 @@
+{
+  "label": "8x10_no_mat",
+  "scale": 36.11,
+  "axis_break_x": false,
+  "axis_break_y": false,
+  "viewbox": [
+    66.0,
+    153.59,
+    397.6,
+    470.53
+  ],
+  "callout_positions": {
+    "FrameInsideHeightInterior": 412.0,
+    "FrameInsideWidthInterior": 205.89,
+    "FrameOutsideHeight": 440.0,
+    "FrameOutsideWidth": 177.89
+  },
+  "corner_detail": null,
+  "thumbnail": null,
+  "overlap_count": 0,
+  "all_within_viewbox": true
+}

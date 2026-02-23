@@ -13,6 +13,7 @@ pub mod callouts;
 pub mod layout;
 pub mod collision;
 pub mod svg;
+pub mod snapshot;
 
 // Re-export commonly used types
 pub use types::{

@@ -1,0 +1,32 @@
+{
+  "label": "5x100_portrait_break",
+  "scale": 44.64,
+  "axis_break_x": false,
+  "axis_break_y": true,
+  "viewbox": [
+    4.24,
+    -0.3,
+    367.69,
+    867.56
+  ],
+  "callout_positions": {
+    "FrameInsideHeightInterior": 320.33,
+    "FrameInsideWidthInterior": 52.0,
+    "FrameOutsideHeight": 348.33,
+    "FrameOutsideWidth": 24.0
+  },
+  "corner_detail": {
+    "x": 24.12,
+    "y": 757.52,
+    "width": 117.0,
+    "height": 101.74
+  },
+  "thumbnail": {
+    "x": 12.24,
+    "y": 411.5,
+    "width": 5.42,
+    "height": 95.0
+  },
+  "overlap_count": 0,
+  "all_within_viewbox": true
+}

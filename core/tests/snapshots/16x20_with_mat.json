@@ -1,0 +1,28 @@
+{
+  "label": "16x20_with_mat",
+  "scale": 12.89,
+  "axis_break_x": false,
+  "axis_break_y": false,
+  "viewbox": [
+    48.45,
+    184.91,
+    373.15,
+    453.98
+  ],
+  "callout_positions": {
+    "FrameInsideHeightInterior": 370.0,
+    "FrameInsideWidthInterior": 237.21,
+    "FrameOutsideHeight": 398.0,
+    "FrameOutsideWidth": 209.21,
+    "MatCutWidth": 606.79
+  },
+  "corner_detail": {
+    "x": 56.45,
+    "y": 498.31,
+    "width": 117.0,
+    "height": 101.74
+  },
+  "thumbnail": null,
+  "overlap_count": 0,
+  "all_within_viewbox": true
+}

@@ -805,6 +805,15 @@ fn run_collision_pass(
     }
 }
 
+/// Public re-export of the collision pass for snapshot testing.
+pub fn run_collision_pass_for_snapshot(
+    geometry: &mut PlanViewGeometry,
+    layout: &mut LayoutResult,
+    style: &DiagramStyle,
+) {
+    run_collision_pass(geometry, layout, style);
+}
+
 /// Generate section view SVG
 fn generate_section_view(
     design: &FrameDesign,
