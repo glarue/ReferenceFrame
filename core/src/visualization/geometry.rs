@@ -45,6 +45,20 @@ pub fn estimate_text_width(text: &str, font_size: f64) -> f64 {
     width * 1.05
 }
 
+/// Estimate the effective display width of a label, accounting for two-line split.
+/// Labels containing ": " are rendered as two lines; the display width is the max
+/// of the two parts rather than the full single-line width.
+pub fn effective_label_width(label: &str, font_size: f64) -> f64 {
+    if let Some(pos) = label.find(": ") {
+        let prefix = &label[..pos + 1];
+        let value = label[pos + 2..].trim_start();
+        estimate_text_width(prefix, font_size)
+            .max(estimate_text_width(value, font_size))
+    } else {
+        estimate_text_width(label, font_size)
+    }
+}
+
 /// Geometry for the corner detail inset overlay
 #[derive(Debug, Clone)]
 pub struct CornerDetailGeometry {
@@ -439,14 +453,7 @@ impl PlanViewGeometry {
             format!("Inside: {}", fmt_dim(inside_w)),
         ];
         let min_width_px = width_labels.iter().map(|l| {
-            // Two-line labels split at ": " — extent needs to fit the longer part
-            if let Some(pos) = l.find(": ") {
-                let prefix = &l[..pos + 1];
-                let value = l[pos + 2..].trim_start();
-                estimate_text_width(prefix, fs).max(estimate_text_width(value, fs))
-            } else {
-                estimate_text_width(l, fs)
-            }
+            effective_label_width(l, fs)
         }).fold(0.0_f64, f64::max) + 8.0; // 8px padding for arrowheads
 
         // For height callouts (vertical, spanning frame height): same logic.
@@ -455,13 +462,7 @@ impl PlanViewGeometry {
             format!("Inside: {}", fmt_dim(inside_h)),
         ];
         let min_height_px = height_labels.iter().map(|l| {
-            if let Some(pos) = l.find(": ") {
-                let prefix = &l[..pos + 1];
-                let value = l[pos + 2..].trim_start();
-                estimate_text_width(prefix, fs).max(estimate_text_width(value, fs))
-            } else {
-                estimate_text_width(l, fs)
-            }
+            effective_label_width(l, fs)
         }).fold(0.0_f64, f64::max) + 8.0;
 
         let scaled_width_native = frame_outer_width * native_scale;

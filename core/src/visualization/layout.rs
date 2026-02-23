@@ -7,7 +7,7 @@ use super::types::{
     DimensionCallout, PositionedCallout, Point, Rect, Side, TextAnchor,
 };
 use super::style::DiagramStyle;
-use super::geometry::{PlanViewGeometry, estimate_text_width};
+use super::geometry::{PlanViewGeometry, estimate_text_width, effective_label_width};
 
 /// Result of layout calculation
 #[derive(Debug, Clone)]
@@ -18,18 +18,6 @@ pub struct LayoutResult {
     pub warnings: Vec<String>,
 }
 
-/// Estimate the effective label width, accounting for multi-line split on ": ".
-/// Labels with ": " are rendered as two lines, so the width is the max of the two parts.
-fn effective_label_width(label: &str, font_size: f64) -> f64 {
-    if let Some(pos) = label.find(": ") {
-        let prefix = &label[..pos + 1];
-        let value = label[pos + 2..].trim_start();
-        estimate_text_width(prefix, font_size)
-            .max(estimate_text_width(value, font_size))
-    } else {
-        estimate_text_width(label, font_size)
-    }
-}
 
 /// Whether a label will be rendered as two lines (contains ": ").
 fn is_two_line_label(label: &str) -> bool {

@@ -10,7 +10,7 @@ use super::types::{
     Rect, Side, ThumbnailLabelPosition,
 };
 use super::style::{DiagramStyle, FillPattern};
-use super::geometry::{CornerDetailGeometry, PlanViewGeometry, SectionViewGeometry, estimate_text_width};
+use super::geometry::{CornerDetailGeometry, PlanViewGeometry, SectionViewGeometry, estimate_text_width, effective_label_width};
 use super::callouts::{generate_plan_callouts, generate_section_callouts};
 use super::layout::{layout_plan_callouts, LayoutResult};
 use super::collision::{self, FlexElement, ElementId, FlexRule, Axis};
@@ -1347,18 +1347,7 @@ fn build_plan_svg(
             let is_outermost = callout.offset_level == max_for_side;
             let is_two_line = callout.callout.label.contains(": ");
 
-            let label_text_width = if is_two_line {
-                if let Some(pos) = callout.callout.label.find(": ") {
-                    let prefix = &callout.callout.label[..pos + 1];
-                    let value = callout.callout.label[pos + 2..].trim_start();
-                    estimate_text_width(prefix, style.label_font_size)
-                        .max(estimate_text_width(value, style.label_font_size))
-                } else {
-                    estimate_text_width(&callout.callout.label, style.label_font_size)
-                }
-            } else {
-                estimate_text_width(&callout.callout.label, style.label_font_size)
-            };
+            let label_text_width = effective_label_width(&callout.callout.label, style.label_font_size);
 
             let line_gap = style.label_font_size * 0.2;
             let label_height = if is_two_line {
@@ -3451,17 +3440,10 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     let line_gap = style.label_font_size * 0.2; // gap between lines
     let half_line_offset = (style.label_font_size + line_gap) / 2.0;
 
-    let (mask_width, mask_height) = if let Some((prefix, value)) = two_line {
-        let max_line_width = estimate_text_width(prefix, style.label_font_size)
-            .max(estimate_text_width(value, style.label_font_size));
+    let (mask_width, mask_height) = {
+        let max_line_width = effective_label_width(label, style.label_font_size);
         (
             max_line_width + mask_padding_x * 2.0,
-            style.label_font_size + mask_padding_y * 2.0, // single-line height for mask
-        )
-    } else {
-        let label_text_width = estimate_text_width(label, style.label_font_size);
-        (
-            label_text_width + mask_padding_x * 2.0,
             style.label_font_size + mask_padding_y * 2.0,
         )
     };
