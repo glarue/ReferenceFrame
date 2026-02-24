@@ -1290,6 +1290,102 @@ fn render_corner_detail(
     svg
 }
 
+/// Compute the viewBox for a plan view from post-collision element positions.
+///
+/// Uses the final positioned callout label_bounds (already collision-resolved),
+/// extension line endpoints, floating annotations (thumbnail, corner detail),
+/// and mat cut label text width to determine tight content bounds.
+fn compute_plan_viewbox(
+    geometry: &PlanViewGeometry,
+    layout: &LayoutResult,
+    style: &DiagramStyle,
+) -> (f64, f64, f64, f64) {
+    // Start from frame outer bounds (with stroke)
+    let mut min_x = geometry.frame_outer.left() - style.frame_stroke_width / 2.0;
+    let mut max_x = geometry.frame_outer.right() + style.frame_stroke_width / 2.0;
+    let mut min_y = geometry.frame_outer.top() - style.frame_stroke_width / 2.0;
+    let mut max_y = geometry.frame_outer.bottom() + style.frame_stroke_width / 2.0;
+
+    // Include callout label bounds (post-collision positions)
+    for callout in &layout.positioned_callouts {
+        let lb = callout.label_bounds;
+        min_x = min_x.min(lb.left());
+        max_x = max_x.max(lb.right());
+        min_y = min_y.min(lb.top());
+        max_y = max_y.max(lb.bottom());
+
+        // Extension line endpoints: extend along extent span and overshoot
+        // perpendicular to the extent direction.
+        let es = &callout.callout.extent_start;
+        let ee = &callout.callout.extent_end;
+        let is_horiz = (es.y - ee.y).abs() < 1.0;
+        if is_horiz {
+            min_x = min_x.min(es.x.min(ee.x));
+            max_x = max_x.max(es.x.max(ee.x));
+        } else {
+            min_y = min_y.min(es.y.min(ee.y));
+            max_y = max_y.max(es.y.max(ee.y));
+        }
+
+        // Mat cut labels: rendered with text-anchor="start" from leftmost extent,
+        // and positioned below/outside the dim line. Account for text width and offset.
+        use super::types::DimensionType;
+        let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0
+            + style.dimension_offset_base;
+        match callout.callout.dimension_type {
+            DimensionType::MatCutWidth => {
+                let text_w = effective_label_width(&callout.callout.label, style.label_font_size);
+                let left_x = es.x.min(ee.x);
+                max_x = max_x.max(left_x + text_w);
+                max_y = max_y.max(callout.dimension_line_position + mat_cut_offset
+                    + style.label_font_size * 2.0 + style.label_font_size * 0.2);
+            }
+            DimensionType::MatCutHeight => {
+                let text_w = effective_label_width(&callout.callout.label, style.label_font_size);
+                let mid_y = (es.y + ee.y) / 2.0;
+                min_y = min_y.min(mid_y - text_w / 2.0);
+                max_y = max_y.max(mid_y + text_w / 2.0);
+                min_x = min_x.min(callout.dimension_line_position - mat_cut_offset
+                    - style.label_font_size * 2.0 - style.label_font_size * 0.2);
+            }
+            _ => {}
+        }
+    }
+
+    // Thumbnail with its label area
+    let ann = &geometry.annotation_bounds;
+    if let Some(thumb) = &geometry.thumbnail {
+        let thumb_sf = style.label_font_size / 13.0;
+        let thumb_font = 8.0 * thumb_sf;
+        let thumb_label_gap = 8.0 * thumb_sf;
+        let thumb_line_h = 10.0 * thumb_sf;
+        min_x = min_x.min(thumb.left());
+        min_y = min_y.min(thumb.top());
+        match ann.thumbnail_label_position {
+            ThumbnailLabelPosition::Right => {
+                let label_w = estimate_text_width("proportions", thumb_font);
+                max_x = max_x.max(thumb.right() + thumb_label_gap + label_w);
+                max_y = max_y.max(thumb.bottom());
+            }
+            ThumbnailLabelPosition::Below => {
+                max_x = max_x.max(thumb.right());
+                max_y = max_y.max(thumb.bottom() + thumb_line_h + thumb_line_h + thumb_font);
+            }
+        }
+    }
+
+    // Corner detail box
+    if let Some(cd_box) = &ann.corner_detail_box {
+        min_x = min_x.min(cd_box.left());
+        max_x = max_x.max(cd_box.right());
+        min_y = min_y.min(cd_box.top());
+        max_y = max_y.max(cd_box.bottom());
+    }
+
+    let padding = style.margin;
+    (min_x - padding, min_y - padding, max_x - min_x + 2.0 * padding, max_y - min_y + 2.0 * padding)
+}
+
 /// Build SVG string for plan view
 fn build_plan_svg(
     design: &FrameDesign,
@@ -1301,145 +1397,9 @@ fn build_plan_svg(
 ) -> String {
     // Calculate viewBox dimensions
     let (min_x, min_y, viewbox_width, viewbox_height) = if options.show_callouts {
-        // With callouts: calculate bounds from actual geometry and layout data
-        let mut min_x = geometry.frame_outer.left() - style.frame_stroke_width / 2.0;
-        let mut max_x = geometry.frame_outer.right() + style.frame_stroke_width / 2.0;
-        let mut min_y = geometry.frame_outer.top() - style.frame_stroke_width / 2.0;
-        let mut max_y = geometry.frame_outer.bottom() + style.frame_stroke_width / 2.0;
-
-        // Determine outermost level per side (matches rendering logic)
-        let max_level_per_side = |side: Side| -> u8 {
-            layout.positioned_callouts.iter()
-                .filter(|c| c.actual_side == side)
-                .map(|c| c.offset_level)
-                .max()
-                .unwrap_or(0)
-        };
-        let max_top = max_level_per_side(Side::Top);
-        let max_bottom = max_level_per_side(Side::Bottom);
-        let max_right = max_level_per_side(Side::Right);
-        let max_left = max_level_per_side(Side::Left);
-
-        // Include dimension callouts in bounds
-        for callout in &layout.positioned_callouts {
-            use super::types::DimensionType;
-
-            let dim_line_pos = callout.dimension_line_position;
-            let extent_start = &callout.callout.extent_start;
-            let extent_end = &callout.callout.extent_end;
-
-            // Track dimension line and extension line bounds.
-            // Only pad in the direction extension lines actually extend:
-            // horizontal dims have vertical extension lines (pad y, not x)
-            // vertical dims have horizontal extension lines (pad x, not y)
-            let is_horiz = (extent_start.y - extent_end.y).abs() < 1.0;
-            if is_horiz {
-                min_x = min_x.min(extent_start.x.min(extent_end.x));
-                max_x = max_x.max(extent_start.x.max(extent_end.x));
-                min_y = min_y.min(extent_start.y.min(extent_end.y) - style.dimension_offset_step);
-                max_y = max_y.max(extent_start.y.max(extent_end.y) + style.dimension_offset_step);
-            } else {
-                min_x = min_x.min(extent_start.x.min(extent_end.x) - style.dimension_offset_step);
-                max_x = max_x.max(extent_start.x.max(extent_end.x) + style.dimension_offset_step);
-                min_y = min_y.min(extent_start.y.min(extent_end.y));
-                max_y = max_y.max(extent_start.y.max(extent_end.y));
-            }
-
-            // Two-line split: vertical sides always, horizontal only when alone on side
-            let is_horizontal_dim = (extent_start.y - extent_end.y).abs() < 1.0;
-            let max_for_side = match callout.actual_side {
-                Side::Top => max_top,
-                Side::Bottom => max_bottom,
-                Side::Right => max_right,
-                Side::Left => max_left,
-            };
-            let is_outermost = callout.offset_level == max_for_side;
-            let is_two_line = callout.callout.label.contains(": ");
-
-            let label_text_width = effective_label_width(&callout.callout.label, style.label_font_size);
-
-            let line_gap = style.label_font_size * 0.2;
-            let label_height = if is_two_line {
-                style.label_font_size * 2.0 + line_gap
-            } else {
-                style.label_font_size * 1.2
-            };
-
-            // Mat cut offset: always single-line, matches original formula.
-            let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0
-                + style.dimension_offset_base;
-
-            // Extend bounds based on dimension orientation
-            if is_horizontal_dim {
-                let extra_offset = if matches!(callout.callout.dimension_type,
-                    DimensionType::MatCutWidth) { mat_cut_offset } else { 0.0 };
-                min_y = min_y.min(dim_line_pos - label_height);
-                max_y = max_y.max(dim_line_pos + label_height + extra_offset);
-                if matches!(callout.callout.dimension_type, DimensionType::MatCutWidth) {
-                    // Mat cut width rendering always uses text-anchor="start" from
-                    // the leftmost extent point. Match that in the viewBox.
-                    let left_x = extent_start.x.min(extent_end.x);
-                    min_x = min_x.min(left_x);
-                    max_x = max_x.max(left_x + label_text_width);
-                } else {
-                    let mid_x = (extent_start.x + extent_end.x) / 2.0;
-                    min_x = min_x.min(mid_x - label_text_width / 2.0);
-                    max_x = max_x.max(mid_x + label_text_width / 2.0);
-                }
-            } else {
-                let extra_offset = if matches!(callout.callout.dimension_type,
-                    DimensionType::MatCutHeight) { mat_cut_offset } else { 0.0 };
-                if is_two_line && is_outermost {
-                    // Outermost: shifted outward, extends label_height from dim line
-                    match callout.actual_side {
-                        Side::Right => max_x = max_x.max(dim_line_pos + label_height + extra_offset),
-                        Side::Left => min_x = min_x.min(dim_line_pos - label_height - extra_offset),
-                        _ => {}
-                    }
-                } else {
-                    min_x = min_x.min(dim_line_pos - label_height / 2.0 - extra_offset);
-                    max_x = max_x.max(dim_line_pos + label_height / 2.0 + extra_offset);
-                }
-                let mid_y = (extent_start.y + extent_end.y) / 2.0;
-                min_y = min_y.min(mid_y - label_text_width / 2.0);
-                max_y = max_y.max(mid_y + label_text_width / 2.0);
-            }
-        }
-
-        // Include all floating annotation bounds (thumbnail, corner detail, etc.)
-        let ann = &geometry.annotation_bounds;
-        if let Some(thumb) = &geometry.thumbnail {
-            let thumb_sf = style.label_font_size / 13.0;
-            let thumb_font = 8.0 * thumb_sf;
-            let thumb_label_gap = 8.0 * thumb_sf;
-            let thumb_line_h = 10.0 * thumb_sf;
-            min_x = min_x.min(thumb.left());
-            min_y = min_y.min(thumb.top());
-            match ann.thumbnail_label_position {
-                ThumbnailLabelPosition::Right => {
-                    let label_w = estimate_text_width("proportions", thumb_font);
-                    max_x = max_x.max(thumb.right() + thumb_label_gap + label_w);
-                    max_y = max_y.max(thumb.bottom());
-                }
-                ThumbnailLabelPosition::Below => {
-                    max_x = max_x.max(thumb.right());
-                    max_y = max_y.max(thumb.bottom() + thumb_line_h + thumb_line_h + thumb_font);
-                }
-            }
-        }
-        if let Some(cd_box) = &ann.corner_detail_box {
-            min_x = min_x.min(cd_box.left());
-            max_x = max_x.max(cd_box.right());
-            min_y = min_y.min(cd_box.top());
-            max_y = max_y.max(cd_box.bottom());
-        }
-
-        // Add padding for visual comfort
-        let padding = style.margin;
-        (min_x - padding, min_y - padding, max_x - min_x + 2.0 * padding, max_y - min_y + 2.0 * padding)
+        compute_plan_viewbox(geometry, layout, style)
     } else {
         // Without callouts (preview mode): use fixed viewBox matching canvas dimensions
-        // This ensures the diagram size stays constant regardless of frame dimensions
         (0.0, 0.0, options.canvas_width, options.canvas_height)
     };
 
