@@ -1314,10 +1314,27 @@ fn compute_plan_viewbox(
     // Include callout label bounds (post-collision positions)
     for callout in &layout.positioned_callouts {
         let lb = callout.label_bounds;
+        let is_two_line = callout.callout.label.contains(": ");
+
+        // For top-side two-line labels the outermost prefix line is centered at
+        // label_bounds.top(), so the glyph extends fs/2 above it. Use 0.6× for
+        // a small extra margin, matching the pre-Phase3 behaviour.
+        let top_ext = if callout.actual_side == Side::Top && is_two_line {
+            style.label_font_size * 0.6
+        } else {
+            0.0
+        };
+        // Symmetric for bottom-side (value line below dim line)
+        let bot_ext = if callout.actual_side == Side::Bottom && is_two_line {
+            style.label_font_size * 0.6
+        } else {
+            0.0
+        };
+
         min_x = min_x.min(lb.left());
         max_x = max_x.max(lb.right());
-        min_y = min_y.min(lb.top());
-        max_y = max_y.max(lb.bottom());
+        min_y = min_y.min(lb.top() - top_ext);
+        max_y = max_y.max(lb.bottom() + bot_ext);
 
         // Extension line endpoints: extend along extent span and overshoot
         // perpendicular to the extent direction.
