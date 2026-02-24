@@ -78,14 +78,6 @@ pub fn resolve(elements: &mut [FlexElement], margin: f64, max_iter: u8) -> Vec<A
                     continue;
                 }
 
-                // Skip callout-vs-callout pairs: same-side label collisions
-                // are already resolved by layout.rs's resolve_collisions().
-                if matches!(elements[i].id, ElementId::Callout(_))
-                    && matches!(elements[j].id, ElementId::Callout(_))
-                {
-                    continue;
-                }
-
                 // Determine which element moves (higher priority number = more flexible)
                 let (fixed_idx, flex_idx) = if elements[i].priority >= elements[j].priority {
                     (j, i)

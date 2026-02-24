@@ -1,0 +1,22 @@
+{
+  "label": "3x20_label_fit_break",
+  "scale": 37.11,
+  "axis_break_x": false,
+  "axis_break_y": false,
+  "viewbox": [
+    117.42,
+    -0.3,
+    220.76,
+    852.3
+  ],
+  "callout_positions": {
+    "FrameInsideHeightInterior": 286.58,
+    "FrameInsideWidthInterior": 52.0,
+    "FrameOutsideHeight": 314.58,
+    "FrameOutsideWidth": 24.0
+  },
+  "corner_detail": null,
+  "thumbnail": null,
+  "overlap_count": 0,
+  "all_within_viewbox": true
+}

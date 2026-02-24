@@ -1,0 +1,32 @@
+{
+  "label": "100x5_landscape_break",
+  "scale": 18.78,
+  "axis_break_x": true,
+  "axis_break_y": false,
+  "viewbox": [
+    -17.55,
+    293.7,
+    423.15,
+    259.94
+  ],
+  "callout_positions": {
+    "FrameInsideHeightInterior": 354.0,
+    "FrameInsideWidthInterior": 346.0,
+    "FrameOutsideHeight": 382.0,
+    "FrameOutsideWidth": 318.0
+  },
+  "corner_detail": {
+    "x": -9.55,
+    "y": 443.9,
+    "width": 117.0,
+    "height": 101.74
+  },
+  "thumbnail": {
+    "x": 237.0,
+    "y": 500.0,
+    "width": 95.0,
+    "height": 5.42
+  },
+  "overlap_count": 0,
+  "all_within_viewbox": true
+}

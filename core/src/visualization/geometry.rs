@@ -109,9 +109,6 @@ pub struct PlanViewGeometry {
     pub corner_detail: Option<CornerDetailGeometry>,
     /// Where the thumbnail label text is positioned
     pub thumbnail_label_position: ThumbnailLabelPosition,
-    /// When Some(x), both lines of the MatCutWidth label use "end" anchor at x,
-    /// shifting the entire block right so the thumbnail can use its preferred size.
-    pub mat_cut_label_right: Option<f64>,
     /// Bounding boxes for floating annotations (for collision detection and viewBox)
     pub annotation_bounds: AnnotationBounds,
 }
@@ -246,7 +243,7 @@ impl PlanViewGeometry {
             thumbnail_below: false,
             corner_detail: None,
             thumbnail_label_position: ThumbnailLabelPosition::Below,
-            mat_cut_label_right: None,
+
             annotation_bounds: AnnotationBounds {
                 corner_detail_box: None,
                 thumbnail_box: None,
@@ -349,7 +346,7 @@ impl PlanViewGeometry {
             thumbnail_below: false,
             corner_detail: None,
             thumbnail_label_position: ThumbnailLabelPosition::Below,
-            mat_cut_label_right: None,
+
             annotation_bounds: AnnotationBounds {
                 corner_detail_box: None,
                 thumbnail_box: None,
@@ -922,140 +919,17 @@ impl PlanViewGeometry {
             }
         }
 
-        // When landscape + corner detail + mat cut all compete for the bottom row,
-        // fit the thumbnail in the gap between them.
-        // Sizing uses frame_long/frame_short (rotation-invariant) so portrait and landscape
-        // of the same frame compute the same thumb_scale and thus the same SVG dimensions.
-        //
-        // Two strategies (tried in order):
-        //   A) Natural fit: line 2 ("value (visible)") sits at its natural position and the
-        //      thumbnail fits in the gap to its left. Uses the value-line width (narrower than
-        //      the combined label) to find the actual line-2 left edge.
-        //   B) Minimal shift: if the natural gap is too narrow for the thumbnail, shift line 2
-        //      rightward by exactly enough to clear the thumbnail (thumbnail.right() + gap),
-        //      then verify the shifted line 2 fits within content_area. This is the minimum
-        //      displacement — no fixed prefix alignment required.
-        let beside_mat_cut = !is_portrait && occupied.len() == 2 && {
-            let mat_cut_rect = &occupied[1];
-
-            let thumb_sf = style.label_font_size / 13.0;
-            let frame_long = frame_outer_width.max(frame_outer_height);
-            let frame_short = frame_outer_width.min(frame_outer_height);
-            let mini_max_h = style.label_font_size * 2.5 * thumb_sf;
-            let thumb_scale_preferred = (90.0_f64 / frame_long).min(mini_max_h / frame_short);
-            let preferred_mini_w = (frame_outer_width * thumb_scale_preferred).max(5.0);
-            // Aspect ratio for scaling mini_h from any capped mini_w
-            let aspect = frame_outer_width / frame_outer_height;
-            let mini_gap = 10.0;
-            let min_mini_w = 20.0;
-            let thumbnail_gap = 24.0 * thumb_sf;
-            let corner_right = occupied[0].right();
-
-            // Left edge of the mat cut annotation (extent start x)
-            let mat_cut_left = mat_cut_rect.left();
-
-            let mini_y = geo.frame_outer.bottom() + thumbnail_gap;
-
-            // Place thumbnail at (x, mini_y) with width w; height derived from true aspect ratio.
-            let place_thumb = |w: f64, x: f64| -> Option<Rect> {
-                let h = (w / aspect).max(5.0);
-                let r = Rect::new(x, mini_y, w, h);
-                if !r.overlaps_with_margin(&occupied[0], 4.0) { Some(r) } else { None }
-            };
-
-            // Strategy B: place thumbnail at preferred size starting just right of the
-            // corner detail, without shifting the mat cut label (which is now left-anchored
-            // at the span left edge and does not need to yield space on the right).
-            let try_b = |w: f64| -> Option<(Rect, Option<f64>)> {
-                let mini_x = corner_right + mini_gap;
-                place_thumb(w, mini_x).map(|r| (r, None))
-            };
-
-            // Strategy A: center thumbnail between corner detail and mat cut annotation.
-            let try_a = |w: f64| -> Option<(Rect, Option<f64>)> {
-                let avail = mat_cut_left - corner_right - 2.0 * mini_gap;
-                if avail >= w {
-                    let mini_x = corner_right + mini_gap + (avail - w) / 2.0;
-                    place_thumb(w, mini_x).map(|r| (r, None))
-                } else {
-                    None
-                }
-            };
-
-            // Priority order:
-            // 1. A at preferred size: centered in gap between corner detail and mat cut
-            // 2. B at preferred size: flush right of corner detail (gap too narrow)
-            // 3. A with capped size: shrink thumbnail to fit gap
-            let avail_a = mat_cut_left - corner_right - 2.0 * mini_gap;
-            let result = try_a(preferred_mini_w)
-                .or_else(|| try_b(preferred_mini_w))
-                .or_else(|| {
-                    if avail_a >= min_mini_w {
-                        try_a(avail_a.min(preferred_mini_w))
-                    } else {
-                        None
-                    }
-                });
-
-            if let Some((mini_rect, block_right)) = result {
-                geo.thumbnail = Some(mini_rect);
-                geo.thumbnail_below = true;
-                geo.thumbnail_label_position = ThumbnailLabelPosition::Below;
-                geo.mat_cut_label_right = block_right;
-                true
-            } else {
-                false
-            }
-        };
-
-        let (thumb_rect, thumb_below, thumb_label_pos) = if beside_mat_cut {
-            (geo.thumbnail.unwrap(), geo.thumbnail_below, geo.thumbnail_label_position)
-        } else {
-            Self::place_thumbnail(
-                &geo.frame_outer, &occupied, is_portrait, style,
-                frame_outer_width, frame_outer_height,
-            )
-        };
-        geo.thumbnail = Some(thumb_rect);
-        geo.thumbnail_below = thumb_below;
-        geo.thumbnail_label_position = thumb_label_pos;
-
-        // Build annotation bounds
-        geo.annotation_bounds = AnnotationBounds {
-            corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
-            thumbnail_box: geo.thumbnail,
-            thumbnail_label_position: thumb_label_pos,
-            mat_cut_width_label: None,  // Populated later by callout generation
-            mat_cut_height_label: None,
-            mat_cut_extent,
-        };
-
-        geo
-    }
-
-    /// Place thumbnail using candidate positions, avoiding overlap with occupied rects.
-    ///
-    /// Tries positions in priority order:
-    /// 1. Portrait: left of frame, vertically centered
-    /// 2. Landscape: bottom-right of frame
-    /// 3. Landscape: right of last occupied element in bottom row
-    /// 4. Any: reduce gap to minimum (4px)
-    fn place_thumbnail(
-        frame_outer: &Rect,
-        occupied: &[Rect],
-        is_portrait: bool,
-        style: &DiagramStyle,
-        frame_outer_width: f64,
-        frame_outer_height: f64,
-    ) -> (Rect, bool, ThumbnailLabelPosition) {
+        // Thumbnail sizing + preferred position.
+        // The collision pass in svg.rs handles fine adjustments (nudging away from
+        // arrow stubs, callout labels, etc.) and re-centering in the CD/MC gap.
         let thumb_sf = style.label_font_size / 13.0;
         let thumbnail_gap = 24.0 * thumb_sf;
         let thumbnail_min_px = 5.0;
+        let has_cd_and_mc = occupied.len() == 2;
 
-        // When both corner detail and mat cut label are present (occupied.len() == 2), use
-        // rotation-invariant sizing so portrait and landscape of the same frame get the same
-        // thumb dimensions as beside_mat_cut: scale = min(90/frame_long, mini_max_h/frame_short).
-        let (thumb_w, thumb_h) = if occupied.len() == 2 {
+        // Sizing: rotation-invariant when CD + MC both present (smaller thumb to fit gap),
+        // standard orientation-aware sizing otherwise.
+        let (thumb_w, thumb_h) = if has_cd_and_mc {
             let frame_long = frame_outer_width.max(frame_outer_height);
             let frame_short = frame_outer_width.min(frame_outer_height);
             let mini_max_h = style.label_font_size * 2.5 * thumb_sf;
@@ -1063,9 +937,6 @@ impl PlanViewGeometry {
             ((frame_outer_width * thumb_scale).max(thumbnail_min_px),
              (frame_outer_height * thumb_scale).max(thumbnail_min_px))
         } else {
-            // Standard sizing: thumb_long constrains the long physical axis, thumb_short the short.
-            // For the same frame rotated 90°, scale = min(thumb_short/W, thumb_long/H) is identical,
-            // so both thumbnails have the same long edge in SVG pixels.
             let thumb_long = 95.0 * thumb_sf;
             let thumb_short = 60.0 * thumb_sf;
             let (thumbnail_max_w, thumbnail_max_h) = if is_portrait {
@@ -1080,224 +951,70 @@ impl PlanViewGeometry {
              (frame_outer_height * thumb_scale).max(thumbnail_min_px))
         };
 
-        // Label dimensions for bounding box calculation
-        let thumb_font = 8.0 * thumb_sf;
-        let thumb_label_gap = 8.0 * thumb_sf;
+        // Label metrics for bounding-box calculation
         let thumb_line_h = 10.0 * thumb_sf;
-        let label_right_w = estimate_text_width("proportions", thumb_font);
+        let thumb_font = 8.0 * thumb_sf;
         let label_below_h = thumb_line_h * 2.0 + thumb_font;
 
-        let collision_margin = 6.0;
-
-        // Helper: compute full bounding box including label
-        let full_bounds = |x: f64, y: f64, label_pos: ThumbnailLabelPosition| -> Rect {
-            match label_pos {
-                ThumbnailLabelPosition::Right => {
-                    // Label extends to the right of thumbnail
-                    let total_w = thumb_w + thumb_label_gap + label_right_w;
-                    Rect::new(x, y, total_w, thumb_h)
-                }
-                ThumbnailLabelPosition::Below => {
-                    // Label is centered below thumbnail (svg renders text centered on thumb midpoint)
-                    let total_h = thumb_h + label_below_h;
-                    let total_w = thumb_w.max(label_right_w);
-                    let left = x + (thumb_w - total_w) / 2.0;
-                    Rect::new(left, y, total_w, total_h)
-                }
-            }
-        };
-
-        // Helper: check if a placement collides with any occupied rect
-        let collides = |bounds: &Rect| -> bool {
-            occupied.iter().any(|occ| bounds.overlaps_with_margin(occ, collision_margin))
-        };
-
-        // Build candidate list based on orientation
-        struct Candidate {
-            x: f64,
-            y: f64,
-            below: bool,
-            label_pos: ThumbnailLabelPosition,
-        }
-
-        let mut candidates: Vec<Candidate> = Vec::new();
-
-        if is_portrait {
-            let primary_x = frame_outer.left() - thumbnail_gap - thumb_w;
-            // When constrained sizing is active (occupied.len() == 2), the thumbnail is small,
-            // so center the total bounds (thumb + label) vertically for better visual balance.
-            let centered_y = if occupied.len() == 2 {
-                frame_outer.top() + (frame_outer.height - (thumb_h + label_below_h)) / 2.0
+        // Preferred position: one per orientation, with CD/MC gap awareness.
+        let (thumb_x, thumb_y, thumb_label_pos) = if is_portrait {
+            // Left of frame, vertically centered, label below
+            let x = geo.frame_outer.left() - thumbnail_gap - thumb_w;
+            let centered_y = if has_cd_and_mc {
+                geo.frame_outer.top() + (geo.frame_outer.height - (thumb_h + label_below_h)) / 2.0
             } else {
-                frame_outer.top() + (frame_outer.height - thumb_h) / 2.0
+                geo.frame_outer.top() + (geo.frame_outer.height - thumb_h) / 2.0
             };
-
-            // Primary: left of frame, vertically centered, label below
-            candidates.push(Candidate {
-                x: primary_x,
-                y: centered_y,
-                below: false,
-                label_pos: ThumbnailLabelPosition::Below,
-            });
-
-            // Fallback: shift upward to clear any occupied rect that overlaps our x range.
-            // This handles corner detail boxes that extend into the left-of-frame area.
-            // Use the actual right edge of the centered full_bounds so the filter correctly
-            // detects occupied rects that the label (centered on thumb) would overlap.
-            // For centered Below label: right = primary_x + (thumb_w + max(thumb_w, label_right_w)) / 2
-            let full_bounds_right = primary_x + (thumb_w + thumb_w.max(label_right_w)) / 2.0;
-            let in_x_range = |r: &Rect| {
-                r.left() < full_bounds_right + collision_margin
-                    && r.right() > primary_x - collision_margin
-            };
-            let blocking_top = occupied.iter()
-                .filter(|r| in_x_range(r))
-                .map(|r| r.top())
-                .fold(f64::INFINITY, f64::min);
-            if blocking_top.is_finite() {
-                // overlaps_with_margin expands both rects by collision_margin, so we need
-                // 2× the margin to guarantee the fallback candidate clears the collision check.
-                let shifted_y = blocking_top - 2.0 * collision_margin - label_below_h - thumb_h;
-                candidates.push(Candidate {
-                    x: primary_x,
-                    y: shifted_y,
-                    below: false,
-                    label_pos: ThumbnailLabelPosition::Below,
-                });
+            // If centered position overlaps corner detail, shift above it
+            if let Some(cd) = &geo.corner_detail {
+                let full_bottom = centered_y + thumb_h + label_below_h;
+                if full_bottom > cd.box_rect.top() - 6.0 {
+                    let shifted_y = cd.box_rect.top() - 12.0 - label_below_h - thumb_h;
+                    (x, shifted_y, ThumbnailLabelPosition::Below)
+                } else {
+                    (x, centered_y, ThumbnailLabelPosition::Below)
+                }
+            } else {
+                (x, centered_y, ThumbnailLabelPosition::Below)
             }
-
-            // Additional escape: below all blocking rects in our x range.
-            // When both upward and primary positions collide, place below everything.
-            let occupied_bottom_in_range = occupied.iter()
-                .filter(|r| in_x_range(r))
-                .map(|r| r.bottom())
-                .fold(f64::NEG_INFINITY, f64::max);
-            if occupied_bottom_in_range.is_finite() {
-                let below_y = occupied_bottom_in_range + 2.0 * collision_margin;
-                candidates.push(Candidate {
-                    x: primary_x,
-                    y: below_y,
-                    below: false,
-                    label_pos: ThumbnailLabelPosition::Below,
-                });
+        } else if has_cd_and_mc {
+            // Landscape with CD + MC: center in gap between them
+            let corner_right = occupied[0].right();
+            let mat_cut_left = occupied[1].left();
+            let mini_gap = 10.0;
+            let avail = mat_cut_left - corner_right - 2.0 * mini_gap;
+            let y = geo.frame_outer.bottom() + thumbnail_gap;
+            if avail >= thumb_w {
+                // Center in the gap
+                let x = corner_right + mini_gap + (avail - thumb_w) / 2.0;
+                (x, y, ThumbnailLabelPosition::Below)
+            } else {
+                // Gap too narrow: place just right of corner detail
+                let x = corner_right + mini_gap;
+                (x, y, ThumbnailLabelPosition::Below)
             }
         } else {
-            // Primary: bottom-right, label to the right
-            candidates.push(Candidate {
-                x: frame_outer.right() - thumb_w,
-                y: frame_outer.bottom() + thumbnail_gap,
-                below: true,
-                label_pos: ThumbnailLabelPosition::Right,
-            });
+            // Landscape: bottom-right of frame
+            let x = geo.frame_outer.right() - thumb_w;
+            let y = geo.frame_outer.bottom() + thumbnail_gap;
+            (x, y, ThumbnailLabelPosition::Right)
+        };
 
-            // Secondary: in the gap between left-zone and right-zone bottom occupied rects.
-            // Use Below label so the thumb only needs thumb_w horizontal space (not thumb_w + label_w).
-            // This handles the corner-detail-left + mat-cut-right layout.
-            let frame_center_x = frame_outer.left() + frame_outer.width / 2.0;
-            let small_gap = thumbnail_gap.min(12.0);
-            let left_group_right = occupied.iter()
-                .filter(|r| r.bottom() > frame_outer.bottom() && r.left() < frame_center_x)
-                .map(|r| r.right())
-                .fold(f64::NEG_INFINITY, f64::max);
-            let right_group_left = occupied.iter()
-                .filter(|r| r.bottom() > frame_outer.bottom() && r.left() >= frame_center_x)
-                .map(|r| r.left())
-                .fold(f64::INFINITY, f64::min);
+        geo.thumbnail = Some(Rect::new(thumb_x, thumb_y, thumb_w, thumb_h));
+        geo.thumbnail_below = thumb_y > geo.frame_outer.bottom();
+        geo.thumbnail_label_position = thumb_label_pos;
 
-            if left_group_right.is_finite() {
-                // There's a left-zone occupied element — place just to the right of it (label below)
-                candidates.push(Candidate {
-                    x: left_group_right + small_gap,
-                    y: frame_outer.bottom() + thumbnail_gap,
-                    below: true,
-                    label_pos: ThumbnailLabelPosition::Below,
-                });
-            }
+        // Build annotation bounds
+        geo.annotation_bounds = AnnotationBounds {
+            corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
+            thumbnail_box: geo.thumbnail,
+            thumbnail_label_position: thumb_label_pos,
+            mat_cut_width_label: None,  // Populated later by callout generation
+            mat_cut_height_label: None,
+            mat_cut_extent,
+        };
 
-            // Tertiary: right of rightmost bottom element (only if that element is in the left half)
-            if right_group_left.is_finite() && right_group_left < frame_center_x {
-                candidates.push(Candidate {
-                    x: right_group_left + small_gap,
-                    y: frame_outer.bottom() + thumbnail_gap,
-                    below: true,
-                    label_pos: ThumbnailLabelPosition::Below,
-                });
-            }
-
-            // Bottom-left if nothing is there
-            candidates.push(Candidate {
-                x: frame_outer.left(),
-                y: frame_outer.bottom() + thumbnail_gap,
-                below: true,
-                label_pos: ThumbnailLabelPosition::Right,
-            });
-
-            // Second row: below all occupied elements.
-            // When the first bottom row is fully taken by corner detail + mat cut label,
-            // drop to a row below the tallest first-row element.
-            let occupied_bottom = occupied.iter()
-                .map(|r| r.bottom())
-                .fold(f64::NEG_INFINITY, f64::max);
-            if occupied_bottom.is_finite() {
-                let second_row_y = occupied_bottom + small_gap;
-                // Center under frame (most natural)
-                candidates.push(Candidate {
-                    x: frame_outer.left() + (frame_outer.width - thumb_w) / 2.0,
-                    y: second_row_y,
-                    below: true,
-                    label_pos: ThumbnailLabelPosition::Below,
-                });
-                // Left-aligned in second row
-                candidates.push(Candidate {
-                    x: frame_outer.left(),
-                    y: second_row_y,
-                    below: true,
-                    label_pos: ThumbnailLabelPosition::Right,
-                });
-            }
-
-            // Escape right: to the right of ALL occupied elements (guaranteed collision-free).
-            // When corner detail + mat cut label fill the entire bottom row, this is the last resort.
-            let all_occupied_right = occupied.iter()
-                .map(|r| r.right())
-                .fold(f64::NEG_INFINITY, f64::max);
-            if all_occupied_right.is_finite() {
-                candidates.push(Candidate {
-                    x: all_occupied_right + small_gap,
-                    y: frame_outer.bottom() + thumbnail_gap,
-                    below: true,
-                    label_pos: ThumbnailLabelPosition::Below,
-                });
-            }
-
-            // Reduced gap fallback
-            let min_gap = 4.0;
-            candidates.push(Candidate {
-                x: frame_outer.right() - thumb_w,
-                y: frame_outer.bottom() + min_gap,
-                below: true,
-                label_pos: ThumbnailLabelPosition::Right,
-            });
-        }
-
-        // Try each candidate
-        for c in &candidates {
-            let bounds = full_bounds(c.x, c.y, c.label_pos);
-            if !collides(&bounds) {
-                return (Rect::new(c.x, c.y, thumb_w, thumb_h), c.below, c.label_pos);
-            }
-        }
-
-        // Final fallback: pick the candidate with minimum total overlap area rather than
-        // always returning candidates[0] (which may have the worst collision).
-        let c = candidates.iter().min_by(|a, b| {
-            let bounds_a = full_bounds(a.x, a.y, a.label_pos);
-            let bounds_b = full_bounds(b.x, b.y, b.label_pos);
-            let overlap_a: f64 = occupied.iter().map(|occ| bounds_a.overlap_area(occ)).sum();
-            let overlap_b: f64 = occupied.iter().map(|occ| bounds_b.overlap_area(occ)).sum();
-            overlap_a.partial_cmp(&overlap_b).unwrap_or(std::cmp::Ordering::Equal)
-        }).unwrap_or(&candidates[0]);
-        (Rect::new(c.x, c.y, thumb_w, thumb_h), c.below, c.label_pos)
+        geo
     }
 
     /// Compute corner detail geometry for the inset overlay.
