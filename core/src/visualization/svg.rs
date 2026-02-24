@@ -719,17 +719,22 @@ fn run_collision_pass(
         });
     }
 
-    // Thumbnail (can shift in both X and Y, but we use X for simplicity)
+    // Thumbnail: axis depends on orientation.
+    // Landscape (below frame) → shift along X to dodge corner detail / mat cut.
+    // Portrait (left of frame) → shift along Y to dodge corner detail.
     if let Some(thumb) = &geometry.thumbnail {
-        let max_shift_left = thumb.x - style.margin;
-        let max_shift_right = 50.0; // reasonable upper bound
+        let is_below_frame = thumb.top() >= geometry.frame_outer.bottom();
+        let (axis, range) = if is_below_frame {
+            let max_left = thumb.x - style.margin;
+            (Axis::X, (-max_left, 50.0))
+        } else {
+            let max_up = thumb.y - style.margin;
+            (Axis::Y, (-max_up, 50.0))
+        };
         elements.push(FlexElement {
             id: ElementId::Thumbnail,
             bounds: *thumb,
-            flex: FlexRule::ShiftAxis {
-                axis: Axis::X,
-                range: (-max_shift_left, max_shift_right),
-            },
+            flex: FlexRule::ShiftAxis { axis, range },
             priority: 4,
         });
     }
