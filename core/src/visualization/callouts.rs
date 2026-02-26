@@ -121,7 +121,7 @@ pub fn generate_plan_callouts(
                         fmt(mat_visible_tb)),
                     DimensionType::MatCutHeight,  // Use MatCutHeight which has Side::Left preference
                     // Place on LEFT side to avoid collision with outside/inside callouts on right
-                    Point::new(geometry.frame_inner.left() + frame_half_stroke, geometry.content_area.top()),
+                    Point::new(geometry.frame_inner.left() + frame_half_stroke, geometry.frame_inner.top() + frame_half_stroke),
                     Point::new(geometry.frame_inner.left() + frame_half_stroke, mat_opening.top() + mat_half_stroke),
                 ));
             }
