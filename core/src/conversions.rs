@@ -45,9 +45,7 @@ pub struct Fraction {
 impl Fraction {
     /// Create a new fraction, automatically reduced to lowest terms
     pub fn new(numerator: i32, denominator: i32) -> Self {
-        if denominator == 0 {
-            panic!("Denominator cannot be zero");
-        }
+        debug_assert!(denominator != 0, "Denominator cannot be zero");
         let divisor = gcd(numerator, denominator);
         Self {
             numerator: numerator / divisor,
@@ -335,14 +333,17 @@ pub fn format_inches_as_fraction(value: f64) -> String {
 pub fn format_value(value: f64, unit: Unit) -> String {
     match unit {
         Unit::Inches => format_inches_as_fraction(value),
-        Unit::Millimeters => {
-            let mm_value = inches_to_mm(value);
-            // Strip trailing zeros and decimal point if not needed
-            let formatted = format!("{:.1}", mm_value);
-            let trimmed = formatted.trim_end_matches('0').trim_end_matches('.');
-            format!("{} mm", trimmed)
-        }
+        Unit::Millimeters => format_mm(value),
     }
+}
+
+/// Format an inches value as millimeters (e.g., "25.4 mm").
+/// Strips trailing zeros: 25.40 → "25.4 mm", 10.0 → "10 mm".
+fn format_mm(value: f64) -> String {
+    let mm_value = inches_to_mm(value);
+    let formatted = format!("{:.1}", mm_value);
+    let trimmed = formatted.trim_end_matches('0').trim_end_matches('.');
+    format!("{} mm", trimmed)
 }
 
 /// Format a measurement value with decimal in parentheses (e.g., "12 3/4" (12.75)")
@@ -377,16 +378,14 @@ pub fn format_value_with_decimal(value: f64, unit: Unit) -> String {
         }
         Unit::Millimeters => {
             let mm_value = inches_to_mm(value);
-            let formatted = format!("{:.1}", mm_value);
-            let trimmed = formatted.trim_end_matches('0').trim_end_matches('.');
-
-            // Check if decimal would be redundant
+            let base = format_mm(value);
+            // Check if higher-precision decimal would add information
             let decimal = format!("{:.2}", mm_value).trim_end_matches('0').trim_end_matches('.').to_string();
-            if trimmed == decimal {
-                // Same representation - no need for parenthetical
-                format!("{} mm", trimmed)
+            let base_num = base.trim_end_matches(" mm");
+            if base_num == decimal {
+                base
             } else {
-                format!("{} ({}) mm", trimmed, decimal)
+                format!("{} ({}) mm", base_num, decimal)
             }
         }
     }
@@ -459,12 +458,7 @@ pub fn format_value_tape_measure(value: f64, unit: Unit) -> String {
                 tape_str
             }
         }
-        Unit::Millimeters => {
-            let mm_value = inches_to_mm(value);
-            let formatted = format!("{:.1}", mm_value);
-            let trimmed = formatted.trim_end_matches('0').trim_end_matches('.');
-            format!("{} mm", trimmed)
-        }
+        Unit::Millimeters => format_mm(value),
     }
 }
 

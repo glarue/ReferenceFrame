@@ -128,43 +128,6 @@ impl FrameDesign {
         }
     }
 
-    /// Get validation warnings for the current design
-    /// Returns a list of warning messages for problematic configurations
-    pub fn get_validation_warnings(&self) -> Vec<String> {
-        let mut warnings = Vec::new();
-
-        // Check if mat overlap is unusually large
-        if self.has_mat() {
-            let max_sensible_overlap = self.artwork_height.min(self.artwork_width) * 0.1;
-            if self.mat_overlap > max_sensible_overlap && self.mat_overlap > 0.25 {
-                warnings.push(format!(
-                    "Mat overlap ({:.2}\") is large relative to artwork size. Typical values are 1/8\" to 1/4\".",
-                    self.mat_overlap
-                ));
-            }
-
-            // Check if mat opening would be too small
-            let (mat_h, mat_w) = self.get_mat_opening_dimensions();
-            if mat_h < 1.0 || mat_w < 1.0 {
-                warnings.push(format!(
-                    "Mat opening ({:.2}\" × {:.2}\") is very small. Check mat overlap setting.",
-                    mat_h, mat_w
-                ));
-            }
-        }
-
-        // Check rabbet depth vs material stack
-        let stack_depth = self.get_rabbet_z_depth_required();
-        if stack_depth > self.frame_material_depth {
-            warnings.push(format!(
-                "Material stack ({:.3}\") exceeds frame depth ({:.3}\"). Frame may not close properly.",
-                stack_depth, self.frame_material_depth
-            ));
-        }
-
-        warnings
-    }
-
     /// Check if this design includes matting
     pub fn has_mat(&self) -> bool {
         self.mat_width_sides > 0.0 || self.mat_width_top_bottom > 0.0
@@ -740,11 +703,14 @@ mod tests {
 
     #[test]
     fn test_warning_material_stack_exceeds_frame_depth() {
+        use crate::validation::{validate_design, ValidationConfig};
         let mut design = FrameDesign::default();
         design.frame_material_depth = 0.1; // way too shallow for the stack
-        let warnings = design.get_validation_warnings();
+        design.validate(); // clamps rabbet_depth ≤ frame_material_depth
+        let result = validate_design(&design, &ValidationConfig::default());
+        let warnings = result.warnings();
         assert!(
-            warnings.iter().any(|w| w.contains("exceeds frame depth")),
+            warnings.iter().any(|w| w.message.contains("exceeds rabbet depth")),
             "expected stack overflow warning, got: {:?}",
             warnings
         );
@@ -752,9 +718,10 @@ mod tests {
 
     #[test]
     fn test_no_warnings_default_design() {
+        use crate::validation::{validate_design, ValidationConfig};
         let design = FrameDesign::default();
-        let warnings = design.get_validation_warnings();
-        assert!(warnings.is_empty(), "default should have no warnings, got: {:?}", warnings);
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.warnings().is_empty(), "default should have no warnings, got: {:?}", result.warnings());
     }
 
     // ========================================================================
