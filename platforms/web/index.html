@@ -604,23 +604,22 @@
             qrcode: typeof window.qrcode
         });
 
-        // Check if svg() method gets added to jsPDF and manually extend if needed
-        setTimeout(() => {
+        // Ensure svg2pdf extends jsPDF prototype — try immediately (libraries
+        // typically load before WASM compiles) and retry as a fallback
+        function tryExtendJsPdf() {
             if (window.jspdf?.jsPDF || window.jsPDF) {
                 const jsPDFConstructor = window.jspdf?.jsPDF || window.jsPDF;
                 const testInstance = new jsPDFConstructor();
-                console.log('jsPDF instance has .svg() method:', typeof testInstance.svg);
-
-                // If svg2pdf loaded but didn't extend jsPDF, manually add it
                 if (typeof testInstance.svg !== 'function' && typeof window.svg2pdf?.svg2pdf === 'function') {
                     console.log('Manually adding svg() method to jsPDF prototype');
                     jsPDFConstructor.prototype.svg = async function(svgElement, options) {
                         return await window.svg2pdf.svg2pdf(svgElement, this, options);
                     };
-                    console.log('Manual extension complete. Testing:', typeof (new jsPDFConstructor()).svg);
                 }
             }
-        }, 1000);
+        }
+        tryExtendJsPdf();
+        setTimeout(tryExtendJsPdf, 3000);
 
         let wasmLoaded = false;
         let loadTime = 0;
