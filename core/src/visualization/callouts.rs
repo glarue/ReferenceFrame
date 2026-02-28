@@ -6,10 +6,13 @@
 use crate::frame::FrameDesign;
 use crate::conversions::{format_dimension, Unit};
 use super::types::{
-    DimensionCallout, DimensionType, Point, Rect,
+    DimensionCallout, DimensionType, Point,
 };
-use super::geometry::{PlanViewGeometry, estimate_text_width};
+use super::geometry::PlanViewGeometry;
 use super::style::DiagramStyle;
+
+/// Tolerance for comparing mat cut dimensions (1/32").
+const MAT_DIMENSION_TOLERANCE: f64 = 0.03125;
 
 /// Generate all dimension callouts for a plan view
 /// Shows essential dimensions for frame construction
@@ -83,20 +86,16 @@ pub fn generate_plan_callouts(
             let mat_cut_width = mat_visible_sides + design.rabbet_width;
             // Use the pre-computed extent when available (two-pass: geometry.rs chose the side
             // before thumbnail placement so the decision is consistent with what was reserved).
-            // Fall back to choose_mat_cut_side for callers that didn't go through from_design.
-            let label_text = format!("Mat Cut: {} ({} visible)", fmt(mat_cut_width), fmt(mat_visible_sides));
+            // Fall back to choose_mat_cut_extent for callers that didn't go through from_design.
             let (mat_cut_start, mat_cut_end) = if let Some((start, end)) = geometry.annotation_bounds.mat_cut_extent {
                 (start, end)
             } else {
-                choose_mat_cut_side(
+                PlanViewGeometry::choose_mat_cut_extent(
                     &geometry.frame_inner,
                     &geometry.content_area,
                     mat_opening,
                     &geometry.annotation_bounds.occupied_rects(),
-                    &label_text,
                     style,
-                    frame_half_stroke,
-                    mat_half_stroke,
                 )
             };
             callouts.push(DimensionCallout::new(
@@ -110,9 +109,8 @@ pub fn generate_plan_callouts(
             ));
 
             // Mat cut HEIGHT (vertical dimension, uses top/bottom borders) - only if different from width
-            // Tolerance of 1/32" (0.03125) to avoid showing near-identical dimensions
             let mat_visible_tb = design.mat_width_top_bottom;
-            if (mat_visible_tb - mat_visible_sides).abs() > 0.03125 {
+            if (mat_visible_tb - mat_visible_sides).abs() > MAT_DIMENSION_TOLERANCE {
                 let mat_cut_height = mat_visible_tb + design.rabbet_width;
                 callouts.push(DimensionCallout::new(
                     mat_cut_height,
@@ -120,9 +118,11 @@ pub fn generate_plan_callouts(
                         fmt(mat_cut_height),
                         fmt(mat_visible_tb)),
                     DimensionType::MatCutHeight,  // Use MatCutHeight which has Side::Left preference
-                    // Place on LEFT side to avoid collision with outside/inside callouts on right
-                    Point::new(geometry.frame_inner.left() + frame_half_stroke, geometry.frame_inner.top() + frame_half_stroke),
-                    Point::new(geometry.frame_inner.left() + frame_half_stroke, mat_opening.top() + mat_half_stroke),
+                    // Place extent at frame_outer.left() so extension lines stay in the left
+                    // margin and don't cross through the frame corner material.
+                    // Y span: content_area.top() → mat_opening.top() = mat_cut_height * scale.
+                    Point::new(geometry.frame_outer.left() - frame_half_stroke, geometry.content_area.top()),
+                    Point::new(geometry.frame_outer.left() - frame_half_stroke, mat_opening.top() + mat_half_stroke),
                 ));
             }
         }
@@ -132,51 +132,6 @@ pub fn generate_plan_callouts(
     // since they are depth/profile dimensions, not plan dimensions
 
     callouts
-}
-
-/// Choose which side to place the mat cut width dimension.
-///
-/// Tries bottom-left first. If the label bounding box overlaps any occupied
-/// annotation rect, falls back to bottom-right. This decouples mat cut
-/// placement from knowing specifically *what* occupies the bottom-left.
-fn choose_mat_cut_side(
-    frame_inner: &Rect,
-    content_area: &Rect,
-    mat_opening: &Rect,
-    occupied: &[Rect],
-    label_text: &str,
-    style: &DiagramStyle,
-    frame_half_stroke: f64,
-    mat_half_stroke: f64,
-) -> (Point, Point) {
-    // Estimate label bounds at bottom-left position
-    let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0
-        + style.dimension_offset_base;
-    let label_width = estimate_text_width(label_text, style.label_font_size);
-    let label_height = style.label_font_size * 2.5; // two-line label
-
-    let bottom_left_label = Rect::new(
-        content_area.left(),
-        frame_inner.bottom() + mat_cut_offset - label_height / 2.0,
-        label_width,
-        label_height,
-    );
-
-    let use_right = occupied.iter().any(|occ| bottom_left_label.overlaps_with_margin(occ, 6.0));
-
-    if use_right {
-        // Bottom-right: from mat opening right edge to content area right edge
-        (
-            Point::new(mat_opening.right() - mat_half_stroke, frame_inner.bottom() - frame_half_stroke),
-            Point::new(content_area.right(), frame_inner.bottom() - frame_half_stroke),
-        )
-    } else {
-        // Bottom-left: from content area left edge to mat opening left edge
-        (
-            Point::new(content_area.left(), frame_inner.bottom() - frame_half_stroke),
-            Point::new(mat_opening.left() + mat_half_stroke, frame_inner.bottom() - frame_half_stroke),
-        )
-    }
 }
 
 /// Generate callouts for section view
@@ -405,3 +360,41 @@ mod tests {
         assert!(frame_width_callout.label.contains("mm"));
     }
 }
+
+#[test]
+fn test_asymmetric_mat_callout_coords() {
+    use crate::frame::FrameDesign;
+    use crate::visualization::geometry::PlanViewGeometry;
+    use crate::visualization::style::DiagramStyle;
+
+    let mut design = FrameDesign::new(12.0, 16.0);
+    design.mat_width_top_bottom = 3.0;
+    design.mat_width_sides = 1.5;
+    design.frame_material_width = 1.0;
+    let style = DiagramStyle::default();
+    let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+
+    let callouts = generate_plan_callouts(&design, &geo, false, false, false, &style);
+    let height_callout = callouts.iter().find(|c| c.dimension_type == DimensionType::MatCutHeight);
+    let width_callout  = callouts.iter().find(|c| c.dimension_type == DimensionType::MatCutWidth);
+
+    let scale = geo.scale;
+    let mat_cut_height = design.mat_width_top_bottom + design.rabbet_width; // 3.375"
+    let mat_cut_width  = design.mat_width_sides + design.rabbet_width;      // 1.875"
+
+    let hc = height_callout.expect("MatCutHeight callout must be present for asymmetric mat");
+    let wc = width_callout.expect("MatCutWidth callout must be present");
+
+    // Height callout: vertical span should equal mat_cut_height * scale (± stroke)
+    let h_span = (hc.extent_end.y - hc.extent_start.y).abs();
+    let expected_h = mat_cut_height * scale;
+    assert!((h_span - expected_h).abs() < 2.0,
+        "MatCutHeight span {:.2} should be ≈{:.2} (mat_cut_height * scale)", h_span, expected_h);
+
+    // Width callout: horizontal span should equal mat_cut_width * scale (± stroke)
+    let w_span = (wc.extent_end.x - wc.extent_start.x).abs();
+    let expected_w = mat_cut_width * scale;
+    assert!((w_span - expected_w).abs() < 2.0,
+        "MatCutWidth span {:.2} should be ≈{:.2} (mat_cut_width * scale)", w_span, expected_w);
+}
+

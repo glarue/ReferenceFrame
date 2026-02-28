@@ -6,12 +6,403 @@
 use crate::frame::FrameDesign;
 use crate::conversions::{format_dimension, format_value, Unit};
 use super::types::{AnnotationBounds, DetailMode, Point, Rect, ThumbnailLabelPosition};
-use super::style::DiagramStyle;
+use super::style::{DiagramStyle, LABEL_MASK_PADDING_X, THUMBNAIL_MINI_MAX_WIDTH};
 
-// SVG layout constants - must match values in svg.rs
-const EXTENSION_OVERSHOOT: f64 = 8.0;
-const LABEL_BUFFER: f64 = 2.0;
-const LABEL_FONT_OFFSET: f64 = 0.4;
+// ============================================================================
+// PLAN VIEW CONSTANTS
+// ============================================================================
+
+/// Corner detail visibility: detail_ratio threshold above which internal
+/// details (rabbet, mat overlap) are too cramped → show corner detail inset.
+const CORNER_STROKE_RATIO: f64 = 0.035;
+
+/// Per-axis break threshold: frame band / outer dimension below this → needs break.
+const AXIS_BREAK_RATIO: f64 = 0.025;
+
+/// Extreme ratio: override user preference and force break at ~1%.
+const FORCE_BREAK_RATIO: f64 = 0.010;
+
+/// Hard cap on visual aspect ratio — prevents unreadably thin rendering.
+const MAX_VISUAL_ASPECT_RATIO: f64 = 3.0;
+
+/// Fixed pixel gap for axis break indicator (not scale-dependent).
+const BREAK_GAP_PX: f64 = 8.0;
+
+/// Break position bias: offset breaks so the top-left corner gets more area.
+const BREAK_CENTER_BIAS_X: f64 = 0.75;
+const BREAK_CENTER_BIAS_Y: f64 = 0.25;
+
+/// Minimum rendered frame band width in pixels for break mode.
+const TARGET_BAND_PX: f64 = 6.0;
+
+/// Minimum inches of artwork to show per axis in break mode.
+const MIN_DISPLAY_INCHES: f64 = 3.0;
+
+/// Single-axis break improvement threshold: skip break if display AR
+/// doesn't improve over true AR by at least this factor.
+const BREAK_IMPROVEMENT_THRESHOLD: f64 = 0.90;
+
+// ============================================================================
+// SECTION VIEW CONSTANTS
+// ============================================================================
+
+/// Axis break threshold for section view (both horizontal and vertical).
+const SECTION_AXIS_BREAK_THRESHOLD: f64 = 3.0;
+
+/// Width of outer edge portion shown after break (inches).
+const SECTION_OUTER_EDGE_WIDTH: f64 = 0.4;
+
+/// Visual gap for horizontal break indicator in section view (inches).
+const SECTION_BREAK_GAP_X: f64 = 0.077;
+
+/// Visual gap for vertical break indicator in section view (inches).
+const SECTION_BREAK_GAP_Y: f64 = 0.11;
+
+/// Extra frame body shown beyond rabbet in section view (inches).
+const SECTION_INNER_PORTION_EXTRA: f64 = 0.5;
+
+/// Minimum dimension for section view calculations (inches).
+const SECTION_MIN_DIMENSION: f64 = 0.1;
+
+/// Minimum rabbet width for section view calculations.
+const SECTION_MIN_RABBET_WIDTH: f64 = 0.01;
+
+/// Material layer extends past rabbet by this multiplier for visibility.
+const SECTION_MATERIALS_OVERHANG: f64 = 1.5;
+
+/// Layer display width as multiple of rabbet width.
+const SECTION_LAYER_WIDTH_MULTIPLIER: f64 = 2.5;
+
+/// Minimum/maximum pixels per inch for section view.
+const SECTION_MIN_SCALE: f64 = 20.0;
+const SECTION_MAX_SCALE: f64 = 300.0;
+
+/// Rabbet label: leader line height (px).
+const RABBET_LABEL_LEADER: f64 = 18.0;
+
+/// Rabbet label: text height as multiplier of font_size.
+const RABBET_LABEL_FONT_MULTIPLIER: f64 = 2.2;
+
+// ============================================================================
+// CORNER DETAIL CONSTANTS
+// ============================================================================
+
+/// Corner detail box width as ratio of canvas width.
+const CORNER_DETAIL_WIDTH_RATIO: f64 = 0.30;
+
+/// Cap corner detail relative to rendered frame size (max dimension).
+const CORNER_DETAIL_FRAME_CAP: f64 = 0.80;
+
+/// Minimum and maximum box width (px).
+const CORNER_DETAIL_MIN_WIDTH: f64 = 80.0;
+const CORNER_DETAIL_MAX_WIDTH: f64 = 213.0;
+
+/// Box height = width / this ratio.
+const CORNER_DETAIL_ASPECT_RATIO: f64 = 1.15;
+
+/// Frame band drawn at this fraction of box width.
+const CORNER_DETAIL_FRAME_BAND_RATIO: f64 = 0.21;
+
+/// Label font size as fraction of box height.
+const CORNER_DETAIL_LABEL_FONT_RATIO: f64 = 0.065;
+
+/// Box X position: nominally extends this fraction of box_w left of frame_outer.
+const CORNER_DETAIL_X_OVERHANG: f64 = 0.15;
+
+/// Minimum corner origin X as fraction of box width from box left.
+const CORNER_DETAIL_CORNER_X_MIN: f64 = 0.30;
+
+/// Corner origin Y as fraction of box height from box top.
+const CORNER_DETAIL_CORNER_Y: f64 = 0.76;
+
+/// Standard Y offset: frame_outer.bottom() - box_h * this.
+const CORNER_DETAIL_Y_OFFSET: f64 = 0.85;
+
+/// Axis-break Y blend weight toward artwork center.
+const CORNER_DETAIL_CENTER_WEIGHT: f64 = 0.65;
+
+/// Computed display artwork dimensions after axis break compression.
+struct DisplayDimensions {
+    artwork_w: f64,
+    artwork_h: f64,
+    use_break_x: bool,
+    use_break_y: bool,
+}
+
+/// Result of the axis break decision pass.
+struct BreakDecision {
+    use_break_x: bool,
+    use_break_y: bool,
+    use_corner_detail: bool,
+    /// Frame band width, clamped to minimum 0.001".
+    frame_band: f64,
+}
+
+/// Decide which axes need axis breaks and whether corner detail is needed.
+///
+/// Evaluates frame proportions, label widths, and detail visibility to
+/// determine the optimal break strategy before geometry is computed.
+fn decide_axis_breaks(
+    design: &FrameDesign,
+    frame_outer_width: f64,
+    frame_outer_height: f64,
+    native_scale: f64,
+    style: &DiagramStyle,
+    detail_mode: DetailMode,
+    corner_detail_enabled: bool,
+    axis_breaks_enabled: bool,
+    unit_mm: bool,
+    use_tape_segments: bool,
+    use_decimal: bool,
+) -> BreakDecision {
+    let frame_band = design.frame_material_width.max(0.001);
+    let frame_face_px = frame_band * native_scale;
+    let detail_stroke_px = style.extension_stroke_width;
+    let detail_ratio = if frame_face_px > 0.0 {
+        detail_stroke_px / frame_face_px
+    } else {
+        1.0
+    };
+
+    // Per-axis: which dimensions are geometrically extreme?
+    let needs_break_x = frame_outer_width > 0.0
+        && frame_band / frame_outer_width < AXIS_BREAK_RATIO;
+    let needs_break_y = frame_outer_height > 0.0
+        && frame_band / frame_outer_height < AXIS_BREAK_RATIO;
+
+    let force_break_x = frame_outer_width > 0.0
+        && frame_band / frame_outer_width < FORCE_BREAK_RATIO;
+    let force_break_y = frame_outer_height > 0.0
+        && frame_band / frame_outer_height < FORCE_BREAK_RATIO;
+
+    // Minimum rendered dimension: if the short side would render too narrow
+    // for callout labels, force a break on the long axis to reclaim space.
+    let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
+    let fmt_dim = |v: f64| format_dimension(v, unit, use_tape_segments, use_decimal);
+    let (inside_h, inside_w) = design.get_frame_inside_dimensions();
+    let fs = style.label_font_size;
+
+    let width_labels = [
+        format!("Outside: {}", fmt_dim(frame_outer_width)),
+        format!("Inside: {}", fmt_dim(inside_w)),
+    ];
+    let min_width_px = width_labels.iter().map(|l| {
+        effective_label_width(l, fs)
+    }).fold(0.0_f64, f64::max) + 8.0;
+
+    let height_labels = [
+        format!("Outside: {}", fmt_dim(frame_outer_height)),
+        format!("Inside: {}", fmt_dim(inside_h)),
+    ];
+    let min_height_px = height_labels.iter().map(|l| {
+        effective_label_width(l, fs)
+    }).fold(0.0_f64, f64::max) + 8.0;
+
+    let scaled_width_native = frame_outer_width * native_scale;
+    let scaled_height_native = frame_outer_height * native_scale;
+    let force_break_x_label = scaled_height_native < min_height_px && frame_outer_width > frame_outer_height * 2.0;
+    let force_break_y_label = scaled_width_native < min_width_px && frame_outer_height > frame_outer_width * 2.0;
+
+    let force_breaks = force_break_x || force_break_y || force_break_x_label || force_break_y_label;
+
+    let needs_corner_detail = detail_ratio > CORNER_STROKE_RATIO;
+    let needs_breaks = needs_break_x || needs_break_y;
+
+    let use_breaks = match detail_mode {
+        DetailMode::Auto => (needs_breaks && axis_breaks_enabled) || force_breaks,
+        DetailMode::None => false,
+    };
+
+    let use_corner_detail = match detail_mode {
+        DetailMode::Auto => needs_corner_detail && corner_detail_enabled,
+        DetailMode::None => false,
+    };
+
+    let (use_break_x, use_break_y) = if use_breaks {
+        (needs_break_x || force_break_x || force_break_x_label,
+         needs_break_y || force_break_y || force_break_y_label)
+    } else {
+        (false, false)
+    };
+
+    BreakDecision {
+        use_break_x,
+        use_break_y,
+        use_corner_detail,
+        frame_band,
+    }
+}
+
+/// Compute compressed display artwork dimensions for axis break mode.
+///
+/// Determines how much of the artwork to show along each axis, applying
+/// aspect ratio caps and label-fit refinement. May cancel breaks if the
+/// stable scale already provides adequate detail.
+fn compute_display_dimensions(
+    design: &FrameDesign,
+    frame_outer_width: f64,
+    frame_outer_height: f64,
+    mut use_break_x: bool,
+    mut use_break_y: bool,
+    frame_band: f64,
+    available_width: f64,
+    available_height: f64,
+    canvas_width: f64,
+    canvas_height: f64,
+    native_scale_x: f64,
+    style: &DiagramStyle,
+) -> DisplayDimensions {
+    let non_artwork_w = frame_outer_width - design.artwork_width;
+    let non_artwork_h = frame_outer_height - design.artwork_height;
+    let min_scale = TARGET_BAND_PX / frame_band;
+    let min_display = MIN_DISPLAY_INCHES;
+
+    // Helper: compute dual-axis uniform compression (preserves aspect ratio)
+    let dual_axis_uniform = |scale: f64| -> (f64, f64) {
+        let d_w = if design.artwork_width > 0.0 {
+            (available_width / scale - non_artwork_w) / design.artwork_width
+        } else { 1.0 };
+        let d_h = if design.artwork_height > 0.0 {
+            (available_height / scale - non_artwork_h) / design.artwork_height
+        } else { 1.0 };
+        let d = d_w.min(d_h).clamp(0.0, 1.0);
+        (
+            (d * design.artwork_width).max(min_display).min(design.artwork_width),
+            (d * design.artwork_height).max(min_display).min(design.artwork_height),
+        )
+    };
+
+    // Break budget: asymmetric margins
+    let break_off_near = style.margin;
+    let break_off_far = style.margin + style.dimension_offset_base + style.dimension_offset_step;
+    let break_avail_x = canvas_width - break_off_near - break_off_far;
+    let break_avail_y = canvas_height - break_off_near - break_off_far;
+
+    // Cancel breaks when the width-limited scale already provides adequate frame detail.
+    let stable_scale = native_scale_x;
+    if stable_scale >= min_scale {
+        use_break_x = false;
+        use_break_y = false;
+    }
+
+    let (mut display_artwork_w, mut display_artwork_h, mut use_break_x, mut use_break_y) = match (use_break_x, use_break_y) {
+        (true, true) => {
+            let (dw, dh) = dual_axis_uniform(min_scale);
+            (dw, dh, dw < design.artwork_width, dh < design.artwork_height)
+        }
+        (true, false) => {
+            let dh = design.artwork_height;
+            let max_fits = (break_avail_x / min_scale - non_artwork_w).max(min_display);
+            let dw = max_fits.min(design.artwork_width);
+            let min_dw = (non_artwork_h + dh - non_artwork_w).max(min_display);
+            let dw = dw.max(min_dw);
+            (dw, dh, dw < design.artwork_width, false)
+        }
+        (false, true) => {
+            let dw = design.artwork_width;
+            let max_fits = (break_avail_y / min_scale - non_artwork_h).max(min_display);
+            let dh = max_fits.min(design.artwork_height);
+            let min_dh = (non_artwork_w + dw - non_artwork_h).max(min_display);
+            let dh = dh.max(min_dh);
+            (dw, dh, false, dh < design.artwork_height)
+        }
+        _ => (design.artwork_width, design.artwork_height, false, false),
+    };
+
+    // Cap the display aspect ratio to the true frame ratio
+    let true_ratio = if frame_outer_height > 0.0 && frame_outer_width > 0.0 {
+        (frame_outer_width / frame_outer_height).max(frame_outer_height / frame_outer_width)
+    } else {
+        1.3
+    };
+    let max_display_ratio = true_ratio;
+    {
+        let disp_w = non_artwork_w + display_artwork_w;
+        let disp_h = non_artwork_h + display_artwork_h;
+        let ratio = disp_w / disp_h;
+        if ratio > max_display_ratio {
+            let target_w = disp_h * max_display_ratio;
+            display_artwork_w = (target_w - non_artwork_w).max(min_display);
+            use_break_x = display_artwork_w < design.artwork_width;
+        } else if ratio > 0.0 && 1.0 / ratio > max_display_ratio {
+            let target_h = disp_w * max_display_ratio;
+            display_artwork_h = (target_h - non_artwork_h).max(min_display);
+            use_break_y = display_artwork_h < design.artwork_height;
+        }
+    }
+
+    // Label-fit aspect ratio cap (MAX_VISUAL_ASPECT_RATIO)
+    {
+        let disp_w = non_artwork_w + display_artwork_w;
+        let disp_h = non_artwork_h + display_artwork_h;
+        if disp_h > disp_w * MAX_VISUAL_ASPECT_RATIO {
+            let target_h = disp_w * MAX_VISUAL_ASPECT_RATIO;
+            display_artwork_h = (target_h - non_artwork_h).max(min_display);
+            use_break_y = display_artwork_h < design.artwork_height;
+        } else if disp_w > disp_h * MAX_VISUAL_ASPECT_RATIO {
+            let target_w = disp_h * MAX_VISUAL_ASPECT_RATIO;
+            display_artwork_w = (target_w - non_artwork_w).max(min_display);
+            use_break_x = display_artwork_w < design.artwork_width;
+        }
+    }
+
+    // Label-fit refinement
+    {
+        let disp_w = non_artwork_w + display_artwork_w;
+        let disp_h = non_artwork_h + display_artwork_h;
+        let is_portrait = disp_h > disp_w;
+
+        let narrow_label_px = if is_portrait && use_break_y {
+            let outside_val = format_value(frame_outer_width, Unit::Inches);
+            let inside_val = format_value(design.artwork_width, Unit::Inches);
+            let outside_w = estimate_text_width("Outside:", style.label_font_size)
+                .max(estimate_text_width(&outside_val, style.label_font_size));
+            let inside_w = estimate_text_width("Inside:", style.label_font_size)
+                .max(estimate_text_width(&inside_val, style.label_font_size));
+            let mask_pad = LABEL_MASK_PADDING_X * 4.0;
+            outside_w.max(inside_w) + mask_pad
+        } else if !is_portrait && use_break_x {
+            let outside_val = format_value(frame_outer_height, Unit::Inches);
+            let inside_val = format_value(design.artwork_height, Unit::Inches);
+            let outside_w = estimate_text_width("Outside:", style.label_font_size)
+                .max(estimate_text_width(&outside_val, style.label_font_size));
+            let inside_w = estimate_text_width("Inside:", style.label_font_size)
+                .max(estimate_text_width(&inside_val, style.label_font_size));
+            let mask_pad = LABEL_MASK_PADDING_X * 4.0;
+            outside_w.max(inside_w) + mask_pad
+        } else {
+            0.0
+        };
+
+        if narrow_label_px > 0.0 {
+            let (projected_px, is_height_limited) = if is_portrait {
+                (disp_w * available_height / disp_h, true)
+            } else {
+                (disp_h * available_width / disp_w, false)
+            };
+
+            if projected_px < narrow_label_px * 1.5 {
+                let target_label = narrow_label_px * 1.5;
+                if is_height_limited {
+                    let target_h = disp_w * available_height / target_label;
+                    display_artwork_h = (target_h - non_artwork_h).max(min_display);
+                    use_break_y = display_artwork_h < design.artwork_height;
+                } else {
+                    let target_w = disp_h * available_width / target_label;
+                    display_artwork_w = (target_w - non_artwork_w).max(min_display);
+                    use_break_x = display_artwork_w < design.artwork_width;
+                }
+            }
+        }
+    }
+
+    DisplayDimensions {
+        artwork_w: display_artwork_w,
+        artwork_h: display_artwork_h,
+        use_break_x,
+        use_break_y,
+    }
+}
 
 /// Helper to estimate text width based on character count and font size
 /// Uses character-aware widths for more accurate proportional font estimation
@@ -21,28 +412,31 @@ pub fn estimate_text_width(text: &str, font_size: f64) -> f64 {
     let mut width = 0.0;
     for c in text.chars() {
         let char_width_factor = match c {
-            // Narrow characters
-            '1' | 'i' | 'l' | '.' | ',' | ':' | ';' | '!' | '|' | '\'' | ' ' => 0.4,
+            // Very narrow characters
+            ' ' => 0.28,
+            '1' | 'i' | 'l' | '.' | ',' | ':' | ';' | '!' | '|' | '\'' => 0.4,
             'I' | 'j' | 't' | 'f' | 'r' => 0.45,
+            // Brackets and parens (narrow in Inter/SF/Arial)
+            '(' | ')' | '[' | ']' => 0.35,
             // Wide characters
             'm' | 'w' | 'M' | 'W' => 0.9,
             // Fraction slash (common in inches display)
-            '/' => 0.45,
-            // Digits are fairly consistent
-            '0'..='9' => 0.65,
+            '/' => 0.4,
+            // Digits (tabular width in Inter/SF)
+            '0'..='9' => 0.6,
             // Most lowercase letters
-            'a'..='z' => 0.6,
+            'a'..='z' => 0.58,
             // Most uppercase letters
-            'A'..='Z' => 0.75,
+            'A'..='Z' => 0.72,
             // Quote/inch marks
-            '"' => 0.5,
+            '"' => 0.45,
             // Default for other characters
-            _ => 0.65,
+            _ => 0.6,
         };
         width += font_size * char_width_factor;
     }
-    // Add 5% safety margin to ensure boxes are never too tight
-    width * 1.05
+    // Add 3% safety margin to ensure boxes are never too tight
+    width * 1.03
 }
 
 /// Estimate the effective display width of a label, accounting for two-line split.
@@ -166,6 +560,8 @@ pub struct SectionViewGeometry {
     pub outer_edge_depth: f64,
     /// Actual frame depth in inches (for dimension label)
     pub actual_frame_depth: f64,
+    /// Gap between content bottom and legend (computed once, used by SVG renderer)
+    pub legend_gap: f64,
 }
 
 impl PlanViewGeometry {
@@ -399,383 +795,40 @@ impl PlanViewGeometry {
         let native_scale_y = available_height / frame_outer_height;
         let native_scale = native_scale_x.min(native_scale_y);
 
-        // Pixel-based detail visibility thresholds.
-        //
-        // At the natural rendering scale (native_scale), compare the detail
-        // indicator stroke width to the rendered frame face width. When the
-        // stroke is a large fraction of the face, internal details (rabbet,
-        // mat overlap) are indistinguishable from the frame edges.
-        //
-        // detail_ratio = overlap_stroke_px / frame_face_px
-        //   > 0.035 → face < ~14px: details cramped → corner detail
-        //   ≤ 0.035 → face ≥ ~14px: all details legible → no enhancement
-        const CORNER_STROKE_RATIO: f64 = 0.035;
-
-        let frame_band = design.frame_material_width.max(0.001);
-        let frame_face_px = frame_band * native_scale;
-        let detail_stroke_px = style.extension_stroke_width; // thinnest internal detail (0.5px)
-        let detail_ratio = if frame_face_px > 0.0 {
-            detail_stroke_px / frame_face_px
-        } else {
-            1.0
-        };
-
-        // Per-axis: which dimensions are geometrically extreme?
-        // Only axes where the band is a tiny fraction of outer need compression.
-        const AXIS_BREAK_RATIO: f64 = 0.025;
-        const FORCE_BREAK_RATIO: f64 = 0.010; // ~1%: override user pref at extreme ratios
-        let needs_break_x = frame_outer_width > 0.0
-            && frame_band / frame_outer_width < AXIS_BREAK_RATIO;
-        let needs_break_y = frame_outer_height > 0.0
-            && frame_band / frame_outer_height < AXIS_BREAK_RATIO;
-
-        let force_break_x = frame_outer_width > 0.0
-            && frame_band / frame_outer_width < FORCE_BREAK_RATIO;
-        let force_break_y = frame_outer_height > 0.0
-            && frame_band / frame_outer_height < FORCE_BREAK_RATIO;
-
-        // Minimum rendered dimension: if the short side would render too narrow
-        // for callout labels, force a break on the long axis to reclaim space.
-        // Compute the minimum from the actual outside/inside label text widths
-        // (the labels that span the short extent), accounting for two-line split.
-        let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
-        let fmt_dim = |v: f64| format_dimension(v, unit, use_tape_segments, use_decimal);
-        let (inside_h, inside_w) = design.get_frame_inside_dimensions();
-        let fs = style.label_font_size;
-
-        // For width callouts (horizontal, spanning frame width): label text runs
-        // horizontally along the extent. The extent must fit the longest label.
-        let width_labels = [
-            format!("Outside: {}", fmt_dim(frame_outer_width)),
-            format!("Inside: {}", fmt_dim(inside_w)),
-        ];
-        let min_width_px = width_labels.iter().map(|l| {
-            effective_label_width(l, fs)
-        }).fold(0.0_f64, f64::max) + 8.0; // 8px padding for arrowheads
-
-        // For height callouts (vertical, spanning frame height): same logic.
-        let height_labels = [
-            format!("Outside: {}", fmt_dim(frame_outer_height)),
-            format!("Inside: {}", fmt_dim(inside_h)),
-        ];
-        let min_height_px = height_labels.iter().map(|l| {
-            effective_label_width(l, fs)
-        }).fold(0.0_f64, f64::max) + 8.0;
-
-        let scaled_width_native = frame_outer_width * native_scale;
-        let scaled_height_native = frame_outer_height * native_scale;
-        let force_break_x_label = scaled_height_native < min_height_px && frame_outer_width > frame_outer_height * 2.0;
-        let force_break_y_label = scaled_width_native < min_width_px && frame_outer_height > frame_outer_width * 2.0;
-
-        let force_breaks = force_break_x || force_break_y || force_break_x_label || force_break_y_label;
-
-        let needs_corner_detail = detail_ratio > CORNER_STROKE_RATIO;
-        let needs_breaks = needs_break_x || needs_break_y;
-
-        // DetailMode + feature flags control whether we use axis breaks or corner detail
-        let use_breaks = match detail_mode {
-            DetailMode::Auto => (needs_breaks && axis_breaks_enabled) || force_breaks,
-            DetailMode::None => false,
-        };
-
-        // Corner detail is independent of breaks — if the face is too narrow
-        // for details, show corner detail even alongside an axis break.
-        let use_corner_detail = match detail_mode {
-            DetailMode::Auto => needs_corner_detail && corner_detail_enabled,
-            DetailMode::None => false,
-        };
-
-        let (use_break_x, use_break_y) = if use_breaks {
-            (needs_break_x || force_break_x || force_break_x_label,
-             needs_break_y || force_break_y || force_break_y_label)
-        } else {
-            (false, false)
-        };
+        let bd = decide_axis_breaks(
+            design, frame_outer_width, frame_outer_height, native_scale,
+            style, detail_mode, corner_detail_enabled, axis_breaks_enabled,
+            unit_mm, use_tape_segments, use_decimal,
+        );
+        let use_corner_detail = bd.use_corner_detail;
+        let frame_band = bd.frame_band;
+        let (use_break_x, use_break_y) = (bd.use_break_x, bd.use_break_y);
 
         if !use_break_x && !use_break_y {
-            // No breaks — standard path
-            let scale = native_scale;
-            let scaled_width = frame_outer_width * scale;
-            let scaled_height = frame_outer_height * scale;
-
-            let label_extension = style.dimension_font_size + 4.0;
-            let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
-            let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
-            let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
-
-            let mut geo = Self::build_rects(design, scale, origin_x, origin_y);
-
-            if use_corner_detail && design.frame_material_width > 0.0 {
-                geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
-            }
-
-            // Compute mat cut extent for consistent side selection with callouts.rs.
-            let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
-                geo.mat_opening.as_ref().map(|mat_opening| {
-                    Self::choose_mat_cut_extent(
-                        &geo.frame_inner,
-                        &geo.content_area,
-                        mat_opening,
-                        geo.corner_detail.as_ref().map(|cd| &cd.box_rect),
-                        style,
-                    )
-                })
-            } else {
-                None
-            };
-
-            // Populate annotation_bounds. No thumbnail on the no-break path.
-            geo.annotation_bounds = AnnotationBounds {
-                corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
-                thumbnail_box: None,
-                thumbnail_label_position: ThumbnailLabelPosition::Below,
-                mat_cut_width_label: None,
-                mat_cut_height_label: None,
-                mat_cut_extent,
-            };
-
-            return geo;
+            return Self::build_no_break_geometry(
+                design, native_scale, canvas_width, canvas_height,
+                use_corner_detail, style,
+            );
         }
 
-        // Axis break compression: maximize the broken axis while maintaining
-        // enough detail visibility in frame construction elements.
-        //
-        // Two strategies depending on how many axes break:
-        //
-        // Single-axis break: the non-broken axis keeps full artwork and sets
-        // the natural scale. The broken axis displays as much as fits at that
-        // scale (or bumps scale up if detail visibility requires it).
-        //
-        // Both-axis break: uniform compression preserves aspect ratio. Scale
-        // is set by detail visibility, and both axes compress equally.
-        let non_artwork_w = frame_outer_width - design.artwork_width;
-        let non_artwork_h = frame_outer_height - design.artwork_height;
-
-        // Minimum scale for break mode: the frame band should be visible (~6px).
-        // We use frame_band here, not min_detail — in break mode, fine details
-        // like rabbet are already compromised; we just need the band to read as
-        // a border with some thickness, not be a hairline.
-        let target_band_px = 6.0_f64;
-        let min_scale = target_band_px / frame_band;
-        let min_display = 3.0_f64; // minimum inches of artwork to show per axis
-
-        // Helper: compute dual-axis uniform compression (preserves aspect ratio)
-        let dual_axis_uniform = |scale: f64| -> (f64, f64) {
-            let d_w = if design.artwork_width > 0.0 {
-                (available_width / scale - non_artwork_w) / design.artwork_width
-            } else { 1.0 };
-            let d_h = if design.artwork_height > 0.0 {
-                (available_height / scale - non_artwork_h) / design.artwork_height
-            } else { 1.0 };
-            let d = d_w.min(d_h).clamp(0.0, 1.0);
-            (
-                (d * design.artwork_width).max(min_display).min(design.artwork_width),
-                (d * design.artwork_height).max(min_display).min(design.artwork_height),
-            )
-        };
-
-        // Break budget: asymmetric margins (near side = margin only, far side = full
-        // callout stack). For single-axis breaks, use the canvas dimension along the
-        // break axis so landscape frames on portrait screens (and vice versa) get the
-        // space the screen actually offers. For dual-axis breaks, use min(w, h) since
-        // both axes are constrained.
-        let break_off_near = style.margin;
-        let break_off_far = style.margin + style.dimension_offset_base + style.dimension_offset_step;
-        let break_avail_x = canvas_width - break_off_near - break_off_far;
-        let break_avail_y = canvas_height - break_off_near - break_off_far;
-        let (display_artwork_w, display_artwork_h, use_break_x, use_break_y) = match (use_break_x, use_break_y) {
-            (true, true) => {
-                // Both axes break: uniform compression preserves aspect ratio
-                let (dw, dh) = dual_axis_uniform(min_scale);
-                (dw, dh, dw < design.artwork_width, dh < design.artwork_height)
-            }
-            (true, false) => {
-                // Only X breaks: use canvas width (not min) so landscape frames
-                // on portrait screens preserve their wider proportions.
-                let dh = design.artwork_height;
-                let max_fits = (break_avail_x / min_scale - non_artwork_w).max(min_display);
-                let dw = max_fits.min(design.artwork_width);
-                // Floor dw so display stays landscape (same orientation as true frame)
-                let min_dw = (non_artwork_h + dh - non_artwork_w).max(min_display);
-                let dw = dw.max(min_dw);
-                (dw, dh, dw < design.artwork_width, false)
-            }
-            (false, true) => {
-                // Only Y breaks: use canvas height (not min) so portrait frames
-                // on landscape screens preserve their taller proportions.
-                let dw = design.artwork_width;
-                let max_fits = (break_avail_y / min_scale - non_artwork_h).max(min_display);
-                let dh = max_fits.min(design.artwork_height);
-                // Floor dh so display stays portrait (same orientation as true frame)
-                let min_dh = (non_artwork_w + dw - non_artwork_h).max(min_display);
-                let dh = dh.max(min_dh);
-                (dw, dh, false, dh < design.artwork_height)
-            }
-            _ => (design.artwork_width, design.artwork_height, false, false),
-        };
-
-        // Cap the display aspect ratio to the true frame ratio — the display
-        // should never be MORE extreme than the actual frame. The min_scale
-        // constraint already ensures frame details remain visible.
-        let true_ratio = if frame_outer_height > 0.0 && frame_outer_width > 0.0 {
-            (frame_outer_width / frame_outer_height).max(frame_outer_height / frame_outer_width)
-        } else {
-            1.3
-        };
-        let max_display_ratio = true_ratio;
-        let mut display_artwork_w = display_artwork_w;
-        let mut display_artwork_h = display_artwork_h;
-        let mut use_break_x = use_break_x;
-        let mut use_break_y = use_break_y;
-        {
-            let disp_w = non_artwork_w + display_artwork_w;
-            let disp_h = non_artwork_h + display_artwork_h;
-            let ratio = disp_w / disp_h;
-            if ratio > max_display_ratio {
-                // Compress width further to cap ratio
-                let target_w = disp_h * max_display_ratio;
-                display_artwork_w = (target_w - non_artwork_w).max(min_display);
-                use_break_x = display_artwork_w < design.artwork_width;
-            } else if ratio > 0.0 && 1.0 / ratio > max_display_ratio {
-                // Compress height further to cap ratio
-                let target_h = disp_w * max_display_ratio;
-                display_artwork_h = (target_h - non_artwork_h).max(min_display);
-                use_break_y = display_artwork_h < design.artwork_height;
-            }
-        }
-
-        // Label-fit aspect ratio cap: ensure the compressed frame is never so narrow that
-        // horizontal labels can't fit comfortably. Unlike the true-ratio cap above (which
-        // only prevents the display from being MORE extreme than the real frame), this hard
-        // limit caps the visual ratio at MAX_VISUAL_ASPECT_RATIO regardless of frame shape.
-        // Extra canvas space around a capped frame is preferable to unreadably thin rendering.
-        const MAX_VISUAL_ASPECT_RATIO: f64 = 3.0;
-        {
-            let disp_w = non_artwork_w + display_artwork_w;
-            let disp_h = non_artwork_h + display_artwork_h;
-            if disp_h > disp_w * MAX_VISUAL_ASPECT_RATIO {
-                // Portrait: height too tall — compress it
-                let target_h = disp_w * MAX_VISUAL_ASPECT_RATIO;
-                display_artwork_h = (target_h - non_artwork_h).max(min_display);
-                use_break_y = display_artwork_h < design.artwork_height;
-            } else if disp_w > disp_h * MAX_VISUAL_ASPECT_RATIO {
-                // Landscape: width too wide — compress it
-                let target_w = disp_h * MAX_VISUAL_ASPECT_RATIO;
-                display_artwork_w = (target_w - non_artwork_w).max(min_display);
-                use_break_x = display_artwork_w < design.artwork_width;
-            }
-        }
-
-        // Label-fit refinement: if the widest label on the narrow axis won't fit
-        // in the pixel width available at the current aspect ratio, further compress
-        // the long axis (break direction) to give the narrow axis more room.
-        // This only applies when the scale is limited by the long axis (height for
-        // portrait, width for landscape), so shrinking the long axis increases scale
-        // and widens the narrow axis in pixels.
-        {
-            let disp_w = non_artwork_w + display_artwork_w;
-            let disp_h = non_artwork_h + display_artwork_h;
-            let is_portrait = disp_h > disp_w;
-
-            // Estimate the widest label on the narrow axis (inches, worst case)
-            let narrow_label_px = if is_portrait && use_break_y {
-                // Width callouts: "Outside: X", "Inside: X"
-                let outside_val = format_value(frame_outer_width, Unit::Inches);
-                let inside_val = format_value(design.artwork_width, Unit::Inches);
-                let outside_w = estimate_text_width("Outside:", style.label_font_size)
-                    .max(estimate_text_width(&outside_val, style.label_font_size));
-                let inside_w = estimate_text_width("Inside:", style.label_font_size)
-                    .max(estimate_text_width(&inside_val, style.label_font_size));
-                let mask_pad = 4.0 * 2.0; // LABEL_MASK_PADDING_X * 2.0 (horizontal) * 2 sides
-                outside_w.max(inside_w) + mask_pad
-            } else if !is_portrait && use_break_x {
-                // Height callouts on narrow axis (landscape)
-                let outside_val = format_value(frame_outer_height, Unit::Inches);
-                let inside_val = format_value(design.artwork_height, Unit::Inches);
-                let outside_w = estimate_text_width("Outside:", style.label_font_size)
-                    .max(estimate_text_width(&outside_val, style.label_font_size));
-                let inside_w = estimate_text_width("Inside:", style.label_font_size)
-                    .max(estimate_text_width(&inside_val, style.label_font_size));
-                let mask_pad = 4.0 * 2.0;
-                outside_w.max(inside_w) + mask_pad
-            } else {
-                0.0
-            };
-
-            if narrow_label_px > 0.0 {
-                // Current projected pixel width of narrow axis:
-                // scale = available_long / disp_long, pixel_narrow = disp_narrow * scale
-                let (projected_px, is_height_limited) = if is_portrait {
-                    (disp_w * available_height / disp_h, true)
-                } else {
-                    (disp_h * available_width / disp_w, false)
-                };
-
-                // Use 1.5× label width as threshold: the viewBox expands to include
-                // overflowing labels and right-side callouts, which reduces the frame's
-                // share of the rendered width. Combined view two-pass also changes
-                // effective canvas heights. The margin ensures labels fit comfortably.
-                if projected_px < narrow_label_px * 1.5 {
-                    // Compress the long axis until label fits with margin
-                    let target_label = narrow_label_px * 1.5;
-                    if is_height_limited {
-                        // target: disp_w * available_height / target_h >= target_label
-                        let target_h = disp_w * available_height / target_label;
-                        display_artwork_h = (target_h - non_artwork_h).max(min_display);
-                        use_break_y = display_artwork_h < design.artwork_height;
-                    } else {
-                        let target_w = disp_h * available_width / target_label;
-                        display_artwork_w = (target_w - non_artwork_w).max(min_display);
-                        use_break_x = display_artwork_w < design.artwork_width;
-                    }
-                }
-            }
-        }
+        let dd = compute_display_dimensions(
+            design, frame_outer_width, frame_outer_height,
+            use_break_x, use_break_y, frame_band,
+            available_width, available_height, canvas_width, canvas_height,
+            native_scale_x, style,
+        );
+        let display_artwork_w = dd.artwork_w;
+        let display_artwork_h = dd.artwork_h;
+        let use_break_x = dd.use_break_x;
+        let use_break_y = dd.use_break_y;
 
         // If break computation determined everything fits uncompressed,
         // fall back to the standard path which can still apply corner detail.
         if !use_break_x && !use_break_y {
-            let scale = native_scale;
-            let scaled_width = frame_outer_width * scale;
-            let scaled_height = frame_outer_height * scale;
-
-            let label_extension = style.dimension_font_size + 4.0;
-            let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
-            let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
-            let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
-
-            let mut geo = Self::build_rects(design, scale, origin_x, origin_y);
-
-            if use_corner_detail && design.frame_material_width > 0.0 {
-                geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
-            }
-
-            // Compute mat cut extent for consistent side selection with callouts.rs.
-            let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
-                geo.mat_opening.as_ref().map(|mat_opening| {
-                    Self::choose_mat_cut_extent(
-                        &geo.frame_inner,
-                        &geo.content_area,
-                        mat_opening,
-                        geo.corner_detail.as_ref().map(|cd| &cd.box_rect),
-                        style,
-                    )
-                })
-            } else {
-                None
-            };
-
-            // Populate annotation_bounds. No thumbnail on this no-break fallback path.
-            geo.annotation_bounds = AnnotationBounds {
-                corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
-                thumbnail_box: None,
-                thumbnail_label_position: ThumbnailLabelPosition::Below,
-                mat_cut_width_label: None,
-                mat_cut_height_label: None,
-                mat_cut_extent,
-            };
-
-            return geo;
+            return Self::build_no_break_geometry(
+                design, native_scale, canvas_width, canvas_height,
+                use_corner_detail, style,
+            );
         }
 
         // Display outer = actual_outer - actual_artwork + display_artwork
@@ -793,45 +846,12 @@ impl PlanViewGeometry {
                 .max(frame_outer_height / frame_outer_width);
             let display_ar = (display_outer_w / display_outer_h)
                 .max(display_outer_h / display_outer_w);
-            if is_single_axis && display_ar > actual_ar * 0.90 {
+            if is_single_axis && display_ar > actual_ar * BREAK_IMPROVEMENT_THRESHOLD {
                 // Break doesn't meaningfully help — fall back to no-break path
-                let scale = native_scale;
-                let scaled_width = frame_outer_width * scale;
-                let scaled_height = frame_outer_height * scale;
-
-                let label_extension = style.dimension_font_size + 4.0;
-                let min_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
-                let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
-                let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
-
-                let mut geo = Self::build_rects(design, scale, origin_x, origin_y);
-
-                if use_corner_detail && design.frame_material_width > 0.0 {
-                    geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
-                }
-
-                let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
-                    geo.mat_opening.as_ref().map(|mat_opening| {
-                        Self::choose_mat_cut_extent(
-                            &geo.frame_inner, &geo.content_area, mat_opening,
-                            geo.corner_detail.as_ref().map(|cd| &cd.box_rect),
-                            style,
-                        )
-                    })
-                } else {
-                    None
-                };
-
-                geo.annotation_bounds = AnnotationBounds {
-                    corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
-                    thumbnail_box: None,
-                    thumbnail_label_position: ThumbnailLabelPosition::Below,
-                    mat_cut_width_label: None,
-                    mat_cut_height_label: None,
-                    mat_cut_extent,
-                };
-
-                return geo;
+                return Self::build_no_break_geometry(
+                    design, native_scale, canvas_width, canvas_height,
+                    use_corner_detail, style,
+                );
             }
         }
 
@@ -839,7 +859,6 @@ impl PlanViewGeometry {
         // Axis break frames have no left-side callouts, so we can use asymmetric
         // margins: only `margin` on the left, full callout space on the right.
         // This gives the frame more horizontal space to expand into.
-        let label_extension = style.dimension_font_size + 4.0;
         let right_offset = style.margin + style.dimension_offset_base + style.dimension_offset_step;
         let left_offset = style.margin;
         let break_available_width = canvas_width - left_offset - right_offset;
@@ -851,7 +870,7 @@ impl PlanViewGeometry {
         let scaled_height = display_outer_h * scale;
 
         let origin_x = ((break_available_width - scaled_width) / 2.0 + left_offset).max(left_offset);
-        let min_offset_y = style.margin + style.dimension_offset_base + style.dimension_offset_step + label_extension;
+        let min_offset_y = style.total_callout_reserve();
         let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset_y);
 
         // Build rects using display artwork dimensions
@@ -862,25 +881,21 @@ impl PlanViewGeometry {
             display_outer_w, display_outer_h,
         );
 
-        // Fixed pixel gap for break indicator (not scale-dependent)
-        let break_gap_px = 8.0_f64;
-
         // Compute break positions in canvas coords
-        // Offset breaks so the top-left corner gets more visible area:
-        // X break biased rightward (75%), Y break biased upward (25%)
-        let break_center_x = geo.artwork.x + geo.artwork.width * 0.75;
-        let break_center_y = geo.artwork.y + geo.artwork.height * 0.25;
+        // Offset breaks so the top-left corner gets more visible area
+        let break_center_x = geo.artwork.x + geo.artwork.width * BREAK_CENTER_BIAS_X;
+        let break_center_y = geo.artwork.y + geo.artwork.height * BREAK_CENTER_BIAS_Y;
 
         geo.use_axis_break_x = use_break_x;
         geo.use_axis_break_y = use_break_y;
 
         if use_break_x {
-            geo.break_x_start = break_center_x - break_gap_px / 2.0;
-            geo.break_x_end = break_center_x + break_gap_px / 2.0;
+            geo.break_x_start = break_center_x - BREAK_GAP_PX / 2.0;
+            geo.break_x_end = break_center_x + BREAK_GAP_PX / 2.0;
         }
         if use_break_y {
-            geo.break_y_start = break_center_y - break_gap_px / 2.0;
-            geo.break_y_end = break_center_y + break_gap_px / 2.0;
+            geo.break_y_start = break_center_y - BREAK_GAP_PX / 2.0;
+            geo.break_y_end = break_center_y + BREAK_GAP_PX / 2.0;
         }
 
         // Corner detail when face is too narrow at this scale to show internal details.
@@ -888,19 +903,17 @@ impl PlanViewGeometry {
             geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
         }
 
-        // Proportional thumbnail: true aspect ratio silhouette
-        let is_portrait = frame_outer_height >= frame_outer_width;
-
         // Two-pass placement: compute mat cut extent first (actual side choice + label bounds),
         // then use those bounds in the occupied list so thumbnail placement is collision-free
         // without the approximation loop of the old approach.
+        let cd_occupied: Vec<Rect> = geo.corner_detail.as_ref().map(|cd| vec![cd.box_rect]).unwrap_or_default();
         let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
             geo.mat_opening.as_ref().map(|mat_opening| {
                 Self::choose_mat_cut_extent(
                     &geo.frame_inner,
                     &geo.content_area,
                     mat_opening,
-                    geo.corner_detail.as_ref().map(|cd| &cd.box_rect),
+                    &cd_occupied,
                     style,
                 )
             })
@@ -919,12 +932,85 @@ impl PlanViewGeometry {
             }
         }
 
-        // Thumbnail sizing + preferred position.
-        // The collision pass in svg.rs handles fine adjustments (nudging away from
-        // arrow stubs, callout labels, etc.) and re-centering in the CD/MC gap.
-        let thumb_sf = style.label_font_size / 13.0;
-        let thumbnail_gap = 24.0 * thumb_sf;
-        let thumbnail_min_px = 5.0;
+        Self::compute_thumbnail_placement(
+            &mut geo, frame_outer_width, frame_outer_height,
+            &occupied, mat_cut_extent, style,
+        );
+
+        geo
+    }
+
+    /// Build geometry for the no-break (standard) path.
+    ///
+    /// Computes origin from native scale, optionally adds corner detail,
+    /// computes mat cut extent, and returns the fully-populated geometry.
+    /// No thumbnail is placed on the no-break path.
+    fn build_no_break_geometry(
+        design: &FrameDesign,
+        native_scale: f64,
+        canvas_width: f64,
+        canvas_height: f64,
+        use_corner_detail: bool,
+        style: &DiagramStyle,
+    ) -> Self {
+        let (frame_outer_height, frame_outer_width) = design.get_frame_outside_dimensions();
+        let scale = native_scale;
+        let scaled_width = frame_outer_width * scale;
+        let scaled_height = frame_outer_height * scale;
+
+        let min_offset = style.total_callout_reserve();
+        let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
+        let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
+
+        let mut geo = Self::build_rects(design, scale, origin_x, origin_y);
+
+        if use_corner_detail && design.frame_material_width > 0.0 {
+            geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
+        }
+
+        let cd_occupied: Vec<Rect> = geo.corner_detail.as_ref().map(|cd| vec![cd.box_rect]).unwrap_or_default();
+        let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
+            geo.mat_opening.as_ref().map(|mat_opening| {
+                Self::choose_mat_cut_extent(
+                    &geo.frame_inner,
+                    &geo.content_area,
+                    mat_opening,
+                    &cd_occupied,
+                    style,
+                )
+            })
+        } else {
+            None
+        };
+
+        geo.annotation_bounds = AnnotationBounds {
+            corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
+            thumbnail_box: None,
+            thumbnail_label_position: ThumbnailLabelPosition::Below,
+            mat_cut_width_label: None,
+            mat_cut_height_label: None,
+            mat_cut_extent,
+        };
+
+        geo
+    }
+
+    /// Compute thumbnail sizing, preferred position, and annotation bounds.
+    ///
+    /// Places a proportional silhouette thumbnail in the margin around the
+    /// frame, avoiding collision with corner detail and mat cut labels.
+    /// The collision pass in svg.rs handles fine adjustments (nudging away
+    /// from arrow stubs, callout labels, etc.).
+    fn compute_thumbnail_placement(
+        geo: &mut Self,
+        frame_outer_width: f64,
+        frame_outer_height: f64,
+        occupied: &[Rect],
+        mat_cut_extent: Option<(Point, Point)>,
+        style: &DiagramStyle,
+    ) {
+        let tm = style.thumbnail_metrics();
+        let is_portrait = frame_outer_height >= frame_outer_width;
         let has_cd_and_mc = occupied.len() == 2;
 
         // Sizing: rotation-invariant when CD + MC both present (smaller thumb to fit gap),
@@ -932,34 +1018,29 @@ impl PlanViewGeometry {
         let (thumb_w, thumb_h) = if has_cd_and_mc {
             let frame_long = frame_outer_width.max(frame_outer_height);
             let frame_short = frame_outer_width.min(frame_outer_height);
-            let mini_max_h = style.label_font_size * 2.5 * thumb_sf;
-            let thumb_scale = (90.0_f64 / frame_long).min(mini_max_h / frame_short);
-            ((frame_outer_width * thumb_scale).max(thumbnail_min_px),
-             (frame_outer_height * thumb_scale).max(thumbnail_min_px))
+            let mini_max_h = style.two_line_label_bounds_height() * tm.scale_factor;
+            let thumb_scale = (THUMBNAIL_MINI_MAX_WIDTH / frame_long).min(mini_max_h / frame_short);
+            ((frame_outer_width * thumb_scale).max(tm.min_px),
+             (frame_outer_height * thumb_scale).max(tm.min_px))
         } else {
-            let thumb_long = 95.0 * thumb_sf;
-            let thumb_short = 60.0 * thumb_sf;
             let (thumbnail_max_w, thumbnail_max_h) = if is_portrait {
-                (thumb_short, thumb_long)
+                (tm.short_dim, tm.long_dim)
             } else {
-                (thumb_long, thumb_short)
+                (tm.long_dim, tm.short_dim)
             };
             let scale_w = thumbnail_max_w / frame_outer_width;
             let scale_h = thumbnail_max_h / frame_outer_height;
             let thumb_scale = scale_w.min(scale_h);
-            ((frame_outer_width * thumb_scale).max(thumbnail_min_px),
-             (frame_outer_height * thumb_scale).max(thumbnail_min_px))
+            ((frame_outer_width * thumb_scale).max(tm.min_px),
+             (frame_outer_height * thumb_scale).max(tm.min_px))
         };
 
-        // Label metrics for bounding-box calculation
-        let thumb_line_h = 10.0 * thumb_sf;
-        let thumb_font = 8.0 * thumb_sf;
-        let label_below_h = thumb_line_h * 2.0 + thumb_font;
+        let label_below_h = tm.text_below_height;
 
         // Preferred position: one per orientation, with CD/MC gap awareness.
         let (thumb_x, thumb_y, thumb_label_pos) = if is_portrait {
             // Left of frame, vertically centered, label below
-            let x = geo.frame_outer.left() - thumbnail_gap - thumb_w;
+            let x = geo.frame_outer.left() - tm.gap - thumb_w;
             let centered_y = if has_cd_and_mc {
                 geo.frame_outer.top() + (geo.frame_outer.height - (thumb_h + label_below_h)) / 2.0
             } else {
@@ -983,20 +1064,18 @@ impl PlanViewGeometry {
             let mat_cut_left = occupied[1].left();
             let mini_gap = 10.0;
             let avail = mat_cut_left - corner_right - 2.0 * mini_gap;
-            let y = geo.frame_outer.bottom() + thumbnail_gap;
+            let y = geo.frame_outer.bottom() + tm.gap;
             if avail >= thumb_w {
-                // Center in the gap
                 let x = corner_right + mini_gap + (avail - thumb_w) / 2.0;
                 (x, y, ThumbnailLabelPosition::Below)
             } else {
-                // Gap too narrow: place just right of corner detail
                 let x = corner_right + mini_gap;
                 (x, y, ThumbnailLabelPosition::Below)
             }
         } else {
             // Landscape: bottom-right of frame
             let x = geo.frame_outer.right() - thumb_w;
-            let y = geo.frame_outer.bottom() + thumbnail_gap;
+            let y = geo.frame_outer.bottom() + tm.gap;
             (x, y, ThumbnailLabelPosition::Right)
         };
 
@@ -1004,17 +1083,14 @@ impl PlanViewGeometry {
         geo.thumbnail_below = thumb_y > geo.frame_outer.bottom();
         geo.thumbnail_label_position = thumb_label_pos;
 
-        // Build annotation bounds
         geo.annotation_bounds = AnnotationBounds {
             corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
             thumbnail_box: geo.thumbnail,
             thumbnail_label_position: thumb_label_pos,
-            mat_cut_width_label: None,  // Populated later by callout generation
+            mat_cut_width_label: None,
             mat_cut_height_label: None,
             mat_cut_extent,
         };
-
-        geo
     }
 
     /// Compute corner detail geometry for the inset overlay.
@@ -1026,15 +1102,15 @@ impl PlanViewGeometry {
         // Target: box should be ~30% of canvas width for readable labels.
         // Also cap relative to rendered frame size so the box doesn't dominate a
         // small frame (e.g. PDF combined view where plan canvas height is limited).
-        let target_w = canvas_width * 0.30;
+        let target_w = canvas_width * CORNER_DETAIL_WIDTH_RATIO;
         // Use max (not min) so that extreme AR frames, where the short rendered dimension
-        // is very small due to scale, don't shrink the corner detail to the 80px minimum.
-        // The canvas_width * 0.30 target already keeps the box proportional to the viewport;
+        // is very small due to scale, don't shrink the corner detail to the minimum.
+        // The canvas_width target already keeps the box proportional to the viewport;
         // frame_cap just prevents it from dominating an actually small canvas (PDF combined view).
-        let frame_cap = geo.frame_outer.width.max(geo.frame_outer.height) * 0.80;
-        let box_w = (target_w.min(frame_cap)).clamp(80.0, 213.0);
+        let frame_cap = geo.frame_outer.width.max(geo.frame_outer.height) * CORNER_DETAIL_FRAME_CAP;
+        let box_w = (target_w.min(frame_cap)).clamp(CORNER_DETAIL_MIN_WIDTH, CORNER_DETAIL_MAX_WIDTH);
 
-        let box_h = box_w / 1.15; // maintain aspect ratio (~245/235 from reference)
+        let box_h = box_w / CORNER_DETAIL_ASPECT_RATIO;
 
         // X position: nominally extends 15% of box_w to the LEFT of frame_outer.left()
         // so the L-corner aligns with the frame corner.  When a mat is present, the mat
@@ -1042,7 +1118,7 @@ impl PlanViewGeometry {
         // box must not overlap them.  Shift the box LEFTWARD (there is always left margin
         // space on the break path) until its right edge clears those lines.
         let margin = 3.0;
-        let natural_box_x = geo.frame_outer.left() - box_w * 0.15;
+        let natural_box_x = geo.frame_outer.left() - box_w * CORNER_DETAIL_X_OVERHANG;
         // Basic clearance from mat opening extension lines (the post-layout
         // collision pass in svg.rs handles arrow stub clearance dynamically).
         let clearance = 4.0;
@@ -1076,10 +1152,10 @@ impl PlanViewGeometry {
         // (more bottom-anchored) when space allows. But clamp at standard_y so the box
         // never rises above the frame bottom — for tall portrait frames the blend would
         // otherwise place the box in the middle of the frame, not at the corner.
-        let standard_y = geo.frame_outer.bottom() - box_h * 0.85;
+        let standard_y = geo.frame_outer.bottom() - box_h * CORNER_DETAIL_Y_OFFSET;
         let artwork_center_y = geo.artwork.y + geo.artwork.height / 2.0;
         let box_y = if geo.use_axis_break_x || geo.use_axis_break_y {
-            let center_weight = 0.65;
+            let center_weight = CORNER_DETAIL_CENTER_WEIGHT;
             let anchor_y = artwork_center_y * center_weight + geo.frame_outer.bottom() * (1.0 - center_weight);
             (anchor_y + margin).max(standard_y)
         } else {
@@ -1100,17 +1176,17 @@ impl PlanViewGeometry {
         // Detail scale: zoom out so frame band is ~21% of box width.
         // Smaller ratio = frame material drawn thinner = more room for labels,
         // and allows the box itself to be slightly smaller without clipping.
-        let target_frame_band = box_w * 0.21;
+        let target_frame_band = box_w * CORNER_DETAIL_FRAME_BAND_RATIO;
         let detail_scale = target_frame_band / design.frame_material_width;
 
         // Corner origin X: must leave room for "Rabbet" label to the left.
         // The label chain is: text(end-anchored) ← 4px gap ← dim_line(cx-6) ← corner(cx).
         // So we need: cx - 10 - text_width("Rabbet", label_font) >= box_x + padding.
-        let label_font = (box_h * 0.065).min(style.dimension_font_size * 0.75);
+        let label_font = (box_h * CORNER_DETAIL_LABEL_FONT_RATIO).min(style.dimension_font_size * 0.75);
         let rabbet_text_w = estimate_text_width("Rabbet", label_font);
         let min_corner_x = box_x + 6.0 + rabbet_text_w + 10.0 + 4.0; // pad + text + dim_offset + gap
-        let corner_x = min_corner_x.max(box_x + box_w * 0.30);
-        let corner_y = box_y + box_h * 0.76;
+        let corner_x = min_corner_x.max(box_x + box_w * CORNER_DETAIL_CORNER_X_MIN);
+        let corner_y = box_y + box_h * CORNER_DETAIL_CORNER_Y;
 
         CornerDetailGeometry {
             box_rect: Rect::new(box_x, box_y, box_w, box_h),
@@ -1121,32 +1197,47 @@ impl PlanViewGeometry {
 
     /// Choose extent points for the mat cut width dimension callout.
     ///
-    /// Uses right side (mat_opening.right() → content_area.right()) when a corner detail
-    /// is present, since the corner detail occupies the bottom-left where the left-side
-    /// label would go.  Uses left side otherwise.
+    /// Tries bottom-left first. If the estimated label bounding box overlaps any
+    /// occupied annotation rect, falls back to bottom-right. This decouples mat cut
+    /// placement from knowing specifically *what* occupies the bottom-left.
     ///
     /// Note: the SVG renderer pins extension line start to mat_opening.bottom()+3 regardless
     /// of extent_y, and dimension line is anchored to frame_outer.bottom().  Overlap with
     /// the corner detail box is handled purely by z-ordering in svg.rs (mat cut geometry
     /// renders before corner detail; labels render after).
-    fn choose_mat_cut_extent(
+    pub fn choose_mat_cut_extent(
         frame_inner: &Rect,
         content_area: &Rect,
         mat_opening: &Rect,
-        corner_detail: Option<&Rect>,
+        occupied: &[Rect],
         style: &DiagramStyle,
     ) -> (Point, Point) {
         let frame_half_stroke = style.frame_stroke_width / 2.0;
         let mat_half_stroke = style.mat_stroke_width / 2.0;
         let extent_y = frame_inner.bottom() - frame_half_stroke;
-        if corner_detail.is_some() {
-            // Corner detail present → use right side so the label clears the corner detail box
+
+        // Estimate label bounds at bottom-left position
+        let mat_cut_offset = style.mat_cut_label_offset();
+        let label_width = estimate_text_width("Mat Cut: 2 3/8\" (2\" visible)", style.label_font_size);
+        let label_height = style.two_line_label_bounds_height();
+
+        let bottom_left_label = Rect::new(
+            content_area.left(),
+            frame_inner.bottom() + mat_cut_offset - label_height / 2.0,
+            label_width,
+            label_height,
+        );
+
+        let use_right = occupied.iter().any(|occ| bottom_left_label.overlaps_with_margin(occ, 6.0));
+
+        if use_right {
+            // Bottom-right: from mat opening right edge to content area right edge
             (
                 Point::new(mat_opening.right() - mat_half_stroke, extent_y),
                 Point::new(content_area.right(), extent_y),
             )
         } else {
-            // No corner detail → use left side (natural placement)
+            // Bottom-left: from content area left edge to mat opening left edge
             (
                 Point::new(content_area.left(), extent_y),
                 Point::new(mat_opening.left() + mat_half_stroke, extent_y),
@@ -1162,12 +1253,11 @@ impl PlanViewGeometry {
         extent_end: &Point,
         style: &DiagramStyle,
     ) -> Rect {
-        let mat_cut_offset = style.extension_line_overshoot + style.label_font_size / 2.0
-            + style.dimension_offset_base;
+        let mat_cut_offset = style.mat_cut_label_offset();
         // MatCutWidth is priority 2, typically level 0 on the bottom side.
         let dim_line_y = frame_outer.bottom() + style.dimension_offset_base;
         let label_width = estimate_text_width("Mat Cut: 2 3/8\" (2\" visible)", style.label_font_size);
-        let label_height = style.label_font_size * 2.5;
+        let label_height = style.two_line_label_bounds_height();
         // Label anchors at the leftmost x of the extent (start anchor in svg_dimension)
         let label_x = extent_start.x.min(extent_end.x);
         let label_center_y = dim_line_y + mat_cut_offset;
@@ -1242,9 +1332,7 @@ impl SectionViewGeometry {
         let clearance = rabbet_depth - total_stack - design.assembly_margin;
 
         // Axis break for wide frames - show truncated frame with break indicator
-        // Threshold: use break if frame width > 3.0" (keeps visualization compact)
-        let axis_break_threshold = 3.0;
-        let use_axis_break = design.frame_material_width > axis_break_threshold;
+        let use_axis_break = design.frame_material_width > SECTION_AXIS_BREAK_THRESHOLD;
         let actual_frame_width = design.frame_material_width;
 
         // Display width: if using break, show:
@@ -1252,9 +1340,9 @@ impl SectionViewGeometry {
         // - Gap with break indicator
         // - Rabbet area + some frame body (right)
         // Otherwise show full frame width
-        let outer_edge_width = 0.4;  // Width of outer edge portion shown (inches)
-        let break_gap = 0.077;  // Visual gap for break indicator (inches)
-        let inner_portion = design.rabbet_width + 0.5;  // Rabbet + some frame body
+        let outer_edge_width = SECTION_OUTER_EDGE_WIDTH;
+        let break_gap = SECTION_BREAK_GAP_X;
+        let inner_portion = design.rabbet_width + SECTION_INNER_PORTION_EXTRA;
 
         let display_frame_width = if use_axis_break {
             outer_edge_width + break_gap + inner_portion
@@ -1263,9 +1351,7 @@ impl SectionViewGeometry {
         };
 
         // Vertical axis break for deep frames - show truncated frame with break indicator
-        // Threshold: use break if frame depth > 3.0" (keeps visualization compact)
-        let axis_break_threshold_y = 3.0;
-        let use_axis_break_y = design.frame_material_depth > axis_break_threshold_y;
+        let use_axis_break_y = design.frame_material_depth > SECTION_AXIS_BREAK_THRESHOLD;
         let actual_frame_depth = design.frame_material_depth;
 
         // Display depth: if using break, show:
@@ -1273,9 +1359,9 @@ impl SectionViewGeometry {
         // - Gap with break indicator
         // - Rabbet area + some frame body (bottom)
         // Otherwise show full frame depth
-        let outer_edge_depth = 0.4;  // Height of outer edge portion shown (inches)
-        let break_gap_y = 0.11;  // Visual gap for break indicator (inches)
-        let inner_portion_y = design.rabbet_depth + 0.5;  // Rabbet + some frame body
+        let outer_edge_depth = SECTION_OUTER_EDGE_WIDTH;
+        let break_gap_y = SECTION_BREAK_GAP_Y;
+        let inner_portion_y = design.rabbet_depth + SECTION_INNER_PORTION_EXTRA;
 
         let display_frame_depth = if use_axis_break_y {
             outer_edge_depth + break_gap_y + inner_portion_y
@@ -1294,24 +1380,22 @@ impl SectionViewGeometry {
 
         // LEFT SIDE: Depth dimension callout
         // Components (from svg.rs):
-        //   dim_x = frame_x - 30.0  (dimension line offset)
-        //   extension lines extend to dim_x - EXTENSION_OVERSHOOT
-        //   label_offset = LABEL_BUFFER + font_size * LABEL_FONT_OFFSET + 6.0
+        //   dim_x = frame_x - style.section_depth_dim_offset
+        //   extension lines extend to dim_x - style.extension_line_overshoot
+        //   label_offset = style.label_offset()
         //   depth_label_x = dim_x - label_offset
-        //   label is rotated, so font_size/2 extends left of center
-        let dim_line_offset = 18.0;  // Reduced from 30.0 to minimize left margin
-        let label_offset_left = LABEL_BUFFER + font_size * LABEL_FONT_OFFSET + 6.0;
-        let depth_dim_space = dim_line_offset + EXTENSION_OVERSHOOT.max(label_offset_left + font_size / 2.0);
+        //   label is rotated, so label_font_size/2 extends left of center
+        let label_offset_left = style.label_offset();
+        let depth_dim_space = style.section_depth_dim_offset + style.extension_line_overshoot.max(label_offset_left + style.label_font_size / 2.0);
 
         // RIGHT SIDE: Material labels + stack dimension
         // Components (from svg.rs):
-        //   base_offset = 18.0.min(scale * 0.4 + 20.0) - use 18.0 as max (reduced from 35.0)
+        //   base_offset = style.section_material_label_offset.min(scale * 0.4 + 12.0)
         //   material labels at label_base_x = material_right + base_offset
         //   max_label_width = estimated from text like "Glazing: 3/32""
-        //   stack_dim_x = label_base_x + max_label_width + 20.0
-        //   stack label at stack_dim_x + label_offset + 4.0
+        //   stack_dim_x = label_base_x + max_label_width + style.section_stack_dim_gap
+        //   stack label at stack_dim_x + style.label_offset() + 4.0
         //   stack label text width (rotated, so height becomes width contribution)
-        let base_offset = 18.0;  // Reduced from 35.0 to minimize right margin
         
         // Estimate max material label width - format: "Material: X/X""
         // Longest material name is "Artwork" (7 chars), typical value "15/16"" (6 chars)
@@ -1326,40 +1410,35 @@ impl SectionViewGeometry {
         let max_label_text = material_labels.iter()
             .max_by_key(|s| s.len())
             .unwrap();
-        let material_label_font_size = font_size * 0.85;
-        let max_label_width = estimate_text_width(max_label_text, material_label_font_size);
-        
+        let max_label_width = estimate_text_width(max_label_text, style.material_label_font_size());
+
         // Stack dimension label (e.g., "9/32"") - rotated vertically
         let _stack_label_text = format_value(total_stack, unit);
-        let stack_label_offset = LABEL_BUFFER + font_size * LABEL_FONT_OFFSET + 6.0 + 4.0;
-        let stack_label_width = font_size; // Rotated text, so font height is the horizontal extent
-        
+        let stack_label_offset = style.label_offset() + 4.0;
+        let stack_label_width = style.label_font_size; // Rotated text, so font height is the horizontal extent
+
         // Total right side space needed from material right edge
-        let labels_space = base_offset + max_label_width + 20.0 + stack_label_offset + stack_label_width;
+        let labels_space = style.section_material_label_offset + max_label_width + style.section_stack_dim_gap + stack_label_offset + stack_label_width;
 
         // TOP: Width dimension callout
-        // Components: line at frame_y - offset, extension overshoot, label above
-        // MUST MATCH svg.rs: fw_y = frame_y - 32.0
-        let width_line_offset = 32.0;
-        let width_dim_space = width_line_offset + EXTENSION_OVERSHOOT + font_size;
+        // Components: line at frame_y - style.section_width_dim_offset, extension overshoot, label above
+        let width_dim_space = style.section_width_dim_offset + style.extension_line_overshoot + style.label_font_size;
 
         // BOTTOM: Legend and rabbet label
-        let legend_gap = 6.0;  // Reduced from 10.0 to recover space for title
-        let legend_height = 25.0;
+        let legend_gap = 6.0;  // Gap between section content and legend
         // Rabbet label is now two lines (dimensions + clearance/interference)
-        let rabbet_label_height = 18.0 + font_size * 2.2; // Leader line + two lines of text
+        let rabbet_label_height = RABBET_LABEL_LEADER + font_size * RABBET_LABEL_FONT_MULTIPLIER;
 
-        // Guard against zero/invalid dimensions - use sensible minimums
-        let min_dimension = 0.1; // Minimum 0.1 inch for any dimension
-        let safe_frame_width = display_frame_width.max(min_dimension);
-        let safe_frame_depth = display_frame_depth.max(min_dimension);
-        let safe_rabbet_width = design.rabbet_width.max(0.01);
+        // Guard against zero/invalid dimensions
+        let safe_frame_width = display_frame_width.max(SECTION_MIN_DIMENSION);
+        let safe_frame_depth = display_frame_depth.max(SECTION_MIN_DIMENSION);
+        let safe_rabbet_width = design.rabbet_width.max(SECTION_MIN_RABBET_WIDTH);
 
         // Horizontal constraint:
         // margin + depth_dim + frame_width*scale + materials_overhang*scale + labels + margin <= canvas_width
         // where materials_overhang = rabbet_width * 1.5 (layer extends 1.5x rabbet past frame)
         let fixed_horizontal = 2.0 * style.margin + depth_dim_space + labels_space;
-        let scaled_horizontal_content = safe_frame_width + safe_rabbet_width * 1.5;
+        let scaled_horizontal_content = safe_frame_width + safe_rabbet_width * SECTION_MATERIALS_OVERHANG;
         let max_scale_x = (canvas_width - fixed_horizontal) / scaled_horizontal_content;
 
         // Vertical constraint:
@@ -1367,7 +1446,7 @@ impl SectionViewGeometry {
         // where below_extension = max(rabbet_label_height, material_overflow * scale)
         // and material_overflow = max(0, total_stack - rabbet_depth)
         let material_overflow = (total_stack - rabbet_depth).max(0.0);
-        let fixed_vertical = 2.0 * style.margin + width_dim_space + legend_gap + legend_height;
+        let fixed_vertical = 2.0 * style.margin + width_dim_space + legend_gap + style.legend_height;
 
         // Two vertical constraints:
         // 1. Label constraint: scale <= (canvas_height - fixed_vertical - rabbet_label_height) / frame_depth
@@ -1384,12 +1463,10 @@ impl SectionViewGeometry {
         let max_scale_fit = max_scale_x.min(max_scale_y);
 
         // Apply scale limits - guard against NaN/infinity
-        let min_scale = 20.0;  // Minimum pixels per inch for readability
-        let max_scale = 300.0; // Increased from 200.0 to allow larger diagrams in PDFs
         let scale = if max_scale_fit.is_finite() && max_scale_fit > 0.0 {
-            max_scale_fit.max(min_scale).min(max_scale)
+            max_scale_fit.max(SECTION_MIN_SCALE).min(SECTION_MAX_SCALE)
         } else {
-            min_scale // Fallback to minimum scale if calculation fails
+            SECTION_MIN_SCALE // Fallback to minimum scale if calculation fails
         };
 
         // =================================================================
@@ -1400,7 +1477,7 @@ impl SectionViewGeometry {
         // Scaled content dimensions
         let frame_width_scaled = display_frame_width * scale;
         let frame_depth_scaled = display_frame_depth * scale;
-        let materials_overhang = design.rabbet_width * scale * 1.5;
+        let materials_overhang = design.rabbet_width * scale * SECTION_MATERIALS_OVERHANG;
         let rabbet_h_s = rabbet_depth * scale;
 
         // Calculate actual below-frame extension at this scale
@@ -1412,7 +1489,7 @@ impl SectionViewGeometry {
         // Frame: frame_depth_scaled
         // Bottom: below_frame_extension + legend_gap + legend_height
         let content_height = width_dim_space + frame_depth_scaled + below_frame_extension;
-        let total_height = content_height + legend_gap + legend_height;
+        let total_height = content_height + legend_gap + style.legend_height;
         let drawn_content_width = frame_width_scaled + materials_overhang;
 
         // Total horizontal content block width (including asymmetric callout spaces)
@@ -1429,7 +1506,7 @@ impl SectionViewGeometry {
         // Vertical centering: center the full content block (including top callout)
         // origin_y is where the FRAME starts, so we need width_dim_space above it
         let min_origin_y = style.margin + width_dim_space;
-        let max_origin_y = canvas_height - style.margin - frame_depth_scaled - below_frame_extension - legend_gap - legend_height;
+        let max_origin_y = canvas_height - style.margin - frame_depth_scaled - below_frame_extension - legend_gap - style.legend_height;
         let centered_y = style.margin + width_dim_space + (canvas_height - total_height - 2.0 * style.margin) / 2.0;
         let origin_y = centered_y.max(min_origin_y).min(max_origin_y).max(min_origin_y);
 
@@ -1503,7 +1580,7 @@ impl SectionViewGeometry {
         // already uses display_frame_depth (truncated when axis break is active)
         let lip_y = origin_y + frame_depth_s - rabbet_h_s;
         
-        let layer_width = rabbet_w_s * 2.5; // Extend past rabbet for visibility
+        let layer_width = rabbet_w_s * SECTION_LAYER_WIDTH_MULTIPLIER;
 
         // Stack from lip downward: glazing first (pressed against lip), then mat, artwork, backing
         let mut current_y = lip_y;
@@ -1562,10 +1639,10 @@ impl SectionViewGeometry {
             rabbet_h_s,
         );
 
-        // Bounds height should match the content_height used for vertical centering
-        // This ensures the legend is positioned correctly relative to the centered content
-        // content_height was calculated earlier as: frame_depth_s + below_frame_extension
-        let bounds = Rect::new(origin_x, origin_y, scaled_width, content_height);
+        // Bounds height: frame depth + below-frame extension (rabbet label / material overflow).
+        // Does NOT include width_dim_space (which is ABOVE origin_y, for the top dimension line).
+        // bounds.bottom() is used to position the legend tightly below the section content.
+        let bounds = Rect::new(origin_x, origin_y, scaled_width, frame_depth_scaled + below_frame_extension);
 
         Self {
             bounds,
@@ -1593,6 +1670,7 @@ impl SectionViewGeometry {
             axis_break_end_y,
             outer_edge_depth,
             actual_frame_depth,
+            legend_gap,
         }
     }
 

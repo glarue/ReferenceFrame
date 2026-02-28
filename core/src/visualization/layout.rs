@@ -4,7 +4,7 @@
 // callouts are readable and don't overlap.
 
 use super::types::{
-    DimensionCallout, PositionedCallout, Point, Rect, Side, TextAnchor,
+    DimensionCallout, DimensionType, PositionedCallout, Point, Rect, Side, TextAnchor,
 };
 use super::style::DiagramStyle;
 use super::geometry::{PlanViewGeometry, estimate_text_width, effective_label_width};
@@ -106,9 +106,9 @@ fn layout_horizontal_side(
             estimate_text_width(&callout.label, style.label_font_size)
         };
         let label_height = if is_two_line {
-            style.label_font_size * 2.4
+            style.two_line_height()
         } else {
-            style.label_font_size * 1.2
+            style.single_line_height()
         };
         let label_bounds = Rect::new(
             label_x - label_width / 2.0,
@@ -171,16 +171,35 @@ fn layout_vertical_side(
             estimate_text_width(&callout.label, style.label_font_size)
         };
         let text_height = if is_two_line {
-            style.label_font_size * 2.4
+            style.two_line_height()
         } else {
-            style.label_font_size * 1.2
+            style.single_line_height()
         };
         // After rotation: text_width becomes screen-vertical, text_height becomes screen-horizontal.
         // Center bounds on dim_line_x (not the offset label_x) because svg_dimension renders
         // labels centered on the dimension line position, not at the layout's label_x.
+        //
+        // MatCutHeight two-line: bottom-align the two strips so the longer value strip doesn't
+        // MatCutHeight two-line: svg_dimension renders both strips BOTTOM-aligned
+        // (shared bottom edge at label_y + w_p/2).  The value strip extends upward,
+        // keeping the downward extent compact so the thumbnail fits below the label.
+        // Shift the bounds upward by (w_v − w_p)/2 to match the bottom-aligned rendering.
+        let bottom_align_shift = if is_two_line && callout.dimension_type == DimensionType::MatCutHeight {
+            if let Some(pos) = callout.label.find(": ") {
+                let prefix_part = &callout.label[..pos + 1];
+                let value_part = callout.label[pos + 2..].trim_start();
+                let w_v = estimate_text_width(value_part, style.label_font_size);
+                let w_p = estimate_text_width(prefix_part, style.label_font_size);
+                (w_v - w_p).max(0.0) / 2.0
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
         let label_bounds = Rect::new(
             dim_line_x - text_height / 2.0,
-            label_y - text_width / 2.0,
+            label_y - text_width / 2.0 - bottom_align_shift,
             text_height,
             text_width,
         );

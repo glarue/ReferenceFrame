@@ -61,8 +61,15 @@ pub struct Adjustment {
 ///
 /// Iteratively finds overlapping pairs (with `margin` px clearance) and shifts
 /// the higher-priority-number (more flexible) element along its flex axis.
+/// `skip`: optional predicate — if it returns true for a pair of IDs, that pair
+/// is never resolved (useful when axes mismatch makes resolution impossible).
 /// Returns adjustments for elements whose bounds changed.
-pub fn resolve(elements: &mut [FlexElement], margin: f64, max_iter: u8) -> Vec<Adjustment> {
+pub fn resolve(
+    elements: &mut [FlexElement],
+    margin: f64,
+    max_iter: u8,
+    skip: Option<&dyn Fn(ElementId, ElementId) -> bool>,
+) -> Vec<Adjustment> {
     let n = elements.len();
     if n < 2 {
         return Vec::new();
@@ -74,6 +81,11 @@ pub fn resolve(elements: &mut [FlexElement], margin: f64, max_iter: u8) -> Vec<A
         // Check all pairs; shift the more-flexible element
         for i in 0..n {
             for j in (i + 1)..n {
+                if let Some(skip_fn) = skip {
+                    if skip_fn(elements[i].id, elements[j].id) {
+                        continue;
+                    }
+                }
                 if !elements[i].bounds.overlaps_with_margin(&elements[j].bounds, margin) {
                     continue;
                 }
@@ -202,7 +214,7 @@ mod tests {
             },
         ];
 
-        let adjustments = resolve(&mut elements, 2.0, 4);
+        let adjustments = resolve(&mut elements, 2.0, 4, None);
         // Corner detail didn't need to move
         assert!((elements[0].bounds.x - 0.0).abs() < 0.1);
         assert!(!adjustments.is_empty()); // still returns flex elements
@@ -233,7 +245,7 @@ mod tests {
             },
         ];
 
-        let _adjustments = resolve(&mut elements, 2.0, 4);
+        let _adjustments = resolve(&mut elements, 2.0, 4, None);
         // Corner detail should have shifted left so its right edge clears stub left - margin
         assert!(elements[1].bounds.right() <= 40.0 - 2.0 + 0.1);
     }
@@ -263,7 +275,7 @@ mod tests {
             },
         ];
 
-        resolve(&mut elements, 2.0, 4);
+        resolve(&mut elements, 2.0, 4, None);
         // Should shift left by at most 5px
         assert!(elements[1].bounds.x >= 10.0 - 0.1);
     }
@@ -288,7 +300,7 @@ mod tests {
             },
         ];
 
-        resolve(&mut elements, 0.0, 4);
+        resolve(&mut elements, 0.0, 4, None);
         // Neither should move
         assert!((elements[0].bounds.x - 0.0).abs() < 0.01);
         assert!((elements[1].bounds.x - 30.0).abs() < 0.01);
