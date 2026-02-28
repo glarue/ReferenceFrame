@@ -18,6 +18,8 @@ pub struct LayoutResult {
     pub warnings: Vec<String>,
 }
 
+/// Padding between label text center and dimension line.
+const LABEL_POSITION_PAD: f64 = 2.0;
 
 /// Whether a label will be rendered as two lines (contains ": ").
 fn is_two_line_label(label: &str) -> bool {
@@ -31,7 +33,7 @@ pub fn layout_plan_callouts(
     style: &DiagramStyle,
 ) -> LayoutResult {
     let mut positioned = Vec::new();
-    let mut warnings = Vec::new();
+    let warnings = Vec::new();
 
     // Group by side and sort by priority
     let mut top: Vec<_> = callouts.iter()
@@ -54,10 +56,10 @@ pub fn layout_plan_callouts(
     left.sort_by_key(|c| c.priority);
 
     // Layout each side
-    positioned.extend(layout_horizontal_side(&top, geometry, style, Side::Top));
-    positioned.extend(layout_horizontal_side(&bottom, geometry, style, Side::Bottom));
-    positioned.extend(layout_vertical_side(&right, geometry, style, Side::Right));
-    positioned.extend(layout_vertical_side(&left, geometry, style, Side::Left));
+    positioned.extend(layout_side(&top, geometry, style, Side::Top));
+    positioned.extend(layout_side(&bottom, geometry, style, Side::Bottom));
+    positioned.extend(layout_side(&right, geometry, style, Side::Right));
+    positioned.extend(layout_side(&left, geometry, style, Side::Left));
 
     LayoutResult {
         positioned_callouts: positioned,
@@ -65,14 +67,19 @@ pub fn layout_plan_callouts(
     }
 }
 
-/// Layout callouts on a horizontal side (top or bottom)
-fn layout_horizontal_side(
+/// Layout callouts on any side (top, bottom, left, or right).
+///
+/// Horizontal sides (top/bottom): dimension line runs along Y, labels along X.
+/// Vertical sides (left/right): dimension line runs along X, labels along Y,
+/// with rotated text bounds.
+fn layout_side(
     callouts: &[&DimensionCallout],
     geometry: &PlanViewGeometry,
     style: &DiagramStyle,
     side: Side,
 ) -> Vec<PositionedCallout> {
     let mut positioned = Vec::new();
+    let horizontal = side.is_horizontal();
 
     // Sort callouts by priority (lower priority number = closer to frame)
     let mut sorted: Vec<_> = callouts.iter().enumerate().collect();
@@ -81,90 +88,47 @@ fn layout_horizontal_side(
     for (level, (_, callout)) in sorted.iter().enumerate() {
         let offset = style.get_dimension_offset(level as u8);
 
-        // Calculate dimension line position
-        let dim_line_y = if side == Side::Top {
-            geometry.frame_outer.top() - offset
-        } else {
-            geometry.frame_outer.bottom() + offset
-        };
-
-        // Calculate label position (centered on dimension line)
-        let label_x = (callout.extent_start.x + callout.extent_end.x) / 2.0;
-        let label_y = if side == Side::Top {
-            dim_line_y - style.label_font_size / 2.0 - 2.0
-        } else {
-            dim_line_y + style.label_font_size / 2.0 + 2.0
-        };
-
-        // Estimate label bounds for collision detection
-        // Horizontal labels split into two lines when alone on the side
-        let is_alone = sorted.len() == 1;
-        let is_two_line = is_alone && is_two_line_label(&callout.label);
-        let label_width = if is_two_line {
-            effective_label_width(&callout.label, style.label_font_size)
-        } else {
-            estimate_text_width(&callout.label, style.label_font_size)
-        };
-        let label_height = if is_two_line {
-            style.two_line_height()
-        } else {
-            style.single_line_height()
-        };
-        let label_bounds = Rect::new(
-            label_x - label_width / 2.0,
-            label_y - label_height / 2.0,
-            label_width,
-            label_height,
-        );
-
-        positioned.push(PositionedCallout {
-            callout: (**callout).clone(),
-            offset_level: level as u8,
-            actual_side: side,
-            dimension_line_position: dim_line_y,
-            label_position: Point::new(label_x, label_y),
-            label_anchor: TextAnchor::Middle,
-            label_bounds,
-        });
-    }
-
-    positioned
-}
-
-/// Layout callouts on a vertical side (left or right)
-fn layout_vertical_side(
-    callouts: &[&DimensionCallout],
-    geometry: &PlanViewGeometry,
-    style: &DiagramStyle,
-    side: Side,
-) -> Vec<PositionedCallout> {
-    let mut positioned = Vec::new();
-
-    // Sort callouts by priority (lower priority number = closer to frame)
-    let mut sorted: Vec<_> = callouts.iter().enumerate().collect();
-    sorted.sort_by_key(|(_, callout)| callout.priority);
-
-    for (level, (_, callout)) in sorted.iter().enumerate() {
-        let offset = style.get_dimension_offset(level as u8);
-
-        // Calculate dimension line position
-        let dim_line_x = if side == Side::Right {
+        // Dimension line position: offset from frame edge along the primary axis
+        let dim_line_pos = if horizontal {
+            if side == Side::Top {
+                geometry.frame_outer.top() - offset
+            } else {
+                geometry.frame_outer.bottom() + offset
+            }
+        } else if side == Side::Right {
             geometry.frame_outer.right() + offset
         } else {
             geometry.frame_outer.left() - offset
         };
 
-        // Calculate label position (centered on dimension line)
-        let label_y = (callout.extent_start.y + callout.extent_end.y) / 2.0;
-        let label_x = if side == Side::Right {
-            dim_line_x + style.label_font_size / 2.0 + 2.0
+        // Label center on secondary axis (midpoint of extent)
+        let (label_x, label_y) = if horizontal {
+            let x = (callout.extent_start.x + callout.extent_end.x) / 2.0;
+            let y = if side == Side::Top {
+                dim_line_pos - style.label_font_size / 2.0 - LABEL_POSITION_PAD
+            } else {
+                dim_line_pos + style.label_font_size / 2.0 + LABEL_POSITION_PAD
+            };
+            (x, y)
         } else {
-            dim_line_x - style.label_font_size / 2.0 - 2.0
+            let y = (callout.extent_start.y + callout.extent_end.y) / 2.0;
+            let x = if side == Side::Right {
+                dim_line_pos + style.label_font_size / 2.0 + LABEL_POSITION_PAD
+            } else {
+                dim_line_pos - style.label_font_size / 2.0 - LABEL_POSITION_PAD
+            };
+            (x, y)
         };
 
-        // Estimate label bounds for collision detection
-        // All vertical-side labels with ": " render as two lines
-        let is_two_line = is_two_line_label(&callout.label);
+        // Determine two-line rendering:
+        // Horizontal: only when alone on the side (more space available)
+        // Vertical: always (rotated labels have more room along their axis)
+        let is_two_line = if horizontal {
+            sorted.len() == 1 && is_two_line_label(&callout.label)
+        } else {
+            is_two_line_label(&callout.label)
+        };
+
         let text_width = if is_two_line {
             effective_label_width(&callout.label, style.label_font_size)
         } else {
@@ -175,42 +139,59 @@ fn layout_vertical_side(
         } else {
             style.single_line_height()
         };
-        // After rotation: text_width becomes screen-vertical, text_height becomes screen-horizontal.
-        // Center bounds on dim_line_x (not the offset label_x) because svg_dimension renders
-        // labels centered on the dimension line position, not at the layout's label_x.
-        //
-        // MatCutHeight two-line: bottom-align the two strips so the longer value strip doesn't
-        // MatCutHeight two-line: svg_dimension renders both strips BOTTOM-aligned
-        // (shared bottom edge at label_y + w_p/2).  The value strip extends upward,
-        // keeping the downward extent compact so the thumbnail fits below the label.
-        // Shift the bounds upward by (w_v − w_p)/2 to match the bottom-aligned rendering.
-        let bottom_align_shift = if is_two_line && callout.dimension_type == DimensionType::MatCutHeight {
-            if let Some(pos) = callout.label.find(": ") {
-                let prefix_part = &callout.label[..pos + 1];
-                let value_part = callout.label[pos + 2..].trim_start();
-                let w_v = estimate_text_width(value_part, style.label_font_size);
-                let w_p = estimate_text_width(prefix_part, style.label_font_size);
-                (w_v - w_p).max(0.0) / 2.0
+
+        // Compute label bounds for collision detection
+        let label_bounds = if horizontal {
+            Rect::new(
+                label_x - text_width / 2.0,
+                label_y - text_height / 2.0,
+                text_width,
+                text_height,
+            )
+        } else {
+            // After rotation: text_width becomes screen-vertical, text_height becomes
+            // screen-horizontal. Center bounds on dim_line_pos because svg_dimension
+            // renders labels centered on the dimension line, not at label_x.
+            //
+            // MatCutHeight two-line: bottom-align the two strips so the longer value
+            // strip extends upward, keeping the downward extent compact for thumbnail.
+            let bottom_align_shift = if is_two_line && callout.dimension_type == DimensionType::MatCutHeight {
+                if let Some(pos) = callout.label.find(": ") {
+                    let prefix_part = &callout.label[..pos + 1];
+                    let value_part = callout.label[pos + 2..].trim_start();
+                    let w_v = estimate_text_width(value_part, style.label_font_size);
+                    let w_p = estimate_text_width(prefix_part, style.label_font_size);
+                    (w_v - w_p).max(0.0) / 2.0
+                } else {
+                    0.0
+                }
             } else {
                 0.0
-            }
-        } else {
-            0.0
+            };
+            Rect::new(
+                dim_line_pos - text_height / 2.0,
+                label_y - text_width / 2.0 - bottom_align_shift,
+                text_height,
+                text_width,
+            )
         };
-        let label_bounds = Rect::new(
-            dim_line_x - text_height / 2.0,
-            label_y - text_width / 2.0 - bottom_align_shift,
-            text_height,
-            text_width,
-        );
+
+        // Text anchor
+        let label_anchor = if horizontal {
+            TextAnchor::Middle
+        } else if side == Side::Right {
+            TextAnchor::Start
+        } else {
+            TextAnchor::End
+        };
 
         positioned.push(PositionedCallout {
             callout: (**callout).clone(),
             offset_level: level as u8,
             actual_side: side,
-            dimension_line_position: dim_line_x,
+            dimension_line_position: dim_line_pos,
             label_position: Point::new(label_x, label_y),
-            label_anchor: if side == Side::Right { TextAnchor::Start } else { TextAnchor::End },
+            label_anchor,
             label_bounds,
         });
     }
@@ -251,14 +232,7 @@ mod tests {
     use super::*;
     use crate::frame::FrameDesign;
     use crate::visualization::callouts::generate_plan_callouts;
-
-    fn test_design() -> FrameDesign {
-        let mut design = FrameDesign::new(12.0, 16.0);
-        design.mat_width_top_bottom = 2.0;
-        design.mat_width_sides = 2.0;
-        design.frame_material_width = 1.0;
-        design
-    }
+    use crate::visualization::test_helpers::test_design;
 
     #[test]
     fn test_layout_plan_callouts() {

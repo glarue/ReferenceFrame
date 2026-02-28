@@ -225,6 +225,7 @@ mod tests {
     use super::*;
     use crate::visualization::types::Side;
     use crate::visualization::style::DiagramStyle;
+    use crate::visualization::test_helpers::test_design;
 
     fn filter_by_side(callouts: &[DimensionCallout], side: Side) -> Vec<&DimensionCallout> {
         callouts.iter().filter(|c| c.preferred_side == side).collect()
@@ -240,14 +241,6 @@ mod tests {
 
     fn sort_by_priority(callouts: &mut [&DimensionCallout]) {
         callouts.sort_by_key(|c| c.priority);
-    }
-
-    fn test_design() -> FrameDesign {
-        let mut design = FrameDesign::new(12.0, 16.0);
-        design.mat_width_top_bottom = 2.0;
-        design.mat_width_sides = 2.0;
-        design.frame_material_width = 1.0;
-        design
     }
 
     #[test]

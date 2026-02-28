@@ -3939,14 +3939,7 @@ fn html_escape(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn test_design() -> FrameDesign {
-        let mut design = FrameDesign::new(12.0, 16.0);
-        design.mat_width_top_bottom = 2.0;
-        design.mat_width_sides = 2.0;
-        design.frame_material_width = 1.0;
-        design
-    }
+    use crate::visualization::test_helpers::test_design;
 
     #[test]
     fn test_generate_plan_view() {
