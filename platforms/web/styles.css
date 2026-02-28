@@ -116,6 +116,14 @@
     --rf-warning-orange: var(--rf-warning);
     --rf-error-red: var(--rf-error);
     --rf-accent: var(--rf-secondary);
+    --rf-purple: var(--rf-primary-blue);
+
+    /* Shorthand semantic aliases used in results/tables */
+    --rf-bg: var(--rf-bg-dark);
+    --rf-line: var(--rf-border);
+    --rf-surface: var(--md-surface-container);
+    --rf-surface-hover: var(--md-surface-container-high);
+    --rf-bg-secondary: var(--rf-bg-section);
 
     /* ================================================================
      * Material Design 3 - Surface Container System (Tonal Elevation)

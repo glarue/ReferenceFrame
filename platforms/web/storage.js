@@ -411,6 +411,8 @@ function exportAllData(currentSettings, currentUnit) {
         exported_at: new Date().toISOString(),
         saved_configs: loadSavedConfigs(),
         custom_sizes: loadCustomSizes(),
+        custom_colors: loadCustomColors(),
+        custom_defaults: loadCustomDefaults(),
         current_settings: currentSettings,
         unit: currentUnit
     };
@@ -438,6 +440,14 @@ function importData(jsonData, mode = 'merge') {
                 JSON.stringify(data.saved_configs || []));
             localStorage.setItem(STORAGE_KEYS.CUSTOM_SIZES,
                 JSON.stringify(data.custom_sizes || []));
+            if (data.custom_colors) {
+                localStorage.setItem(STORAGE_KEYS.CUSTOM_COLORS,
+                    JSON.stringify(data.custom_colors));
+            }
+            if (data.custom_defaults) {
+                localStorage.setItem(STORAGE_KEYS.CUSTOM_DEFAULTS,
+                    JSON.stringify(data.custom_defaults));
+            }
         } else {
             // Merge configurations (skip duplicates by name)
             const existingConfigs = loadSavedConfigs();
@@ -456,6 +466,22 @@ function importData(jsonData, mode = 'merge') {
             );
             const mergedSizes = [...existingSizes, ...newSizes];
             localStorage.setItem(STORAGE_KEYS.CUSTOM_SIZES, JSON.stringify(mergedSizes));
+
+            // Merge custom colors (imported values fill gaps, don't overwrite)
+            if (data.custom_colors) {
+                const existingColors = loadCustomColors();
+                const mergedColors = { ...data.custom_colors, ...existingColors };
+                localStorage.setItem(STORAGE_KEYS.CUSTOM_COLORS,
+                    JSON.stringify(mergedColors));
+            }
+
+            // Merge custom defaults (imported values fill gaps, don't overwrite)
+            if (data.custom_defaults) {
+                const existingDefaults = loadCustomDefaults();
+                const mergedDefaults = { ...data.custom_defaults, ...existingDefaults };
+                localStorage.setItem(STORAGE_KEYS.CUSTOM_DEFAULTS,
+                    JSON.stringify(mergedDefaults));
+            }
         }
 
         // Update unit preference

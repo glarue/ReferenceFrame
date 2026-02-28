@@ -52,9 +52,9 @@ self.addEventListener('fetch', event => {
     // Network-first for app files (always get fresh version during development)
     if (event.request.destination === 'document' ||
         url.pathname.endsWith('.html') ||
-        url.pathname.endsWith('.css') ||  // CSS files network-first for development
+        url.pathname.endsWith('.css') ||  // Network-first; cache-busted via query params
         url.pathname.endsWith('.js') ||
-        url.pathname.endsWith('.wasm') ||  // WASM files also network-first for development
+        url.pathname.endsWith('.wasm') ||  // Network-first; cache-busted via query params
         url.pathname === '/' ||
         url.pathname.endsWith('/')) {
         event.respondWith(
