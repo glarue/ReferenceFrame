@@ -139,6 +139,18 @@ pub struct AnnotationBounds {
 }
 
 impl AnnotationBounds {
+    /// Create empty bounds with no annotations placed yet.
+    pub fn empty() -> Self {
+        Self {
+            corner_detail_box: None,
+            thumbnail_box: None,
+            thumbnail_label_position: ThumbnailLabelPosition::Below,
+            mat_cut_width_label: None,
+            mat_cut_height_label: None,
+            mat_cut_extent: None,
+        }
+    }
+
     /// Get all occupied rects (for collision checking)
     pub fn occupied_rects(&self) -> Vec<Rect> {
         let mut rects = Vec::new();

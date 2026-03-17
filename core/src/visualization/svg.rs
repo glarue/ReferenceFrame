@@ -3214,258 +3214,157 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     // Determine if horizontal or vertical
     let is_horizontal = callout.actual_side.is_horizontal();
 
-    if is_horizontal {
-        // For horizontal dimensions (Top/Bottom sides):
-        // - Extension lines are vertical
-        // - Dimension line is horizontal between them
+    // Map abstract (along, across) coordinates to concrete (x, y).
+    // "along" = direction the dimension measures, "across" = perpendicular.
+    //   Horizontal: along = x, across = y  →  point(a, c) = (a, c)
+    //   Vertical:   along = y, across = x  →  point(a, c) = (c, a)
+    let xy: fn(f64, f64) -> (f64, f64) = if is_horizontal {
+        |along, across| (along, across)
+    } else {
+        |along, across| (across, along)
+    };
 
-        let geom_y = callout.callout.extent_start.y; // Y position at geometry
-        let dim_y = callout.dimension_line_position; // Y position of dimension line
+    // Extract orientation-independent values:
+    //   along_start/end: extent boundaries in the measurement direction
+    //   geom_across:     geometry edge in the perpendicular direction
+    //   dim_across:      dimension line position in the perpendicular direction
+    let (along_start, along_end, geom_across) = if is_horizontal {
+        (callout.callout.extent_start.x, callout.callout.extent_end.x, callout.callout.extent_start.y)
+    } else {
+        (callout.callout.extent_start.y, callout.callout.extent_end.y, callout.callout.extent_start.x)
+    };
+    let dim_across = callout.dimension_line_position;
 
-        // Determine direction (Top = lines go up, Bottom = lines go down)
-        let going_up = callout.actual_side == Side::Top;
+    // Determine direction: does the dimension line extend in the positive or negative direction?
+    // Top/Left = negative, Bottom/Right = positive
+    let going_positive = matches!(callout.actual_side, Side::Bottom | Side::Right);
 
-        // Extension line endpoints:
-        // Start: small gap from geometry
-        // End: past this dimension's own line by EXTENSION_OVERSHOOT
-        let ext_start_y = if going_up { geom_y - style.extension_line_gap } else { geom_y + style.extension_line_gap };
-        let ext_end_y = if going_up {
-            dim_y - style.extension_line_overshoot
+    // Extension line endpoints in the across direction
+    let ext_across_start = if going_positive { geom_across + style.extension_line_gap } else { geom_across - style.extension_line_gap };
+    let ext_across_end = if going_positive {
+        dim_across + style.extension_line_overshoot
+    } else {
+        dim_across - style.extension_line_overshoot
+    };
+
+    // Special case for MatCutWidth: both extension lines start at the mat opening's bottom edge
+    let (ext_across_start, ext_across_end) = if is_horizontal
+        && callout.callout.dimension_type == crate::visualization::DimensionType::MatCutWidth
+    {
+        if let Some(mat_opening) = &geometry.mat_opening {
+            let target = mat_opening.bottom() + 3.0; // Small offset below mat opening bottom
+            (target, ext_across_end)
         } else {
-            dim_y + style.extension_line_overshoot
-        };
-
-        // Extension lines - special case for MatCutWidth: both lines extend to same y-value
-        // at the mat opening's bottom edge (with small offset)
-        let (mat_cut_ext_start_y, mat_cut_ext_end_y) = if callout.callout.dimension_type == crate::visualization::DimensionType::MatCutWidth {
-            // Use the actual mat opening bottom coordinate
-            if let Some(mat_opening) = &geometry.mat_opening {
-                let target_y = mat_opening.bottom() + 3.0; // Small offset below mat opening bottom
-                (target_y, ext_end_y)
-            } else {
-                (ext_start_y, ext_end_y)
-            }
-        } else {
-            (ext_start_y, ext_end_y)
-        };
-
-        // Left extension line
-        svg.push_str(&format!(
-            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            callout.callout.extent_start.x, mat_cut_ext_start_y,
-            callout.callout.extent_start.x, mat_cut_ext_end_y,
-            dim_color, style.extension_stroke_width
-        ));
-        svg.push('\n');
-
-        // Right extension line (uses same y-values as left for MatCutWidth)
-        svg.push_str(&format!(
-            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            callout.callout.extent_end.x, mat_cut_ext_start_y,
-            callout.callout.extent_end.x, mat_cut_ext_end_y,
-            dim_color, style.extension_stroke_width
-        ));
-        svg.push('\n');
-
-        // Dimension line with arrows - tips land exactly at extent boundaries
-        // When space is too tight for inward-pointing arrows, flip to outward-pointing
-        let extent_span = (callout.callout.extent_end.x - callout.callout.extent_start.x).abs();
-        let arrow_tip_size = arrow_geometry::tip_extension(style.dimension_stroke_width);
-        let tight_space = extent_span < arrow_tip_size * TIGHT_SPACE_MULTIPLIER;
-
-        let line_x1 = arrow_line_endpoint_for_target(callout.callout.extent_start.x, style.dimension_stroke_width, true);
-        let line_x2 = arrow_line_endpoint_for_target(callout.callout.extent_end.x, style.dimension_stroke_width, false);
-        if style.use_tick_marks {
-            svg.push_str(&format!(
-                r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-                line_x1, dim_y,
-                line_x2, dim_y,
-                dim_color, style.dimension_stroke_width
-            ));
-            svg.push('\n');
-        } else if tight_space {
-            // Outward-pointing arrows: short stubs extending outward from extension lines
-            let stub_len = arrow_tip_size * 2.5;
-            // Left arrow: points inward (right) from outside-left
-            let left_stub_start = callout.callout.extent_start.x - stub_len;
-            let left_stub_end = arrow_line_endpoint_for_target(callout.callout.extent_start.x, style.dimension_stroke_width, false);
-            let arrow_svg = generate_line_with_arrows(
-                left_stub_start, dim_y, left_stub_end, dim_y,
-                dim_color, style.dimension_stroke_width,
-                false, true, false,
-            );
-            for line in arrow_svg.lines() {
-                svg.push_str("    ");
-                svg.push_str(line);
-                svg.push('\n');
-            }
-            // Right arrow: points inward (left) from outside-right
-            let right_stub_start = callout.callout.extent_end.x + stub_len;
-            let right_stub_end = arrow_line_endpoint_for_target(callout.callout.extent_end.x, style.dimension_stroke_width, true);
-            let arrow_svg = generate_line_with_arrows(
-                right_stub_start, dim_y, right_stub_end, dim_y,
-                dim_color, style.dimension_stroke_width,
-                false, true, false,
-            );
-            for line in arrow_svg.lines() {
-                svg.push_str("    ");
-                svg.push_str(line);
-                svg.push('\n');
-            }
-        } else {
-            // Normal inward-pointing arrows
-            let arrow_svg = generate_line_with_arrows(
-                line_x1, dim_y,
-                line_x2, dim_y,
-                dim_color, style.dimension_stroke_width,
-                true, true, false,
-            );
-            for line in arrow_svg.lines() {
-                svg.push_str("    ");
-                svg.push_str(line);
-                svg.push('\n');
-            }
+            (ext_across_start, ext_across_end)
         }
+    } else {
+        (ext_across_start, ext_across_end)
+    };
 
-        // Tick marks (only if not using arrows)
-        if style.use_tick_marks {
-            let tick_half = style.tick_size / 2.0;
-            // Left tick (angled)
-            svg.push_str(&format!(
-                r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-                callout.callout.extent_start.x - tick_half, dim_y - tick_half,
-                callout.callout.extent_start.x + tick_half, dim_y + tick_half,
-                dim_color, style.dimension_stroke_width
-            ));
+    // --- Extension lines (one at each extent boundary) ---
+    let (x1, y1) = xy(along_start, ext_across_start);
+    let (x2, y2) = xy(along_start, ext_across_end);
+    svg.push_str(&format!(
+        r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
+        x1, y1, x2, y2, dim_color, style.extension_stroke_width
+    ));
+    svg.push('\n');
+    let (x1, y1) = xy(along_end, ext_across_start);
+    let (x2, y2) = xy(along_end, ext_across_end);
+    svg.push_str(&format!(
+        r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
+        x1, y1, x2, y2, dim_color, style.extension_stroke_width
+    ));
+    svg.push('\n');
+
+    // --- Dimension line with arrows ---
+    // When space is too tight for inward-pointing arrows, flip to outward-pointing
+    let extent_span = (along_end - along_start).abs();
+    let arrow_tip_size = arrow_geometry::tip_extension(style.dimension_stroke_width);
+    let tight_space = extent_span < arrow_tip_size * TIGHT_SPACE_MULTIPLIER;
+
+    // arrow_line_endpoint_for_target and _y do identical math; use the x variant generically
+    let line_along1 = arrow_line_endpoint_for_target(along_start, style.dimension_stroke_width, true);
+    let line_along2 = arrow_line_endpoint_for_target(along_end, style.dimension_stroke_width, false);
+
+    if style.use_tick_marks {
+        let (x1, y1) = xy(line_along1, dim_across);
+        let (x2, y2) = xy(line_along2, dim_across);
+        svg.push_str(&format!(
+            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
+            x1, y1, x2, y2, dim_color, style.dimension_stroke_width
+        ));
+        svg.push('\n');
+    } else if tight_space {
+        // Outward-pointing arrows: short stubs extending outward from extension lines
+        let stub_len = arrow_tip_size * 2.5;
+        // Start-side arrow: points inward from outside
+        let start_stub_start = along_start - stub_len;
+        let start_stub_end = arrow_line_endpoint_for_target(along_start, style.dimension_stroke_width, false);
+        let (sx1, sy1) = xy(start_stub_start, dim_across);
+        let (sx2, sy2) = xy(start_stub_end, dim_across);
+        let arrow_svg = generate_line_with_arrows(
+            sx1, sy1, sx2, sy2,
+            dim_color, style.dimension_stroke_width,
+            false, true, false,
+        );
+        for line in arrow_svg.lines() {
+            svg.push_str("    ");
+            svg.push_str(line);
             svg.push('\n');
-            // Right tick
-            svg.push_str(&format!(
-                r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-                callout.callout.extent_end.x - tick_half, dim_y - tick_half,
-                callout.callout.extent_end.x + tick_half, dim_y + tick_half,
-                dim_color, style.dimension_stroke_width
-            ));
+        }
+        // End-side arrow: points inward from outside
+        let end_stub_start = along_end + stub_len;
+        let end_stub_end = arrow_line_endpoint_for_target(along_end, style.dimension_stroke_width, true);
+        let (ex1, ey1) = xy(end_stub_start, dim_across);
+        let (ex2, ey2) = xy(end_stub_end, dim_across);
+        let arrow_svg = generate_line_with_arrows(
+            ex1, ey1, ex2, ey2,
+            dim_color, style.dimension_stroke_width,
+            false, true, false,
+        );
+        for line in arrow_svg.lines() {
+            svg.push_str("    ");
+            svg.push_str(line);
             svg.push('\n');
         }
     } else {
-        // For vertical dimensions (Left/Right sides):
-        // - Extension lines are horizontal
-        // - Dimension line is vertical between them
-
-        let geom_x = callout.callout.extent_start.x; // X position at geometry
-        let dim_x = callout.dimension_line_position; // X position of dimension line
-
-        // Determine direction (Right = lines go right, Left = lines go left)
-        let going_right = callout.actual_side == Side::Right;
-
-        // Extension line endpoints:
-        // Start: small gap from geometry
-        // End: past this dimension's own line by EXTENSION_OVERSHOOT
-        let ext_start_x = if going_right { geom_x + style.extension_line_gap } else { geom_x - style.extension_line_gap };
-        let ext_end_x = if going_right {
-            dim_x + style.extension_line_overshoot
-        } else {
-            dim_x - style.extension_line_overshoot
-        };
-
-        // Top extension line
-        svg.push_str(&format!(
-            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            ext_start_x, callout.callout.extent_start.y,
-            ext_end_x, callout.callout.extent_start.y,
-            dim_color, style.extension_stroke_width
-        ));
-        svg.push('\n');
-
-        // Bottom extension line
-        svg.push_str(&format!(
-            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            ext_start_x, callout.callout.extent_end.y,
-            ext_end_x, callout.callout.extent_end.y,
-            dim_color, style.extension_stroke_width
-        ));
-        svg.push('\n');
-
-        // Dimension line with arrows - tips land exactly at extent boundaries
-        // When space is too tight for inward-pointing arrows, flip to outward-pointing
-        let extent_span_v = (callout.callout.extent_end.y - callout.callout.extent_start.y).abs();
-        let arrow_tip_size_v = arrow_geometry::tip_extension(style.dimension_stroke_width);
-        let tight_space_v = extent_span_v < arrow_tip_size_v * TIGHT_SPACE_MULTIPLIER;
-
-        let line_y1 = arrow_line_endpoint_for_target_y(callout.callout.extent_start.y, style.dimension_stroke_width, true);
-        let line_y2 = arrow_line_endpoint_for_target_y(callout.callout.extent_end.y, style.dimension_stroke_width, false);
-        if style.use_tick_marks {
-            svg.push_str(&format!(
-                r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-                dim_x, line_y1,
-                dim_x, line_y2,
-                dim_color, style.dimension_stroke_width
-            ));
-            svg.push('\n');
-        } else if tight_space_v {
-            // Outward-pointing arrows: short stubs extending outward from extension lines
-            let stub_len = arrow_tip_size_v * 2.5;
-            // Top arrow: points inward (down) from outside-top
-            let top_stub_start = callout.callout.extent_start.y - stub_len;
-            let top_stub_end = arrow_line_endpoint_for_target_y(callout.callout.extent_start.y, style.dimension_stroke_width, false);
-            let arrow_svg = generate_line_with_arrows(
-                dim_x, top_stub_start, dim_x, top_stub_end,
-                dim_color, style.dimension_stroke_width,
-                false, true, false,
-            );
-            for line in arrow_svg.lines() {
-                svg.push_str("    ");
-                svg.push_str(line);
-                svg.push('\n');
-            }
-            // Bottom arrow: points inward (up) from outside-bottom
-            let bot_stub_start = callout.callout.extent_end.y + stub_len;
-            let bot_stub_end = arrow_line_endpoint_for_target_y(callout.callout.extent_end.y, style.dimension_stroke_width, true);
-            let arrow_svg = generate_line_with_arrows(
-                dim_x, bot_stub_start, dim_x, bot_stub_end,
-                dim_color, style.dimension_stroke_width,
-                false, true, false,
-            );
-            for line in arrow_svg.lines() {
-                svg.push_str("    ");
-                svg.push_str(line);
-                svg.push('\n');
-            }
-        } else {
-            // Normal inward-pointing arrows
-            let arrow_svg = generate_line_with_arrows(
-                dim_x, line_y1,
-                dim_x, line_y2,
-                dim_color, style.dimension_stroke_width,
-                true, true, false,
-            );
-            for line in arrow_svg.lines() {
-                svg.push_str("    ");
-                svg.push_str(line);
-                svg.push('\n');
-            }
-        }
-
-        // Tick marks (only if not using arrows)
-        if style.use_tick_marks {
-            let tick_half = style.tick_size / 2.0;
-            // Top tick
-            svg.push_str(&format!(
-                r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-                dim_x - tick_half, callout.callout.extent_start.y - tick_half,
-                dim_x + tick_half, callout.callout.extent_start.y + tick_half,
-                dim_color, style.dimension_stroke_width
-            ));
-            svg.push('\n');
-            // Bottom tick
-            svg.push_str(&format!(
-                r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-                dim_x - tick_half, callout.callout.extent_end.y - tick_half,
-                dim_x + tick_half, callout.callout.extent_end.y + tick_half,
-                dim_color, style.dimension_stroke_width
-            ));
+        // Normal inward-pointing arrows
+        let (x1, y1) = xy(line_along1, dim_across);
+        let (x2, y2) = xy(line_along2, dim_across);
+        let arrow_svg = generate_line_with_arrows(
+            x1, y1, x2, y2,
+            dim_color, style.dimension_stroke_width,
+            true, true, false,
+        );
+        for line in arrow_svg.lines() {
+            svg.push_str("    ");
+            svg.push_str(line);
             svg.push('\n');
         }
+    }
+
+    // Tick marks (only if not using arrows)
+    if style.use_tick_marks {
+        let tick_half = style.tick_size / 2.0;
+        // Start-side tick (angled)
+        let (tx, ty) = xy(along_start, dim_across);
+        svg.push_str(&format!(
+            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
+            tx - tick_half, ty - tick_half,
+            tx + tick_half, ty + tick_half,
+            dim_color, style.dimension_stroke_width
+        ));
+        svg.push('\n');
+        // End-side tick
+        let (tx, ty) = xy(along_end, dim_across);
+        svg.push_str(&format!(
+            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
+            tx - tick_half, ty - tick_half,
+            tx + tick_half, ty + tick_half,
+            dim_color, style.dimension_stroke_width
+        ));
+        svg.push('\n');
     }
 
     // Collect arrowhead polygons to re-render after label mask
@@ -3473,37 +3372,16 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     // In tight_space mode the stubs are outside the extent boundaries and never
     // covered by the mask, so no overlay is needed (and re-rendering inward
     // arrowheads would produce phantom arrows inside the narrow span).
-    let tight_space_overlay = {
-        let tip = arrow_geometry::tip_extension(style.dimension_stroke_width);
-        if is_horizontal {
-            (callout.callout.extent_end.x - callout.callout.extent_start.x).abs() < tip * TIGHT_SPACE_MULTIPLIER
-        } else {
-            (callout.callout.extent_end.y - callout.callout.extent_start.y).abs() < tip * TIGHT_SPACE_MULTIPLIER
-        }
-    };
     let mut arrow_overlay = String::new();
-    if !style.use_tick_marks && !tight_space_overlay {
-        if is_horizontal {
-            let dim_y = callout.dimension_line_position;
-            let x1 = arrow_line_endpoint_for_target(callout.callout.extent_start.x, style.dimension_stroke_width, true);
-            let x2 = arrow_line_endpoint_for_target(callout.callout.extent_end.x, style.dimension_stroke_width, false);
-            // Start arrow (pointing left)
-            arrow_overlay.push_str(&generate_arrow_polygon(x2, dim_y, x1, dim_y, dim_color, style.dimension_stroke_width, false));
-            arrow_overlay.push('\n');
-            // End arrow (pointing right)
-            arrow_overlay.push_str(&generate_arrow_polygon(x1, dim_y, x2, dim_y, dim_color, style.dimension_stroke_width, false));
-            arrow_overlay.push('\n');
-        } else {
-            let dim_x = callout.dimension_line_position;
-            let y1 = arrow_line_endpoint_for_target_y(callout.callout.extent_start.y, style.dimension_stroke_width, true);
-            let y2 = arrow_line_endpoint_for_target_y(callout.callout.extent_end.y, style.dimension_stroke_width, false);
-            // Start arrow (pointing up)
-            arrow_overlay.push_str(&generate_arrow_polygon(dim_x, y2, dim_x, y1, dim_color, style.dimension_stroke_width, false));
-            arrow_overlay.push('\n');
-            // End arrow (pointing down)
-            arrow_overlay.push_str(&generate_arrow_polygon(dim_x, y1, dim_x, y2, dim_color, style.dimension_stroke_width, false));
-            arrow_overlay.push('\n');
-        }
+    if !style.use_tick_marks && !tight_space {
+        let (p1x, p1y) = xy(line_along1, dim_across);
+        let (p2x, p2y) = xy(line_along2, dim_across);
+        // Start arrow (pointing toward start)
+        arrow_overlay.push_str(&generate_arrow_polygon(p2x, p2y, p1x, p1y, dim_color, style.dimension_stroke_width, false));
+        arrow_overlay.push('\n');
+        // End arrow (pointing toward end)
+        arrow_overlay.push_str(&generate_arrow_polygon(p1x, p1y, p2x, p2y, dim_color, style.dimension_stroke_width, false));
+        arrow_overlay.push('\n');
     }
 
     // Label - centered directly ON the dimension line with masking

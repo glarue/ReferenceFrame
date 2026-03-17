@@ -565,130 +565,59 @@ pub struct SectionViewGeometry {
 }
 
 impl PlanViewGeometry {
-    /// Build all rectangles from pre-computed scale and origin
-    fn build_rects(design: &FrameDesign, scale: f64, origin_x: f64, origin_y: f64) -> Self {
-        let (frame_outer_height, frame_outer_width) = design.get_frame_outside_dimensions();
-        let (frame_inner_height, frame_inner_width) = design.get_frame_inside_dimensions();
-
-        let origin = Point::new(origin_x, origin_y);
-        let frame_outer = Rect::new(origin_x, origin_y, frame_outer_width * scale, frame_outer_height * scale);
-
-        let frame_width_scaled = design.frame_material_width * scale;
-        let frame_inner = Rect::new(
-            origin_x + frame_width_scaled,
-            origin_y + frame_width_scaled,
-            frame_inner_width * scale,
-            frame_inner_height * scale,
-        );
-
-        // Mat geometry (if mat is present)
-        let (mat_visible, mat_opening) = if design.has_mat() {
-            let (mat_opening_height, mat_opening_width) = design.get_mat_opening_dimensions();
-            let mat_opening_scaled_w = mat_opening_width * scale;
-            let mat_opening_scaled_h = mat_opening_height * scale;
-
-            let mat_vis = Some(frame_inner);
-            let opening_x = frame_inner.x + (frame_inner.width - mat_opening_scaled_w) / 2.0;
-            let opening_y = frame_inner.y + (frame_inner.height - mat_opening_scaled_h) / 2.0;
-            let mat_open = Some(Rect::new(opening_x, opening_y, mat_opening_scaled_w, mat_opening_scaled_h));
-
-            (mat_vis, mat_open)
-        } else {
-            (None, None)
-        };
-
-        // Content area (extends under rabbet lip by rabbet_width)
-        let rabbet_width_scaled = design.rabbet_width * scale;
-        let content_area = Rect::new(
-            frame_inner.x - rabbet_width_scaled,
-            frame_inner.y - rabbet_width_scaled,
-            frame_inner.width + 2.0 * rabbet_width_scaled,
-            frame_inner.height + 2.0 * rabbet_width_scaled,
-        );
-
-        // Artwork rectangle
-        let artwork_scaled_w = design.artwork_width * scale;
-        let artwork_scaled_h = design.artwork_height * scale;
-        let artwork = if design.has_mat() {
-            Rect::new(
-                content_area.x + (content_area.width - artwork_scaled_w) / 2.0,
-                content_area.y + (content_area.height - artwork_scaled_h) / 2.0,
-                artwork_scaled_w,
-                artwork_scaled_h,
-            )
-        } else {
-            content_area
-        };
-
-        Self {
-            frame_outer,
-            frame_inner,
-            mat_visible,
-            mat_opening,
-            artwork,
-            content_area,
-            scale,
-            origin,
-            use_axis_break_x: false,
-            use_axis_break_y: false,
-            break_x_start: 0.0,
-            break_x_end: 0.0,
-            break_y_start: 0.0,
-            break_y_end: 0.0,
-            thumbnail: None,
-            thumbnail_below: false,
-            corner_detail: None,
-            thumbnail_label_position: ThumbnailLabelPosition::Below,
-
-            annotation_bounds: AnnotationBounds {
-                corner_detail_box: None,
-                thumbnail_box: None,
-                thumbnail_label_position: ThumbnailLabelPosition::Below,
-                mat_cut_width_label: None,
-                mat_cut_height_label: None,
-                mat_cut_extent: None,
-            },
-        }
-    }
-
-    /// Build rectangles using display (compressed) artwork dimensions for axis breaks.
-    /// Frame band, mat border, and rabbet use actual design dimensions at the new scale.
-    /// Only the artwork rect and the regions it affects use display dimensions.
-    fn build_rects_with_display_artwork(
+    /// Build all rectangles from pre-computed scale and origin.
+    ///
+    /// When `display_dims` is `None`, dimensions come directly from the design
+    /// (standard path). When `Some((artwork_w, artwork_h, outer_w, outer_h))`,
+    /// display (compressed) dimensions are used for axis-break rendering while
+    /// frame band, mat border, and rabbet still use actual design dimensions.
+    fn build_rects(
         design: &FrameDesign,
         scale: f64,
         origin_x: f64,
         origin_y: f64,
-        display_artwork_w: f64,
-        display_artwork_h: f64,
-        display_outer_w: f64,
-        display_outer_h: f64,
+        display_dims: Option<(f64, f64, f64, f64)>,
     ) -> Self {
-        // Display inner = actual_inner dimensions adjusted for compressed artwork
-        // The difference between outer and inner is always 2 * frame_material_width
-        let display_inner_w = display_outer_w - 2.0 * design.frame_material_width;
-        let display_inner_h = display_outer_h - 2.0 * design.frame_material_width;
+        let (frame_outer_height, frame_outer_width) = design.get_frame_outside_dimensions();
+
+        // Resolve outer and inner dimensions: use display overrides when present,
+        // otherwise derive from the design's actual measurements.
+        let (outer_w, outer_h, inner_w, inner_h) = if let Some((_, _, disp_outer_w, disp_outer_h)) = display_dims {
+            // Display inner = display outer minus frame band on each side
+            let disp_inner_w = disp_outer_w - 2.0 * design.frame_material_width;
+            let disp_inner_h = disp_outer_h - 2.0 * design.frame_material_width;
+            (disp_outer_w, disp_outer_h, disp_inner_w, disp_inner_h)
+        } else {
+            let (fi_h, fi_w) = design.get_frame_inside_dimensions();
+            (frame_outer_width, frame_outer_height, fi_w, fi_h)
+        };
 
         let origin = Point::new(origin_x, origin_y);
-        let frame_outer = Rect::new(origin_x, origin_y, display_outer_w * scale, display_outer_h * scale);
+        let frame_outer = Rect::new(origin_x, origin_y, outer_w * scale, outer_h * scale);
 
         let frame_width_scaled = design.frame_material_width * scale;
         let frame_inner = Rect::new(
             origin_x + frame_width_scaled,
             origin_y + frame_width_scaled,
-            display_inner_w * scale,
-            display_inner_h * scale,
+            inner_w * scale,
+            inner_h * scale,
         );
 
         // Mat geometry (if mat is present)
         let (mat_visible, mat_opening) = if design.has_mat() {
             let (mat_opening_height, mat_opening_width) = design.get_mat_opening_dimensions();
-            // Display mat opening: compressed similarly to artwork
-            // mat_opening = artwork + 2*mat_overlap, so compress by same amount as artwork
-            let display_mat_opening_w = mat_opening_width - (design.artwork_width - display_artwork_w);
-            let display_mat_opening_h = mat_opening_height - (design.artwork_height - display_artwork_h);
-            let mat_opening_scaled_w = display_mat_opening_w * scale;
-            let mat_opening_scaled_h = display_mat_opening_h * scale;
+
+            // When display overrides are active, compress mat opening by the same
+            // amount as artwork (mat_opening = artwork + 2*mat_overlap).
+            let (mat_open_w, mat_open_h) = if let Some((disp_art_w, disp_art_h, _, _)) = display_dims {
+                (mat_opening_width  - (design.artwork_width  - disp_art_w),
+                 mat_opening_height - (design.artwork_height - disp_art_h))
+            } else {
+                (mat_opening_width, mat_opening_height)
+            };
+
+            let mat_opening_scaled_w = mat_open_w * scale;
+            let mat_opening_scaled_h = mat_open_h * scale;
 
             let mat_vis = Some(frame_inner);
             let opening_x = frame_inner.x + (frame_inner.width - mat_opening_scaled_w) / 2.0;
@@ -709,9 +638,14 @@ impl PlanViewGeometry {
             frame_inner.height + 2.0 * rabbet_width_scaled,
         );
 
-        // Artwork rectangle uses display dimensions
-        let artwork_scaled_w = display_artwork_w * scale;
-        let artwork_scaled_h = display_artwork_h * scale;
+        // Artwork rectangle: use display artwork when overrides are active
+        let (art_w, art_h) = if let Some((disp_art_w, disp_art_h, _, _)) = display_dims {
+            (disp_art_w, disp_art_h)
+        } else {
+            (design.artwork_width, design.artwork_height)
+        };
+        let artwork_scaled_w = art_w * scale;
+        let artwork_scaled_h = art_h * scale;
         let artwork = if design.has_mat() {
             Rect::new(
                 content_area.x + (content_area.width - artwork_scaled_w) / 2.0,
@@ -743,14 +677,7 @@ impl PlanViewGeometry {
             corner_detail: None,
             thumbnail_label_position: ThumbnailLabelPosition::Below,
 
-            annotation_bounds: AnnotationBounds {
-                corner_detail_box: None,
-                thumbnail_box: None,
-                thumbnail_label_position: ThumbnailLabelPosition::Below,
-                mat_cut_width_label: None,
-                mat_cut_height_label: None,
-                mat_cut_extent: None,
-            },
+            annotation_bounds: AnnotationBounds::empty(),
         }
     }
 
@@ -875,10 +802,9 @@ impl PlanViewGeometry {
 
         // Build rects using display artwork dimensions
         // Frame band, mat border, rabbet all use actual dimensions at new scale
-        let mut geo = Self::build_rects_with_display_artwork(
+        let mut geo = Self::build_rects(
             design, scale, origin_x, origin_y,
-            display_artwork_w, display_artwork_h,
-            display_outer_w, display_outer_h,
+            Some((display_artwork_w, display_artwork_h, display_outer_w, display_outer_h)),
         );
 
         // Compute break positions in canvas coords
@@ -962,7 +888,7 @@ impl PlanViewGeometry {
         let origin_x = ((canvas_width - scaled_width) / 2.0).max(min_offset);
         let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset);
 
-        let mut geo = Self::build_rects(design, scale, origin_x, origin_y);
+        let mut geo = Self::build_rects(design, scale, origin_x, origin_y, None);
 
         if use_corner_detail && design.frame_material_width > 0.0 {
             geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
@@ -985,11 +911,8 @@ impl PlanViewGeometry {
 
         geo.annotation_bounds = AnnotationBounds {
             corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
-            thumbnail_box: None,
-            thumbnail_label_position: ThumbnailLabelPosition::Below,
-            mat_cut_width_label: None,
-            mat_cut_height_label: None,
             mat_cut_extent,
+            ..AnnotationBounds::empty()
         };
 
         geo
@@ -1087,9 +1010,8 @@ impl PlanViewGeometry {
             corner_detail_box: geo.corner_detail.as_ref().map(|cd| cd.box_rect),
             thumbnail_box: geo.thumbnail,
             thumbnail_label_position: thumb_label_pos,
-            mat_cut_width_label: None,
-            mat_cut_height_label: None,
             mat_cut_extent,
+            ..AnnotationBounds::empty()
         };
     }
 
@@ -1295,7 +1217,7 @@ impl PlanViewGeometry {
         let origin_x = (canvas_width - scaled_width) / 2.0;
         let origin_y = (canvas_height - scaled_height) / 2.0;
 
-        Self::build_rects(design, scale, origin_x, origin_y)
+        Self::build_rects(design, scale, origin_x, origin_y, None)
     }
 
     /// Get a point on the frame outer boundary
@@ -1407,9 +1329,10 @@ impl SectionViewGeometry {
             format!("Backing: {}", format_value(design.backing_thickness, unit)),
             format!("Margin: {}", format_value(design.assembly_margin, unit)),
         ];
+        let fallback_label = &material_labels[0];
         let max_label_text = material_labels.iter()
             .max_by_key(|s| s.len())
-            .unwrap();
+            .unwrap_or(&fallback_label);
         let max_label_width = estimate_text_width(max_label_text, style.material_label_font_size());
 
         // Stack dimension label (e.g., "9/32"") - rotated vertically
