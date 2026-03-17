@@ -12,6 +12,7 @@ use crate::frame::FrameDesign;
 
 /// Validation configuration with user-adjustable limits
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ValidationConfig {
     // Structural minimums (must leave this much material after rabbet cut)
     /// Minimum remaining lip width after rabbet width cut (inches)
@@ -34,6 +35,10 @@ pub struct ValidationConfig {
     pub min_opening: f64,
     /// Maximum opening dimension (inches)
     pub max_opening: f64,
+
+    // Artwork dimension bounds
+    /// Maximum artwork dimension (inches) — caps the largest single dimension
+    pub max_artwork_dimension: f64,
 
     // Rabbet bounds
     /// Minimum rabbet dimension (inches)
@@ -105,6 +110,9 @@ impl Default for ValidationConfig {
             // Opening bounds
             min_opening: 0.5,          // 1/2"
             max_opening: 120.0,        // 10 feet
+
+            // Artwork dimension bounds
+            max_artwork_dimension: 120.0, // 10 feet
 
             // Rabbet bounds
             min_rabbet: 0.125,         // 1/8"
@@ -446,6 +454,24 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
         ));
     }
 
+    // Artwork dimension bounds
+    if design.artwork_height > config.max_artwork_dimension {
+        result.add(ValidationIssue::error(
+            "artwork_height",
+            &format!("Artwork height ({}) exceeds maximum ({})",
+                conversions::format_inches_as_fraction(design.artwork_height),
+                conversions::format_inches_as_fraction(config.max_artwork_dimension)),
+        ));
+    }
+    if design.artwork_width > config.max_artwork_dimension {
+        result.add(ValidationIssue::error(
+            "artwork_width",
+            &format!("Artwork width ({}) exceeds maximum ({})",
+                conversions::format_inches_as_fraction(design.artwork_width),
+                conversions::format_inches_as_fraction(config.max_artwork_dimension)),
+        ));
+    }
+
     // Helper: check value against min/max and add error if out of range
     let mut check_range = |field: &str, label: &str, value: f64, min: f64, max: f64| {
         if value < min {
@@ -698,5 +724,234 @@ mod tests {
         assert!(result.issues.iter().any(|i|
             i.field == "artwork_width" &&
             i.message.contains("extends only")));
+    }
+
+    #[test]
+    fn test_artwork_exceeds_max_dimension() {
+        let mut design = test_design();
+        design.artwork_width = 150.0;
+        let config = ValidationConfig::default();
+        let result = validate_design(&design, &config);
+        assert!(result.has_errors(), "Expected error for oversized artwork: {:?}", result.issues);
+        assert!(result.issues.iter().any(|i|
+            i.field == "artwork_width" &&
+            i.message.contains("exceeds maximum")));
+    }
+
+    #[test]
+    fn test_serde_default_fills_max_artwork_dimension() {
+        // Simulate a stored config missing the new field
+        let json = r#"{"min_opening": 0.5, "max_opening": 120.0}"#;
+        let config: ValidationConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.max_artwork_dimension, 120.0);
+    }
+
+    // --- Frame bounds ---
+
+    #[test]
+    fn test_frame_width_below_minimum() {
+        let mut design = test_design();
+        design.frame_material_width = 0.25; // Below min 0.5"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "frame_material_width" && i.message.contains("at least")));
+    }
+
+    #[test]
+    fn test_frame_width_above_maximum() {
+        let mut design = test_design();
+        design.frame_material_width = 15.0; // Above max 12"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "frame_material_width" && i.message.contains("at most")));
+    }
+
+    #[test]
+    fn test_frame_depth_below_minimum() {
+        let mut design = test_design();
+        design.frame_material_depth = 0.25; // Below min 0.5"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "frame_material_depth" && i.message.contains("at least")));
+    }
+
+    #[test]
+    fn test_frame_depth_above_maximum() {
+        let mut design = test_design();
+        design.frame_material_depth = 7.0; // Above max 6"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "frame_material_depth" && i.message.contains("at most")));
+    }
+
+    // --- Rabbet structural constraints ---
+
+    #[test]
+    fn test_rabbet_depth_too_deep() {
+        let mut design = test_design();
+        design.rabbet_depth = 0.7; // Leaves < 0.125" face on 0.75" depth
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "rabbet_depth" && i.message.contains("leave")));
+    }
+
+    #[test]
+    fn test_rabbet_below_minimum() {
+        let mut design = test_design();
+        design.rabbet_width = 0.05; // Below min 0.125"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "rabbet_width" && i.message.contains("at least")));
+    }
+
+    #[test]
+    fn test_rabbet_above_maximum() {
+        let mut design = test_design();
+        design.frame_material_width = 6.0; // Wide enough to allow large rabbet
+        design.rabbet_width = 3.5; // Above max 3.0"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "rabbet_width" && i.message.contains("at most")));
+    }
+
+    // --- check_range: material thickness bounds ---
+
+    #[test]
+    fn test_glazing_thickness_above_maximum() {
+        let mut design = test_design();
+        design.glazing_thickness = 1.0; // Above max 0.5"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "glazing_thickness"));
+    }
+
+    #[test]
+    fn test_artwork_thickness_below_minimum() {
+        let mut design = test_design();
+        design.artwork_thickness = 0.0; // Below min 0.001"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "artwork_thickness"));
+    }
+
+    #[test]
+    fn test_backing_thickness_above_maximum() {
+        let mut design = test_design();
+        design.backing_thickness = 1.0; // Above max 0.5"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "backing_thickness"));
+    }
+
+    #[test]
+    fn test_assembly_margin_above_maximum() {
+        let mut design = test_design();
+        design.assembly_margin = 0.5; // Above max 0.25"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "assembly_margin"));
+    }
+
+    #[test]
+    fn test_matboard_thickness_above_maximum() {
+        let mut design = test_design();
+        design.matboard_thickness = 0.75; // Above max 0.5"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "matboard_thickness"));
+    }
+
+    // --- Mat overlap safety checks ---
+
+    #[test]
+    fn test_mat_overlap_exceeds_safe_limit_for_height() {
+        let mut design = test_design();
+        design.mat_width_top_bottom = 2.0; // Enable mat
+        design.artwork_height = 4.0;
+        design.mat_overlap = 1.75; // max_safe = 4.0/2 - 0.5 = 1.5
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "mat_overlap" && i.message.contains("too large for artwork height")));
+    }
+
+    #[test]
+    fn test_mat_overlap_exceeds_safe_limit_for_width() {
+        let mut design = test_design();
+        design.mat_width_sides = 2.0; // Enable mat
+        design.artwork_width = 3.0;
+        design.mat_overlap = 1.25; // max_safe = 3.0/2 - 0.5 = 1.0
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "mat_overlap" && i.message.contains("too large for artwork width")));
+    }
+
+    #[test]
+    fn test_mat_overlap_below_minimum() {
+        let mut design = test_design();
+        design.mat_width_top_bottom = 2.0;
+        design.mat_overlap = 0.01; // Below min 0.0625"
+        let result = validate_design(&design, &ValidationConfig::default());
+        assert!(result.has_errors());
+        assert!(result.issues.iter().any(|i| i.field == "mat_overlap" && i.message.contains("at least")));
+    }
+
+    // --- Soft warnings ---
+
+    #[test]
+    fn test_extreme_aspect_ratio_warning() {
+        let mut design = test_design();
+        design.mat_width_top_bottom = 0.0;
+        design.mat_width_sides = 0.0;
+        design.artwork_width = 2.0;
+        design.artwork_height = 80.0; // Outer ratio well above 10:1
+        let config = ValidationConfig::default();
+        let result = validate_design(&design, &config);
+        assert!(result.issues.iter().any(|i|
+            i.severity == ValidationSeverity::Warning &&
+            i.message.contains("aspect ratio")),
+            "Expected aspect ratio warning, got: {:?}", result.issues);
+    }
+
+    #[test]
+    fn test_mat_opening_too_small_warning() {
+        let mut design = test_design();
+        design.mat_width_top_bottom = 2.0;
+        design.mat_width_sides = 2.0;
+        design.artwork_width = 2.5;
+        design.artwork_height = 2.5;
+        design.mat_overlap = 0.625; // Opens to 2.5 - 1.25 = 1.25, but width opening = same
+        // Actually mat_opening = artwork - 2*overlap = 2.5 - 1.25 = 1.25, but we need < 1.0
+        design.mat_overlap = 0.875; // Opens to 2.5 - 1.75 = 0.75 < 1.0
+        let config = ValidationConfig::default();
+        let result = validate_design(&design, &config);
+        assert!(result.issues.iter().any(|i|
+            i.severity == ValidationSeverity::Warning &&
+            i.message.contains("very small")));
+    }
+
+    // --- ValidationConfig serde roundtrip ---
+
+    #[test]
+    fn test_validation_config_json_roundtrip() {
+        let config = ValidationConfig::default();
+        let json = config.to_json().unwrap();
+        let restored = ValidationConfig::from_json(&json).unwrap();
+        assert_eq!(config.min_frame_width, restored.min_frame_width);
+        assert_eq!(config.max_artwork_dimension, restored.max_artwork_dimension);
+        assert_eq!(config.warn_extreme_aspect_ratio, restored.warn_extreme_aspect_ratio);
+        assert_eq!(config.max_mat_overlap, restored.max_mat_overlap);
+    }
+
+    // --- Opening dimension bounds via check_range ---
+
+    #[test]
+    fn test_opening_exceeds_maximum() {
+        let mut design = test_design();
+        design.artwork_width = 200.0; // Produces opening >> 120"
+        let config = ValidationConfig::default();
+        let result = validate_design(&design, &config);
+        assert!(result.has_errors());
+        // Should have both artwork_width max dimension error AND opening error
+        assert!(result.issues.iter().any(|i| i.field == "artwork_width"));
     }
 }

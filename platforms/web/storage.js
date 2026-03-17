@@ -507,25 +507,13 @@ function importData(jsonData, mode = 'merge') {
  */
 function clearAllData() {
     try {
-        localStorage.removeItem(STORAGE_KEYS.CONFIGS);
-        localStorage.removeItem(STORAGE_KEYS.CUSTOM_SIZES);
-        localStorage.removeItem(STORAGE_KEYS.SETTINGS);
-        localStorage.removeItem(STORAGE_KEYS.UNIT);
+        for (const key of Object.values(STORAGE_KEYS)) {
+            localStorage.removeItem(key);
+        }
         console.log('Cleared all stored data');
         return true;
     } catch (e) {
         console.error('Error clearing data:', e);
         return false;
     }
-}
-
-// Utility functions for HTML escaping (security)
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function escapeJs(text) {
-    return text.replace(/'/g, "\\'").replace(/"/g, '\\"');
 }

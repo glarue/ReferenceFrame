@@ -206,4 +206,109 @@ mod tests {
         assert!(state.locked());
         assert!(state.ratio().is_some());
     }
+
+    #[test]
+    fn test_display_zero_inputs() {
+        assert_eq!(get_aspect_ratio_display(0.0, 5.0), "—");
+        assert_eq!(get_aspect_ratio_display(5.0, 0.0), "—");
+        assert_eq!(get_aspect_ratio_display(0.0, 0.0), "—");
+    }
+
+    #[test]
+    fn test_display_from_ratio_zero() {
+        assert_eq!(get_aspect_ratio_display_from_ratio(0.0), "—");
+    }
+
+    #[test]
+    fn test_display_fallback_ratio_gt_1() {
+        // 2.5:1 — not a common ratio
+        assert_eq!(get_aspect_ratio_display_from_ratio(2.5), "2.50:1");
+        // Whole number ratio
+        assert_eq!(get_aspect_ratio_display_from_ratio(3.0), "3:1");
+    }
+
+    #[test]
+    fn test_display_fallback_ratio_lt_1() {
+        // 0.4 → 1:2.50
+        assert_eq!(get_aspect_ratio_display_from_ratio(0.4), "1:2.50");
+        // 0.25 → 1:4
+        assert_eq!(get_aspect_ratio_display_from_ratio(0.25), "1:4");
+    }
+
+    #[test]
+    fn test_calculate_dimension_from_ratio() {
+        // Known height, find width: width = height / ratio
+        let width = calculate_dimension_from_ratio(12.0, 1.5, true);
+        assert!((width - 8.0).abs() < 0.001);
+
+        // Known width, find height: height = width * ratio
+        let height = calculate_dimension_from_ratio(8.0, 1.5, false);
+        assert!((height - 12.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_calculate_dimension_from_ratio_zero_produces_infinity() {
+        // Division by zero ratio produces infinity — callers must guard
+        let result = calculate_dimension_from_ratio(10.0, 0.0, true);
+        assert!(result.is_infinite());
+    }
+
+    #[test]
+    fn test_invert_ratio() {
+        assert!((invert_ratio(2.0) - 0.5).abs() < 0.001);
+        assert_eq!(invert_ratio(0.0), 0.0);
+        assert!((invert_ratio(1.0) - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_lock_with_zero_width_returns_false() {
+        let mut state = AspectLockState::new();
+        assert!(!state.lock(10.0, 0.0));
+        assert!(!state.locked());
+    }
+
+    #[test]
+    fn test_toggle() {
+        let mut state = AspectLockState::new();
+        let locked = state.toggle(12.0, 8.0);
+        assert!(locked);
+        assert!(state.locked());
+
+        let locked = state.toggle(12.0, 8.0);
+        assert!(!locked);
+        assert!(!state.locked());
+    }
+
+    #[test]
+    fn test_invert_locked_ratio() {
+        let mut state = AspectLockState::new();
+        state.lock(12.0, 8.0); // ratio = 1.5
+        state.invert();
+        let ratio = state.ratio().unwrap();
+        assert!((ratio - 1.0 / 1.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_get_width_for_height_unlocked_returns_zero() {
+        let state = AspectLockState::new();
+        assert_eq!(state.get_width_for_height(10.0, 0.125), 0.0);
+    }
+
+    #[test]
+    fn test_get_width_for_height_rounds_to_step() {
+        let mut state = AspectLockState::new();
+        state.lock(12.0, 8.0); // ratio = 1.5
+        // width = 10.0 / 1.5 = 6.666..., rounded to nearest 0.125 = 6.625
+        let w = state.get_width_for_height(10.0, 0.125);
+        assert!((w - 6.625).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_get_height_for_width_rounds_to_step() {
+        let mut state = AspectLockState::new();
+        state.lock(12.0, 8.0); // ratio = 1.5
+        // height = 5.0 * 1.5 = 7.5, rounded to nearest 0.125 = 7.5
+        let h = state.get_height_for_width(5.0, 0.125);
+        assert!((h - 7.5).abs() < 0.001);
+    }
 }

@@ -124,6 +124,19 @@ const LEGEND_SWATCH_GAP: f64 = 8.0;          // Gap between swatch and text
 const LEGEND_ITEM_GAP: f64 = 16.0;           // Gap between legend items
 const LEGEND_CHAR_WIDTH_RATIO: f64 = 0.55;   // Average character width as fraction of font size
 
+// Combined (PDF) view layout
+const TITLE_BLOCK_HEIGHT: f64 = 95.0;       // Height reserved for title block
+const PLAN_HEIGHT_RATIO: f64 = 0.58;        // Plan view share of available height
+const SECTION_HEIGHT_RATIO: f64 = 0.42;     // Section view share of available height
+const SECTION_FONT_SCALE: f64 = 0.76;       // Section font size relative to plan
+const SECTION_DIM_OFFSET_SCALE: f64 = 0.9;  // Section dimension offsets relative to plan
+
+// Text baseline
+const BASELINE_SHIFT_RATIO: f64 = 0.35;     // Vertical centering shift for SVG text
+
+// Tight-space dimension arrow thresholds
+const TIGHT_SPACE_MULTIPLIER: f64 = 3.0;    // Arrow placed outside when span < multiplier * stroke
+
 // ============================================================================
 // AXIS BREAK HELPERS
 // ============================================================================
@@ -195,6 +208,48 @@ fn render_zigzag_line_with_opacity(svg: &mut String, zz: &ZigzagPoints, line_col
         zz.p2.0, zz.p2.1, zz.p3.0, zz.p3.1,
         line_color, break_line_width, DASH_BREAK_INDICATOR, opacity_attr
     ));
+}
+
+/// Render a spark/zigzag break symbol on a dimension line.
+///
+/// Two orientations supported:
+/// - Horizontal: zigzag perpendicular to a horizontal line (varies in Y)
+/// - Vertical: zigzag perpendicular to a vertical line (varies in X)
+///
+/// `inner_fraction` controls the width of the inner zigzag points relative to the
+/// full spark extent (e.g., 0.25 for plan view, ~0.167 for section horizontal).
+fn render_spark_symbol(
+    svg: &mut String,
+    center_x: f64,
+    center_y: f64,
+    horizontal: bool,
+    color: &str,
+    stroke_width: f64,
+) {
+    if horizontal {
+        let sw = SPARK_HORIZONTAL_WIDTH;
+        let sh = SPARK_HORIZONTAL_HEIGHT;
+        svg.push_str(&format!(
+            r#"    <path d="M {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2}" stroke="{}" stroke-width="{}" fill="none"/>"#,
+            center_x - sw / 2.0, center_y,
+            center_x - sw / 4.0, center_y - sh,
+            center_x + sw / 4.0, center_y + sh,
+            center_x + sw / 2.0, center_y,
+            color, stroke_width
+        ));
+    } else {
+        let sw = SPARK_VERTICAL_WIDTH;
+        let sh = SPARK_VERTICAL_HEIGHT;
+        svg.push_str(&format!(
+            r#"    <path d="M {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2}" stroke="{}" stroke-width="{}" fill="none"/>"#,
+            center_x, center_y - sh / 2.0,
+            center_x + sw, center_y - sh / 4.0,
+            center_x - sw, center_y + sh / 4.0,
+            center_x, center_y + sh / 2.0,
+            color, stroke_width
+        ));
+    }
+    svg.push('\n');
 }
 
 /// Generate SVG polygon element for an arrowhead
@@ -646,7 +701,7 @@ fn run_collision_pass(
             continue;
         }
         let extent_span = (pc.callout.extent_end.x - pc.callout.extent_start.x).abs();
-        let tight_space = extent_span < arrow_tip_size * 3.0;
+        let tight_space = extent_span < arrow_tip_size * TIGHT_SPACE_MULTIPLIER;
         if !tight_space {
             continue;
         }
@@ -937,15 +992,15 @@ fn generate_combined_view(
     const MIN_GAP: f64 = 8.0; // minimum inter-view gap, always preserved
 
     // Account for title block height if present
-    let title_height = if options.include_title_block { 95.0 } else { 0.0 };
+    let title_height = if options.include_title_block { TITLE_BLOCK_HEIGHT } else { 0.0 };
 
     // Available height budget (minimum gap and title reserved)
     let available_height = options.canvas_height - MIN_GAP - title_height;
 
     // Initial rough split used only to generate the SVG content.
     // The actual zone heights are derived from viewBox aspect ratios below.
-    let plan_height_init = available_height * 0.58;
-    let section_height_init = available_height * 0.42;
+    let plan_height_init = available_height * PLAN_HEIGHT_RATIO;
+    let section_height_init = available_height * SECTION_HEIGHT_RATIO;
 
     // Use full PDF font sizes without scaling — dynamic viewBox handles fitting
     let mut plan_style = style.clone();
@@ -955,9 +1010,9 @@ fn generate_combined_view(
     // Reduce font sizes proportionally so rendered sizes match between views.
     let mut section_style = style.clone();
     section_style.margin = 5.0;
-    section_style.label_font_size = (style.label_font_size * 0.76).round();
-    section_style.dimension_offset_base = style.dimension_offset_base * 0.9;
-    section_style.dimension_offset_step = style.dimension_offset_step * 0.9;
+    section_style.label_font_size = (style.label_font_size * SECTION_FONT_SCALE).round();
+    section_style.dimension_offset_base = style.dimension_offset_base * SECTION_DIM_OFFSET_SCALE;
+    section_style.dimension_offset_step = style.dimension_offset_step * SECTION_DIM_OFFSET_SCALE;
 
     let plan_options = DiagramOptions {
         view: ViewOption::PlanOnly,
@@ -1869,29 +1924,18 @@ fn build_plan_svg(
         // Spark co-occurs with the frame break — directly signals where the compression happens.
         if geometry.use_axis_break_x {
             let break_center_x = (geometry.break_x_start + geometry.break_x_end) / 2.0;
-            let sw = SPARK_HORIZONTAL_WIDTH;
-            let sh = SPARK_HORIZONTAL_HEIGHT;
 
             // Left segment: arrow to spark
             svg.push_str(&generate_line_with_arrows(
                 h_line_x1, artwork_center_y,
-                break_center_x - sw / 2.0, artwork_center_y,
+                break_center_x - SPARK_HORIZONTAL_WIDTH / 2.0, artwork_center_y,
                 artwork_indicator_color, arrow_stroke_width,
                 true, false, false,
             ));
-            // Spark symbol
-            svg.push_str(&format!(
-                r#"    <path d="M {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2}" stroke="{}" stroke-width="{}" fill="none"/>"#,
-                break_center_x - sw / 2.0, artwork_center_y,
-                break_center_x - sw / 4.0, artwork_center_y - sh,
-                break_center_x + sw / 4.0, artwork_center_y + sh,
-                break_center_x + sw / 2.0, artwork_center_y,
-                artwork_indicator_color, arrow_stroke_width
-            ));
-            svg.push('\n');
+            render_spark_symbol(&mut svg, break_center_x, artwork_center_y, true, artwork_indicator_color, arrow_stroke_width);
             // Right segment: spark to arrow
             svg.push_str(&generate_line_with_arrows(
-                break_center_x + sw / 2.0, artwork_center_y,
+                break_center_x + SPARK_HORIZONTAL_WIDTH / 2.0, artwork_center_y,
                 h_line_x2, artwork_center_y,
                 artwork_indicator_color, arrow_stroke_width,
                 false, true, false,
@@ -1924,29 +1968,18 @@ fn build_plan_svg(
         // Spark co-occurs with the frame break — directly signals where the compression happens.
         if geometry.use_axis_break_y {
             let break_center_y = (geometry.break_y_start + geometry.break_y_end) / 2.0;
-            let sw = SPARK_VERTICAL_WIDTH;
-            let sh = SPARK_VERTICAL_HEIGHT;
 
             // Top segment: arrow to spark
             svg.push_str(&generate_line_with_arrows(
                 artwork_center.x, v_line_y1,
-                artwork_center.x, break_center_y - sh / 2.0,
+                artwork_center.x, break_center_y - SPARK_VERTICAL_HEIGHT / 2.0,
                 artwork_indicator_color, arrow_stroke_width,
                 true, false, false,
             ));
-            // Spark symbol (vertical orientation)
-            svg.push_str(&format!(
-                r#"    <path d="M {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2}" stroke="{}" stroke-width="{}" fill="none"/>"#,
-                artwork_center.x, break_center_y - sh / 2.0,
-                artwork_center.x + sw, break_center_y - sh / 4.0,
-                artwork_center.x - sw, break_center_y + sh / 4.0,
-                artwork_center.x, break_center_y + sh / 2.0,
-                artwork_indicator_color, arrow_stroke_width
-            ));
-            svg.push('\n');
+            render_spark_symbol(&mut svg, artwork_center.x, break_center_y, false, artwork_indicator_color, arrow_stroke_width);
             // Bottom segment: spark to arrow
             svg.push_str(&generate_line_with_arrows(
-                artwork_center.x, break_center_y + sh / 2.0,
+                artwork_center.x, break_center_y + SPARK_VERTICAL_HEIGHT / 2.0,
                 artwork_center.x, v_line_y2,
                 artwork_indicator_color, arrow_stroke_width,
                 false, true, false,
@@ -1994,7 +2027,7 @@ fn build_plan_svg(
         // the baseline down by ~0.35em (half the typical cap height). This places the visual
         // center of the glyphs at artwork_center_y, matching the background rect, and also
         // works correctly in svg2pdf.js (which ignores dominant-baseline entirely).
-        let text_y = artwork_center_y + style.label_font_size * 0.35;
+        let text_y = artwork_center_y + style.label_font_size * BASELINE_SHIFT_RATIO;
         svg.push_str(&format!(
             r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.2}px" text-anchor="middle">{}</text>"#,
             artwork_center.x, text_y,
@@ -2596,33 +2629,18 @@ fn build_section_svg(
     
     if geometry.use_axis_break_y {
         // Draw dimension line with break symbol in the middle
-        let axis_break_start_y = geometry.axis_break_start_y;
-        let axis_break_end_y = geometry.axis_break_end_y;
-        let break_center_y = (axis_break_start_y + axis_break_end_y) / 2.0;
-        let spark_width = SPARK_VERTICAL_WIDTH;
-        let spark_height = SPARK_VERTICAL_HEIGHT;
-        
+        let break_center_y = (geometry.axis_break_start_y + geometry.axis_break_end_y) / 2.0;
+
         // Line from top arrow to break
         svg.push_str(&generate_line_with_arrows(
-            dim_x, depth_line_y1, dim_x, break_center_y - spark_height / 2.0,
+            dim_x, depth_line_y1, dim_x, break_center_y - SPARK_VERTICAL_HEIGHT / 2.0,
             dim_color, style.dimension_stroke_width,
             true, false, false, // arrow_start only
         ));
-
-        // Spark/zigzag break symbol (vertical orientation)
-        svg.push_str(&format!(
-            r#"    <path d="M {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2} L {:.2},{:.2}" stroke="{}" stroke-width="{}" fill="none"/>"#,
-            dim_x, break_center_y - spark_height / 2.0,
-            dim_x + spark_width, break_center_y - spark_height / 4.0,
-            dim_x - spark_width, break_center_y + spark_height / 4.0,
-            dim_x, break_center_y + spark_height / 2.0,
-            dim_color, style.dimension_stroke_width
-        ));
-        svg.push('\n');
-
+        render_spark_symbol(&mut svg, dim_x, break_center_y, false, dim_color, style.dimension_stroke_width);
         // Line from break to bottom arrow
         svg.push_str(&generate_line_with_arrows(
-            dim_x, break_center_y + spark_height / 2.0, dim_x, depth_line_y2,
+            dim_x, break_center_y + SPARK_VERTICAL_HEIGHT / 2.0, dim_x, depth_line_y2,
             dim_color, style.dimension_stroke_width,
             false, true, false, // arrow_end only
         ));
@@ -2688,35 +2706,18 @@ fn build_section_svg(
     let width_line_x2 = arrow_line_endpoint_for_target(fw_x2, style.dimension_stroke_width, false);
     
     if geometry.use_axis_break {
-        // Break symbol parameters
         let break_center = (geometry.axis_break_start_x + geometry.axis_break_end_x) / 2.0;
-        let spark_width = SPARK_HORIZONTAL_WIDTH;
-        let spark_height = SPARK_HORIZONTAL_HEIGHT;
 
         // Line from left arrow to break
         svg.push_str(&generate_line_with_arrows(
-            width_line_x1, fw_y, break_center - spark_width / 2.0, fw_y,
+            width_line_x1, fw_y, break_center - SPARK_HORIZONTAL_WIDTH / 2.0, fw_y,
             dim_color, style.dimension_stroke_width,
             true, false, false, // arrow_start only
         ));
-
-        // Spark/zigzag symbol (same shape as frame break, just smaller)
-        let spark_path = format!(
-            "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2}",
-            break_center - spark_width / 2.0, fw_y,
-            break_center - spark_width / 6.0, fw_y - spark_height,
-            break_center + spark_width / 6.0, fw_y + spark_height,
-            break_center + spark_width / 2.0, fw_y,
-        );
-        svg.push_str(&format!(
-            r#"    <path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-linejoin="round"/>"#,
-            spark_path, dim_color, style.dimension_stroke_width
-        ));
-        svg.push('\n');
-
+        render_spark_symbol(&mut svg, break_center, fw_y, true, dim_color, style.dimension_stroke_width);
         // Line from break to right arrow
         svg.push_str(&generate_line_with_arrows(
-            break_center + spark_width / 2.0, fw_y, width_line_x2, fw_y,
+            break_center + SPARK_HORIZONTAL_WIDTH / 2.0, fw_y, width_line_x2, fw_y,
             dim_color, style.dimension_stroke_width,
             false, true, false, // arrow_end only
         ));
@@ -2893,7 +2894,7 @@ fn build_section_svg(
         // Position text so baseline is slightly below label_y (visual center)
         // This makes dog-leg line hit visual center regardless of baseline rendering
         let stack_label_font = style.label_font_size * (11.0 / 13.0);
-        let text_y = label_y + stack_label_font * 0.35;
+        let text_y = label_y + stack_label_font * BASELINE_SHIFT_RATIO;
         svg.push_str(&format!(
             r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px">{}: {}</text>"#,
             label_base_x, text_y,
@@ -3270,7 +3271,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
         // When space is too tight for inward-pointing arrows, flip to outward-pointing
         let extent_span = (callout.callout.extent_end.x - callout.callout.extent_start.x).abs();
         let arrow_tip_size = arrow_geometry::tip_extension(style.dimension_stroke_width);
-        let tight_space = extent_span < arrow_tip_size * 3.0;
+        let tight_space = extent_span < arrow_tip_size * TIGHT_SPACE_MULTIPLIER;
 
         let line_x1 = arrow_line_endpoint_for_target(callout.callout.extent_start.x, style.dimension_stroke_width, true);
         let line_x2 = arrow_line_endpoint_for_target(callout.callout.extent_end.x, style.dimension_stroke_width, false);
@@ -3389,7 +3390,7 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
         // When space is too tight for inward-pointing arrows, flip to outward-pointing
         let extent_span_v = (callout.callout.extent_end.y - callout.callout.extent_start.y).abs();
         let arrow_tip_size_v = arrow_geometry::tip_extension(style.dimension_stroke_width);
-        let tight_space_v = extent_span_v < arrow_tip_size_v * 3.0;
+        let tight_space_v = extent_span_v < arrow_tip_size_v * TIGHT_SPACE_MULTIPLIER;
 
         let line_y1 = arrow_line_endpoint_for_target_y(callout.callout.extent_start.y, style.dimension_stroke_width, true);
         let line_y2 = arrow_line_endpoint_for_target_y(callout.callout.extent_end.y, style.dimension_stroke_width, false);
@@ -3475,9 +3476,9 @@ fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, geometry: &P
     let tight_space_overlay = {
         let tip = arrow_geometry::tip_extension(style.dimension_stroke_width);
         if is_horizontal {
-            (callout.callout.extent_end.x - callout.callout.extent_start.x).abs() < tip * 3.0
+            (callout.callout.extent_end.x - callout.callout.extent_start.x).abs() < tip * TIGHT_SPACE_MULTIPLIER
         } else {
-            (callout.callout.extent_end.y - callout.callout.extent_start.y).abs() < tip * 3.0
+            (callout.callout.extent_end.y - callout.callout.extent_start.y).abs() < tip * TIGHT_SPACE_MULTIPLIER
         }
     };
     let mut arrow_overlay = String::new();
