@@ -1,0 +1,78 @@
+<svg viewBox="64.75 -8.10 823.85 602.24" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
+  </defs>
+  <g id="geometry">
+    <rect x="74.00" y="74.00" width="726.00" height="510.89" stroke="#333333" stroke-width="2.5" fill="none"/>
+    <rect x="154.67" y="154.67" width="564.67" height="349.56" stroke="#333333" stroke-width="2.5" fill="none"/>
+  </g>
+  <g id="rabbet-overlap">
+    <path d="M114.33,114.33 h645.33 v430.22 h-645.33 Z M154.67,154.67 v349.56 h564.67 v-349.56 Z" fill="#90be6d" fill-opacity="0.15" fill-rule="evenodd" stroke="none"/>
+    <rect x="114.33" y="114.33" width="645.33" height="430.22" fill="none" stroke="#90be6d" stroke-width="0.40" stroke-dasharray="4,2" stroke-opacity="0.5"/>
+  </g>
+  <g id="content-boundary">
+    <rect x="114.33" y="114.33" width="645.33" height="430.22" stroke="#90be6d" stroke-width="0.5" stroke-dasharray="6,3" fill="none" opacity="0.5"/>
+  </g>
+  <g id="dimensions">
+    <g class="dimension">
+      <line x1="155.92" y1="149.92" x2="155.92" y2="48.00" stroke="#46af8f" stroke-width="0.5"/>
+      <line x1="718.08" y1="149.92" x2="718.08" y2="48.00" stroke="#46af8f" stroke-width="0.5"/>
+        <polygon points="155.92,52.00 161.92,53.88 161.92,50.12" fill="#46af8f" data-arrow="true"/>
+        <line x1="161.92" y1="52.00" x2="712.08" y2="52.00" stroke="#46af8f" stroke-width="0.75"/>
+        <polygon points="718.08,52.00 712.08,50.12 712.08,53.88" fill="#46af8f" data-arrow="true"/>
+      <rect x="409.10" y="44.50" width="55.80" height="15.00" fill="#FFFFFF" stroke="none"/>
+          <polygon points="155.92,52.00 161.92,53.88 161.92,50.12" fill="#46af8f" data-arrow="true"/>
+          <polygon points="718.08,52.00 712.08,50.12 712.08,53.88" fill="#46af8f" data-arrow="true"/>
+    </g>
+    <g class="dimension">
+      <line x1="72.75" y1="66.75" x2="72.75" y2="20.00" stroke="#577590" stroke-width="0.5"/>
+      <line x1="801.25" y1="66.75" x2="801.25" y2="20.00" stroke="#577590" stroke-width="0.5"/>
+        <polygon points="72.75,24.00 78.75,25.88 78.75,22.12" fill="#577590" data-arrow="true"/>
+        <line x1="78.75" y1="24.00" x2="795.25" y2="24.00" stroke="#577590" stroke-width="0.75"/>
+        <polygon points="801.25,24.00 795.25,22.12 795.25,25.88" fill="#577590" data-arrow="true"/>
+      <rect x="404.28" y="16.50" width="65.44" height="15.00" fill="#FFFFFF" stroke="none"/>
+          <polygon points="72.75,24.00 78.75,25.88 78.75,22.12" fill="#577590" data-arrow="true"/>
+          <polygon points="801.25,24.00 795.25,22.12 795.25,25.88" fill="#577590" data-arrow="true"/>
+    </g>
+    <g class="dimension">
+      <line x1="724.08" y1="155.92" x2="826.00" y2="155.92" stroke="#46af8f" stroke-width="0.5"/>
+      <line x1="724.08" y1="502.97" x2="826.00" y2="502.97" stroke="#46af8f" stroke-width="0.5"/>
+        <polygon points="822.00,155.92 820.12,161.92 823.88,161.92" fill="#46af8f" data-arrow="true"/>
+        <line x1="822.00" y1="161.92" x2="822.00" y2="496.97" stroke="#46af8f" stroke-width="0.75"/>
+        <polygon points="822.00,502.97 823.88,496.97 820.12,496.97" fill="#46af8f" data-arrow="true"/>
+      <rect x="813.20" y="303.54" width="17.60" height="51.80" fill="#FFFFFF" stroke="none"/>
+          <polygon points="822.00,155.92 820.12,161.92 823.88,161.92" fill="#46af8f" data-arrow="true"/>
+          <polygon points="822.00,502.97 823.88,496.97 820.12,496.97" fill="#46af8f" data-arrow="true"/>
+    </g>
+    <g class="dimension">
+      <line x1="807.25" y1="72.75" x2="854.00" y2="72.75" stroke="#577590" stroke-width="0.5"/>
+      <line x1="807.25" y1="586.14" x2="854.00" y2="586.14" stroke="#577590" stroke-width="0.5"/>
+        <polygon points="850.00,72.75 848.12,78.75 851.88,78.75" fill="#577590" data-arrow="true"/>
+        <line x1="850.00" y1="78.75" x2="850.00" y2="580.14" stroke="#577590" stroke-width="0.75"/>
+        <polygon points="850.00,586.14 851.88,580.14 848.12,580.14" fill="#577590" data-arrow="true"/>
+      <rect x="842.50" y="298.72" width="15.00" height="61.44" fill="#FFFFFF" stroke="none"/>
+          <polygon points="850.00,72.75 848.12,78.75 851.88,78.75" fill="#577590" data-arrow="true"/>
+          <polygon points="850.00,586.14 851.88,580.14 848.12,580.14" fill="#577590" data-arrow="true"/>
+    </g>
+      <text transform="translate(437.00, 44.20)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Inside:</text>
+      <text transform="translate(437.00, 59.80)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">5 1/4&quot;</text>
+      <text transform="translate(437.00, 8.40)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Outside:</text>
+      <text transform="translate(437.00, 24.00)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">6 3/4&quot;</text>
+      <text transform="rotate(90 829.80 329.44)" x="829.80" y="329.44" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Inside:</text>
+      <text transform="rotate(90 814.20 329.44)" x="814.20" y="329.44" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">3 1/4&quot;</text>
+      <text transform="rotate(90 865.60 329.44)" x="865.60" y="329.44" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Outside:</text>
+      <text transform="rotate(90 850.00 329.44)" x="850.00" y="329.44" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">4 3/4&quot;</text>
+  </g>
+  <g id="artwork-indicator">
+    <polygon points="114.53,329.44 118.73,330.76 118.73,328.13" fill="#90be6d" data-arrow="true"/>
+    <line x1="118.73" y1="329.44" x2="413.17" y2="329.44" stroke="#90be6d" stroke-width="0.5249999999999999"/>
+    <line x1="460.83" y1="329.44" x2="755.27" y2="329.44" stroke="#90be6d" stroke-width="0.5249999999999999"/>
+    <polygon points="759.47,329.44 755.27,328.13 755.27,330.76" fill="#90be6d" data-arrow="true"/>
+    <polygon points="437.00,114.53 435.69,118.73 438.31,118.73" fill="#90be6d" data-arrow="true"/>
+    <line x1="437.00" y1="118.73" x2="437.00" y2="318.99" stroke="#90be6d" stroke-width="0.5249999999999999"/>
+    <line x1="437.00" y1="339.89" x2="437.00" y2="540.16" stroke="#90be6d" stroke-width="0.5249999999999999"/>
+    <polygon points="437.00,544.36 438.31,540.16 435.69,540.16" fill="#90be6d" data-arrow="true"/>
+    <rect x="413.17" y="318.99" width="47.65" height="20.90" fill="#FFFFFF" fill-opacity="0.75" stroke="none" rx="2"/>
+    <text transform="translate(437.00, 333.99)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13.00px" text-anchor="middle">4&quot; × 6&quot;</text>
+  </g>
+</svg>

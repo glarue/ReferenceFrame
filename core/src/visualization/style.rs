@@ -390,4 +390,54 @@ mod tests {
             _ => panic!("Expected solid fill for frame"),
         }
     }
+
+    #[test]
+    fn test_thumbnail_metrics_scaling() {
+        let default_style = DiagramStyle::default();
+        let default_metrics = default_style.thumbnail_metrics();
+
+        // Create a style with double the label font size
+        let mut big_style = DiagramStyle::default();
+        big_style.label_font_size = default_style.label_font_size * 2.0;
+        let big_metrics = big_style.thumbnail_metrics();
+
+        // Scaled metrics should be ~2x the default
+        assert!((big_metrics.scale_factor / default_metrics.scale_factor - 2.0).abs() < 0.01);
+        assert!((big_metrics.gap / default_metrics.gap - 2.0).abs() < 0.01);
+        assert!((big_metrics.long_dim / default_metrics.long_dim - 2.0).abs() < 0.01);
+        assert!((big_metrics.short_dim / default_metrics.short_dim - 2.0).abs() < 0.01);
+        assert!((big_metrics.font_size / default_metrics.font_size - 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_mat_cut_label_offset_positive() {
+        let style = DiagramStyle::default();
+        assert!(style.mat_cut_label_offset() > 0.0,
+            "mat_cut_label_offset should be positive, got {}", style.mat_cut_label_offset());
+    }
+
+    #[test]
+    fn test_total_callout_reserve_equals_components() {
+        let style = DiagramStyle::default();
+        let expected = style.margin + style.dimension_offset_base
+            + style.dimension_offset_step + style.label_extension();
+        assert!((style.total_callout_reserve() - expected).abs() < 0.001,
+            "total_callout_reserve ({}) should equal margin + offset_base + offset_step + label_extension ({})",
+            style.total_callout_reserve(), expected);
+    }
+
+    #[test]
+    fn test_label_offset_positive() {
+        let style = DiagramStyle::default();
+        assert!(style.label_offset() > 0.0,
+            "label_offset should be positive, got {}", style.label_offset());
+    }
+
+    #[test]
+    fn test_two_line_height_greater_than_single() {
+        let style = DiagramStyle::default();
+        assert!(style.two_line_height() > style.single_line_height(),
+            "two_line_height ({}) should exceed single_line_height ({})",
+            style.two_line_height(), style.single_line_height());
+    }
 }

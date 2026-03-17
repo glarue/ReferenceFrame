@@ -352,6 +352,66 @@ mod tests {
             .unwrap();
         assert!(frame_width_callout.label.contains("mm"));
     }
+
+    #[test]
+    fn test_interference_label() {
+        // Set rabbet_depth smaller than material stack to trigger interference
+        let mut design = test_design();
+        design.frame_material_depth = 0.05; // Very shallow — will cause interference
+        let callouts = generate_section_callouts(&design, false, false, false);
+
+        let clearance_callout = callouts.iter()
+            .find(|c| c.dimension_type == DimensionType::Clearance)
+            .expect("Should have a Clearance dimension");
+        assert!(clearance_callout.label.contains("INTERFERENCE"),
+            "Expected INTERFERENCE in label, got: {}", clearance_callout.label);
+    }
+
+    #[test]
+    fn test_clearance_label() {
+        // Normal design should have positive clearance
+        let design = test_design();
+        let callouts = generate_section_callouts(&design, false, false, false);
+
+        let clearance_callout = callouts.iter()
+            .find(|c| c.dimension_type == DimensionType::Clearance)
+            .expect("Should have a Clearance dimension");
+        assert!(clearance_callout.label.contains("Clearance"),
+            "Expected 'Clearance' in label, got: {}", clearance_callout.label);
+    }
+
+    #[test]
+    fn test_decimal_display() {
+        let design = test_design();
+        let style = DiagramStyle::default();
+        let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+        // use_decimal = true
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, true, &style);
+
+        let frame_width_callout = callouts.iter()
+            .find(|c| c.dimension_type == DimensionType::FrameOutsideWidth)
+            .unwrap();
+
+        // Decimal display should not contain fractions (no "/" character in the value part)
+        // and should contain a decimal point or whole number with inch mark
+        assert!(!frame_width_callout.label.contains('/'),
+            "Decimal mode should not contain fractions, got: {}", frame_width_callout.label);
+    }
+
+    #[test]
+    fn test_symmetric_mat_no_mat_cut_height() {
+        // With symmetrical mat (top_bottom == sides), only MatCutWidth should appear, not MatCutHeight
+        let design = test_design(); // mat_width_top_bottom == mat_width_sides == 2.0
+        let style = DiagramStyle::default();
+        let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
+
+        let has_mat_cut_width = callouts.iter().any(|c| c.dimension_type == DimensionType::MatCutWidth);
+        let has_mat_cut_height = callouts.iter().any(|c| c.dimension_type == DimensionType::MatCutHeight);
+
+        assert!(has_mat_cut_width, "Symmetric mat should have MatCutWidth");
+        assert!(!has_mat_cut_height, "Symmetric mat should NOT have MatCutHeight");
+    }
 }
 
 #[test]

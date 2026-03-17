@@ -546,4 +546,92 @@ mod tests {
         );
         assert!((callout.length() - 10.0).abs() < 0.001);
     }
+
+    #[test]
+    fn test_rect_from_center() {
+        let center = Point::new(50.0, 30.0);
+        let r = Rect::from_center(center, 20.0, 10.0);
+        assert!((r.x - 40.0).abs() < 0.001);
+        assert!((r.y - 25.0).abs() < 0.001);
+        assert!((r.width - 20.0).abs() < 0.001);
+        assert!((r.height - 10.0).abs() < 0.001);
+        // Center should round-trip
+        let c = r.center();
+        assert!((c.x - 50.0).abs() < 0.001);
+        assert!((c.y - 30.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_rect_expand() {
+        let r = Rect::new(10.0, 20.0, 30.0, 40.0);
+        let expanded = r.expand(5.0);
+        assert!((expanded.x - 5.0).abs() < 0.001);
+        assert!((expanded.y - 15.0).abs() < 0.001);
+        assert!((expanded.width - 40.0).abs() < 0.001);
+        assert!((expanded.height - 50.0).abs() < 0.001);
+
+        // Negative margin (shrink)
+        let shrunk = r.expand(-2.0);
+        assert!((shrunk.x - 12.0).abs() < 0.001);
+        assert!((shrunk.y - 22.0).abs() < 0.001);
+        assert!((shrunk.width - 26.0).abs() < 0.001);
+        assert!((shrunk.height - 36.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_rect_overlaps_with_margin() {
+        // Two touching rects (no gap, no overlap)
+        let r1 = Rect::new(0.0, 0.0, 10.0, 10.0);
+        let r2 = Rect::new(10.0, 0.0, 10.0, 10.0);
+
+        // Without margin: touching rects do NOT overlap (strict inequality)
+        assert!(!r1.overlaps(&r2));
+        // With margin: the expanded rects DO overlap
+        assert!(r1.overlaps_with_margin(&r2, 1.0));
+    }
+
+    #[test]
+    fn test_rect_overlap_area() {
+        // Two overlapping rects
+        let r1 = Rect::new(0.0, 0.0, 10.0, 10.0);
+        let r2 = Rect::new(5.0, 5.0, 10.0, 10.0);
+        let area = r1.overlap_area(&r2);
+        assert!((area - 25.0).abs() < 0.001); // 5x5 overlap
+
+        // Two non-overlapping rects
+        let r3 = Rect::new(20.0, 20.0, 10.0, 10.0);
+        assert!((r1.overlap_area(&r3) - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_rect_union() {
+        let r1 = Rect::new(0.0, 0.0, 10.0, 10.0);
+        let r2 = Rect::new(5.0, 5.0, 20.0, 20.0);
+        let u = r1.union(&r2);
+        assert!((u.left() - 0.0).abs() < 0.001);
+        assert!((u.top() - 0.0).abs() < 0.001);
+        assert!((u.right() - 25.0).abs() < 0.001);
+        assert!((u.bottom() - 25.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_dimension_type_preferred_side() {
+        assert_eq!(DimensionType::FrameOutsideWidth.preferred_side(), Side::Top);
+        assert_eq!(DimensionType::FrameOutsideHeight.preferred_side(), Side::Right);
+        assert_eq!(DimensionType::MatCutWidth.preferred_side(), Side::Bottom);
+        assert_eq!(DimensionType::MatCutHeight.preferred_side(), Side::Left);
+    }
+
+    #[test]
+    fn test_side_is_horizontal_is_vertical() {
+        assert!(Side::Top.is_horizontal());
+        assert!(Side::Bottom.is_horizontal());
+        assert!(!Side::Left.is_horizontal());
+        assert!(!Side::Right.is_horizontal());
+
+        assert!(Side::Left.is_vertical());
+        assert!(Side::Right.is_vertical());
+        assert!(!Side::Top.is_vertical());
+        assert!(!Side::Bottom.is_vertical());
+    }
 }

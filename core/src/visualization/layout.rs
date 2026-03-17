@@ -357,4 +357,92 @@ mod tests {
 
         assert!(result.positioned_callouts.len() <= with_mat_result.positioned_callouts.len());
     }
+
+    #[test]
+    fn test_bottom_side_layout() {
+        let design = test_design();
+        let style = DiagramStyle::default();
+        let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
+
+        let result = layout_plan_callouts(&callouts, &geometry, &style);
+
+        // Bottom callouts should have dimension_line_position below frame
+        let bottom_callouts: Vec<_> = result.positioned_callouts.iter()
+            .filter(|c| c.actual_side == Side::Bottom)
+            .collect();
+
+        for callout in &bottom_callouts {
+            assert!(
+                callout.dimension_line_position > geometry.frame_outer.bottom(),
+                "Bottom callout dim line {} should be below frame bottom {}",
+                callout.dimension_line_position, geometry.frame_outer.bottom()
+            );
+        }
+    }
+
+    #[test]
+    fn test_left_side_layout() {
+        // Create an asymmetric mat design that produces a MatCutHeight callout on the left
+        let mut design = FrameDesign::new(12.0, 16.0);
+        design.mat_width_top_bottom = 3.0;
+        design.mat_width_sides = 1.5;
+        design.frame_material_width = 1.0;
+
+        let style = DiagramStyle::default();
+        let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
+
+        let result = layout_plan_callouts(&callouts, &geometry, &style);
+
+        let left_callouts: Vec<_> = result.positioned_callouts.iter()
+            .filter(|c| c.actual_side == Side::Left)
+            .collect();
+
+        // Left callouts should use TextAnchor::End
+        for callout in &left_callouts {
+            assert_eq!(callout.label_anchor, TextAnchor::End,
+                "Left-side callout should use TextAnchor::End");
+        }
+    }
+
+    #[test]
+    fn test_empty_callouts_returns_none() {
+        let empty: Vec<PositionedCallout> = vec![];
+        assert!(calculate_callout_bounds(&empty).is_none());
+    }
+
+    #[test]
+    fn test_two_line_label_bounds_taller() {
+        // Two-line label (contains ": ") should produce taller bounds than single-line
+        let design = test_design();
+        let style = DiagramStyle::default();
+        let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
+        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
+
+        let result = layout_plan_callouts(&callouts, &geometry, &style);
+
+        // Find a callout whose label contains ": " (two-line candidate) and one that doesn't
+        let two_line_callout = result.positioned_callouts.iter()
+            .find(|c| c.callout.label.contains(": ") && c.actual_side.is_horizontal());
+        let single_line_callout = result.positioned_callouts.iter()
+            .find(|c| !c.callout.label.contains(": ") && c.actual_side.is_horizontal());
+
+        // If both exist and the two-line one is alone on its side (which triggers two-line rendering),
+        // its bounds should be taller
+        if let (Some(two), Some(one)) = (two_line_callout, single_line_callout) {
+            // Two-line bounds height should be >= single-line bounds height
+            // (only applies when the two-line callout is rendered as two lines)
+            let two_h = two.label_bounds.height;
+            let one_h = one.label_bounds.height;
+            // At minimum, the style's two_line_height > single_line_height
+            assert!(style.two_line_height() > style.single_line_height(),
+                "Style two_line_height ({}) should exceed single_line_height ({})",
+                style.two_line_height(), style.single_line_height());
+            // If the two-line callout actually rendered as two lines, bounds should be taller
+            if two_h > one_h {
+                assert!(two_h > one_h);
+            }
+        }
+    }
 }

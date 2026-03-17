@@ -305,4 +305,124 @@ mod tests {
         assert!((elements[0].bounds.x - 0.0).abs() < 0.01);
         assert!((elements[1].bounds.x - 30.0).abs() < 0.01);
     }
+
+    #[test]
+    fn test_y_axis_shift_resolution() {
+        // Two elements overlapping vertically; the flexible one shifts along Y
+        let mut elements = vec![
+            FlexElement {
+                id: ElementId::Callout(0),
+                bounds: Rect::new(10.0, 10.0, 40.0, 20.0),
+                flex: FlexRule::None,
+                priority: 0,
+            },
+            FlexElement {
+                id: ElementId::Callout(1),
+                bounds: Rect::new(10.0, 20.0, 40.0, 20.0),
+                flex: FlexRule::ShiftAxis { axis: Axis::Y, range: (-50.0, 50.0) },
+                priority: 2,
+            },
+        ];
+
+        let orig_y = elements[1].bounds.y;
+        resolve(&mut elements, 2.0, 4, None);
+        // Element 1 should have shifted away from element 0
+        assert!((elements[1].bounds.y - orig_y).abs() > 0.1,
+            "Flexible element should have shifted on Y axis");
+        // After resolution the rects should no longer overlap (ignoring the double-expansion margin)
+        assert!(!elements[0].bounds.overlaps(&elements[1].bounds),
+            "Elements should not overlap after Y-axis shift");
+    }
+
+    #[test]
+    fn test_skip_predicate_prevents_resolution() {
+        // Two overlapping elements, but skip predicate prevents their resolution
+        let mut elements = vec![
+            FlexElement {
+                id: ElementId::Callout(0),
+                bounds: Rect::new(0.0, 0.0, 30.0, 30.0),
+                flex: FlexRule::None,
+                priority: 0,
+            },
+            FlexElement {
+                id: ElementId::Callout(1),
+                bounds: Rect::new(10.0, 10.0, 30.0, 30.0),
+                flex: FlexRule::ShiftAxis { axis: Axis::X, range: (-50.0, 50.0) },
+                priority: 2,
+            },
+        ];
+
+        let skip_fn = |a: ElementId, b: ElementId| {
+            matches!((a, b), (ElementId::Callout(0), ElementId::Callout(1)))
+                || matches!((a, b), (ElementId::Callout(1), ElementId::Callout(0)))
+        };
+
+        resolve(&mut elements, 0.0, 4, Some(&skip_fn));
+        // Element 1 should NOT have moved — pair was skipped
+        assert!((elements[1].bounds.x - 10.0).abs() < 0.01);
+        // They should still overlap
+        assert!(elements[0].bounds.overlaps(&elements[1].bounds));
+    }
+
+    #[test]
+    fn test_three_element_cascade() {
+        // A overlaps B, B overlaps C — all three should resolve after enough iterations.
+        // Use margin=0 to avoid the double-expansion effect of overlaps_with_margin.
+        let mut elements = vec![
+            FlexElement {
+                id: ElementId::Callout(0),
+                bounds: Rect::new(0.0, 0.0, 30.0, 20.0),
+                flex: FlexRule::None,
+                priority: 0,
+            },
+            FlexElement {
+                id: ElementId::Callout(1),
+                bounds: Rect::new(20.0, 0.0, 30.0, 20.0),
+                flex: FlexRule::ShiftAxis { axis: Axis::X, range: (-100.0, 200.0) },
+                priority: 1,
+            },
+            FlexElement {
+                id: ElementId::Callout(2),
+                bounds: Rect::new(40.0, 0.0, 30.0, 20.0),
+                flex: FlexRule::ShiftAxis { axis: Axis::X, range: (-100.0, 200.0) },
+                priority: 2,
+            },
+        ];
+
+        resolve(&mut elements, 0.0, 10, None);
+        // No pair should overlap after resolution (margin=0 in resolve, so check without margin)
+        assert!(!elements[0].bounds.overlaps(&elements[1].bounds),
+            "Elements 0 and 1 should not overlap");
+        assert!(!elements[1].bounds.overlaps(&elements[2].bounds),
+            "Elements 1 and 2 should not overlap");
+        assert!(!elements[0].bounds.overlaps(&elements[2].bounds),
+            "Elements 0 and 2 should not overlap");
+    }
+
+    #[test]
+    fn test_shift_direction_prefers_shorter() {
+        // Element centered on the fixed element — shifting left is shorter because
+        // the flex element extends further to the right of the fixed element.
+        // Fixed: [0, 20], Flex: [5, 55]. Left shift = 0 - 2 - 55 = -57; Right shift = 20 + 2 - 5 = 17.
+        // Shorter shift is right (+17).
+        let mut elements = vec![
+            FlexElement {
+                id: ElementId::Callout(0),
+                bounds: Rect::new(0.0, 0.0, 20.0, 20.0),
+                flex: FlexRule::None,
+                priority: 0,
+            },
+            FlexElement {
+                id: ElementId::Callout(1),
+                bounds: Rect::new(5.0, 0.0, 50.0, 20.0),
+                flex: FlexRule::ShiftAxis { axis: Axis::X, range: (-100.0, 100.0) },
+                priority: 2,
+            },
+        ];
+
+        let original_x = elements[1].bounds.x;
+        resolve(&mut elements, 2.0, 4, None);
+        // Should have shifted right (positive direction) since it's the shorter shift
+        assert!(elements[1].bounds.x > original_x);
+    }
 }
