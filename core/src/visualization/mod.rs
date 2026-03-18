@@ -12,6 +12,9 @@ pub mod geometry;
 pub mod callouts;
 pub mod layout;
 pub mod collision;
+mod svg_util;
+mod section_svg;
+mod plan_svg;
 pub mod svg;
 pub mod snapshot;
 
