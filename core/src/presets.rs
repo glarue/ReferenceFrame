@@ -139,20 +139,47 @@ pub fn get_presets_json() -> &'static str {
     PRESETS_JSON
 }
 
+/// Legacy field name aliases from the original PyScript era.
+///
+/// Platform UI code (web JS, Flutter) sometimes uses these older names.
+/// The canonical names are the JSON keys in `data/presets.json`.
+/// New code should prefer the canonical (right-hand) names.
+const FIELD_ALIASES: &[(&str, &str)] = &[
+    ("frame_face_width", "frame_material_width"),
+    ("frame_depth", "frame_material_depth"),
+    ("mat_width", "mat_width_top_bottom"), // also covers mat_width_sides
+    ("glazing", "glazing_thickness"),
+    ("matboard", "matboard_thickness"),
+    ("artwork", "artwork_thickness"),
+    ("backing", "backing_thickness"),
+];
+
+/// Resolve a field name through legacy aliases.
+/// Returns the canonical name if an alias matches, otherwise the input unchanged.
+fn resolve_field_alias(field: &str) -> &str {
+    for &(alias, canonical) in FIELD_ALIASES {
+        if field == alias {
+            return canonical;
+        }
+    }
+    field
+}
+
 /// Get preset values for a specific field
 pub fn get_preset_values(field: &str) -> &'static [f64] {
     let presets = get_presets();
-    match field {
-        "frame_face_width" | "frame_material_width" => &presets.frame_face_width.values,
-        "frame_depth" | "frame_material_depth" => &presets.frame_depth.values,
+    // Accept both legacy aliases and canonical names
+    match resolve_field_alias(field) {
+        "frame_material_width" => &presets.frame_face_width.values,
+        "frame_material_depth" => &presets.frame_depth.values,
         "rabbet_width" => &presets.rabbet_width.values,
         "rabbet_depth" => &presets.rabbet_depth.values,
-        "mat_width" | "mat_width_top_bottom" | "mat_width_sides" => &presets.mat_width.values,
+        "mat_width_top_bottom" | "mat_width_sides" => &presets.mat_width.values,
         "mat_overlap" => &presets.mat_overlap.values,
-        "glazing" | "glazing_thickness" => &presets.glazing.values,
-        "matboard" | "matboard_thickness" => &presets.matboard.values,
-        "artwork" | "artwork_thickness" => &presets.artwork.values,
-        "backing" | "backing_thickness" => &presets.backing.values,
+        "glazing_thickness" => &presets.glazing.values,
+        "matboard_thickness" => &presets.matboard.values,
+        "artwork_thickness" => &presets.artwork.values,
+        "backing_thickness" => &presets.backing.values,
         "assembly_margin" => &presets.assembly_margin.values,
         _ => &[],
     }
@@ -161,19 +188,20 @@ pub fn get_preset_values(field: &str) -> &'static [f64] {
 /// Get default value for a specific field
 pub fn get_default_value(field: &str) -> Option<f64> {
     let defaults = get_defaults();
-    match field {
+    // Accept both legacy aliases and canonical names
+    match resolve_field_alias(field) {
         "artwork_height" => Some(defaults.artwork_height),
         "artwork_width" => Some(defaults.artwork_width),
-        "frame_face_width" | "frame_material_width" => Some(defaults.frame_material_width),
-        "frame_depth" | "frame_material_depth" => Some(defaults.frame_material_depth),
+        "frame_material_width" => Some(defaults.frame_material_width),
+        "frame_material_depth" => Some(defaults.frame_material_depth),
         "rabbet_width" => Some(defaults.rabbet_width),
         "rabbet_depth" => Some(defaults.rabbet_depth),
-        "mat_width" | "mat_width_top_bottom" | "mat_width_sides" => Some(defaults.mat_width),
+        "mat_width_top_bottom" | "mat_width_sides" => Some(defaults.mat_width),
         "mat_overlap" => Some(defaults.mat_overlap),
-        "glazing" | "glazing_thickness" => Some(defaults.glazing_thickness),
-        "matboard" | "matboard_thickness" => Some(defaults.matboard_thickness),
-        "artwork" | "artwork_thickness" => Some(defaults.artwork_thickness),
-        "backing" | "backing_thickness" => Some(defaults.backing_thickness),
+        "glazing_thickness" => Some(defaults.glazing_thickness),
+        "matboard_thickness" => Some(defaults.matboard_thickness),
+        "artwork_thickness" => Some(defaults.artwork_thickness),
+        "backing_thickness" => Some(defaults.backing_thickness),
         "assembly_margin" => Some(defaults.assembly_margin),
         "blade_width" => Some(defaults.blade_width),
         _ => None,

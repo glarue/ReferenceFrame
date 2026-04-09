@@ -87,46 +87,49 @@ pub(crate) fn arrow_line_endpoint_for_target_y(target_y: f64, stroke_width: f64,
 // Cosmetic values that don't belong in DiagramStyle (not user-configurable)
 // but should be named for clarity and consistency.
 
-// Dash patterns: "dash,gap" in SVG units
+// === Dash Patterns ===
+// "dash,gap" values in SVG user units.
 pub(crate) const DASH_BREAK_INDICATOR: &str = "4,3";    // Axis break zigzag lines
 pub(crate) const DASH_BOUNDARY: &str = "6,3";           // Content boundary outline
 pub(crate) const DASH_ASSEMBLY_MARGIN: &str = "4,2";    // Assembly margin indicator
 pub(crate) const DASH_CLEARANCE: &str = "3,2";          // Clearance/interference line
 
-// Opacity values
+// === Opacity Values ===
 pub(crate) const OPACITY_CONTENT_BOUNDARY: f64 = 0.5;   // Content boundary outline
 pub(crate) const OPACITY_ASSEMBLY_MARGIN: f64 = 0.7;    // Assembly margin rect
 pub(crate) const OPACITY_LABEL_BACKGROUND: f64 = 0.75;  // Artwork indicator label bg
 pub(crate) const OPACITY_RABBET_BACKGROUND: f64 = 0.5;  // Rabbet indicator bg
 
-// Dimension line break symbols (spark/zigzag on broken dimension lines)
+// === Axis Break Spark Symbols ===
+// Dimensions of the small zigzag "spark" drawn on broken dimension lines.
 pub(crate) const SPARK_VERTICAL_WIDTH: f64 = 4.0;       // Horizontal extent of vertical spark
 pub(crate) const SPARK_VERTICAL_HEIGHT: f64 = 8.0;      // Vertical extent of vertical spark
 pub(crate) const SPARK_HORIZONTAL_WIDTH: f64 = 8.0;     // Horizontal extent of horizontal spark
 pub(crate) const SPARK_HORIZONTAL_HEIGHT: f64 = 4.0;    // Vertical extent of horizontal spark
 
-// Label layout (LABEL_MASK_PADDING_X/Y imported from style.rs)
+// === Leader Lines and Labels ===
+// (LABEL_MASK_PADDING_X/Y imported from style.rs)
 pub(crate) const LEADER_LINE_LENGTH: f64 = 10.0;        // Material label leader horizontal segment
 pub(crate) const LEADER_STROKE_RATIO: f64 = 0.7;        // Leader line width as fraction of extension_stroke
 
-// Legend
+// === Legend Layout ===
 pub(crate) const LEGEND_SWATCH_SIZE: f64 = 12.0;        // Legend color swatch width/height
 pub(crate) const LEGEND_SWATCH_STROKE: f64 = 0.5;       // Legend swatch border width
 pub(crate) const LEGEND_SWATCH_GAP: f64 = 8.0;          // Gap between swatch and text
 pub(crate) const LEGEND_ITEM_GAP: f64 = 16.0;           // Gap between legend items
 pub(crate) const LEGEND_CHAR_WIDTH_RATIO: f64 = 0.55;   // Average character width as fraction of font size
 
-// Combined (PDF) view layout
+// === Combined (PDF) View Layout ===
 pub(crate) const TITLE_BLOCK_HEIGHT: f64 = 95.0;       // Height reserved for title block
 pub(crate) const PLAN_HEIGHT_RATIO: f64 = 0.58;        // Plan view share of available height
 pub(crate) const SECTION_HEIGHT_RATIO: f64 = 0.42;     // Section view share of available height
 pub(crate) const SECTION_FONT_SCALE: f64 = 0.76;       // Section font size relative to plan
 pub(crate) const SECTION_DIM_OFFSET_SCALE: f64 = 0.9;  // Section dimension offsets relative to plan
 
-// Text baseline
+// === Text Rendering ===
 pub(crate) const BASELINE_SHIFT_RATIO: f64 = 0.35;     // Vertical centering shift for SVG text
 
-// Tight-space dimension arrow thresholds
+// === Tight-Space Dimension Arrows ===
 pub(crate) const TIGHT_SPACE_MULTIPLIER: f64 = 3.0;    // Arrow placed outside when span < multiplier * stroke
 
 // ============================================================================

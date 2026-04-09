@@ -1,14 +1,15 @@
-// Layout snapshot testing infrastructure.
-//
-// Captures key geometric properties of a plan-view diagram layout so that
-// changes to the solver can be compared programmatically against a baseline.
-//
-// Two tiers of checks:
-//   Tier 1 — Invariants: must always hold (no overlaps, elements in bounds, etc.)
-//   Tier 2 — Regression: numerical values compared with tolerance against golden files
-//
-// Golden files live in core/tests/snapshots/<name>.json.
-// Set env var UPDATE_SNAPSHOTS=1 to regenerate them.
+//! Geometry snapshot export and comparison utilities.
+//!
+//! Provides JSON serialization of diagram geometry (rectangles, callouts,
+//! positioned labels) for external tools and for regression testing via
+//! golden-file comparison.
+//!
+//! Two tiers of checks:
+//!   Tier 1 -- Invariants: must always hold (no overlaps, elements in bounds, etc.)
+//!   Tier 2 -- Regression: numerical values compared with tolerance against golden files
+//!
+//! Golden files live in `core/tests/snapshots/<name>.json`.
+//! Set env var `UPDATE_SNAPSHOTS=1` to regenerate them.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

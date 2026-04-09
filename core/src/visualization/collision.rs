@@ -7,6 +7,21 @@
 
 use super::types::{Rect, Side};
 
+/// Movement priority for collision resolution.
+/// Lower values = less willing to move. Zero = immovable anchor.
+/// Derives `PartialOrd`/`Ord` so the resolver can compare flexibility directly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FlexPriority {
+    /// Fixed elements that never move (e.g., arrow stubs, frame edges)
+    Immovable = 0,
+    /// Corner detail inset -- can shift but prefers not to
+    CornerDetail = 2,
+    /// Callout labels -- flexible, will shift along their side's normal
+    Callout = 3,
+    /// Proportional thumbnail -- most flexible, moves last
+    Thumbnail = 4,
+}
+
 /// Identifies which visual element a FlexElement represents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ElementId {
@@ -46,8 +61,8 @@ pub struct FlexElement {
     pub bounds: Rect,
     /// How this element can adjust.
     pub flex: FlexRule,
-    /// Lower priority = less willing to move. 0 = immovable.
-    pub priority: u8,
+    /// Lower priority = less willing to move. `Immovable` = never moves.
+    pub priority: FlexPriority,
 }
 
 /// An adjustment produced by the resolver — the element should move to `new_bounds`.
@@ -201,7 +216,7 @@ mod tests {
                     axis: Axis::X,
                     range: (-100.0, 0.0),
                 },
-                priority: 1,
+                priority: FlexPriority::CornerDetail,
             },
             FlexElement {
                 id: ElementId::ArrowStub {
@@ -210,7 +225,7 @@ mod tests {
                 },
                 bounds: Rect::new(60.0, 0.0, 20.0, 10.0),
                 flex: FlexRule::None,
-                priority: 0,
+                priority: FlexPriority::Immovable,
             },
         ];
 
@@ -231,7 +246,7 @@ mod tests {
                 },
                 bounds: Rect::new(40.0, 10.0, 20.0, 10.0),
                 flex: FlexRule::None,
-                priority: 0,
+                priority: FlexPriority::Immovable,
             },
             // Corner detail (flexible, can shift left) overlapping the stub
             FlexElement {
@@ -241,7 +256,7 @@ mod tests {
                     axis: Axis::X,
                     range: (-50.0, 0.0),
                 },
-                priority: 2,
+                priority: FlexPriority::CornerDetail,
             },
         ];
 
@@ -261,7 +276,7 @@ mod tests {
                 },
                 bounds: Rect::new(20.0, 0.0, 10.0, 10.0),
                 flex: FlexRule::None,
-                priority: 0,
+                priority: FlexPriority::Immovable,
             },
             // Flexible but with limited range
             FlexElement {
@@ -271,7 +286,7 @@ mod tests {
                     axis: Axis::X,
                     range: (-5.0, 0.0), // can only shift 5px left
                 },
-                priority: 2,
+                priority: FlexPriority::CornerDetail,
             },
         ];
 
@@ -287,7 +302,7 @@ mod tests {
                 id: ElementId::CornerDetail,
                 bounds: Rect::new(0.0, 0.0, 50.0, 50.0),
                 flex: FlexRule::None,
-                priority: 0,
+                priority: FlexPriority::Immovable,
             },
             FlexElement {
                 id: ElementId::ArrowStub {
@@ -296,7 +311,7 @@ mod tests {
                 },
                 bounds: Rect::new(30.0, 30.0, 20.0, 20.0),
                 flex: FlexRule::None,
-                priority: 0,
+                priority: FlexPriority::Immovable,
             },
         ];
 
@@ -314,13 +329,13 @@ mod tests {
                 id: ElementId::Callout(0),
                 bounds: Rect::new(10.0, 10.0, 40.0, 20.0),
                 flex: FlexRule::None,
-                priority: 0,
+                priority: FlexPriority::Immovable,
             },
             FlexElement {
                 id: ElementId::Callout(1),
                 bounds: Rect::new(10.0, 20.0, 40.0, 20.0),
                 flex: FlexRule::ShiftAxis { axis: Axis::Y, range: (-50.0, 50.0) },
-                priority: 2,
+                priority: FlexPriority::CornerDetail,
             },
         ];
 
@@ -342,13 +357,13 @@ mod tests {
                 id: ElementId::Callout(0),
                 bounds: Rect::new(0.0, 0.0, 30.0, 30.0),
                 flex: FlexRule::None,
-                priority: 0,
+                priority: FlexPriority::Immovable,
             },
             FlexElement {
                 id: ElementId::Callout(1),
                 bounds: Rect::new(10.0, 10.0, 30.0, 30.0),
                 flex: FlexRule::ShiftAxis { axis: Axis::X, range: (-50.0, 50.0) },
-                priority: 2,
+                priority: FlexPriority::CornerDetail,
             },
         ];
 
@@ -373,19 +388,19 @@ mod tests {
                 id: ElementId::Callout(0),
                 bounds: Rect::new(0.0, 0.0, 30.0, 20.0),
                 flex: FlexRule::None,
-                priority: 0,
+                priority: FlexPriority::Immovable,
             },
             FlexElement {
                 id: ElementId::Callout(1),
                 bounds: Rect::new(20.0, 0.0, 30.0, 20.0),
                 flex: FlexRule::ShiftAxis { axis: Axis::X, range: (-100.0, 200.0) },
-                priority: 1,
+                priority: FlexPriority::CornerDetail,
             },
             FlexElement {
                 id: ElementId::Callout(2),
                 bounds: Rect::new(40.0, 0.0, 30.0, 20.0),
                 flex: FlexRule::ShiftAxis { axis: Axis::X, range: (-100.0, 200.0) },
-                priority: 2,
+                priority: FlexPriority::Callout,
             },
         ];
 
@@ -410,13 +425,13 @@ mod tests {
                 id: ElementId::Callout(0),
                 bounds: Rect::new(0.0, 0.0, 20.0, 20.0),
                 flex: FlexRule::None,
-                priority: 0,
+                priority: FlexPriority::Immovable,
             },
             FlexElement {
                 id: ElementId::Callout(1),
                 bounds: Rect::new(5.0, 0.0, 50.0, 20.0),
                 flex: FlexRule::ShiftAxis { axis: Axis::X, range: (-100.0, 100.0) },
-                priority: 2,
+                priority: FlexPriority::CornerDetail,
             },
         ];
 

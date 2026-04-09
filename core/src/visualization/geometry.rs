@@ -85,40 +85,73 @@ const RABBET_LABEL_FONT_MULTIPLIER: f64 = 2.2;
 
 // ============================================================================
 // CORNER DETAIL CONSTANTS
+//
+// The corner detail is a zoomed inset box overlaid on the bottom-left corner
+// of the frame diagram. It shows rabbet, mat overlap, and frame band at a
+// readable scale when the main diagram is too compressed (axis break mode).
+//
+// Spatial layout inside the box:
+//   +-------------------------------+
+//   |  "Rabbet" label    L-shape    |  <- CORNER_Y places the L-corner
+//   |  (end-anchored)    corner     |     at 76% of box height from top
+//   |                    |          |
+//   |  <- CORNER_X_MIN ->          |  <- min 30% of box_w from left edge
+//   +-------------------------------+     to leave room for rotated labels
+//
+// Box placement relative to the frame diagram:
+//   - X: overhang 15% left of frame_outer so the L-corner aligns with the
+//     actual frame corner; may shift further left to clear mat cut lines.
+//   - Y: anchored near frame_outer.bottom() (85% overlap), with blend
+//     toward artwork center on axis-break frames.
 // ============================================================================
 
 /// Corner detail box width as ratio of canvas width.
+/// 30% keeps the box large enough for readable dimension labels.
 const CORNER_DETAIL_WIDTH_RATIO: f64 = 0.30;
 
 /// Cap corner detail relative to rendered frame size (max dimension).
+/// Prevents the box from dominating a small canvas (e.g. PDF combined view).
 const CORNER_DETAIL_FRAME_CAP: f64 = 0.80;
 
-/// Minimum and maximum box width (px).
+/// Minimum box width (px) — below this, labels become illegible.
+/// Maximum box width (px) — above this, the box dominates the diagram.
 const CORNER_DETAIL_MIN_WIDTH: f64 = 80.0;
 const CORNER_DETAIL_MAX_WIDTH: f64 = 213.0;
 
-/// Box height = width / this ratio.
+/// Box height = width / this ratio. Slightly wider than tall (1.15:1)
+/// to accommodate the horizontal "Rabbet" label and dimension lines.
 const CORNER_DETAIL_ASPECT_RATIO: f64 = 1.15;
 
-/// Frame band drawn at this fraction of box width.
+/// Frame band drawn at this fraction of box width. Controls zoom level:
+/// smaller = more zoomed out = more room for labels inside the box.
 const CORNER_DETAIL_FRAME_BAND_RATIO: f64 = 0.21;
 
-/// Label font size as fraction of box height.
+/// Label font size as fraction of box height. Keeps labels proportional
+/// to box size across different canvas dimensions.
 const CORNER_DETAIL_LABEL_FONT_RATIO: f64 = 0.065;
 
 /// Box X position: nominally extends this fraction of box_w left of frame_outer.
+/// Aligns the L-corner in the box with the actual frame corner beneath it.
 const CORNER_DETAIL_X_OVERHANG: f64 = 0.15;
 
-/// Minimum corner origin X as fraction of box width from box left.
+/// Minimum corner origin X as fraction of box width from box left edge.
+/// Reserves 30% of box width for the "Rabbet" label and dimension lines
+/// that render to the left of the corner origin.
 const CORNER_DETAIL_CORNER_X_MIN: f64 = 0.30;
 
 /// Corner origin Y as fraction of box height from box top.
+/// Places the L-corner in the lower quarter, leaving room above for
+/// "Frame", "Mat overlap", and "Rabbet depth" dimension annotations.
 const CORNER_DETAIL_CORNER_Y: f64 = 0.76;
 
-/// Standard Y offset: frame_outer.bottom() - box_h * this.
+/// Standard Y offset: box top sits at frame_outer.bottom() - box_h * 0.85.
+/// This means the frame's bottom edge passes through the box at 85% from top,
+/// visually anchoring the inset to the frame corner it magnifies.
 const CORNER_DETAIL_Y_OFFSET: f64 = 0.85;
 
-/// Axis-break Y blend weight toward artwork center.
+/// Axis-break Y blend weight toward artwork center. On axis-break frames
+/// the frame bottom is higher than usual; blending 65% toward the artwork
+/// center pushes the box lower for a more bottom-anchored appearance.
 const CORNER_DETAIL_CENTER_WEIGHT: f64 = 0.65;
 
 /// Computed display artwork dimensions after axis break compression.
@@ -404,39 +437,47 @@ fn compute_display_dimensions(
     }
 }
 
-/// Helper to estimate text width based on character count and font size
-/// Uses character-aware widths for more accurate proportional font estimation
+/// Estimate rendered text width for proportional sans-serif fonts (Inter, SF Pro, Arial).
+///
+/// Character width ratios are expressed as fractions of font_size, derived from
+/// measuring these fonts at a 12px reference size. Each ratio represents
+/// (advance width / font size) for that character class.
+///
+/// If the font stack changes in DiagramStyle, these ratios should be re-measured.
 pub fn estimate_text_width(text: &str, font_size: f64) -> f64 {
-    // Use character-aware width estimation for proportional fonts
-    // Different characters have different widths
+    // Width ratios as fraction of font_size, grouped by visual width class.
+    // Named constants make it clear these are empirical measurements, not arbitrary.
+    const SPACE: f64 = 0.28;
+    const NARROW_PUNCT: f64 = 0.40;  // 1 i l . , : ; ! | '
+    const NARROW_ALPHA: f64 = 0.45;  // I j t f r
+    const BRACKET: f64 = 0.35;       // ( ) [ ]
+    const WIDE: f64 = 0.90;          // m w M W
+    const SLASH: f64 = 0.40;         // / (common in fraction display)
+    const DIGIT: f64 = 0.60;         // 0-9 (tabular width in Inter/SF)
+    const LOWER: f64 = 0.58;         // a-z (median lowercase)
+    const UPPER: f64 = 0.72;         // A-Z (median uppercase)
+    const QUOTE: f64 = 0.45;         // " (inch marks)
+    const DEFAULT: f64 = 0.60;       // fallback for unclassified characters
+    const SAFETY_MARGIN: f64 = 1.03; // 3% padding to ensure boxes are never too tight
+
     let mut width = 0.0;
     for c in text.chars() {
         let char_width_factor = match c {
-            // Very narrow characters
-            ' ' => 0.28,
-            '1' | 'i' | 'l' | '.' | ',' | ':' | ';' | '!' | '|' | '\'' => 0.4,
-            'I' | 'j' | 't' | 'f' | 'r' => 0.45,
-            // Brackets and parens (narrow in Inter/SF/Arial)
-            '(' | ')' | '[' | ']' => 0.35,
-            // Wide characters
-            'm' | 'w' | 'M' | 'W' => 0.9,
-            // Fraction slash (common in inches display)
-            '/' => 0.4,
-            // Digits (tabular width in Inter/SF)
-            '0'..='9' => 0.6,
-            // Most lowercase letters
-            'a'..='z' => 0.58,
-            // Most uppercase letters
-            'A'..='Z' => 0.72,
-            // Quote/inch marks
-            '"' => 0.45,
-            // Default for other characters
-            _ => 0.6,
+            ' ' => SPACE,
+            '1' | 'i' | 'l' | '.' | ',' | ':' | ';' | '!' | '|' | '\'' => NARROW_PUNCT,
+            'I' | 'j' | 't' | 'f' | 'r' => NARROW_ALPHA,
+            '(' | ')' | '[' | ']' => BRACKET,
+            'm' | 'w' | 'M' | 'W' => WIDE,
+            '/' => SLASH,
+            '0'..='9' => DIGIT,
+            'a'..='z' => LOWER,
+            'A'..='Z' => UPPER,
+            '"' => QUOTE,
+            _ => DEFAULT,
         };
         width += font_size * char_width_factor;
     }
-    // Add 3% safety margin to ensure boxes are never too tight
-    width * 1.03
+    width * SAFETY_MARGIN
 }
 
 /// Estimate the effective display width of a label, accounting for two-line split.
@@ -691,7 +732,13 @@ impl PlanViewGeometry {
         Self::from_design_with_mode(design, canvas_width, canvas_height, style, DetailMode::Auto, true, true, false, false, false)
     }
 
-    /// Calculate geometry with explicit detail mode and feature flags
+    /// Calculate geometry with explicit detail mode and feature flags.
+    ///
+    /// High-level recipe:
+    /// 1. Decide which axes need breaks and whether corner detail is needed.
+    /// 2. Compute compressed display dimensions for break axes.
+    /// 3. Build base geometry (rects, scale, origin) from display dimensions.
+    /// 4. Place break gap indicators, corner detail, mat cut extent, and thumbnail.
     pub fn from_design_with_mode(
         design: &FrameDesign,
         canvas_width: f64,
@@ -722,63 +769,97 @@ impl PlanViewGeometry {
         let native_scale_y = available_height / frame_outer_height;
         let native_scale = native_scale_x.min(native_scale_y);
 
+        // Phase 1: Decide break strategy
         let bd = decide_axis_breaks(
             design, frame_outer_width, frame_outer_height, native_scale,
             style, detail_mode, corner_detail_enabled, axis_breaks_enabled,
             unit_mm, use_tape_segments, use_decimal,
         );
-        let use_corner_detail = bd.use_corner_detail;
-        let frame_band = bd.frame_band;
-        let (use_break_x, use_break_y) = (bd.use_break_x, bd.use_break_y);
 
-        if !use_break_x && !use_break_y {
+        if !bd.use_break_x && !bd.use_break_y {
             return Self::build_no_break_geometry(
                 design, native_scale, canvas_width, canvas_height,
-                use_corner_detail, style,
+                bd.use_corner_detail, style,
             );
         }
 
+        // Phase 2: Compute compressed display dimensions
         let dd = compute_display_dimensions(
             design, frame_outer_width, frame_outer_height,
-            use_break_x, use_break_y, frame_band,
+            bd.use_break_x, bd.use_break_y, bd.frame_band,
             available_width, available_height, canvas_width, canvas_height,
             native_scale_x, style,
         );
-        let display_artwork_w = dd.artwork_w;
-        let display_artwork_h = dd.artwork_h;
-        let use_break_x = dd.use_break_x;
-        let use_break_y = dd.use_break_y;
 
-        // If break computation determined everything fits uncompressed,
-        // fall back to the standard path which can still apply corner detail.
-        if !use_break_x && !use_break_y {
+        if !dd.use_break_x && !dd.use_break_y {
             return Self::build_no_break_geometry(
                 design, native_scale, canvas_width, canvas_height,
-                use_corner_detail, style,
+                bd.use_corner_detail, style,
             );
         }
 
+        // Phase 3: Build base geometry from display dimensions, or fall back
+        // to no-break if the marginal break guard rejects the compression.
+        let mut geo = match Self::build_break_geometry(
+            design, &dd, frame_outer_width, frame_outer_height,
+            native_scale, canvas_width, canvas_height,
+            available_height, bd.use_corner_detail, style,
+        ) {
+            Some(g) => g,
+            None => return Self::build_no_break_geometry(
+                design, native_scale, canvas_width, canvas_height,
+                bd.use_corner_detail, style,
+            ),
+        };
+
+        // Phase 4: Place overlays — break gaps, corner detail, mat cut, thumbnail
+        Self::apply_break_positions(&mut geo, dd.use_break_x, dd.use_break_y);
+        Self::place_corner_detail_if_needed(&mut geo, design, canvas_width, bd.use_corner_detail, style);
+        let (mat_cut_extent, occupied) = Self::compute_mat_cut_and_occupied(&geo, design, style);
+
+        Self::compute_thumbnail_placement(
+            &mut geo, frame_outer_width, frame_outer_height,
+            &occupied, mat_cut_extent, style,
+        );
+
+        geo
+    }
+
+    /// Build base geometry for the axis-break path.
+    ///
+    /// Computes display outer dimensions, applies the marginal break guard
+    /// (rejecting single-axis breaks that don't meaningfully improve the
+    /// aspect ratio), then calculates final scale, origin, and rects.
+    /// Returns `None` if the marginal guard rejects the break.
+    fn build_break_geometry(
+        design: &FrameDesign,
+        dd: &DisplayDimensions,
+        frame_outer_width: f64,
+        frame_outer_height: f64,
+        _native_scale: f64,
+        canvas_width: f64,
+        canvas_height: f64,
+        available_height: f64,
+        _use_corner_detail: bool,
+        style: &DiagramStyle,
+    ) -> Option<Self> {
         // Display outer = actual_outer - actual_artwork + display_artwork
-        let display_outer_w = frame_outer_width - design.artwork_width + display_artwork_w;
-        let display_outer_h = frame_outer_height - design.artwork_height + display_artwork_h;
+        let display_outer_w = frame_outer_width - design.artwork_width + dd.artwork_w;
+        let display_outer_h = frame_outer_height - design.artwork_height + dd.artwork_h;
 
         // Marginal break guard (single-axis only): if the break barely compresses
         // the frame, the break gap (8px) can make the visual aspect ratio as extreme
         // as (or more than) the actual frame. Skip the break when the rendered AR
         // wouldn't improve over the true AR by at least 10%.
         // Dual-axis breaks always compress meaningfully (both axes are extreme).
-        let is_single_axis = use_break_x != use_break_y;
+        let is_single_axis = dd.use_break_x != dd.use_break_y;
         {
             let actual_ar = (frame_outer_width / frame_outer_height)
                 .max(frame_outer_height / frame_outer_width);
             let display_ar = (display_outer_w / display_outer_h)
                 .max(display_outer_h / display_outer_w);
             if is_single_axis && display_ar > actual_ar * BREAK_IMPROVEMENT_THRESHOLD {
-                // Break doesn't meaningfully help — fall back to no-break path
-                return Self::build_no_break_geometry(
-                    design, native_scale, canvas_width, canvas_height,
-                    use_corner_detail, style,
-                );
+                return None;
             }
         }
 
@@ -800,15 +881,19 @@ impl PlanViewGeometry {
         let min_offset_y = style.total_callout_reserve();
         let origin_y = ((canvas_height - scaled_height) / 2.0).max(min_offset_y);
 
-        // Build rects using display artwork dimensions
-        // Frame band, mat border, rabbet all use actual dimensions at new scale
-        let mut geo = Self::build_rects(
+        // Build rects using display artwork dimensions.
+        // Frame band, mat border, rabbet all use actual design dimensions at the new scale.
+        Some(Self::build_rects(
             design, scale, origin_x, origin_y,
-            Some((display_artwork_w, display_artwork_h, display_outer_w, display_outer_h)),
-        );
+            Some((dd.artwork_w, dd.artwork_h, display_outer_w, display_outer_h)),
+        ))
+    }
 
-        // Compute break positions in canvas coords
-        // Offset breaks so the top-left corner gets more visible area
+    /// Set break gap positions on the geometry.
+    ///
+    /// Offsets breaks so the top-left corner gets more visible area
+    /// (biased toward the corner where the corner detail overlay sits).
+    fn apply_break_positions(geo: &mut Self, use_break_x: bool, use_break_y: bool) {
         let break_center_x = geo.artwork.x + geo.artwork.width * BREAK_CENTER_BIAS_X;
         let break_center_y = geo.artwork.y + geo.artwork.height * BREAK_CENTER_BIAS_Y;
 
@@ -823,16 +908,35 @@ impl PlanViewGeometry {
             geo.break_y_start = break_center_y - BREAK_GAP_PX / 2.0;
             geo.break_y_end = break_center_y + BREAK_GAP_PX / 2.0;
         }
+    }
 
-        // Corner detail when face is too narrow at this scale to show internal details.
+    /// Conditionally add corner detail overlay when the frame face is too
+    /// narrow at the current scale to show internal details (rabbet, mat overlap).
+    fn place_corner_detail_if_needed(
+        geo: &mut Self,
+        design: &FrameDesign,
+        canvas_width: f64,
+        use_corner_detail: bool,
+        style: &DiagramStyle,
+    ) {
         if use_corner_detail && design.frame_material_width > 0.0 {
-            geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
+            geo.corner_detail = Some(Self::compute_corner_detail(design, geo, canvas_width, style));
         }
+    }
 
-        // Two-pass placement: compute mat cut extent first (actual side choice + label bounds),
-        // then use those bounds in the occupied list so thumbnail placement is collision-free
-        // without the approximation loop of the old approach.
-        let cd_occupied: Vec<Rect> = geo.corner_detail.as_ref().map(|cd| vec![cd.box_rect]).unwrap_or_default();
+    /// Compute mat cut extent and build the occupied-rect list for thumbnail placement.
+    ///
+    /// Two-pass placement: computes mat cut extent first (choosing left or right side
+    /// based on corner detail position), then assembles the occupied list so thumbnail
+    /// placement is collision-free without approximation loops.
+    fn compute_mat_cut_and_occupied(
+        geo: &Self,
+        design: &FrameDesign,
+        style: &DiagramStyle,
+    ) -> (Option<(Point, Point)>, Vec<Rect>) {
+        let cd_occupied: Vec<Rect> = geo.corner_detail.as_ref()
+            .map(|cd| vec![cd.box_rect]).unwrap_or_default();
+
         let mat_cut_extent: Option<(Point, Point)> = if design.has_mat() {
             geo.mat_opening.as_ref().map(|mat_opening| {
                 Self::choose_mat_cut_extent(
@@ -858,12 +962,7 @@ impl PlanViewGeometry {
             }
         }
 
-        Self::compute_thumbnail_placement(
-            &mut geo, frame_outer_width, frame_outer_height,
-            &occupied, mat_cut_extent, style,
-        );
-
-        geo
+        (mat_cut_extent, occupied)
     }
 
     /// Build geometry for the no-break (standard) path.

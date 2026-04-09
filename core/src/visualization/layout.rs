@@ -153,8 +153,12 @@ fn layout_side(
             // screen-horizontal. Center bounds on dim_line_pos because svg_dimension
             // renders labels centered on the dimension line, not at label_x.
             //
-            // MatCutHeight two-line: bottom-align the two strips so the longer value
-            // strip extends upward, keeping the downward extent compact for thumbnail.
+            // For two-line MatCutHeight labels displayed vertically, the text naturally
+            // centers on the midpoint. But the "Mat Cut:" prefix is shorter than the
+            // value line, so centering looks off-balance. Bottom-align shifts the text
+            // so the longer value part extends upward, keeping visual weight toward
+            // the dimension line it annotates. This also keeps the downward extent
+            // compact, avoiding overlap with the thumbnail below.
             let bottom_align_shift = if is_two_line && callout.dimension_type == DimensionType::MatCutHeight {
                 if let Some(pos) = callout.label.find(": ") {
                     let prefix_part = &callout.label[..pos + 1];

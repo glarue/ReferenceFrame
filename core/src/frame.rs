@@ -90,8 +90,11 @@ impl FrameDesign {
         }
     }
 
-    /// Validate and enforce constraints
-    pub fn validate(&mut self) {
+    /// Enforce internal constraints on this design (symmetry, clamping, normalization).
+    ///
+    /// This is NOT validation against user-configurable limits -- for that,
+    /// use `validation::validate_design()` with a `ValidationConfig`.
+    pub fn enforce_constraints(&mut self) {
         // Enforce symmetrical mat if flag is set
         if self.symmetrical_mat && self.mat_width_sides != self.mat_width_top_bottom {
             self.mat_width_sides = self.mat_width_top_bottom;
@@ -639,7 +642,7 @@ mod tests {
     }
 
     // ========================================================================
-    // validate() constraints
+    // enforce_constraints()
     // ========================================================================
 
     #[test]
@@ -648,7 +651,7 @@ mod tests {
         design.symmetrical_mat = true;
         design.mat_width_top_bottom = 3.0;
         design.mat_width_sides = 2.0; // different — should be overwritten
-        design.validate();
+        design.enforce_constraints();
         assert_close(design.mat_width_sides, 3.0, "symmetrical_enforced");
     }
 
@@ -657,7 +660,7 @@ mod tests {
         let mut design = FrameDesign::default();
         design.no_artwork_margin = true;
         design.mat_overlap = 0.5;
-        design.validate();
+        design.enforce_constraints();
         assert_close(design.mat_overlap, 0.0, "no_margin_clears_overlap");
     }
 
@@ -668,7 +671,7 @@ mod tests {
         design.rabbet_width = 1.5; // exceeds frame width
         design.frame_material_depth = 0.75;
         design.rabbet_depth = 1.5; // exceeds frame depth
-        design.validate();
+        design.enforce_constraints();
         assert_close(design.rabbet_width, 0.75, "rabbet_width_clamped");
         assert_close(design.rabbet_depth, 0.75, "rabbet_depth_clamped");
     }
@@ -680,7 +683,7 @@ mod tests {
         design.frame_material_depth = 0.0;
         design.rabbet_width = 0.0;
         design.rabbet_depth = 0.0;
-        design.validate();
+        design.enforce_constraints();
         // All should be clamped to 1/16"
         assert_close(design.frame_material_width, 0.0625, "min_frame_width");
         assert_close(design.frame_material_depth, 0.0625, "min_frame_depth");
@@ -692,7 +695,7 @@ mod tests {
     fn test_validate_mat_overlap_clamped() {
         let mut design = FrameDesign::new(4.0, 6.0);
         design.mat_overlap = 5.0; // way too big for 4×6 artwork
-        design.validate();
+        design.enforce_constraints();
         // max_overlap = min(4/2 - 0.125, 6/2 - 0.125) = min(1.875, 2.875) = 1.875
         assert_close(design.mat_overlap, 1.875, "overlap_clamped");
     }
@@ -706,7 +709,7 @@ mod tests {
         use crate::validation::{validate_design, ValidationConfig};
         let mut design = FrameDesign::default();
         design.frame_material_depth = 0.1; // way too shallow for the stack
-        design.validate(); // clamps rabbet_depth ≤ frame_material_depth
+        design.enforce_constraints(); // clamps rabbet_depth ≤ frame_material_depth
         let result = validate_design(&design, &ValidationConfig::default());
         let warnings = result.warnings();
         assert!(
@@ -766,6 +769,166 @@ mod tests {
         assert_close(overshoot.artwork_width, 14.2, "interp overshoot width");
     }
 
+    // ========================================================================
+    // no_artwork_margin — full calculation chain
+    // ========================================================================
+    //
+    // 8×12 artwork, no_artwork_margin=true, asymmetric mat (top/bottom 3", sides 2")
+    //
+    // enforce_constraints: sets mat_overlap → 0
+    // mat_opening   = (8, 12)                     (equals artwork, no overlap)
+    // visible       = (8 + 2×3, 12 + 2×2)        = (14, 16)
+    // frame_inside  = visible                     = (14, 16)
+    // frame_outside = (14 + 2×0.75, 16 + 2×0.75) = (15.5, 17.5)
+    // matboard_size = (14 + 2×0.375, 16 + 2×0.375) = (14.75, 16.75)
+    // matboard_cut  = (3 + 0.375, 2 + 0.375)     = (3.375, 2.375)
+
+    #[test]
+    fn test_no_artwork_margin_with_asymmetric_mat() {
+        let mut design = FrameDesign::default();
+        design.no_artwork_margin = true;
+        design.symmetrical_mat = false;
+        design.mat_width_top_bottom = 3.0;
+        design.mat_width_sides = 2.0;
+        design.enforce_constraints();
+
+        assert_pair(design.get_mat_opening_dimensions(), (8.0, 12.0), "no_margin_asym_opening");
+        assert_pair(design.get_visible_dimensions(), (14.0, 16.0), "no_margin_asym_visible");
+        assert_pair(design.get_frame_outside_dimensions(), (15.5, 17.5), "no_margin_asym_outside");
+        assert_pair(design.get_matboard_dimensions(), (14.75, 16.75), "no_margin_asym_matboard");
+        assert_pair(design.get_matboard_cut_dimensions(), (3.375, 2.375), "no_margin_asym_cut");
+    }
+
+    #[test]
+    fn test_no_artwork_margin_visible_chain_consistency() {
+        // Verify the full chain: opening → visible → inside → outside stays consistent
+        let mut design = FrameDesign::default();
+        design.no_artwork_margin = true;
+        design.enforce_constraints();
+
+        let (oh, ow) = design.get_mat_opening_dimensions();
+        let (vh, vw) = design.get_visible_dimensions();
+        let (ih, iw) = design.get_frame_inside_dimensions();
+        let (ooh, oow) = design.get_frame_outside_dimensions();
+
+        // opening = artwork exactly
+        assert_close(oh, design.artwork_height, "opening == artwork_h");
+        assert_close(ow, design.artwork_width, "opening == artwork_w");
+        // visible = opening + 2×mat
+        assert_close(vh, oh + 2.0 * design.mat_width_top_bottom, "visible = opening + mat");
+        // inside == visible
+        assert_close(ih, vh, "inside == visible");
+        // outside = inside + 2×frame
+        assert_close(ooh, ih + 2.0 * design.frame_material_width, "outside = inside + frame");
+        assert_close(oow, iw + 2.0 * design.frame_material_width, "outside_w = inside_w + frame");
+    }
+
+    // ========================================================================
+    // Zero-value boundary conditions
+    // ========================================================================
+
+    #[test]
+    fn test_zero_mat_width_with_nonzero_rabbet() {
+        // Mat width = 0 but rabbet exists: matboard_cut = 0 + rabbet
+        let mut design = FrameDesign::default();
+        design.mat_width_top_bottom = 0.0;
+        design.mat_width_sides = 0.0;
+        // has_mat() is false, but matboard_cut still uses the fields
+        assert_pair(
+            design.get_matboard_cut_dimensions(),
+            (design.rabbet_width, design.rabbet_width),
+            "zero_mat_cut",
+        );
+    }
+
+    #[test]
+    fn test_all_zero_material_thicknesses() {
+        let mut design = FrameDesign::default();
+        design.glazing_thickness = 0.0;
+        design.matboard_thickness = 0.0;
+        design.artwork_thickness = 0.0;
+        design.backing_thickness = 0.0;
+        design.assembly_margin = 0.0;
+        assert_close(design.get_rabbet_z_depth_required(), 0.0, "all_zero_stack");
+    }
+
+    #[test]
+    fn test_rabbet_depth_no_mat_excludes_matboard() {
+        // When has_mat() = false, matboard_thickness should NOT contribute
+        let mut design = FrameDesign::default();
+        design.mat_width_top_bottom = 0.0;
+        design.mat_width_sides = 0.0;
+        design.matboard_thickness = 1.0; // large value that should be excluded
+        let depth = design.get_rabbet_z_depth_required();
+        // Should be glazing + artwork + backing + margin, NOT including matboard
+        let expected = design.glazing_thickness + design.artwork_thickness
+            + design.backing_thickness + design.assembly_margin;
+        assert_close(depth, expected, "no_mat_excludes_matboard");
+    }
+
+    #[test]
+    fn test_enforce_constraints_floors_at_minimum() {
+        // After enforce_constraints, zero inputs become MIN_DIMENSION
+        let mut design = FrameDesign::default();
+        design.frame_material_width = 0.0;
+        design.rabbet_width = 0.0;
+        design.enforce_constraints();
+        // Calculations should still produce finite, positive results
+        let (vh, vw) = design.get_visible_dimensions();
+        assert!(vh > 0.0, "visible height should be positive after clamp");
+        assert!(vw > 0.0, "visible width should be positive after clamp");
+        let (oh, ow) = design.get_frame_outside_dimensions();
+        assert!(oh > vh, "outside > visible after clamp");
+        assert!(ow > vw, "outside_w > visible_w after clamp");
+    }
+
+    // ========================================================================
+    // Large dimensions — verify no precision drift
+    // ========================================================================
+
+    #[test]
+    fn test_large_artwork_calculations() {
+        // 100×150" artwork, 4" mat, 0.25" overlap, 2" frame, 0.5" rabbet
+        let mut design = FrameDesign::new(100.0, 150.0);
+        design.mat_width_top_bottom = 4.0;
+        design.mat_width_sides = 4.0;
+        design.mat_overlap = 0.25;
+        design.frame_material_width = 2.0;
+        design.rabbet_width = 0.5;
+
+        // mat_opening = (100 - 0.5, 150 - 0.5)       = (99.5, 149.5)
+        // visible     = (99.5 + 8, 149.5 + 8)         = (107.5, 157.5)
+        // outside     = (107.5 + 4, 157.5 + 4)         = (111.5, 161.5)
+        // matboard    = (107.5 + 1, 157.5 + 1)         = (108.5, 158.5)
+        assert_pair(design.get_mat_opening_dimensions(), (99.5, 149.5), "large_opening");
+        assert_pair(design.get_visible_dimensions(), (107.5, 157.5), "large_visible");
+        assert_pair(design.get_frame_outside_dimensions(), (111.5, 161.5), "large_outside");
+        assert_pair(design.get_matboard_dimensions(), (108.5, 158.5), "large_matboard");
+    }
+
+    #[test]
+    fn test_extreme_aspect_ratio_calculations() {
+        // 2×48" panoramic — verify no issues with extreme L:W
+        let mut design = FrameDesign::new(2.0, 48.0);
+        design.mat_width_top_bottom = 2.0;
+        design.mat_width_sides = 2.0;
+        design.mat_overlap = 0.125;
+
+        let (vh, vw) = design.get_visible_dimensions();
+        // mat_opening = (2 - 0.25, 48 - 0.25)     = (1.75, 47.75)
+        // visible     = (1.75 + 4, 47.75 + 4)      = (5.75, 51.75)
+        assert_close(vh, 5.75, "panoramic_visible_h");
+        assert_close(vw, 51.75, "panoramic_visible_w");
+        // Verify outside is always bigger than inside
+        let (oh, ow) = design.get_frame_outside_dimensions();
+        assert!(oh > vh, "outside_h > visible_h for panoramic");
+        assert!(ow > vw, "outside_w > visible_w for panoramic");
+    }
+
+    // ========================================================================
+    // Interpolation (animation)
+    // ========================================================================
+
     #[test]
     fn test_interpolate_booleans_use_destination() {
         let mut from = FrameDesign::default();
@@ -780,5 +943,92 @@ mod tests {
         let result = FrameDesign::interpolate(&from, &to, 0.0);
         assert!(!result.symmetrical_mat, "bool should use destination");
         assert!(result.no_artwork_margin, "bool should use destination");
+    }
+
+    // ========================================================================
+    // Round-trip integration: parse → calculate → format
+    // ========================================================================
+    //
+    // These tests verify the full pipeline a user would experience:
+    // typed input → parsed value → design calculations → formatted output
+
+    #[test]
+    fn test_roundtrip_fraction_input_through_calculations() {
+        use crate::input_parser::DimensionInput;
+        use crate::conversions::format_inches_as_fraction;
+
+        // User types "8 3/4" for artwork height
+        let input = DimensionInput::new("8 3/4");
+        assert!(input.is_valid());
+        assert_close(input.value(), 8.75, "parsed 8 3/4");
+
+        let design = FrameDesign::new(input.value(), 12.0);
+        let (visible_h, _) = design.get_visible_dimensions();
+        // mat_opening_h = 8.75 - 2×0.125 = 8.5
+        // visible_h = 8.5 + 2×2 = 12.5
+        assert_close(visible_h, 12.5, "visible from fraction input");
+
+        // Format back — should produce a clean fraction, not a decimal mess
+        let formatted = format_inches_as_fraction(visible_h);
+        assert_eq!(formatted, "12 1/2\"", "formatted visible should be clean fraction");
+    }
+
+    #[test]
+    fn test_roundtrip_decimal_input_through_calculations() {
+        use crate::input_parser::DimensionInput;
+        use crate::conversions::format_value_with_decimal;
+
+        // User types "10.5" for artwork width
+        let input = DimensionInput::new("10.5");
+        assert!(input.is_valid());
+
+        let design = FrameDesign::new(8.0, input.value());
+        let (_, outside_w) = design.get_frame_outside_dimensions();
+        // visible_w = (10.5 - 0.25) + 4 = 14.25
+        // outside_w = 14.25 + 1.5 = 15.75
+        assert_close(outside_w, 15.75, "outside from decimal input");
+
+        // format_value_with_decimal shows "fraction (decimal)" for inches
+        let formatted = format_value_with_decimal(outside_w, crate::conversions::Unit::Inches);
+        assert!(formatted.contains("15.75"), "should contain decimal value 15.75");
+        assert!(formatted.contains("3/4"), "should contain fraction 3/4");
+    }
+
+    #[test]
+    fn test_roundtrip_mm_input_through_calculations() {
+        use crate::conversions::{mm_to_inches, format_value, Unit};
+
+        // User enters 200mm artwork height → convert to inches → calculate → format back as mm
+        let artwork_h_inches = mm_to_inches(200.0);
+        assert_close(artwork_h_inches, 7.874, "200mm in inches");
+
+        let mut design = FrameDesign::new(artwork_h_inches, mm_to_inches(300.0));
+        design.mat_width_top_bottom = 0.0;
+        design.mat_width_sides = 0.0;
+
+        let (visible_h, _) = design.get_visible_dimensions();
+        // No mat: visible = artwork - 2×rabbet = 7.874 - 0.75 = 7.124" ≈ 180.9mm
+        assert_close(visible_h, 7.124, "visible_h in inches");
+        let formatted = format_value(visible_h, Unit::Millimeters);
+        // Should be a reasonable mm value, not garbage
+        assert!(formatted.contains("mm"), "mm format should contain 'mm'");
+        // 7.124" × 25.4 = 180.95mm → formatted as "181 mm" or "180.9 mm"
+        assert!(formatted.contains("180") || formatted.contains("181"),
+            "expected ~181mm, got: {}", formatted);
+    }
+
+    #[test]
+    fn test_roundtrip_tape_measure_format() {
+        use crate::conversions::{format_value_tape_measure, Unit};
+
+        // Standard 8×12 default: outside_h = 13.25 = 13 1/4"
+        let design = FrameDesign::default();
+        let (outside_h, _) = design.get_frame_outside_dimensions();
+        assert_close(outside_h, 13.25, "default outside_h");
+
+        let tape = format_value_tape_measure(outside_h, Unit::Inches);
+        // Tape measure format: "13-1/4\""
+        assert!(tape.contains("13"), "tape should contain whole inches");
+        assert!(tape.contains("1/4"), "tape should contain 1/4 fraction");
     }
 }

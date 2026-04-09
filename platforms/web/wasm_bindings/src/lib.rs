@@ -5,11 +5,12 @@
 
 use wasm_bindgen::prelude::*;
 use referenceframe_core::{
-    conversions::{format_value, format_value_with_decimal, format_value_tape_measure, inches_to_mm, mm_to_inches, Unit},
+    conversions::{self, Unit},
     frame::FrameDesign,
     aspect_ratio::AspectLockState,
-    shareable_url::{ShareableParams, generate_shareable_url, decode_shareable_url},
+    shareable_url::{self, ShareableParams},
     presets,
+    version::{self, VersionInfo},
     history,
 };
 
@@ -93,22 +94,22 @@ impl WasmFrameDesign {
         self.inner.mat_overlap = value;
     }
 
-    #[wasm_bindgen(getter, js_name = "rabbet_width")]
+    #[wasm_bindgen(getter, js_name = "rabbetWidth")]
     pub fn rabbet_width(&self) -> f64 {
         self.inner.rabbet_width
     }
 
-    #[wasm_bindgen(setter, js_name = "rabbet_width")]
+    #[wasm_bindgen(setter, js_name = "rabbetWidth")]
     pub fn set_rabbet_width(&mut self, value: f64) {
         self.inner.rabbet_width = value;
     }
 
-    #[wasm_bindgen(getter, js_name = "rabbet_depth")]
+    #[wasm_bindgen(getter, js_name = "rabbetDepth")]
     pub fn rabbet_depth(&self) -> f64 {
         self.inner.rabbet_depth
     }
 
-    #[wasm_bindgen(setter, js_name = "rabbet_depth")]
+    #[wasm_bindgen(setter, js_name = "rabbetDepth")]
     pub fn set_rabbet_depth(&mut self, value: f64) {
         self.inner.rabbet_depth = value;
     }
@@ -195,6 +196,16 @@ impl WasmFrameDesign {
         self.inner.symmetrical_mat = value;
     }
 
+    #[wasm_bindgen(getter, js_name = "noArtworkMargin")]
+    pub fn no_artwork_margin(&self) -> bool {
+        self.inner.no_artwork_margin
+    }
+
+    #[wasm_bindgen(setter, js_name = "noArtworkMargin")]
+    pub fn set_no_artwork_margin(&mut self, value: bool) {
+        self.inner.no_artwork_margin = value;
+    }
+
     #[wasm_bindgen(getter, js_name = "includeMat")]
     pub fn has_mat(&self) -> bool {
         self.inner.has_mat()
@@ -204,7 +215,7 @@ impl WasmFrameDesign {
 
     /// Validate and enforce constraints
     pub fn validate(&mut self) {
-        self.inner.validate();
+        self.inner.enforce_constraints();
     }
 
     /// Get visible (face) dimensions - returns [height, width]
@@ -336,48 +347,48 @@ impl WasmAspectLock {
 // Free functions
 
 #[wasm_bindgen(js_name = "inchesToMm")]
-pub fn wasm_inches_to_mm(inches: f64) -> f64 {
-    inches_to_mm(inches)
+pub fn inches_to_mm(inches: f64) -> f64 {
+    conversions::inches_to_mm(inches)
 }
 
 #[wasm_bindgen(js_name = "mmToInches")]
-pub fn wasm_mm_to_inches(mm: f64) -> f64 {
-    mm_to_inches(mm)
+pub fn mm_to_inches(mm: f64) -> f64 {
+    conversions::mm_to_inches(mm)
 }
 
 #[wasm_bindgen(js_name = "formatValue")]
-pub fn wasm_format_value(value: f64, unit_mm: bool) -> String {
+pub fn format_value(value: f64, unit_mm: bool) -> String {
     let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
-    format_value(value, unit)
+    conversions::format_value(value, unit)
 }
 
 #[wasm_bindgen(js_name = "formatValueWithDecimal")]
-pub fn wasm_format_value_with_decimal(value: f64, unit_mm: bool) -> String {
+pub fn format_value_with_decimal(value: f64, unit_mm: bool) -> String {
     let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
-    format_value_with_decimal(value, unit)
+    conversions::format_value_with_decimal(value, unit)
 }
 
 #[wasm_bindgen(js_name = "formatValueTapeMeasure")]
-pub fn wasm_format_value_tape_measure(value: f64, unit_mm: bool) -> String {
+pub fn format_value_tape_measure(value: f64, unit_mm: bool) -> String {
     let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
-    format_value_tape_measure(value, unit)
+    conversions::format_value_tape_measure(value, unit)
 }
 
 #[wasm_bindgen(js_name = "getAspectRatioDisplay")]
-pub fn wasm_get_aspect_ratio_display(height: f64, width: f64) -> String {
+pub fn get_aspect_ratio_display(height: f64, width: f64) -> String {
     referenceframe_core::aspect_ratio::get_aspect_ratio_display(height, width)
 }
 
 #[wasm_bindgen(js_name = "generateShareableUrl")]
-pub fn wasm_generate_shareable_url(params_json: &str) -> Result<String, JsValue> {
+pub fn generate_shareable_url(params_json: &str) -> Result<String, JsValue> {
     let params: ShareableParams = serde_json::from_str(params_json)
         .map_err(|e| JsValue::from_str(&format!("JSON parse error: {}", e)))?;
-    Ok(generate_shareable_url(&params))
+    Ok(shareable_url::generate_shareable_url(&params))
 }
 
 #[wasm_bindgen(js_name = "decodeShareableUrl")]
-pub fn wasm_decode_shareable_url(url: &str) -> Result<String, JsValue> {
-    let params = decode_shareable_url(url)
+pub fn decode_shareable_url(url: &str) -> Result<String, JsValue> {
+    let params = shareable_url::decode_shareable_url(url)
         .map_err(|e| JsValue::from_str(&format!("Decode error: {}", e)))?;
     serde_json::to_string(&params)
         .map_err(|e| JsValue::from_str(&format!("JSON error: {}", e)))
@@ -387,11 +398,15 @@ pub fn wasm_decode_shareable_url(url: &str) -> Result<String, JsValue> {
 
 /// Generate a plan view SVG diagram
 #[wasm_bindgen(js_name = "generatePlanViewSvg")]
-pub fn wasm_generate_plan_view_svg(
+pub fn generate_plan_view_svg(
     design: &WasmFrameDesign,
     canvas_width: f64,
     canvas_height: f64,
     unit_mm: bool,
+    use_tape_segments: bool,
+    use_decimal_display: bool,
+    corner_detail_enabled: bool,
+    axis_breaks_enabled: bool,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram, DiagramOptions, ViewOption};
 
@@ -402,8 +417,11 @@ pub fn wasm_generate_plan_view_svg(
         include_title_block: false,
         title_text: None,
         unit_mm,
-        use_tape_segments: false,
+        use_tape_segments,
+        use_decimal_display,
         show_callouts: true,
+        corner_detail_enabled,
+        axis_breaks_enabled,
         ..Default::default()
     };
 
@@ -413,11 +431,13 @@ pub fn wasm_generate_plan_view_svg(
 
 /// Generate a section view SVG diagram
 #[wasm_bindgen(js_name = "generateSectionViewSvg")]
-pub fn wasm_generate_section_view_svg(
+pub fn generate_section_view_svg(
     design: &WasmFrameDesign,
     canvas_width: f64,
     canvas_height: f64,
     unit_mm: bool,
+    use_tape_segments: bool,
+    use_decimal_display: bool,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram, DiagramOptions, ViewOption};
 
@@ -428,7 +448,8 @@ pub fn wasm_generate_section_view_svg(
         include_title_block: false,
         title_text: None,
         unit_mm,
-        use_tape_segments: false,
+        use_tape_segments,
+        use_decimal_display,
         show_callouts: true,
         ..Default::default()
     };
@@ -439,14 +460,17 @@ pub fn wasm_generate_section_view_svg(
 
 /// Generate combined view SVG (for PDF export)
 #[wasm_bindgen(js_name = "generateCombinedViewSvg")]
-pub fn wasm_generate_combined_view_svg(
+pub fn generate_combined_view_svg(
     design: &WasmFrameDesign,
     canvas_width: f64,
     canvas_height: f64,
     unit_mm: bool,
     include_title: bool,
 ) -> String {
-    wasm_generate_combined_view_svg_with_title(design, canvas_width, canvas_height, unit_mm, include_title, false, None)
+    generate_combined_view_svg_with_title(
+        design, canvas_width, canvas_height, unit_mm, include_title,
+        false, None, false, false, true, true,
+    )
 }
 
 /// Generate combined view SVG with optional PDF styling and custom title
@@ -454,7 +478,7 @@ pub fn wasm_generate_combined_view_svg(
 /// title_text: Optional custom title for the diagram (e.g., "Living Room Landscape")
 ///             If None or empty, defaults to "Frame Design"
 #[wasm_bindgen(js_name = "generateCombinedViewSvgForPdf")]
-pub fn wasm_generate_combined_view_svg_with_title(
+pub fn generate_combined_view_svg_with_title(
     design: &WasmFrameDesign,
     canvas_width: f64,
     canvas_height: f64,
@@ -462,6 +486,10 @@ pub fn wasm_generate_combined_view_svg_with_title(
     include_title: bool,
     for_pdf: bool,
     title_text: Option<String>,
+    use_tape_segments: bool,
+    use_decimal_display: bool,
+    corner_detail_enabled: bool,
+    axis_breaks_enabled: bool,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, DiagramStyle, ViewOption};
 
@@ -472,8 +500,11 @@ pub fn wasm_generate_combined_view_svg_with_title(
         include_title_block: include_title,
         title_text,
         unit_mm,
-        use_tape_segments: false,
+        use_tape_segments,
+        use_decimal_display,
         show_callouts: true,
+        corner_detail_enabled,
+        axis_breaks_enabled,
         ..Default::default()
     };
 
@@ -489,7 +520,7 @@ pub fn wasm_generate_combined_view_svg_with_title(
 
 /// Generate diagram with full options (returns JSON with svg and warnings)
 #[wasm_bindgen(js_name = "generateDiagram")]
-pub fn wasm_generate_diagram(
+pub fn generate_diagram(
     design: &WasmFrameDesign,
     options_json: &str,
 ) -> Result<String, JsValue> {
@@ -521,8 +552,8 @@ pub fn get_defaults() -> String {
         "matOverlap": d.mat_overlap,
         "frameWidth": d.frame_material_width,
         "frameDepth": d.frame_material_depth,
-        "rabbet_width": d.rabbet_width,
-        "rabbet_depth": d.rabbet_depth,
+        "rabbetWidth": d.rabbet_width,
+        "rabbetDepth": d.rabbet_depth,
         "glazingThickness": d.glazing_thickness,
         "matboardThickness": d.matboard_thickness,
         "artworkThickness": d.artwork_thickness,
@@ -531,6 +562,61 @@ pub fn get_defaults() -> String {
         "assemblyMargin": d.assembly_margin,
     });
     serde_json::to_string(&defaults).unwrap_or_default()
+}
+
+// ============================================================================
+// Presets & Defaults (from data/presets.json — single source of truth)
+// ============================================================================
+
+/// Get all presets and defaults as JSON (single source of truth)
+#[wasm_bindgen(js_name = "getPresetsJson")]
+pub fn get_presets_json() -> String {
+    presets::get_presets_json().to_string()
+}
+
+/// Get preset values for a specific field as JSON array
+#[wasm_bindgen(js_name = "getPresetValues")]
+pub fn get_preset_values(field: &str) -> String {
+    let values = presets::get_preset_values(field);
+    serde_json::to_string(&values).unwrap_or_else(|_| "[]".to_string())
+}
+
+// ============================================================================
+// Version Information
+// ============================================================================
+
+/// Get core library version (e.g., "1.5.3")
+#[wasm_bindgen(js_name = "getCoreVersion")]
+pub fn get_core_version() -> String {
+    version::get_core_version().to_string()
+}
+
+/// Get full version info as JSON
+#[wasm_bindgen(js_name = "getVersionInfo")]
+pub fn get_version_info(app_version: &str, build_number: &str, platform_name: &str) -> String {
+    let build = if build_number.is_empty() {
+        None
+    } else {
+        Some(build_number)
+    };
+    let info = VersionInfo::new(app_version, platform_name, build);
+    info.to_json()
+}
+
+// ============================================================================
+// Color Palette (from data/presets.json - single source of truth)
+// ============================================================================
+
+/// Get entire color palette as JSON
+#[wasm_bindgen(js_name = "getColorsJson")]
+pub fn get_colors_json() -> String {
+    presets::get_colors_json()
+}
+
+/// Get a color by name with # prefix (e.g., "#46AF8F")
+#[wasm_bindgen(js_name = "getColorHex")]
+pub fn get_color_hex(name: &str) -> String {
+    presets::get_color_hex(name).unwrap_or_default()
 }
 
 // Initialize panic hook for better error messages
@@ -576,7 +662,7 @@ impl DimensionInput {
 
     #[wasm_bindgen(getter)]
     pub fn original(&self) -> String {
-        self.0.original()
+        self.0.original().to_string()
     }
 
     #[wasm_bindgen]
@@ -591,7 +677,7 @@ impl DimensionInput {
 
     #[wasm_bindgen(getter)]
     pub fn error(&self) -> Option<String> {
-        self.0.error()
+        self.0.error().map(|s| s.to_string())
     }
 
     #[wasm_bindgen(getter, js_name = "wasFractional")]
@@ -648,7 +734,7 @@ impl ParsedDimension {
 
     #[wasm_bindgen(getter)]
     pub fn display(&self) -> String {
-        self.0.display()
+        self.0.display().to_string()
     }
 
     #[wasm_bindgen(getter, js_name = "wasFractional")]
@@ -658,7 +744,7 @@ impl ParsedDimension {
 
     #[wasm_bindgen(getter)]
     pub fn error(&self) -> Option<String> {
-        self.0.error()
+        self.0.error().map(|s| s.to_string())
     }
 
     #[wasm_bindgen(getter, js_name = "isValid")]
@@ -762,6 +848,11 @@ impl ValidationConfig {
     #[wasm_bindgen(setter, js_name = "maxOpening")]
     pub fn set_max_opening(&mut self, val: f64) { self.0.max_opening = val; }
 
+    #[wasm_bindgen(getter, js_name = "maxArtworkDimension")]
+    pub fn max_artwork_dimension(&self) -> f64 { self.0.max_artwork_dimension }
+    #[wasm_bindgen(setter, js_name = "maxArtworkDimension")]
+    pub fn set_max_artwork_dimension(&mut self, val: f64) { self.0.max_artwork_dimension = val; }
+
     #[wasm_bindgen(getter, js_name = "minRabbet")]
     pub fn min_rabbet(&self) -> f64 { self.0.min_rabbet }
     #[wasm_bindgen(setter, js_name = "minRabbet")]
@@ -833,34 +924,18 @@ impl ValidationConfig {
     pub fn set_warn_extreme_aspect_ratio(&mut self, val: f64) { self.0.warn_extreme_aspect_ratio = val; }
 }
 
-/// WASM wrapper for TypicalRanges
-#[wasm_bindgen]
-pub struct TypicalRanges(validation::TypicalRanges);
+/// Get typical ranges as JSON (all fields from core TypicalRanges)
+#[wasm_bindgen(js_name = "getTypicalRangesJson")]
+pub fn get_typical_ranges_json() -> String {
+    let ranges = validation::TypicalRanges::new();
+    serde_json::to_string(&ranges).unwrap_or_else(|_| "{}".to_string())
+}
 
-#[wasm_bindgen]
-impl TypicalRanges {
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> TypicalRanges {
-        TypicalRanges(validation::TypicalRanges::new())
-    }
-
-    #[wasm_bindgen(js_name = "getRangeHint")]
-    pub fn get_range_hint(&self, field: &str, use_mm: bool) -> String {
-        self.0.get_range_hint(field, use_mm)
-    }
-
-    // Expose all fields
-    #[wasm_bindgen(getter, js_name = "frameWidthMin")]
-    pub fn frame_width_min(&self) -> f64 { self.0.frame_width_min }
-    #[wasm_bindgen(setter, js_name = "frameWidthMin")]
-    pub fn set_frame_width_min(&mut self, val: f64) { self.0.frame_width_min = val; }
-
-    #[wasm_bindgen(getter, js_name = "frameWidthMax")]
-    pub fn frame_width_max(&self) -> f64 { self.0.frame_width_max }
-    #[wasm_bindgen(setter, js_name = "frameWidthMax")]
-    pub fn set_frame_width_max(&mut self, val: f64) { self.0.frame_width_max = val; }
-
-    // ... (abbreviated for space - add all other fields similarly)
+/// Get a range hint string for a specific field
+#[wasm_bindgen(js_name = "getTypicalRangeHint")]
+pub fn get_typical_range_hint(field: &str, use_mm: bool) -> String {
+    let ranges = validation::TypicalRanges::new();
+    ranges.get_range_hint(field, use_mm)
 }
 
 /// Re-export WasmValidationResult from core with wasm_bindgen
@@ -915,7 +990,7 @@ impl WasmValidationResult {
 
 /// Validate a frame design
 #[wasm_bindgen(js_name = "validateDesign")]
-pub fn validate_design_wasm(design: &WasmFrameDesign, config: &ValidationConfig) -> WasmValidationResult {
+pub fn validate_design(design: &WasmFrameDesign, config: &ValidationConfig) -> WasmValidationResult {
     // Call the core validate_design and wrap the result
     let result = validation::validate_design(&design.inner, &config.0);
     // Wrap ValidationResult in WasmValidationResult using constructor
@@ -925,6 +1000,19 @@ pub fn validate_design_wasm(design: &WasmFrameDesign, config: &ValidationConfig)
 // ============================================================================
 // History Functions (JSON-based API for simplicity)
 // ============================================================================
+
+/// Parse history JSON, returning a structured error JSON on failure
+fn parse_history(json: &str) -> Result<history::DesignHistory, String> {
+    history::DesignHistory::from_json(json).map_err(|e| e.to_string())
+}
+
+/// Build a JSON error response preserving the original history
+fn history_error(msg: &str, original_json: &str) -> String {
+    serde_json::json!({
+        "error": msg,
+        "history": original_json,
+    }).to_string()
+}
 
 /// Create empty history with default max entries
 #[wasm_bindgen(js_name = "createHistory")]
@@ -943,28 +1031,19 @@ pub fn create_history_with_max(max_entries: usize) -> String {
 /// Add entry to history
 ///
 /// Returns JSON with updated history and whether it was a new entry:
-/// { "history": "...", "isNew": true/false }
+/// `{ "history": "...", "isNew": true/false }`
+/// On parse error returns: `{ "error": "...", "history": <original> }`
 /// If force_new is true, always creates a new entry even if design already exists.
 #[wasm_bindgen(js_name = "addToHistory")]
 pub fn add_to_history(history_json: &str, design_json: &str, timestamp: i64, title: &str, force_new: bool) -> String {
-    let mut hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+    let mut hist = match parse_history(history_json) {
         Ok(h) => h,
-        Err(_) => {
-            return serde_json::json!({
-                "history": history_json,
-                "isNew": false
-            }).to_string();
-        }
+        Err(e) => return history_error(&format!("history parse: {}", e), history_json),
     };
 
     let design: FrameDesign = match serde_json::from_str(design_json) {
         Ok(d) => d,
-        Err(_) => {
-            return serde_json::json!({
-                "history": history_json,
-                "isNew": false
-            }).to_string();
-        }
+        Err(e) => return history_error(&format!("design parse: {}", e), history_json),
     };
 
     let is_new = if title.is_empty() {
@@ -982,12 +1061,13 @@ pub fn add_to_history(history_json: &str, design_json: &str, timestamp: i64, tit
 
 /// Get history entry at index as JSON
 ///
-/// Returns entry JSON or empty string if index invalid
+/// Returns entry JSON, empty string if index invalid,
+/// or `{ "error": "..." }` on parse failure
 #[wasm_bindgen(js_name = "getHistoryEntry")]
 pub fn get_history_entry(history_json: &str, index: usize) -> String {
-    let hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+    let hist = match parse_history(history_json) {
         Ok(h) => h,
-        Err(_) => return String::new(),
+        Err(e) => return history_error(&format!("history parse: {}", e), history_json),
     };
 
     match hist.get(index) {
@@ -998,12 +1078,12 @@ pub fn get_history_entry(history_json: &str, index: usize) -> String {
 
 /// Remove history entry at index
 ///
-/// Returns updated history JSON
+/// Returns updated history JSON, or `{ "error": "..." }` on parse failure
 #[wasm_bindgen(js_name = "removeHistoryEntry")]
 pub fn remove_history_entry(history_json: &str, index: usize) -> String {
-    let mut hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+    let mut hist = match parse_history(history_json) {
         Ok(h) => h,
-        Err(_) => return history_json.to_string(),
+        Err(e) => return history_error(&format!("history parse: {}", e), history_json),
     };
 
     hist.remove(index);
@@ -1012,12 +1092,12 @@ pub fn remove_history_entry(history_json: &str, index: usize) -> String {
 
 /// Update history entry title
 ///
-/// Returns updated history JSON
+/// Returns updated history JSON, or `{ "error": "..." }` on parse failure
 #[wasm_bindgen(js_name = "updateHistoryTitle")]
 pub fn update_history_title(history_json: &str, index: usize, title: &str) -> String {
-    let mut hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+    let mut hist = match parse_history(history_json) {
         Ok(h) => h,
-        Err(_) => return history_json.to_string(),
+        Err(e) => return history_error(&format!("history parse: {}", e), history_json),
     };
 
     hist.update_title(index, title.to_string());
@@ -1033,24 +1113,23 @@ pub fn clear_history() -> String {
     history.to_json().unwrap_or_else(|_| "{}".to_string())
 }
 
-/// Get history length
+/// Get history length (returns 0 on parse failure)
 #[wasm_bindgen(js_name = "getHistoryLength")]
 pub fn get_history_length(history_json: &str) -> usize {
-    let hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
-        Ok(h) => h,
-        Err(_) => return 0,
-    };
-    hist.len()
+    match parse_history(history_json) {
+        Ok(h) => h.len(),
+        Err(_) => 0,
+    }
 }
 
 /// Set max entries and enforce limit
 ///
-/// Returns updated history JSON
+/// Returns updated history JSON, or `{ "error": "..." }` on parse failure
 #[wasm_bindgen(js_name = "setHistoryMaxEntries")]
 pub fn set_history_max_entries(history_json: &str, max_entries: usize) -> String {
-    let mut hist: history::DesignHistory = match history::DesignHistory::from_json(history_json) {
+    let mut hist = match parse_history(history_json) {
         Ok(h) => h,
-        Err(_) => return history_json.to_string(),
+        Err(e) => return history_error(&format!("history parse: {}", e), history_json),
     };
 
     hist.set_max_entries(max_entries);

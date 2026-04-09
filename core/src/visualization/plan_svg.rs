@@ -41,14 +41,17 @@ pub(crate) fn render_corner_detail(
     let content_inset = frame_w - rabbet_w;
 
     // L-shape extends RIGHT from cx, and UP from cy
-    let arm_right = bx + bw - cx - 16.0; // right padding for matboard label
-    let arm_up = cy - by - 30.0;        // top padding for title + breathing room
+    let arm_right = bx + bw - cx - 16.0; // 16px: keeps matboard/artwork label inside box edge
+    let arm_up = cy - by - 30.0;        // 30px: reserves space for "Corner Detail" title + breathing room
 
     svg.push_str("  <g id=\"corner-detail\">\n");
 
-    // Clip path for zoomed content (inset from box edges for breathing room)
+    // Clip path for zoomed content (inset from box edges for breathing room).
+    // Left/right/bottom use a small 4px margin to keep strokes from touching the box border.
+    // Top uses a larger 24px inset to avoid clipping the "Corner Detail" title text that
+    // renders above the zoomed geometry but inside the box.
     let clip_inset_left = 4.0;
-    let clip_inset_top = 24.0;   // room for title text
+    let clip_inset_top = 24.0;
     let clip_inset_right = 4.0;
     let clip_inset_bottom = 4.0;
     let clip_id = "corner-detail-clip";
@@ -88,7 +91,21 @@ pub(crate) fn render_corner_detail(
     let fi_y = cy - frame_w;       // frame inner y
     let top_y = cy - arm_up;       // top of visible area
     let right_x = cx + arm_right;  // right of visible area
-    // Single L-shaped path: no overlapping rectangles
+    // L-shaped rabbet overlap fill — traces the region between the content edge
+    // (matboard/artwork) and the frame inner edge, which is the rabbet overlap zone.
+    //
+    // ASCII diagram (corner at bottom-left, looking from outside):
+    //
+    //     ci_x  fi_x
+    //       |    |
+    //  top ─┌────┐
+    //       │    │           ← vertical strip (content_inset to frame_inner)
+    //  ci_y ├────┴───────┐  ← horizontal strip continues rightward
+    //  fi_y │            │
+    //       └────────────┘
+    //                 right_x
+    //
+    // Path walks clockwise: start top-left → down → right → up → left → up → close.
     svg.push_str(&format!(
         "    <path d=\"M{:.2},{:.2} V{:.2} H{:.2} V{:.2} H{:.2} V{:.2} H{:.2} Z\" fill=\"{}\" fill-opacity=\"0.10\" stroke=\"none\"/>\n",
         ci_x, top_y,     // top-left of vertical strip

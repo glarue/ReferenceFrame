@@ -12,7 +12,7 @@ use super::style::DiagramStyle;
 use super::geometry::{PlanViewGeometry, SectionViewGeometry};
 use super::callouts::{generate_plan_callouts, generate_section_callouts};
 use super::layout::{layout_plan_callouts, LayoutResult};
-use super::collision::{self, FlexElement, ElementId, FlexRule, Axis};
+use super::collision::{self, FlexElement, ElementId, FlexPriority, FlexRule, Axis};
 use super::svg_util::*;
 use super::section_svg::{build_section_svg, generate_title_block};
 use super::plan_svg::build_plan_svg;
@@ -97,6 +97,12 @@ fn generate_plan_view(
 
 /// Post-layout collision pass: collect positioned elements, detect overlaps,
 /// and shift flexible elements to resolve collisions.
+///
+/// Pipeline:
+/// 1. Collect immovable arrow stubs, flexible corner detail, callout labels, and thumbnail.
+/// 2. Run the constraint solver to resolve overlaps.
+/// 3. Apply positional adjustments back to geometry and layout.
+/// 4. Post-solver fixups: re-center thumbnail in landscape, shrink in portrait.
 fn run_collision_pass(
     geometry: &mut PlanViewGeometry,
     layout: &mut LayoutResult,
@@ -104,10 +110,34 @@ fn run_collision_pass(
 ) {
     let mut elements: Vec<FlexElement> = Vec::new();
 
+    collect_arrow_stub_elements(&mut elements, layout, style);
+    collect_corner_detail_element(&mut elements, geometry, style);
+    collect_callout_label_elements(&mut elements, layout, style);
+    collect_thumbnail_element(&mut elements, geometry, layout, style);
+
+    if elements.len() < 2 {
+        return;
+    }
+
+    let adjustments = resolve_collisions(&mut elements, layout);
+    apply_collision_adjustments(geometry, layout, &adjustments);
+    recenter_landscape_thumbnail(geometry);
+    shrink_portrait_thumbnail(geometry, style);
+}
+
+/// Collect arrow stub rects from bottom callouts that are in tight-space mode.
+///
+/// When a bottom callout's extent span is too narrow for arrows to fit inside,
+/// the SVG renderer draws outward-facing arrow stubs. These stubs are immovable
+/// collision obstacles that other elements (especially corner detail) must avoid.
+fn collect_arrow_stub_elements(
+    elements: &mut Vec<FlexElement>,
+    layout: &LayoutResult,
+    style: &DiagramStyle,
+) {
     let arrow_tip_size = arrow_geometry::tip_extension(style.dimension_stroke_width);
     let stub_len = arrow_tip_size * 2.5;
 
-    // Collect arrow stub rects from bottom callouts in tight-space mode
     for (i, pc) in layout.positioned_callouts.iter().enumerate() {
         if pc.actual_side != Side::Bottom {
             continue;
@@ -118,9 +148,10 @@ fn run_collision_pass(
             continue;
         }
 
-        // Left stub: extends leftward from extent_start.x
         let dim_y = pc.dimension_line_position;
-        let stub_height = arrow_tip_size * 2.0; // approximate visual height of arrow
+        let stub_height = arrow_tip_size * 2.0;
+
+        // Left stub: extends leftward from extent_start.x
         elements.push(FlexElement {
             id: ElementId::ArrowStub { callout: i, side: Side::Left },
             bounds: Rect::new(
@@ -129,8 +160,8 @@ fn run_collision_pass(
                 stub_len,
                 stub_height,
             ),
-            flex: FlexRule::None, // stubs are immovable
-            priority: 0,
+            flex: FlexRule::None,
+            priority: FlexPriority::Immovable,
         });
 
         // Right stub: extends rightward from extent_end.x
@@ -143,15 +174,23 @@ fn run_collision_pass(
                 stub_height,
             ),
             flex: FlexRule::None,
-            priority: 0,
+            priority: FlexPriority::Immovable,
         });
     }
+}
 
-    // Corner detail box (can shift left to clear arrow stubs, or right to clear left-side callout labels)
+/// Collect the corner detail box as a flexible element.
+///
+/// The corner detail can shift left to clear arrow stubs, or right to clear
+/// left-side callout labels (e.g. MatCutHeight on portrait frames). Its
+/// rightward range is capped at the frame's vertical centerline.
+fn collect_corner_detail_element(
+    elements: &mut Vec<FlexElement>,
+    geometry: &PlanViewGeometry,
+    style: &DiagramStyle,
+) {
     if let Some(cd) = &geometry.corner_detail {
         let max_shift_left = cd.box_rect.x - style.margin;
-        // Allow rightward shifts up to the frame's vertical centerline so the corner detail
-        // can clear a left-side callout label (e.g. MatCutHeight on portrait frames).
         let frame_center_x = geometry.frame_outer.x + geometry.frame_outer.width / 2.0;
         let max_shift_right = (frame_center_x - cd.box_rect.right()).max(0.0);
         elements.push(FlexElement {
@@ -161,11 +200,21 @@ fn run_collision_pass(
                 axis: Axis::X,
                 range: (-max_shift_left, max_shift_right),
             },
-            priority: 2,
+            priority: FlexPriority::CornerDetail,
         });
     }
+}
 
-    // Callout labels (can shift outward along their side's normal)
+/// Collect callout labels as flexible elements.
+///
+/// Each callout can shift outward along its side's normal direction
+/// (top callouts shift up, bottom down, left shifts left, right shifts right)
+/// up to 3x the dimension offset step.
+fn collect_callout_label_elements(
+    elements: &mut Vec<FlexElement>,
+    layout: &LayoutResult,
+    style: &DiagramStyle,
+) {
     for (i, pc) in layout.positioned_callouts.iter().enumerate() {
         let (axis, range) = match pc.actual_side {
             Side::Top => (Axis::Y, (-style.dimension_offset_step * 3.0, 0.0)),
@@ -177,26 +226,28 @@ fn run_collision_pass(
             id: ElementId::Callout(i),
             bounds: pc.label_bounds,
             flex: FlexRule::ShiftAxis { axis, range },
-            priority: 3,
+            priority: FlexPriority::Callout,
         });
     }
+}
 
-    // Thumbnail: axis depends on orientation.
-    // Landscape (below frame) → shift along X to dodge corner detail / mat cut.
-    // Portrait (left of frame) → shift along Y to dodge corner detail.
-    //
-    // For portrait layout the text labels render BELOW the rect. Extend the collision
-    // bounds downward to include those labels so the solver reserves enough clearance
-    // above the corner detail for the rect AND its "Actual proportions" text.
-    //
-    // Portrait setup: left-side callout labels (e.g. MatCutHeight) share the same
-    // x-band as the thumbnail. Their axis is X so they can't resolve a Y overlap —
-    // the solver would oscillate. Instead:
-    //   1. Pre-nudge the thumbnail below all left-side label bounds.
-    //   2. Cap the upward flex range at the label floor so the solver can never push
-    //      the thumbnail back into callout text.
-    //   3. Extend collision bounds downward to include "Actual proportions" text labels.
-    //   4. The Callout↔Thumbnail skip below prevents residual oscillation.
+/// Collect the proportional thumbnail as a flexible element.
+///
+/// Axis depends on orientation:
+/// - Landscape (below frame): shifts along X to dodge corner detail / mat cut.
+/// - Portrait (left of frame): shifts along Y to dodge corner detail.
+///
+/// For portrait layout, pre-nudges the thumbnail below all left-side callout
+/// labels to prevent oscillation (left-side callouts flex on X, thumbnail on Y,
+/// so the solver can't resolve their Y overlap). Collision bounds extend
+/// downward to include "Actual proportions" text labels.
+fn collect_thumbnail_element(
+    elements: &mut Vec<FlexElement>,
+    geometry: &mut PlanViewGeometry,
+    layout: &LayoutResult,
+    style: &DiagramStyle,
+) {
+    // Pre-nudge portrait thumbnail below left-side callout labels
     if let Some(thumb) = &mut geometry.thumbnail {
         let is_below_frame = thumb.top() >= geometry.frame_outer.bottom();
         if !is_below_frame {
@@ -210,6 +261,7 @@ fn run_collision_pass(
             }
         }
     }
+
     if let Some(thumb) = &geometry.thumbnail {
         let is_below_frame = thumb.top() >= geometry.frame_outer.bottom();
         let tm = style.thumbnail_metrics();
@@ -234,26 +286,25 @@ fn run_collision_pass(
             id: ElementId::Thumbnail,
             bounds: collision_bounds,
             flex: FlexRule::ShiftAxis { axis, range },
-            priority: 4,
+            priority: FlexPriority::Thumbnail,
         });
     }
+}
 
-    if elements.len() < 2 {
-        return;
-    }
-
-    // Run the resolver.
-    // Build a side lookup for each callout index, so the skip closure can check
-    // whether two callouts share the same flex axis.
+/// Run the collision resolver with skip rules for incompatible flex axes.
+///
+/// Skips pairs whose single-axis flex can't resolve the overlap:
+/// - Callout <-> Thumbnail: left/right callouts flex on X, portrait thumbnail on Y.
+/// - Cross-side Callout <-> Callout: top/bottom flex on Y, left/right on X.
+///   Shifting along one axis doesn't clear a perpendicular overlap.
+fn resolve_collisions(
+    elements: &mut Vec<FlexElement>,
+    layout: &LayoutResult,
+) -> Vec<collision::Adjustment> {
     let callout_sides: Vec<Side> = layout.positioned_callouts.iter()
         .map(|pc| pc.actual_side)
         .collect();
 
-    // Skip pairs whose single-axis flex can't resolve the overlap:
-    //  • Callout↔Thumbnail: left/right callouts flex on X, portrait thumbnail on Y.
-    //  • Cross-side Callout↔Callout: top/bottom flex on Y, left/right on X. Shifting
-    //    along one axis doesn't clear an overlap on the perpendicular axis, causing
-    //    cascading shifts that collapse dimension lines to the same position.
     let skip = |a: collision::ElementId, b: collision::ElementId| {
         use collision::ElementId::{Callout, Thumbnail};
         match (&a, &b) {
@@ -266,17 +317,26 @@ fn run_collision_pass(
             _ => false,
         }
     };
-    let adjustments = collision::resolve(&mut elements, 4.0, 4, Some(&skip));
+    collision::resolve(elements, 4.0, 4, Some(&skip))
+}
 
-    // Apply adjustments
-    let mut corner_detail_dx = 0.0_f64;
-    for adj in &adjustments {
+/// Apply solver adjustments back to geometry and layout structures.
+///
+/// Translates the solver's new bounding boxes into positional deltas for
+/// corner detail (shifts box + corner origin), thumbnail (shifts rect +
+/// annotation bounds), and callouts (shifts label + dimension line).
+fn apply_collision_adjustments(
+    geometry: &mut PlanViewGeometry,
+    layout: &mut LayoutResult,
+    adjustments: &[collision::Adjustment],
+) {
+    for adj in adjustments {
         match adj.id {
             ElementId::CornerDetail => {
                 if let Some(cd) = &mut geometry.corner_detail {
-                    corner_detail_dx = adj.new_bounds.x - cd.box_rect.x;
+                    let dx = adj.new_bounds.x - cd.box_rect.x;
                     cd.box_rect = adj.new_bounds;
-                    cd.corner_origin.x += corner_detail_dx;
+                    cd.corner_origin.x += dx;
                     geometry.annotation_bounds.corner_detail_box = Some(adj.new_bounds);
                 }
             }
@@ -307,12 +367,18 @@ fn run_collision_pass(
             ElementId::ArrowStub { .. } => {}
         }
     }
+}
 
-    // Re-center thumbnail between corner detail and mat cut annotation,
-    // but only when they share the same horizontal band (landscape layout).
-    // Guard: only apply when thumbnail is below the frame (landscape) — for portrait frames the
-    // thumbnail is to the left and should never be repositioned horizontally here.
-    if geometry.thumbnail_below {
+/// Re-center thumbnail between corner detail and mat cut annotation (landscape only).
+///
+/// After the solver shifts elements, the thumbnail may no longer be centered in
+/// the gap between the corner detail box and the mat cut extent lines. This
+/// fixup repositions it for visual balance, but only in landscape layout where
+/// the thumbnail sits below the frame in the same horizontal band.
+fn recenter_landscape_thumbnail(geometry: &mut PlanViewGeometry) {
+    if !geometry.thumbnail_below {
+        return;
+    }
     if let (Some(cd), Some(thumb)) = (&geometry.corner_detail, &geometry.thumbnail) {
         let v_overlap = thumb.top() < cd.box_rect.bottom() && thumb.bottom() > cd.box_rect.top();
         if v_overlap {
@@ -336,22 +402,26 @@ fn run_collision_pass(
             }
         }
     }
-    } // end thumbnail_below guard
+}
 
-    // Post-collision fallback: if thumbnail + text labels still overlap the corner detail
-    // (e.g. solver was margin-constrained on extreme-AR frames), shrink the rect to fit.
-    // Text labels are a fixed size; only the rect height is reduced. Portrait only.
-    if !geometry.thumbnail_below {
-        if let (Some(thumb), Some(cd)) = (&geometry.thumbnail, geometry.corner_detail.as_ref()) {
-            let tm = style.thumbnail_metrics();
-            let text_below = tm.text_below_height;
-            let clearance = 4.0;
-            let available_h = cd.box_rect.top() - clearance - text_below - thumb.y;
-            let min_thumb_h = 10.0;
-            if available_h < thumb.height && available_h >= min_thumb_h {
-                if let Some(thumb) = &mut geometry.thumbnail {
-                    thumb.height = available_h;
-                }
+/// Shrink portrait thumbnail if it still overlaps the corner detail after solving.
+///
+/// When the solver is margin-constrained on extreme-AR frames, the thumbnail +
+/// its text labels may still overlap the corner detail box. Text labels are a
+/// fixed size, so only the thumbnail rect height is reduced to fit.
+fn shrink_portrait_thumbnail(geometry: &mut PlanViewGeometry, style: &DiagramStyle) {
+    if geometry.thumbnail_below {
+        return;
+    }
+    if let (Some(thumb), Some(cd)) = (&geometry.thumbnail, geometry.corner_detail.as_ref()) {
+        let tm = style.thumbnail_metrics();
+        let text_below = tm.text_below_height;
+        let clearance = 4.0;
+        let available_h = cd.box_rect.top() - clearance - text_below - thumb.y;
+        let min_thumb_h = 10.0;
+        if available_h < thumb.height && available_h >= min_thumb_h {
+            if let Some(thumb) = &mut geometry.thumbnail {
+                thumb.height = available_h;
             }
         }
     }

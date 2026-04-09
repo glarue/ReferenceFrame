@@ -699,9 +699,16 @@ pub(crate) fn build_section_svg(
         true, true, false, // both arrows
     ));
 
-    // Material thickness labels with dog-leg leader lines
-    // Labels positioned to the right in a vertical column
-    // Minimal spacing for maximum diagram space
+    // Material thickness labels with dog-leg leader lines.
+    //
+    // Material labels use a dog-leg leader line layout:
+    //   1. Short horizontal segment with arrow from the material layer's right edge
+    //   2. Angled connector line from the horizontal endpoint to the label position
+    // This keeps labels clear of the stacked material geometry while
+    // maintaining visual connection to each specific layer.
+    //
+    // Labels are evenly spaced in a vertical column to the right, centered
+    // on the material stack midpoint for a balanced appearance.
     let base_offset = style.section_material_label_offset.min(geometry.scale * 0.4 + 12.0);
     let label_base_x = geometry.glazing.right() + base_offset;
     let label_spacing = style.label_font_size * 1.6; // Scale with font size (screen: ~21px, PDF: ~38px)

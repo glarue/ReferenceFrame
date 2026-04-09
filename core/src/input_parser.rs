@@ -69,8 +69,8 @@ impl DimensionInput {
     }
 
     /// Get the original input string
-    pub fn original(&self) -> String {
-        self.original.clone()
+    pub fn original(&self) -> &str {
+        &self.original
     }
 
     /// Parse a new input string
@@ -88,8 +88,8 @@ impl DimensionInput {
     }
 
     /// Get error message if invalid
-    pub fn error(&self) -> Option<String> {
-        self.error.clone()
+    pub fn error(&self) -> Option<&str> {
+        self.error.as_deref()
     }
 
     /// Whether the input was fractional
@@ -141,7 +141,10 @@ impl DimensionInput {
 // Legacy API (for backwards compatibility)
 // ============================================================================
 
-/// Result of parsing a dimension input (legacy struct)
+/// Result of parsing a dimension input.
+/// Legacy API -- prefer `DimensionInput` for all new code. This struct is retained
+/// only for backwards compatibility with the WASM bindings layer.
+#[deprecated(since = "1.5.0", note = "Use DimensionInput instead")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedDimension {
     /// The decimal value
@@ -159,16 +162,16 @@ impl ParsedDimension {
         self.decimal
     }
 
-    pub fn display(&self) -> String {
-        self.display.clone()
+    pub fn display(&self) -> &str {
+        &self.display
     }
 
     pub fn was_fractional(&self) -> bool {
         self.was_fractional
     }
 
-    pub fn error(&self) -> Option<String> {
-        self.error.clone()
+    pub fn error(&self) -> Option<&str> {
+        self.error.as_deref()
     }
 
     pub fn is_valid(&self) -> bool {
@@ -737,5 +740,122 @@ mod tests {
         dim.set_value(3.5);
         assert_eq!(dim.value(), 3.5);
         assert_eq!(dim.as_fraction(16), "3 1/2");
+    }
+
+    // ==========================================
+    // Unicode fraction coverage
+    // ==========================================
+
+    #[test]
+    fn test_all_unicode_fractions() {
+        // Every unicode fraction in unicode_to_ascii
+        let cases: &[(&str, f64)] = &[
+            // Halves
+            ("½", 0.5),
+            // Thirds
+            ("⅓", 1.0 / 3.0),
+            ("⅔", 2.0 / 3.0),
+            // Quarters
+            ("¼", 0.25),
+            ("¾", 0.75),
+            // Fifths
+            ("⅕", 0.2),
+            ("⅖", 0.4),
+            ("⅗", 0.6),
+            ("⅘", 0.8),
+            // Sixths
+            ("⅙", 1.0 / 6.0),
+            ("⅚", 5.0 / 6.0),
+            // Eighths
+            ("⅛", 0.125),
+            ("⅜", 0.375),
+            ("⅝", 0.625),
+            ("⅞", 0.875),
+            // Sevenths, ninths, tenths
+            ("⅐", 1.0 / 7.0),
+            ("⅑", 1.0 / 9.0),
+            ("⅒", 0.1),
+        ];
+        for (input, expected) in cases {
+            let dim = DimensionInput::new(input);
+            assert!(dim.is_valid(), "Unicode '{}' should be valid", input);
+            assert!(
+                (dim.value() - expected).abs() < 0.001,
+                "Unicode '{}': expected {}, got {}",
+                input,
+                expected,
+                dim.value()
+            );
+            assert!(
+                dim.was_fractional(),
+                "Unicode '{}' should be fractional",
+                input
+            );
+        }
+    }
+
+    #[test]
+    fn test_unicode_mixed_with_whole_numbers() {
+        let cases: &[(&str, f64)] = &[
+            ("3½", 3.5),
+            ("2¼", 2.25),
+            ("5⅛", 5.125),
+            ("1⅓", 1.0 + 1.0 / 3.0),
+            ("4¾", 4.75),
+            ("10⅜", 10.375),
+            ("7⅝", 7.625),
+            ("2⅞", 2.875),
+            ("6⅕", 6.2),
+            ("1⅐", 1.0 + 1.0 / 7.0),
+            ("3⅑", 3.0 + 1.0 / 9.0),
+            ("2⅒", 2.1),
+        ];
+        for (input, expected) in cases {
+            let dim = DimensionInput::new(input);
+            assert!(dim.is_valid(), "Mixed '{}' should be valid", input);
+            assert!(
+                (dim.value() - expected).abs() < 0.001,
+                "Mixed '{}': expected {}, got {}",
+                input,
+                expected,
+                dim.value()
+            );
+            assert!(dim.was_fractional(), "Mixed '{}' should be fractional", input);
+        }
+    }
+
+    #[test]
+    fn test_unicode_with_whitespace() {
+        // Leading/trailing whitespace
+        let cases: &[(&str, f64)] = &[
+            (" ½ ", 0.5),
+            ("  ¾", 0.75),
+            ("⅜  ", 0.375),
+            ("  ⅝  ", 0.625),
+        ];
+        for (input, expected) in cases {
+            let dim = DimensionInput::new(input);
+            assert!(dim.is_valid(), "Whitespace '{}' should be valid", input);
+            assert!(
+                (dim.value() - expected).abs() < 0.001,
+                "Whitespace '{}': expected {}, got {}",
+                input,
+                expected,
+                dim.value()
+            );
+        }
+    }
+
+    #[test]
+    fn test_unicode_adjacent_vs_spaced() {
+        // "2½" (no space) and "2 ½" (with space) should both produce 2.5
+        let adjacent = DimensionInput::new("2½");
+        let spaced = DimensionInput::new("2 ½");
+        assert!(adjacent.is_valid());
+        assert!(spaced.is_valid());
+        assert!((adjacent.value() - 2.5).abs() < 0.001);
+        assert!((spaced.value() - 2.5).abs() < 0.001);
+        assert!(adjacent.was_fractional());
+        assert!(spaced.was_fractional());
     }
 }

@@ -4,6 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Tolerance for matching common aspect ratios (~1% of ratio value).
+/// At 0.01, a 4:5 ratio (0.8) matches anything in [0.79, 0.81].
+const ASPECT_RATIO_MATCH_TOLERANCE: f64 = 0.01;
+
 /// Common aspect ratios with their display names
 /// Format: (height, width, display_name)
 const COMMON_RATIOS: &[(i32, i32, &str)] = &[
@@ -25,7 +29,7 @@ pub fn get_aspect_ratio_display_from_ratio(ratio: f64) -> String {
 
     // Check against common ratios
     for &(h, w, name) in COMMON_RATIOS {
-        if (ratio - h as f64 / w as f64).abs() < 0.01 {
+        if (ratio - h as f64 / w as f64).abs() < ASPECT_RATIO_MATCH_TOLERANCE {
             return name.to_string();
         }
     }
@@ -35,14 +39,14 @@ pub fn get_aspect_ratio_display_from_ratio(ratio: f64) -> String {
     if ratio < 1.0 {
         let inv_ratio = 1.0 / ratio;
         // Use integer if it's a whole number, otherwise 2 decimals
-        if (inv_ratio - inv_ratio.round()).abs() < 0.01 {
+        if (inv_ratio - inv_ratio.round()).abs() < ASPECT_RATIO_MATCH_TOLERANCE {
             format!("1:{}", inv_ratio.round() as i32)
         } else {
             format!("1:{:.2}", inv_ratio)
         }
     } else {
         // Use integer if it's a whole number, otherwise 2 decimals
-        if (ratio - ratio.round()).abs() < 0.01 {
+        if (ratio - ratio.round()).abs() < ASPECT_RATIO_MATCH_TOLERANCE {
             format!("{}:1", ratio.round() as i32)
         } else {
             format!("{:.2}:1", ratio)
