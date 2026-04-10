@@ -255,4 +255,242 @@ mod tests {
         assert!((decoded.rabbet_width - 0.25).abs() < 0.0001);
         assert!((decoded.rabbet_depth - 0.375).abs() < 0.0001);
     }
+
+    // --- Legacy 28-byte format ---
+
+    #[test]
+    fn test_legacy_28_byte_decode() {
+        // Manually construct a 28-byte legacy payload:
+        //   5 × uint24: h=10.0, w=8.0, mw=2.0, fw=1.5, fd=0.75
+        //   5 × uint16: gt=0.093, mt=0.055, at=0.008, bt=0.125, rd=0.375
+        //   1 × uint16: bw=0.125
+        //   1 × byte:   flags=0x01 (include_mat=true, unit_mm=false)
+        // (no separate rabbet_width field — legacy format)
+        let mut payload: Vec<u8> = Vec::with_capacity(28);
+        payload.extend_from_slice(&pack_uint24(10.0));
+        payload.extend_from_slice(&pack_uint24(8.0));
+        payload.extend_from_slice(&pack_uint24(2.0));
+        payload.extend_from_slice(&pack_uint24(1.5));
+        payload.extend_from_slice(&pack_uint24(0.75));
+        payload.extend_from_slice(&pack_uint16(0.093));
+        payload.extend_from_slice(&pack_uint16(0.055));
+        payload.extend_from_slice(&pack_uint16(0.008));
+        payload.extend_from_slice(&pack_uint16(0.125));
+        // Legacy: rd then bw then flags (no rw field)
+        payload.extend_from_slice(&pack_uint16(0.375));
+        payload.extend_from_slice(&pack_uint16(0.125));
+        payload.push(0x01);
+        assert_eq!(payload.len(), 28);
+
+        let b64 = URL_SAFE_NO_PAD.encode(&payload);
+        let url = format!("https://example.com/?d={}", b64);
+        let decoded = decode_shareable_url(&url).unwrap();
+
+        assert!((decoded.artwork_height - 10.0).abs() < 0.0001);
+        assert!((decoded.artwork_width - 8.0).abs() < 0.0001);
+        // Legacy: rabbet_width should equal rabbet_depth
+        assert!((decoded.rabbet_width - 0.375).abs() < 0.0001);
+        assert!((decoded.rabbet_depth - 0.375).abs() < 0.0001);
+        assert!((decoded.blade_width - 0.125).abs() < 0.0001);
+        assert!(decoded.include_mat);
+        assert!(!decoded.unit_mm);
+    }
+
+    // --- Invalid base64 / URL inputs ---
+
+    #[test]
+    fn test_decode_empty_string() {
+        let result = decode_shareable_url("");
+        assert!(matches!(result, Err(DecodeError::InvalidUrl)));
+    }
+
+    #[test]
+    fn test_decode_missing_query_param() {
+        let result = decode_shareable_url("https://example.com/");
+        assert!(matches!(result, Err(DecodeError::InvalidUrl)));
+    }
+
+    #[test]
+    fn test_decode_garbage_base64() {
+        let result = decode_shareable_url("https://example.com/?d=not-base64!!!");
+        assert!(matches!(result, Err(DecodeError::InvalidBase64)));
+    }
+
+    #[test]
+    fn test_decode_valid_base64_too_short() {
+        // 4 bytes — valid base64, wrong length
+        let b64 = URL_SAFE_NO_PAD.encode(&[0u8; 4]);
+        let url = format!("https://example.com/?d={}", b64);
+        let result = decode_shareable_url(&url);
+        assert!(matches!(result, Err(DecodeError::TruncatedData)));
+    }
+
+    #[test]
+    fn test_decode_valid_base64_too_long() {
+        let b64 = URL_SAFE_NO_PAD.encode(&[0u8; 40]);
+        let url = format!("https://example.com/?d={}", b64);
+        let result = decode_shareable_url(&url);
+        assert!(matches!(result, Err(DecodeError::TruncatedData)));
+    }
+
+    #[test]
+    fn test_decode_valid_base64_29_bytes() {
+        // 29 bytes — between the two valid sizes
+        let b64 = URL_SAFE_NO_PAD.encode(&[0u8; 29]);
+        let url = format!("https://example.com/?d={}", b64);
+        let result = decode_shareable_url(&url);
+        assert!(matches!(result, Err(DecodeError::TruncatedData)));
+    }
+
+    // --- Precision round-trip at boundaries ---
+
+    #[test]
+    fn test_roundtrip_very_small_value() {
+        let params = ShareableParams {
+            artwork_height: 0.0001,
+            artwork_width: 0.0001,
+            mat_width: 0.0,
+            frame_width: 0.0001,
+            frame_depth: 0.0001,
+            glazing_thickness: 0.0001,
+            matboard_thickness: 0.0001,
+            artwork_thickness: 0.0001,
+            backing_thickness: 0.0001,
+            rabbet_width: 0.0001,
+            rabbet_depth: 0.0001,
+            blade_width: 0.0001,
+            include_mat: false,
+            unit_mm: false,
+        };
+        let encoded = generate_shareable_url(&params);
+        let url = format!("https://example.com/?d={}", encoded);
+        let decoded = decode_shareable_url(&url).unwrap();
+        assert!((decoded.artwork_height - 0.0001).abs() < 0.00015);
+        assert!((decoded.glazing_thickness - 0.0001).abs() < 0.00015);
+    }
+
+    #[test]
+    fn test_roundtrip_zero_values() {
+        let params = ShareableParams {
+            artwork_height: 0.0,
+            artwork_width: 0.0,
+            mat_width: 0.0,
+            frame_width: 0.0,
+            frame_depth: 0.0,
+            glazing_thickness: 0.0,
+            matboard_thickness: 0.0,
+            artwork_thickness: 0.0,
+            backing_thickness: 0.0,
+            rabbet_width: 0.0,
+            rabbet_depth: 0.0,
+            blade_width: 0.0,
+            include_mat: false,
+            unit_mm: false,
+        };
+        let encoded = generate_shareable_url(&params);
+        let url = format!("https://example.com/?d={}", encoded);
+        let decoded = decode_shareable_url(&url).unwrap();
+        assert_eq!(decoded.artwork_height, 0.0);
+        assert_eq!(decoded.mat_width, 0.0);
+        assert_eq!(decoded.rabbet_width, 0.0);
+        assert!(!decoded.include_mat);
+        assert!(!decoded.unit_mm);
+    }
+
+    #[test]
+    fn test_roundtrip_max_uint24() {
+        // uint24 max: 0xFFFFFF = 16777215, /10000 = 1677.7215
+        let max_u24 = 16_777_215.0 / 10000.0; // 1677.7215
+        let params = ShareableParams {
+            artwork_height: max_u24,
+            artwork_width: max_u24,
+            mat_width: max_u24,
+            frame_width: max_u24,
+            frame_depth: max_u24,
+            glazing_thickness: 0.0,
+            matboard_thickness: 0.0,
+            artwork_thickness: 0.0,
+            backing_thickness: 0.0,
+            rabbet_width: 0.0,
+            rabbet_depth: 0.0,
+            blade_width: 0.0,
+            include_mat: true,
+            unit_mm: true,
+        };
+        let encoded = generate_shareable_url(&params);
+        let url = format!("https://example.com/?d={}", encoded);
+        let decoded = decode_shareable_url(&url).unwrap();
+        assert!((decoded.artwork_height - max_u24).abs() < 0.0001);
+        assert!((decoded.artwork_width - max_u24).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_roundtrip_max_uint16() {
+        // uint16 max: 0xFFFF = 65535, /10000 = 6.5535
+        let max_u16 = 65_535.0 / 10000.0; // 6.5535
+        let params = ShareableParams {
+            artwork_height: 10.0,
+            artwork_width: 10.0,
+            mat_width: 0.0,
+            frame_width: 1.0,
+            frame_depth: 1.0,
+            glazing_thickness: max_u16,
+            matboard_thickness: max_u16,
+            artwork_thickness: max_u16,
+            backing_thickness: max_u16,
+            rabbet_width: max_u16,
+            rabbet_depth: max_u16,
+            blade_width: max_u16,
+            include_mat: false,
+            unit_mm: false,
+        };
+        let encoded = generate_shareable_url(&params);
+        let url = format!("https://example.com/?d={}", encoded);
+        let decoded = decode_shareable_url(&url).unwrap();
+        assert!((decoded.glazing_thickness - max_u16).abs() < 0.0001);
+        assert!((decoded.rabbet_width - max_u16).abs() < 0.0001);
+        assert!((decoded.blade_width - max_u16).abs() < 0.0001);
+    }
+
+    // --- All-fields non-default round-trip ---
+
+    #[test]
+    fn test_all_fields_roundtrip() {
+        let params = ShareableParams {
+            artwork_height: 24.333,
+            artwork_width: 36.777,
+            mat_width: 3.125,
+            frame_width: 1.875,
+            frame_depth: 2.5,
+            glazing_thickness: 0.118,
+            matboard_thickness: 0.067,
+            artwork_thickness: 0.012,
+            backing_thickness: 0.25,
+            rabbet_width: 0.312,
+            rabbet_depth: 0.437,
+            blade_width: 0.093,
+            include_mat: true,
+            unit_mm: true,
+        };
+
+        let encoded = generate_shareable_url(&params);
+        let url = format!("https://example.com/?d={}", encoded);
+        let decoded = decode_shareable_url(&url).unwrap();
+
+        let tol = 0.0001;
+        assert!((decoded.artwork_height - params.artwork_height).abs() < tol);
+        assert!((decoded.artwork_width - params.artwork_width).abs() < tol);
+        assert!((decoded.mat_width - params.mat_width).abs() < tol);
+        assert!((decoded.frame_width - params.frame_width).abs() < tol);
+        assert!((decoded.frame_depth - params.frame_depth).abs() < tol);
+        assert!((decoded.glazing_thickness - params.glazing_thickness).abs() < tol);
+        assert!((decoded.matboard_thickness - params.matboard_thickness).abs() < tol);
+        assert!((decoded.artwork_thickness - params.artwork_thickness).abs() < tol);
+        assert!((decoded.backing_thickness - params.backing_thickness).abs() < tol);
+        assert!((decoded.rabbet_width - params.rabbet_width).abs() < tol);
+        assert!((decoded.rabbet_depth - params.rabbet_depth).abs() < tol);
+        assert!((decoded.blade_width - params.blade_width).abs() < tol);
+        assert_eq!(decoded.include_mat, true);
+        assert_eq!(decoded.unit_mm, true);
+    }
 }
