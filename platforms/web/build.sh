@@ -1,16 +1,20 @@
 #!/bin/bash
 # Build script for ReferenceFrame web platform
 
-set -e  # Exit on error
+set -euo pipefail  # Exit on error, unset vars, and pipeline failures
+
+# Always run from platforms/web/ (where this script lives), regardless of cwd
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
 # Ensure cargo and wasm-pack are in PATH
 export PATH="$HOME/.cargo/bin:$PATH"
 
 echo "🔍 Validating build environment..."
 
-# Verify we're in the correct directory
+# Sanity check: this script should live in platforms/web/ alongside wasm_bindings/
 if [ ! -f "wasm_bindings/Cargo.toml" ]; then
-    echo "❌ ERROR: Must run from platforms/web/ directory"
+    echo "❌ ERROR: wasm_bindings/Cargo.toml not found next to this script"
     echo "Current directory: $(pwd)"
     exit 1
 fi

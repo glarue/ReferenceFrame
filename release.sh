@@ -259,7 +259,11 @@ for scope in "${SCOPES[@]}"; do
 
         # If core or bridge Cargo.toml changed, update the mobile Cargo.lock
         if [[ "$scope" == "core" || "$scope" == "bridge" ]]; then
-            cargo update --manifest-path "$MOBILE_DIR/rust/Cargo.toml" --quiet 2>/dev/null || true
+            if ! cargo update --manifest-path "$MOBILE_DIR/rust/Cargo.toml" --quiet; then
+                echo "ERROR: cargo update failed for $MOBILE_DIR/rust/Cargo.toml" >&2
+                echo "       The ${scope} version was bumped but the mobile Cargo.lock was not updated." >&2
+                exit 1
+            fi
             local_lock="$MOBILE_DIR/rust/Cargo.lock"
             if git -C "$MOBILE_DIR" diff --quiet "$local_lock" 2>/dev/null; then
                 : # No lock change

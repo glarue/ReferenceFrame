@@ -6,7 +6,11 @@
 # This is where index.html loads from (via ./pkg/ relative path)
 # Do not create platforms/pkg/ or any other pkg directories!
 
-set -e  # Exit on error
+set -euo pipefail  # Exit on error, unset vars, and pipeline failures
+
+# Always run from the repo root (where this script lives), regardless of cwd
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
 # Colors for output
 GREEN='\033[0;32m'
