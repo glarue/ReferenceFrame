@@ -15,4 +15,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Run core tests
-        run: cd core && cargo test --lib
+        run: cd core && cargo test
+
+      - name: Check presets.json drift across platforms
+        run: python3 scripts/check_presets_drift.py
