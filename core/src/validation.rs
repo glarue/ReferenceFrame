@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::conversions;
 use crate::frame::FrameDesign;
+use crate::presets;
 
 /// Validation configuration with user-adjustable limits
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,49 +97,51 @@ impl ValidationConfig {
 
 impl Default for ValidationConfig {
     fn default() -> Self {
+        // Load limits from presets.json (single source of truth)
+        let l = presets::get_validation_limits();
         Self {
             // Structural minimums
-            min_lip_width: 0.125,      // 1/8"
-            min_face_depth: 0.125,     // 1/8"
+            min_lip_width: l.min_lip_width,
+            min_face_depth: l.min_face_depth,
 
             // Frame material bounds
-            min_frame_width: 0.5,      // 1/2"
-            max_frame_width: 12.0,
-            min_frame_depth: 0.5,      // 1/2" (per user request)
-            max_frame_depth: 6.0,
+            min_frame_width: l.min_frame_width,
+            max_frame_width: l.max_frame_width,
+            min_frame_depth: l.min_frame_depth,
+            max_frame_depth: l.max_frame_depth,
 
             // Opening bounds
-            min_opening: 0.5,          // 1/2"
-            max_opening: 120.0,        // 10 feet
+            min_opening: l.min_opening,
+            max_opening: l.max_opening,
 
             // Artwork dimension bounds
-            max_artwork_dimension: 120.0, // 10 feet
+            max_artwork_dimension: l.max_artwork_dimension,
 
             // Rabbet bounds
-            min_rabbet: 0.125,         // 1/8"
-            max_rabbet: 3.0,
+            min_rabbet: l.min_rabbet,
+            max_rabbet: l.max_rabbet,
 
             // Material thickness bounds
-            min_glazing: 0.0,          // 0 = no glazing
-            max_glazing: 0.5,
-            min_matboard: 0.0,         // 0 = no mat
-            max_matboard: 0.5,
-            min_artwork: 0.001,        // ~paper thickness
-            max_artwork: 2.0,          // Canvas on deep stretcher
-            min_backing: 0.03125,      // 1/32"
-            max_backing: 0.5,
-            min_margin: 0.0,
-            max_margin: 0.25,
+            min_glazing: l.min_glazing,
+            max_glazing: l.max_glazing,
+            min_matboard: l.min_matboard,
+            max_matboard: l.max_matboard,
+            min_artwork: l.min_artwork,
+            max_artwork: l.max_artwork,
+            min_backing: l.min_backing,
+            max_backing: l.max_backing,
+            min_margin: l.min_margin,
+            max_margin: l.max_margin,
 
             // Warning thresholds
-            warn_artwork_opening_overlap: 0.25,  // 1/4" per side
-            warn_extreme_aspect_ratio: 10.0,
+            warn_artwork_opening_overlap: l.warn_artwork_opening_overlap,
+            warn_extreme_aspect_ratio: l.warn_extreme_aspect_ratio,
 
             // Mat constraints
-            min_visible_opening: 0.125,          // 1/8" minimum visible artwork per side
-            warn_min_mat_opening: 1.0,           // 1" minimum mat opening before warning
-            min_mat_overlap: 0.0625,             // 1/16" minimum
-            max_mat_overlap: 6.0,                // 6" maximum (very generous)
+            min_visible_opening: l.min_visible_opening,
+            warn_min_mat_opening: l.warn_min_mat_opening,
+            min_mat_overlap: l.min_mat_overlap,
+            max_mat_overlap: l.max_mat_overlap,
         }
     }
 }
@@ -930,6 +933,42 @@ mod tests {
         assert!(result.issues.iter().any(|i|
             i.severity == ValidationSeverity::Warning &&
             i.message.contains("very small")));
+    }
+
+    // --- ValidationConfig defaults from presets.json ---
+
+    #[test]
+    fn test_default_limits_match_presets_json() {
+        // Defaults must remain numerically identical to the historical
+        // hardcoded values, now sourced from presets.json
+        let config = ValidationConfig::default();
+        assert_eq!(config.min_lip_width, 0.125);
+        assert_eq!(config.min_face_depth, 0.125);
+        assert_eq!(config.min_frame_width, 0.5);
+        assert_eq!(config.max_frame_width, 12.0);
+        assert_eq!(config.min_frame_depth, 0.5);
+        assert_eq!(config.max_frame_depth, 6.0);
+        assert_eq!(config.min_opening, 0.5);
+        assert_eq!(config.max_opening, 120.0);
+        assert_eq!(config.max_artwork_dimension, 120.0);
+        assert_eq!(config.min_rabbet, 0.125);
+        assert_eq!(config.max_rabbet, 3.0);
+        assert_eq!(config.min_glazing, 0.0);
+        assert_eq!(config.max_glazing, 0.5);
+        assert_eq!(config.min_matboard, 0.0);
+        assert_eq!(config.max_matboard, 0.5);
+        assert_eq!(config.min_artwork, 0.001);
+        assert_eq!(config.max_artwork, 2.0);
+        assert_eq!(config.min_backing, 0.03125);
+        assert_eq!(config.max_backing, 0.5);
+        assert_eq!(config.min_margin, 0.0);
+        assert_eq!(config.max_margin, 0.25);
+        assert_eq!(config.warn_artwork_opening_overlap, 0.25);
+        assert_eq!(config.warn_extreme_aspect_ratio, 10.0);
+        assert_eq!(config.min_visible_opening, 0.125);
+        assert_eq!(config.warn_min_mat_opening, 1.0);
+        assert_eq!(config.min_mat_overlap, 0.0625);
+        assert_eq!(config.max_mat_overlap, 6.0);
     }
 
     // --- ValidationConfig serde roundtrip ---

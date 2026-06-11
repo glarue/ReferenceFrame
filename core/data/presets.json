@@ -12,31 +12,40 @@
   "colors": {
     "_comment": "Color palette (hex values without #). Based on harmonious warm-cool spectrum.",
     "palette": {
+      "flag_red": "D52023",
       "red": "F94144",
       "red_orange": "F3722C",
       "orange": "F8961E",
       "yellow": "F9C74F",
       "green": "90BE6D",
       "teal": "46AF8F",
-      "blue": "577590"
+      "dark_cyan": "478583",
+      "blue": "577590",
+      "air_force_blue": "7890A5"
     },
     "palette_light": {
+      "flag_red": "E26365",
       "red": "FB8A8C",
       "red_orange": "F7A675",
       "orange": "FBBB6D",
       "yellow": "FBDA8B",
       "green": "B8D4A2",
       "teal": "7EC7B1",
-      "blue": "94A7B8"
+      "dark_cyan": "7EAAA8",
+      "blue": "94A7B8",
+      "air_force_blue": "A1B1C0"
     },
     "palette_dark": {
+      "flag_red": "951619",
       "red": "AE2D2F",
       "red_orange": "AA4F1E",
       "orange": "AE6915",
       "yellow": "AE8B37",
       "green": "65854C",
       "teal": "317B64",
-      "blue": "3D5265"
+      "dark_cyan": "325D5C",
+      "blue": "3D5265",
+      "air_force_blue": "546574"
     },
     "neutrals": {
       "white": "FFFFFF",
@@ -90,6 +99,53 @@
     "_assembly_comment": "1/16 inch assembly clearance, 1/8 inch saw blade kerf",
     "assembly_margin": 0.0625,
     "blade_width": 0.125
+  },
+
+  "validation_limits": {
+    "_comment": "Default validation thresholds (ValidationConfig::default). All dimensions in inches.",
+
+    "_structural_comment": "Minimum material remaining after rabbet cut: 1/8 inch lip and face",
+    "min_lip_width": 0.125,
+    "min_face_depth": 0.125,
+
+    "_frame_comment": "Frame moulding bounds: 1/2 inch minimum width/depth",
+    "min_frame_width": 0.5,
+    "max_frame_width": 12.0,
+    "min_frame_depth": 0.5,
+    "max_frame_depth": 6.0,
+
+    "_opening_comment": "Opening bounds: 1/2 inch minimum, 10 feet maximum",
+    "min_opening": 0.5,
+    "max_opening": 120.0,
+
+    "_artwork_comment": "Maximum single artwork dimension: 10 feet",
+    "max_artwork_dimension": 120.0,
+
+    "_rabbet_comment": "Rabbet bounds: 1/8 inch minimum",
+    "min_rabbet": 0.125,
+    "max_rabbet": 3.0,
+
+    "_materials_comment": "Material thickness bounds (0 glazing/matboard = none; max artwork = deep canvas)",
+    "min_glazing": 0.0,
+    "max_glazing": 0.5,
+    "min_matboard": 0.0,
+    "max_matboard": 0.5,
+    "min_artwork": 0.001,
+    "max_artwork": 2.0,
+    "min_backing": 0.03125,
+    "max_backing": 0.5,
+    "min_margin": 0.0,
+    "max_margin": 0.25,
+
+    "_warnings_comment": "Soft warning thresholds: 1/4 inch overlap per side, 10:1 aspect ratio",
+    "warn_artwork_opening_overlap": 0.25,
+    "warn_extreme_aspect_ratio": 10.0,
+
+    "_mat_comment": "Mat constraints: 1/8 inch visible opening, 1/16 inch minimum overlap",
+    "min_visible_opening": 0.125,
+    "warn_min_mat_opening": 1.0,
+    "min_mat_overlap": 0.0625,
+    "max_mat_overlap": 6.0
   },
 
   "presets": {

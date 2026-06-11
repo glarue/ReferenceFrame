@@ -178,16 +178,20 @@ impl Default for DiagramStyle {
     fn default() -> Self {
         Self {
             // ================================================================
-            // Standardized 7-color palette (shared with Web CSS & Flutter)
+            // Standardized 10-color palette (shared with Web CSS & Flutter,
+            // defined in data/presets.json)
             // ================================================================
             // Core palette (warm → cool gradient):
+            //   #d52023 Flag Red         - critical errors, delete
             //   #f94144 Strawberry Red   - error/warning
             //   #f3722c Atomic Tangerine - modified/changed
             //   #f8961e Carrot Orange    - cut dimensions
             //   #f9c74f Tuscan Sun       - warnings
             //   #90be6d Willow Green     - success/material
             //   #46af8f Seaweed          - accent/incidental
+            //   #478583 Dark Cyan        - muted/disabled
             //   #577590 Blue Slate       - primary
+            //   #7890a5 Air Force Blue   - hover/backgrounds
             // ================================================================
             background_color: "#FFFFFF".to_string(),        // White
             line_color: "#333333".to_string(),              // Dark gray for frame lines

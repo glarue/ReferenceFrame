@@ -15,6 +15,7 @@ const PRESETS_JSON: &str = include_str!("../data/presets.json");
 pub struct PresetsData {
     pub colors: ColorPalette,
     pub defaults: Defaults,
+    pub validation_limits: ValidationLimits,
     pub presets: Presets,
 }
 
@@ -98,6 +99,50 @@ pub struct Defaults {
     pub blade_width: f64,
 }
 
+/// Default validation thresholds loaded from JSON.
+///
+/// Mirrors the fields of `validation::ValidationConfig` -- that type's
+/// `Default` impl reads these values, keeping presets.json the single
+/// source of truth for validation limits. All dimensions in inches.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationLimits {
+    // Structural minimums
+    pub min_lip_width: f64,
+    pub min_face_depth: f64,
+    // Frame material bounds
+    pub min_frame_width: f64,
+    pub max_frame_width: f64,
+    pub min_frame_depth: f64,
+    pub max_frame_depth: f64,
+    // Opening bounds
+    pub min_opening: f64,
+    pub max_opening: f64,
+    // Artwork dimension bounds
+    pub max_artwork_dimension: f64,
+    // Rabbet bounds
+    pub min_rabbet: f64,
+    pub max_rabbet: f64,
+    // Material thickness bounds
+    pub min_glazing: f64,
+    pub max_glazing: f64,
+    pub min_matboard: f64,
+    pub max_matboard: f64,
+    pub min_artwork: f64,
+    pub max_artwork: f64,
+    pub min_backing: f64,
+    pub max_backing: f64,
+    pub min_margin: f64,
+    pub max_margin: f64,
+    // Soft warning thresholds
+    pub warn_artwork_opening_overlap: f64,
+    pub warn_extreme_aspect_ratio: f64,
+    // Mat constraints
+    pub min_visible_opening: f64,
+    pub warn_min_mat_opening: f64,
+    pub min_mat_overlap: f64,
+    pub max_mat_overlap: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PresetCategory {
     pub values: Vec<f64>,
@@ -132,6 +177,11 @@ pub fn get_defaults() -> &'static Defaults {
 /// Get just the preset arrays
 pub fn get_presets() -> &'static Presets {
     &get_presets_data().presets
+}
+
+/// Get the default validation limits
+pub fn get_validation_limits() -> &'static ValidationLimits {
+    &get_presets_data().validation_limits
 }
 
 /// Get raw JSON string (for passing to FFI/WASM)
@@ -262,6 +312,34 @@ mod tests {
         let colors = get_colors();
         assert!(!colors.palette.is_empty());
         assert!(colors.palette.contains_key("teal"));
+    }
+
+    #[test]
+    fn test_full_ten_color_palette() {
+        // All 10 platform palette colors must exist in base, light, and dark variants
+        let colors = get_colors();
+        let names = [
+            "flag_red", "red", "red_orange", "orange", "yellow",
+            "green", "teal", "dark_cyan", "blue", "air_force_blue",
+        ];
+        for name in names {
+            assert!(colors.palette.contains_key(name), "palette missing {}", name);
+            assert!(colors.palette_light.contains_key(name), "palette_light missing {}", name);
+            assert!(colors.palette_dark.contains_key(name), "palette_dark missing {}", name);
+        }
+        // Spot-check hex values match the shipped platform palettes
+        assert_eq!(get_color("flag_red"), Some("D52023".to_string()));
+        assert_eq!(get_color("dark_cyan"), Some("478583".to_string()));
+        assert_eq!(get_color("air_force_blue"), Some("7890A5".to_string()));
+    }
+
+    #[test]
+    fn test_validation_limits_load() {
+        let limits = get_validation_limits();
+        assert_eq!(limits.min_frame_width, 0.5);
+        assert_eq!(limits.max_frame_width, 12.0);
+        assert_eq!(limits.min_rabbet, 0.125);
+        assert_eq!(limits.max_mat_overlap, 6.0);
     }
 
     #[test]
