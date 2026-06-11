@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260127-pdf-title">
+    <link rel="stylesheet" href="./styles.css?v=20260610-audit-fixes">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -48,10 +48,10 @@
                     <button id="btn-mm" onclick="setUnit('mm')">mm</button>
                 </div>
                 <button class="share-btn" onclick="shareDesign()">Share</button>
-                <button class="theme-btn" onclick="cycleTheme()" title="Toggle theme">
+                <button class="theme-btn" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
                     <span id="theme-icon">🌙</span>
                 </button>
-                <button class="settings-btn" onclick="openSettingsModal()" title="Validation Settings">⚙️</button>
+                <button class="settings-btn" onclick="openSettingsModal()" title="Validation Settings" aria-label="Validation settings">⚙️</button>
             </div>
         </div>
 
@@ -76,7 +76,7 @@
                                 <select id="custom-sizes" class="size-select-compact">
                                     <option value="">-- Select --</option>
                                 </select>
-                                <button id="delete-custom-size" class="btn-icon-small" title="Delete selected size">🗑️</button>
+                                <button id="delete-custom-size" class="btn-icon-small" title="Delete selected size" aria-label="Delete selected size">🗑️</button>
                             </div>
                         </div>
                     </div>
@@ -87,19 +87,19 @@
                         <div class="dimension-pair">
                             <div class="dimension-inputs">
                                 <span class="dim-label">H</span>
-                                <input type="text" id="artwork-height" value="12.5" inputmode="decimal" placeholder="e.g. 12.5 or 12 1/2">
+                                <input type="text" id="artwork-height" inputmode="decimal" placeholder="e.g. 12.5 or 12 1/2">
                                 <span class="separator">×</span>
                                 <span class="dim-label">W</span>
-                                <input type="text" id="artwork-width" value="18.75" inputmode="decimal" placeholder="e.g. 18.75 or 18 3/4">
+                                <input type="text" id="artwork-width" inputmode="decimal" placeholder="e.g. 18.75 or 18 3/4">
                             </div>
                             <div class="dimension-controls">
-                                <button type="button" id="orientation-toggle" class="orientation-btn landscape" title="Toggle orientation" onclick="toggleOrientation()">
+                                <button type="button" id="orientation-toggle" class="orientation-btn landscape" title="Toggle orientation" aria-label="Toggle orientation" onclick="toggleOrientation()">
                                     <span class="orientation-icon landscape-outline"></span>
                                     <span class="orientation-icon portrait-outline"></span>
                                     <span class="orientation-icon square-outline"></span>
                                 </button>
                                 <span id="aspect-ratio" class="aspect-ratio">3:2</span>
-                                <button type="button" id="aspect-lock" class="aspect-lock-btn unlocked" title="Lock aspect ratio" onclick="toggleAspectLock()">
+                                <button type="button" id="aspect-lock" class="aspect-lock-btn unlocked" title="Lock aspect ratio" aria-label="Lock aspect ratio" aria-pressed="false" onclick="toggleAspectLock()">
                                     <svg viewBox="0 0 24 24"><path id="lock-icon-path" d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/></svg>
                                 </button>
                             </div>
@@ -134,11 +134,11 @@
                         <div class="inline-fields-row" id="mat-single-mode-row">
                             <div class="field" id="mat-width-single-field">
                                 <label>Width</label>
-                                <input type="text" id="mat-width-single" value="2" inputmode="decimal" placeholder="e.g. 2.0">
+                                <input type="text" id="mat-width-single" inputmode="decimal" placeholder="e.g. 2.0">
                             </div>
                             <div class="field" id="mat-overlap-field-inline">
                                 <label>Overlap</label>
-                                <input type="text" id="mat-overlap" value="0.125" inputmode="decimal" placeholder="e.g. 1/8">
+                                <input type="text" id="mat-overlap" inputmode="decimal" placeholder="e.g. 1/8">
                             </div>
                         </div>
 
@@ -148,17 +148,17 @@
                                 <div class="field field-stepper">
                                     <label class="field-label-small">Top/Bottom</label>
                                     <div class="input-stepper">
-                                        <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('tb', -0.125)">−</button>
-                                        <input type="text" id="mat-width-tb" value="2" inputmode="decimal" placeholder="2.0">
-                                        <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('tb', 0.125)">+</button>
+                                        <button type="button" class="stepper-btn minus" aria-label="Decrease top/bottom mat width" onclick="adjustMatWidth('tb', -0.125)">−</button>
+                                        <input type="text" id="mat-width-tb" inputmode="decimal" placeholder="2.0">
+                                        <button type="button" class="stepper-btn plus" aria-label="Increase top/bottom mat width" onclick="adjustMatWidth('tb', 0.125)">+</button>
                                     </div>
                                 </div>
                                 <div class="field field-stepper">
                                     <label class="field-label-small">Left/Right</label>
                                     <div class="input-stepper">
-                                        <button type="button" class="stepper-btn minus" onclick="adjustMatWidth('lr', -0.125)">−</button>
-                                        <input type="text" id="mat-width-lr" value="2" inputmode="decimal" placeholder="2.0">
-                                        <button type="button" class="stepper-btn plus" onclick="adjustMatWidth('lr', 0.125)">+</button>
+                                        <button type="button" class="stepper-btn minus" aria-label="Decrease left/right mat width" onclick="adjustMatWidth('lr', -0.125)">−</button>
+                                        <input type="text" id="mat-width-lr" inputmode="decimal" placeholder="2.0">
+                                        <button type="button" class="stepper-btn plus" aria-label="Increase left/right mat width" onclick="adjustMatWidth('lr', 0.125)">+</button>
                                     </div>
                                 </div>
                             </div>
@@ -166,25 +166,25 @@
                             <!-- Mat overlap for separate mode -->
                             <div class="field" id="mat-overlap-field-separate" style="margin-top: 12px;">
                                 <label id="label-mat-overlap">Mat Overlap</label>
-                                <input type="text" id="mat-overlap-separate" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+                                <input type="text" id="mat-overlap-separate" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
                             </div>
 
                             <!-- Hidden inputs for backwards compatibility - synced with tb/lr -->
-                            <input type="hidden" id="mat-width-top" value="2">
-                            <input type="hidden" id="mat-width-bottom" value="2">
-                            <input type="hidden" id="mat-width-left" value="2">
-                            <input type="hidden" id="mat-width-right" value="2">
+                            <input type="hidden" id="mat-width-top">
+                            <input type="hidden" id="mat-width-bottom">
+                            <input type="hidden" id="mat-width-left">
+                            <input type="hidden" id="mat-width-right">
                         </div>
                     </div>
                     <div class="inline-fields-row">
                         <div class="field">
                             <label id="label-frame-width">Frame W</label>
-                            <input type="text" id="frame-width" value="0.75" inputmode="decimal" placeholder="e.g. 1.5 or 1 1/2">
+                            <input type="text" id="frame-width" inputmode="decimal" placeholder="e.g. 1.5 or 1 1/2">
                             <small id="range-frame-width">Typical: 3/4" - 4"</small>
                         </div>
                         <div class="field">
                             <label id="label-frame-depth">Frame D</label>
-                            <input type="text" id="frame-depth" value="0.75" inputmode="decimal" placeholder="e.g. 0.75 or 3/4">
+                            <input type="text" id="frame-depth" inputmode="decimal" placeholder="e.g. 0.75 or 3/4">
                             <small id="range-frame-depth">Typical: 1/2" - 2"
                         </div>
                     </div>
@@ -192,7 +192,7 @@
 
                 <!-- Advanced Options -->
                 <div class="section">
-                    <h2 class="collapsible-header" id="advanced-header">
+                    <h2 class="collapsible-header" id="advanced-header" role="button" aria-expanded="false" aria-controls="advanced-content">
                         <span class="material-symbols-outlined header-icon">tune</span>
                         <span class="header-title">Advanced Options</span>
                         <span class="material-symbols-outlined toggle-icon">expand_more</span>
@@ -203,22 +203,22 @@
                                 <div class="section-subtitle">Material Thicknesses</div>
                                 <div class="input-group">
                                     <label for="glazing-thickness">Glazing</label>
-                                    <input type="text" class="input-small" id="glazing-thickness" value="0.09375" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+                                    <input type="text" class="input-small" id="glazing-thickness" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
                                     <small id="range-glazing-thickness">Typical: 1/16" - 1/4"</small>
                                 </div>
                                 <div class="input-group">
                                     <label for="matboard-thickness">Matboard</label>
-                                    <input type="text" class="input-small" id="matboard-thickness" value="0.0625" inputmode="decimal" placeholder="e.g. 0.0625 or 1/16">
+                                    <input type="text" class="input-small" id="matboard-thickness" inputmode="decimal" placeholder="e.g. 0.0625 or 1/16">
                                     <small id="range-matboard-thickness">Typical: 1/16" - 3/16"</small>
                                 </div>
                                 <div class="input-group">
                                     <label for="artwork-thickness">Artwork</label>
-                                    <input type="text" class="input-small" id="artwork-thickness" value="0.008" inputmode="decimal" placeholder="e.g. 0.01">
+                                    <input type="text" class="input-small" id="artwork-thickness" inputmode="decimal" placeholder="e.g. 0.01">
                                     <small id="range-artwork-thickness">Typical: 0.01" - 1/4"</small>
                                 </div>
                                 <div class="input-group">
                                     <label for="backing-thickness">Backing</label>
-                                    <input type="text" class="input-small" id="backing-thickness" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+                                    <input type="text" class="input-small" id="backing-thickness" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
                                     <small id="range-backing-thickness">Typical: 1/16" - 1/4"</small>
                                 </div>
                             </div>
@@ -226,23 +226,23 @@
                                 <div class="section-subtitle">Rabbet Settings</div>
                                 <div class="input-group">
                                     <label for="rabbet-width">Rabbet Width</label>
-                                    <input type="text" class="input-small" id="rabbet-width" value="0.375" inputmode="decimal" placeholder="e.g. 0.375 or 3/8">
+                                    <input type="text" class="input-small" id="rabbet-width" inputmode="decimal" placeholder="e.g. 0.375 or 3/8">
                                     <small id="range-rabbet-width">Typical: 3/8" - 1/2"</small>
                                 </div>
                                 <div class="input-group">
                                     <label for="rabbet-depth">Rabbet Depth</label>
-                                    <input type="text" class="input-small" id="rabbet-depth" value="0.375" inputmode="decimal" placeholder="e.g. 0.375 or 3/8">
+                                    <input type="text" class="input-small" id="rabbet-depth" inputmode="decimal" placeholder="e.g. 0.375 or 3/8">
                                     <small id="range-rabbet-depth">Typical: 5/16" - 3/8"
                                 </div>
                                 <div class="section-subtitle">Assembly & Cutting</div>
                                 <div class="input-group">
                                     <label for="assembly-margin">Assembly Margin</label>
-                                    <input type="text" class="input-small" id="assembly-margin" value="0.0625" inputmode="decimal" placeholder="e.g. 0.0625 or 1/16">
+                                    <input type="text" class="input-small" id="assembly-margin" inputmode="decimal" placeholder="e.g. 0.0625 or 1/16">
                                     <small id="range-assembly-margin">Typical: 0" - 1/16"
                                 </div>
                                 <div class="input-group">
                                     <label for="blade-width">Blade Width (kerf)</label>
-                                    <input type="text" class="input-small" id="blade-width" value="0.125" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
+                                    <input type="text" class="input-small" id="blade-width" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
                                     <small>Saw blade width</small>
                                 </div>
                             </div>
@@ -252,7 +252,7 @@
 
                 <!-- Saved Configurations -->
                 <div class="section">
-                    <h2 class="collapsible-header" id="configs-header">
+                    <h2 class="collapsible-header" id="configs-header" role="button" aria-expanded="false" aria-controls="configs-content">
                         <span class="material-symbols-outlined header-icon">folder</span>
                         <span class="header-title">Saved Configurations</span>
                         <span class="material-symbols-outlined toggle-icon">expand_more</span>
@@ -266,7 +266,7 @@
                                     <select id="config-select" class="config-select">
                                         <option value="">-- Select --</option>
                                     </select>
-                                    <button id="delete-selected-config" class="btn-icon-small" title="Delete selected configuration">🗑️</button>
+                                    <button id="delete-selected-config" class="btn-icon-small" title="Delete selected configuration" aria-label="Delete selected configuration">🗑️</button>
                                 </div>
                             </div>
                         </div>
@@ -311,7 +311,7 @@
             <div class="results-column">
                 <!-- Validation Messages -->
                 <div class="section validation-section" id="validation-section" style="display: none;">
-                    <div class="validation-messages" id="validation-messages"></div>
+                    <div class="validation-messages" id="validation-messages" role="alert" aria-live="polite"></div>
                 </div>
 
                 <!-- Visualization -->
@@ -331,6 +331,7 @@
                             <button class="reset-btn" onclick="exportPdf()" id="export-pdf-btn">Export PDF</button>
                         </div>
                     </h2>
+                    <div class="export-status" id="export-status" role="status" style="display: none;"></div>
                     <div class="results" id="results">
                         <span class="text-muted">Calculating...</span>
                     </div>
@@ -341,6 +342,10 @@
         <div class="performance" id="performance">
             WASM module loading...
         </div>
+
+        <footer class="app-footer">
+            ReferenceFrame <span id="app-version"></span>
+        </footer>
 
         <!-- Share Modal -->
         <div class="modal-overlay" id="share-modal" onclick="closeShareModal(event)">
@@ -584,11 +589,16 @@
             decodeShareableUrl,
             getWasmVersion,
             ValidationConfig,
-            TypicalRanges,
+            getTypicalRangeHint,
             validateDesign,
             DimensionInput,
             decimalToFraction
-        } from './pkg/referenceframe_wasm.js?v=20260127-display-format';
+        } from './pkg/referenceframe_wasm.js?v=20260610-audit-fixes';
+
+        // Namespace import for optional exports (getCoreVersion is only
+        // present in newer WASM builds; accessing it via the namespace
+        // object avoids a hard import error on older builds)
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260610-audit-fixes';
 
         console.log('WASM imports successful');
 
@@ -629,7 +639,6 @@
         let aspectLocked = false;
         let lockedRatio = null;
         let validationConfig = null;
-        let typicalRanges = null;
         let settingsUnit = 'inches';  // Unit for displaying settings values
         let currentTheme = 'system';  // Theme preference: 'system', 'light', 'dark'
 
@@ -708,12 +717,28 @@
             'range-assembly-margin': 'assembly_margin'
         };
 
+        // Validation config storage schema version. The payload is stored as
+        // { version, config } where config is the core-serialized
+        // ValidationConfig JSON. Legacy raw (unwrapped) payloads are treated
+        // as v1 and rewritten in versioned form on load.
+        const VALIDATION_CONFIG_SCHEMA_VERSION = 1;
+
         // Load validation config from localStorage or use defaults
         function loadValidationConfig() {
             try {
                 const stored = localStorage.getItem(STORAGE_KEY_CONFIG);
                 if (stored) {
-                    validationConfig = ValidationConfig.fromJson(stored);
+                    const parsed = JSON.parse(stored);
+                    if (parsed && typeof parsed === 'object' && 'version' in parsed && 'config' in parsed) {
+                        // Versioned payload (v1 is the only schema so far —
+                        // add migrations here when bumping the version)
+                        validationConfig = ValidationConfig.fromJson(JSON.stringify(parsed.config));
+                    } else {
+                        // Legacy unversioned payload (raw ValidationConfig
+                        // JSON) — treat as v1 and upgrade in place
+                        validationConfig = ValidationConfig.fromJson(stored);
+                        saveValidationConfig();
+                    }
                 } else {
                     validationConfig = new ValidationConfig();
                 }
@@ -721,8 +746,7 @@
                 console.warn('Failed to load validation config, using defaults:', e);
                 validationConfig = new ValidationConfig();
             }
-            typicalRanges = new TypicalRanges();
-            
+
             // Load settings unit preference
             const storedUnit = localStorage.getItem(STORAGE_KEY_SETTINGS_UNIT);
             if (storedUnit === 'mm' || storedUnit === 'inches') {
@@ -730,13 +754,55 @@
             }
         }
 
-        // Save validation config to localStorage
+        // Save validation config to localStorage (versioned payload)
         function saveValidationConfig() {
             try {
-                const json = validationConfig.toJson();
-                localStorage.setItem(STORAGE_KEY_CONFIG, json);
+                const payload = {
+                    version: VALIDATION_CONFIG_SCHEMA_VERSION,
+                    config: JSON.parse(validationConfig.toJson())
+                };
+                localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(payload));
             } catch (e) {
                 console.error('Failed to save validation config:', e);
+            }
+        }
+
+        // Populate all dimension inputs from core defaults (single source of
+        // truth: core/data/presets.json via getDefaults()). Inputs have no
+        // hardcoded value attributes in the HTML — they stay empty until WASM
+        // loads, then are filled here before the first calculate().
+        function applyDefaultInputValues() {
+            const defaults = JSON.parse(getDefaults());
+            const defaultValueMap = {
+                'artwork-height': defaults.artworkHeight,
+                'artwork-width': defaults.artworkWidth,
+                'mat-width-single': defaults.matWidth,
+                'mat-width-tb': defaults.matWidth,
+                'mat-width-lr': defaults.matWidth,
+                'mat-width-top': defaults.matWidth,
+                'mat-width-bottom': defaults.matWidth,
+                'mat-width-left': defaults.matWidth,
+                'mat-width-right': defaults.matWidth,
+                'mat-overlap': defaults.matOverlap,
+                'mat-overlap-separate': defaults.matOverlap,
+                'frame-width': defaults.frameWidth,
+                'frame-depth': defaults.frameDepth,
+                'glazing-thickness': defaults.glazingThickness,
+                'matboard-thickness': defaults.matboardThickness,
+                'artwork-thickness': defaults.artworkThickness,
+                'backing-thickness': defaults.backingThickness,
+                // Key name differs between WASM builds (rabbet_width vs rabbetWidth)
+                'rabbet-width': defaults.rabbet_width ?? defaults.rabbetWidth,
+                'rabbet-depth': defaults.rabbet_depth ?? defaults.rabbetDepth,
+                'assembly-margin': defaults.assemblyMargin,
+                'blade-width': defaults.bladeWidth
+            };
+            for (const [id, value] of Object.entries(defaultValueMap)) {
+                const el = document.getElementById(id);
+                if (el && typeof value === 'number') {
+                    // Display as decimal, removing unnecessary trailing zeros
+                    el.value = parseFloat(value.toFixed(4));
+                }
             }
         }
 
@@ -840,6 +906,36 @@
             // If decimal was entered, leave it as-is (already in el.value)
         }
 
+        // (Declared before the top-level-await init block below, which
+        // calls initCustomColors() during module evaluation.)
+
+        // Semantic color categories with their default mappings
+        const SEMANTIC_CATEGORIES = [
+            { key: 'primary', name: 'Primary', desc: 'Main buttons, navigation', default: 'blue' },
+            { key: 'secondary', name: 'Secondary', desc: 'Section headers, accents', default: 'teal' },
+            { key: 'success', name: 'Success', desc: 'Depth clearance OK', default: 'green' },
+            { key: 'warning', name: 'Warning', desc: 'Active toggles, caution', default: 'orange' },
+            { key: 'error', name: 'Error', desc: 'Depth shortfall, delete', default: 'flagRed' },
+            { key: 'modified', name: 'Modified', desc: 'Customized values', default: 'yellow' },
+            { key: 'cutDimension', name: 'Cut Dimension', desc: 'Measurements to cut', default: 'redOrange' },
+            { key: 'incidental', name: 'Incidental', desc: 'Reference dimensions', default: 'darkCyan' },
+            { key: 'materialProperty', name: 'Material', desc: 'Material info', default: 'airForceBlue' },
+        ];
+
+        // 10-color palette (warm → cool)
+        const COLOR_PALETTE = [
+            { name: 'flagRed', display: 'Flag Red', hex: '#d52023' },
+            { name: 'red', display: 'Strawberry', hex: '#f94144' },
+            { name: 'redOrange', display: 'Tangerine', hex: '#f3722c' },
+            { name: 'orange', display: 'Carrot', hex: '#f8961e' },
+            { name: 'yellow', display: 'Tuscan Sun', hex: '#f9c74f' },
+            { name: 'green', display: 'Willow', hex: '#90be6d' },
+            { name: 'teal', display: 'Seaweed', hex: '#46af8f' },
+            { name: 'darkCyan', display: 'Dark Cyan', hex: '#478583' },
+            { name: 'blue', display: 'Slate', hex: '#577590' },
+            { name: 'airForceBlue', display: 'Air Force', hex: '#7890a5' },
+        ];
+
         // Initialize WASM
         const startTime = performance.now();
         try {
@@ -847,7 +943,9 @@
             loadTime = performance.now() - startTime;
             wasmLoaded = true;
 
-            // Initialize dimension inputs after WASM is ready
+            // Populate inputs from core defaults, then initialize dimension
+            // inputs after WASM is ready (and before the first calculate())
+            applyDefaultInputValues();
             initDimensionInputs();
 
             // Load validation config after WASM is ready
@@ -861,6 +959,17 @@
 
             const version = getWasmVersion();
             console.log('WASM version:', version);
+
+            // Surface app version in the footer (prefer the semver core
+            // version when the WASM build exports it; fall back to the
+            // WASM build tag otherwise)
+            const versionEl = document.getElementById('app-version');
+            if (versionEl) {
+                const coreVersion = typeof wasmExports.getCoreVersion === 'function'
+                    ? wasmExports.getCoreVersion()
+                    : null;
+                versionEl.textContent = coreVersion ? `v${coreVersion}` : version;
+            }
         } catch (error) {
             console.error('WASM initialization failed:', error);
             document.getElementById('performance').innerHTML =
@@ -1014,6 +1123,7 @@
             const content = document.getElementById('advanced-content');
             header.classList.toggle('expanded');
             content.classList.toggle('expanded');
+            header.setAttribute('aria-expanded', header.classList.contains('expanded'));
         });
 
         // Aspect ratio helpers
@@ -1112,6 +1222,7 @@
 
             btn.classList.toggle('locked', aspectLocked);
             btn.classList.toggle('unlocked', !aspectLocked);
+            btn.setAttribute('aria-pressed', aspectLocked);
 
             if (aspectLocked) {
                 const h = getDimensionValue('artwork-height') || 1;
@@ -1664,7 +1775,7 @@
                 html += `<span class="data-value">${formatDisplay(frameWidth, unitMm)} × ${formatDisplay(frameDepth, unitMm)}</span>`;
                 html += `</div>`;
                 // Rabbet - check both width and depth
-                const rabbetModified = isModified(rabbetWidth, defaults.rabbet_width) || isModified(rabbetDepth, defaults.rabbet_depth);
+                const rabbetModified = isModified(rabbetWidth, defaults.rabbet_width ?? defaults.rabbetWidth) || isModified(rabbetDepth, defaults.rabbet_depth ?? defaults.rabbetDepth);
                 html += `<div class="data-item cut-dimension${rabbetModified ? ' modified' : ''}">`;
                 html += `<span class="data-label">Rabbet</span>`;
                 html += `<span class="data-value">${formatDisplay(rabbetWidth, unitMm)} × ${formatDisplay(rabbetDepth, unitMm)}</span>`;
@@ -1768,8 +1879,8 @@
             setDimensionValue('matboard-thickness', defaults.matboardThickness);
             setDimensionValue('artwork-thickness', defaults.artworkThickness);
             setDimensionValue('backing-thickness', defaults.backingThickness);
-            setDimensionValue('rabbet-width', defaults.rabbet_width);
-            setDimensionValue('rabbet-depth', defaults.rabbet_depth);
+            setDimensionValue('rabbet-width', defaults.rabbet_width ?? defaults.rabbetWidth);
+            setDimensionValue('rabbet-depth', defaults.rabbet_depth ?? defaults.rabbetDepth);
             setDimensionValue('assembly-margin', defaults.assemblyMargin);
             setDimensionValue('blade-width', defaults.bladeWidth);
             
@@ -1996,33 +2107,6 @@
         // Appearance Tab Functions
         // ============================================================================
 
-        // Semantic color categories with their default mappings
-        const SEMANTIC_CATEGORIES = [
-            { key: 'primary', name: 'Primary', desc: 'Main buttons, navigation', default: 'blue' },
-            { key: 'secondary', name: 'Secondary', desc: 'Section headers, accents', default: 'teal' },
-            { key: 'success', name: 'Success', desc: 'Depth clearance OK', default: 'green' },
-            { key: 'warning', name: 'Warning', desc: 'Active toggles, caution', default: 'orange' },
-            { key: 'error', name: 'Error', desc: 'Depth shortfall, delete', default: 'flagRed' },
-            { key: 'modified', name: 'Modified', desc: 'Customized values', default: 'yellow' },
-            { key: 'cutDimension', name: 'Cut Dimension', desc: 'Measurements to cut', default: 'redOrange' },
-            { key: 'incidental', name: 'Incidental', desc: 'Reference dimensions', default: 'darkCyan' },
-            { key: 'materialProperty', name: 'Material', desc: 'Material info', default: 'airForceBlue' },
-        ];
-
-        // 10-color palette (warm → cool)
-        const COLOR_PALETTE = [
-            { name: 'flagRed', display: 'Flag Red', hex: '#d52023' },
-            { name: 'red', display: 'Strawberry', hex: '#f94144' },
-            { name: 'redOrange', display: 'Tangerine', hex: '#f3722c' },
-            { name: 'orange', display: 'Carrot', hex: '#f8961e' },
-            { name: 'yellow', display: 'Tuscan Sun', hex: '#f9c74f' },
-            { name: 'green', display: 'Willow', hex: '#90be6d' },
-            { name: 'teal', display: 'Seaweed', hex: '#46af8f' },
-            { name: 'darkCyan', display: 'Dark Cyan', hex: '#478583' },
-            { name: 'blue', display: 'Slate', hex: '#577590' },
-            { name: 'airForceBlue', display: 'Air Force', hex: '#7890a5' },
-        ];
-
         let currentDisplayFormat = 'fractions';
         let colorPickerTarget = null;
 
@@ -2062,12 +2146,14 @@
                         <button class="color-swatch-btn ${isCustomized ? 'customized' : ''}"
                                 style="background: ${colorInfo.hex}"
                                 onclick="openColorPicker('${cat.key}', this)"
-                                title="${colorInfo.display}">
+                                title="${colorInfo.display}"
+                                aria-label="${cat.name} color: ${colorInfo.display}">
                         </button>
                         <button class="color-reset-btn"
                                 onclick="resetColor('${cat.key}')"
                                 ${!isCustomized ? 'disabled' : ''}
-                                title="Reset to default">↺</button>
+                                title="Reset to default"
+                                aria-label="Reset ${cat.name} color to default">↺</button>
                     </div>
                 `;
             }).join('');
@@ -2126,7 +2212,8 @@
                         <button class="color-picker-swatch ${c.name === currentColor ? 'selected' : ''}"
                                 style="background: ${c.hex}"
                                 onclick="selectColor('${category}', '${c.name}')"
-                                title="${c.display}">
+                                title="${c.display}"
+                                aria-label="${c.display}">
                         </button>
                     `).join('')}
                 </div>
@@ -2336,13 +2423,13 @@
 
         // Update range subtitles based on current unit
         function updateRangeSubtitles() {
-            if (!typicalRanges) return;
+            if (!wasmLoaded) return;
             const useMm = currentUnit === 'mm';
-            
+
             for (const [elementId, fieldName] of Object.entries(rangeFields)) {
                 const el = document.getElementById(elementId);
                 if (el) {
-                    const hint = typicalRanges.getRangeHint(fieldName, useMm);
+                    const hint = getTypicalRangeHint(fieldName, useMm);
                     if (hint) {
                         el.textContent = hint;
                     }
@@ -2401,7 +2488,8 @@
 
         // Initialize
         if (!loadFromUrl()) {
-            // Sync all dimension inputs from HTML default values
+            // Sync all dimension inputs from the default values applied by
+            // applyDefaultInputValues() during WASM init
             for (const id of dimensionInputIds) {
                 syncDimension(id);
             }
@@ -2446,7 +2534,7 @@
                         jsPDF: typeof window.jsPDF,
                         svg2pdf: typeof window.svg2pdf
                     });
-                    reject(new Error('PDF libraries timeout - please refresh the page'));
+                    reject(new Error('PDF libraries failed to load from the CDN. Check your internet connection and refresh the page.'));
                 }, 10000);
 
                 const checkInterval = setInterval(() => {
@@ -2497,10 +2585,30 @@
             return qr.createDataURL(10, 4); // cellSize=10, margin=4
         }
 
+        // Show a visible (non-blocking) error message near the export button
+        let exportStatusHideTimer = null;
+        function showExportError(message) {
+            const statusEl = document.getElementById('export-status');
+            if (!statusEl) return;
+            statusEl.textContent = message;
+            statusEl.style.display = 'block';
+            clearTimeout(exportStatusHideTimer);
+            exportStatusHideTimer = setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 10000);
+        }
+
+        function hideExportError() {
+            const statusEl = document.getElementById('export-status');
+            if (statusEl) statusEl.style.display = 'none';
+            clearTimeout(exportStatusHideTimer);
+        }
+
         // Main PDF export function
         window.exportPdf = async function() {
             try {
-                // Disable button and show loading state
+                // Clear any previous error and show loading state
+                hideExportError();
                 const exportBtn = document.getElementById('export-pdf-btn');
                 const originalText = exportBtn.textContent;
                 exportBtn.disabled = true;
@@ -2784,7 +2892,7 @@
                 setTimeout(() => {
                     exportBtn.textContent = 'Export PDF';
                 }, 3000);
-                alert(`PDF export failed: ${error.message}`);
+                showExportError(`PDF export failed: ${error.message}`);
             }
         };
 
@@ -3623,6 +3731,7 @@
                 configsHeader.addEventListener('click', () => {
                     configsHeader.classList.toggle('expanded');
                     configsContent.classList.toggle('expanded');
+                    configsHeader.setAttribute('aria-expanded', configsHeader.classList.contains('expanded'));
                     console.log('Configs section toggled, expanded:', configsHeader.classList.contains('expanded'));
                 });
                 console.log('Configs header click listener attached');

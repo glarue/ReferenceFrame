@@ -1740,6 +1740,25 @@ button:active {
     margin-top: 15px;
 }
 
+/* App footer with version info */
+.app-footer {
+    margin-top: 8px;
+    text-align: center;
+    font: var(--md-typescale-body-small);
+    color: var(--rf-text-muted);
+}
+
+/* PDF export error feedback (shown near the Export PDF button on failure) */
+.export-status {
+    background: rgba(249, 65, 68, 0.12);
+    border-left: 3px solid var(--rf-error);
+    color: var(--rf-error);
+    padding: 8px 12px;
+    border-radius: var(--md-shape-extra-small);
+    font: var(--md-typescale-body-small);
+    margin-bottom: 10px;
+}
+
 /* Header row */
 .header-row {
     display: flex;

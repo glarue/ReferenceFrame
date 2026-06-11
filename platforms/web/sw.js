@@ -1,8 +1,27 @@
 // Service Worker for ReferenceFrame WASM
 // Caches WASM modules, libraries, and app resources for fast subsequent loads
+//
+// ============================================================================
+// CACHE-INVALIDATION STRATEGY
+// ============================================================================
+// The project's documented cache-busting mechanism is `?v=YYYYMMDD-description`
+// query params on CSS and WASM/JS imports in index.html (see CLAUDE.md).
+// Those params bust the HTTP cache for browsers without service worker
+// support, and produce distinct cache keys here.
+//
+// This service worker complements that convention:
+//   - App files (.html/.css/.js/.wasm) are fetched network-first, so deploys
+//     reach SW-enabled browsers immediately; the cache is only a fallback
+//     for offline use.
+//   - CDN libraries and other resources are cached cache-first.
+//
+// IMPORTANT: bump CACHE_NAME and RUNTIME_CACHE on every deploy. The version
+// bump drops stale precached entries (including old ?v= variants) via the
+// activate handler below.
+// ============================================================================
 
-const CACHE_NAME = 'referenceframe-wasm-v5';
-const RUNTIME_CACHE = 'referenceframe-runtime-v5';
+const CACHE_NAME = 'referenceframe-wasm-v6';
+const RUNTIME_CACHE = 'referenceframe-runtime-v6';
 
 // Resources to cache immediately on install
 const PRECACHE_URLS = [
@@ -11,8 +30,8 @@ const PRECACHE_URLS = [
     './styles.css',
     './storage.js',
     './manifest.json',
-    './pkg/wasm_bindings.js',
-    './pkg/wasm_bindings_bg.wasm',
+    './pkg/referenceframe_wasm.js',
+    './pkg/referenceframe_wasm_bg.wasm',
 ];
 
 // Install event - precache essential resources

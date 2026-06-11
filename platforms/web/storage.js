@@ -17,15 +17,74 @@ const STORAGE_KEYS = {
     DISPLAY_FORMAT: 'frame_designer_display_format'
 };
 
+// ============================================================================
+// Schema Versioning
+// ============================================================================
+// Saved configs and custom sizes are persisted as { version, items }.
+// Legacy unversioned payloads (bare arrays) are treated as v1 and rewritten
+// in versioned form on first load.
+
+const STORAGE_SCHEMA_VERSION = 1;
+
+/**
+ * Migrate persisted data from an older schema version to the current one.
+ * Currently a pass-through stub: v1 is the only schema. When bumping
+ * STORAGE_SCHEMA_VERSION, add stepwise upgrades here (fromVersion -> current).
+ * @param {*} data - The persisted items (e.g., array of configs or sizes)
+ * @param {number} fromVersion - Schema version the data was written with
+ * @returns {*} Data upgraded to the current schema version
+ */
+function migrateStoredData(data, fromVersion) {
+    if (fromVersion > STORAGE_SCHEMA_VERSION) {
+        console.warn(`Stored data version ${fromVersion} is newer than supported (${STORAGE_SCHEMA_VERSION}); using as-is`);
+    }
+    // v1 -> v1: pass through
+    return data;
+}
+
+/**
+ * Load a versioned list payload from localStorage.
+ * Bare arrays (legacy, unversioned) are treated as v1 and upgraded in place.
+ * @param {string} key - localStorage key
+ * @returns {Array} The stored items
+ */
+function loadVersionedList(key) {
+    const json = localStorage.getItem(key);
+    if (!json) return [];
+    const parsed = JSON.parse(json);
+    if (Array.isArray(parsed)) {
+        // Legacy unversioned payload: treat as v1 and write back versioned
+        const items = migrateStoredData(parsed, 1);
+        saveVersionedList(key, items);
+        return items;
+    }
+    const version = typeof parsed.version === 'number' ? parsed.version : 1;
+    const items = migrateStoredData(parsed.items || [], version);
+    if (version !== STORAGE_SCHEMA_VERSION) {
+        saveVersionedList(key, items);
+    }
+    return items;
+}
+
+/**
+ * Save a list payload to localStorage with the current schema version.
+ * @param {string} key - localStorage key
+ * @param {Array} items - Items to store
+ */
+function saveVersionedList(key, items) {
+    localStorage.setItem(key, JSON.stringify({
+        version: STORAGE_SCHEMA_VERSION,
+        items
+    }));
+}
+
 /**
  * Load saved configurations from localStorage
  * @returns {Array} Array of {name, config} objects
  */
 function loadSavedConfigs() {
     try {
-        const json = localStorage.getItem(STORAGE_KEYS.CONFIGS);
-        if (!json) return [];
-        return JSON.parse(json);
+        return loadVersionedList(STORAGE_KEYS.CONFIGS);
     } catch (e) {
         console.error('Error loading saved configs:', e);
         return [];
@@ -48,7 +107,7 @@ function saveConfig(name, config) {
         // Add new/updated config
         filtered.push({ name, config });
 
-        localStorage.setItem(STORAGE_KEYS.CONFIGS, JSON.stringify(filtered));
+        saveVersionedList(STORAGE_KEYS.CONFIGS, filtered);
         console.log(`Saved configuration: ${name}`);
         return true;
     } catch (e) {
@@ -66,7 +125,7 @@ function deleteConfig(name) {
     try {
         const configs = loadSavedConfigs();
         const filtered = configs.filter(c => c.name !== name);
-        localStorage.setItem(STORAGE_KEYS.CONFIGS, JSON.stringify(filtered));
+        saveVersionedList(STORAGE_KEYS.CONFIGS, filtered);
         console.log(`Deleted configuration: ${name}`);
         return true;
     } catch (e) {
@@ -92,9 +151,7 @@ function getConfigByName(name) {
  */
 function loadCustomSizes() {
     try {
-        const json = localStorage.getItem(STORAGE_KEYS.CUSTOM_SIZES);
-        if (!json) return [];
-        return JSON.parse(json);
+        return loadVersionedList(STORAGE_KEYS.CUSTOM_SIZES);
     } catch (e) {
         console.error('Error loading custom sizes:', e);
         return [];
@@ -113,7 +170,7 @@ function saveCustomSize(name, height, width) {
         const sizes = loadCustomSizes();
         const filtered = sizes.filter(s => s.name !== name);
         filtered.push({ name, height, width });
-        localStorage.setItem(STORAGE_KEYS.CUSTOM_SIZES, JSON.stringify(filtered));
+        saveVersionedList(STORAGE_KEYS.CUSTOM_SIZES, filtered);
         return true;
     } catch (e) {
         console.error('Error saving custom size:', e);
@@ -130,7 +187,7 @@ function deleteCustomSize(name) {
     try {
         const sizes = loadCustomSizes();
         const filtered = sizes.filter(s => s.name !== name);
-        localStorage.setItem(STORAGE_KEYS.CUSTOM_SIZES, JSON.stringify(filtered));
+        saveVersionedList(STORAGE_KEYS.CUSTOM_SIZES, filtered);
         return true;
     } catch (e) {
         console.error('Error deleting custom size:', e);
@@ -435,11 +492,9 @@ function importData(jsonData, mode = 'merge') {
         }
 
         if (mode === 'replace') {
-            // Replace all data
-            localStorage.setItem(STORAGE_KEYS.CONFIGS,
-                JSON.stringify(data.saved_configs || []));
-            localStorage.setItem(STORAGE_KEYS.CUSTOM_SIZES,
-                JSON.stringify(data.custom_sizes || []));
+            // Replace all data (written in current versioned schema)
+            saveVersionedList(STORAGE_KEYS.CONFIGS, data.saved_configs || []);
+            saveVersionedList(STORAGE_KEYS.CUSTOM_SIZES, data.custom_sizes || []);
             if (data.custom_colors) {
                 localStorage.setItem(STORAGE_KEYS.CUSTOM_COLORS,
                     JSON.stringify(data.custom_colors));
@@ -456,7 +511,7 @@ function importData(jsonData, mode = 'merge') {
                 c => !existingNames.has(c.name)
             );
             const merged = [...existingConfigs, ...newConfigs];
-            localStorage.setItem(STORAGE_KEYS.CONFIGS, JSON.stringify(merged));
+            saveVersionedList(STORAGE_KEYS.CONFIGS, merged);
 
             // Merge custom sizes
             const existingSizes = loadCustomSizes();
@@ -465,7 +520,7 @@ function importData(jsonData, mode = 'merge') {
                 s => !existingSizeNames.has(s.name)
             );
             const mergedSizes = [...existingSizes, ...newSizes];
-            localStorage.setItem(STORAGE_KEYS.CUSTOM_SIZES, JSON.stringify(mergedSizes));
+            saveVersionedList(STORAGE_KEYS.CUSTOM_SIZES, mergedSizes);
 
             // Merge custom colors (imported values fill gaps, don't overwrite)
             if (data.custom_colors) {
