@@ -1,5 +1,7 @@
 # ReferenceFrame UI Refresh Plan (Incremental)
 
+> **Status (2026-06-10):** Largely implemented. Input steppers (`stepper-btn`) and the depth analysis visualization (`depth-bar`, `depth-fill`, capacity marker) exist in `platforms/web/index.html`/`styles.css`, though with different markup than sketched here. Historical reference only.
+
 **Status:** Planning Phase
 **Approach:** Small, focused improvements maintaining all existing functionality
 **Inspiration:** Stitch UI examples (technical/blueprint aesthetic)

@@ -52,6 +52,12 @@ ReferenceFrame/
 
 ## Development
 
+**One-time setup** (after cloning): enable the shared commit-msg hook that enforces conventional commits:
+```bash
+git config core.hooksPath hooks/
+```
+The mobile repo (`platforms/mobile/`, separate git repo) shares the same hooks via its own `core.hooksPath` pointing at this directory.
+
 **Core library** (all platforms):
 ```bash
 cd core

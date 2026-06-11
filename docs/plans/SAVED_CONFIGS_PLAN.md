@@ -1,5 +1,7 @@
 # Plan: Saved Configurations & Data Management for WASM Version
 
+> **Status (2026-06-10):** Implemented. `platforms/web/storage.js` provides saved configs, custom sizes, settings/unit persistence, and JSON export/import (merge or replace) under the `frame_designer_*` localStorage keys described below. Kept for historical reference.
+
 ## Overview
 Implement configuration saving/loading and data backup/restore functionality with maximum cross-platform reusability (Web, iOS, Android).
 

@@ -1,5 +1,7 @@
 # ReferenceFrame Style Matching Plan
 
+> **Status (2026-06-10):** Not implemented as written / superseded. The Stitch reference palette (#277ca0) does not appear in the current CSS; the app standardized on the 7-color palette in `core/data/presets.json` instead. Some ideas (cards, typography hierarchy) influenced later UI work. Historical reference only.
+
 **Goal:** Match the visual style of the Stitch UI reference example as closely as possible
 
 **Reference:** `/home/glarue/stitch_ui_examples/stitch_artwork_dimensions_input (4)/code.html`
