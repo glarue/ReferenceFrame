@@ -13,7 +13,7 @@
 //!
 //! # Example
 //! ```
-//! use rust_core::input_parser::DimensionInput;
+//! use referenceframe_core::input_parser::DimensionInput;
 //! 
 //! let dim = DimensionInput::new("1 3/4");
 //! assert!(dim.is_valid());
@@ -132,7 +132,12 @@ impl DimensionInput {
     }
 
     /// Divide by a scalar
+    ///
+    /// Dividing by zero is a no-op returning the value unchanged
     pub fn divide(&self, scalar: f64) -> DimensionInput {
+        if scalar == 0.0 {
+            return self.clone();
+        }
         DimensionInput::from_decimal(self.value / scalar)
     }
 }
@@ -732,6 +737,15 @@ mod tests {
         
         let quotient = a.divide(2.0);
         assert_eq!(quotient.value(), 0.75);
+    }
+
+    #[test]
+    fn test_dimension_input_divide_by_zero_is_noop() {
+        let a = DimensionInput::new("1 1/2");
+        let result = a.divide(0.0);
+        assert!(result.is_valid());
+        assert_eq!(result.value(), 1.5); // Unchanged, not infinity/NaN
+        assert_eq!(result.original(), a.original());
     }
 
     #[test]

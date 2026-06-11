@@ -346,7 +346,7 @@ pub fn format_inches_as_fraction(value: f64) -> String {
 ///
 /// # Examples
 /// ```
-/// use rust_core::conversions::{format_value, Unit};
+/// use referenceframe_core::conversions::{format_value, Unit};
 ///
 /// assert_eq!(format_value(12.75, Unit::Inches), "12 3/4\"");
 /// assert_eq!(format_value(1.0, Unit::Millimeters), "25.4 mm");
@@ -376,7 +376,9 @@ fn format_mm(value: f64) -> String {
 ///
 /// # Examples
 /// ```
-/// assert_eq!(format_value_with_decimal(12.75, Unit::Inches), "12 3/4\" (12.75\")");
+/// use referenceframe_core::conversions::{format_value_with_decimal, Unit};
+///
+/// assert_eq!(format_value_with_decimal(12.75, Unit::Inches), "12 3/4 (12.75)\"");
 /// assert_eq!(format_value_with_decimal(10.0, Unit::Inches), "10\"");  // No decimal for whole numbers
 /// ```
 pub fn format_value_with_decimal(value: f64, unit: Unit) -> String {
@@ -458,7 +460,7 @@ fn format_inches_decimal(value: f64) -> String {
 /// ```
 /// use referenceframe_core::conversions::{format_value_tape_measure, Unit};
 ///
-/// assert_eq!(format_value_tape_measure(4.72, Unit::Inches), "4 3/4 - 1/32\" (4.72\")");
+/// assert_eq!(format_value_tape_measure(4.72, Unit::Inches), "4 3/4 - 1/32 (4.72\")");
 /// assert_eq!(format_value_tape_measure(4.5, Unit::Inches), "4 1/2\"");
 /// ```
 pub fn format_value_tape_measure(value: f64, unit: Unit) -> String {

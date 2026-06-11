@@ -65,6 +65,9 @@ pub fn get_aspect_ratio_display(height: f64, width: f64) -> String {
 
 /// Calculate the unknown dimension given one dimension and the aspect ratio
 ///
+/// Returns 0.0 for a zero ratio (consistent with `invert_ratio` and the
+/// multiplication branch, which yields 0.0 naturally).
+///
 /// # Arguments
 /// * `known_value` - The known dimension value
 /// * `ratio` - The aspect ratio (height/width)
@@ -74,6 +77,9 @@ pub fn calculate_dimension_from_ratio(
     ratio: f64,
     known_is_height: bool,
 ) -> f64 {
+    if ratio == 0.0 {
+        return 0.0;
+    }
     if known_is_height {
         // height = ratio * width, so width = height / ratio
         known_value / ratio
@@ -251,10 +257,10 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_dimension_from_ratio_zero_produces_infinity() {
-        // Division by zero ratio produces infinity — callers must guard
-        let result = calculate_dimension_from_ratio(10.0, 0.0, true);
-        assert!(result.is_infinite());
+    fn test_calculate_dimension_from_ratio_zero_returns_zero() {
+        // Zero ratio is guarded — returns 0.0 instead of dividing by zero
+        assert_eq!(calculate_dimension_from_ratio(10.0, 0.0, true), 0.0);
+        assert_eq!(calculate_dimension_from_ratio(10.0, 0.0, false), 0.0);
     }
 
     #[test]

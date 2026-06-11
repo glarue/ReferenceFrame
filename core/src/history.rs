@@ -9,6 +9,15 @@ use crate::frame::FrameDesign;
 /// Default maximum number of history entries
 pub const DEFAULT_MAX_ENTRIES: usize = 50;
 
+/// Current history schema version (see `DesignHistory::version`)
+pub const HISTORY_VERSION: u32 = 1;
+
+/// Serde default for `DesignHistory::version` — JSON stored before the field
+/// existed deserializes as version 1
+fn default_history_version() -> u32 {
+    HISTORY_VERSION
+}
+
 /// A single history entry containing a design snapshot
 ///
 /// Tracks multiple timestamps for when the same design was saved,
@@ -72,6 +81,15 @@ impl HistoryEntry {
 /// Collection of history entries with CRUD operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DesignHistory {
+    /// Schema version of the persisted history format.
+    ///
+    /// Migration pattern: when the stored shape changes incompatibly, bump
+    /// `HISTORY_VERSION` and have `from_json` inspect the parsed `version`
+    /// to upgrade older payloads (e.g., rename/restructure fields) before
+    /// returning. JSON saved before this field existed has no `version`
+    /// key and deserializes as version 1 via the serde default.
+    #[serde(default = "default_history_version")]
+    pub version: u32,
     /// History entries, newest first
     pub entries: Vec<HistoryEntry>,
     /// Maximum number of entries to retain
@@ -88,6 +106,7 @@ impl DesignHistory {
     /// Create empty history with default max entries
     pub fn new() -> Self {
         Self {
+            version: HISTORY_VERSION,
             entries: Vec::new(),
             max_entries: DEFAULT_MAX_ENTRIES,
         }
@@ -96,6 +115,7 @@ impl DesignHistory {
     /// Create empty history with custom max entries
     pub fn with_max_entries(max_entries: usize) -> Self {
         Self {
+            version: HISTORY_VERSION,
             entries: Vec::new(),
             max_entries: max_entries.max(1), // At least 1 entry
         }
@@ -407,6 +427,21 @@ mod tests {
 
         history.clear();
         assert!(history.is_empty());
+    }
+
+    #[test]
+    fn test_version_defaults_for_legacy_json() {
+        // History saved before the version field existed must load as version 1
+        let json = r#"{"entries": [], "max_entries": 50}"#;
+        let history = DesignHistory::from_json(json).unwrap();
+        assert_eq!(history.version, HISTORY_VERSION);
+        assert_eq!(history.max_entries, 50);
+    }
+
+    #[test]
+    fn test_new_history_carries_current_version() {
+        assert_eq!(DesignHistory::new().version, HISTORY_VERSION);
+        assert_eq!(DesignHistory::with_max_entries(5).version, HISTORY_VERSION);
     }
 
     #[test]

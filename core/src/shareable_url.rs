@@ -30,6 +30,8 @@ pub enum DecodeError {
     InvalidUrl,
     InvalidBase64,
     TruncatedData,
+    /// Format version (top 3 bits of flags byte) is newer than this decoder understands
+    UnsupportedVersion(u8),
 }
 
 impl std::fmt::Display for DecodeError {
@@ -38,15 +40,49 @@ impl std::fmt::Display for DecodeError {
             DecodeError::InvalidUrl => write!(f, "Invalid URL format"),
             DecodeError::InvalidBase64 => write!(f, "Invalid base64 encoding"),
             DecodeError::TruncatedData => write!(f, "Truncated data (expected 28 or 30 bytes)"),
+            DecodeError::UnsupportedVersion(v) => {
+                write!(f, "Unsupported format version {} (decoder supports version {})", v, FORMAT_VERSION)
+            }
         }
     }
 }
 
 impl std::error::Error for DecodeError {}
 
-/// Pack a value as big-endian uint24 (3 bytes)
+// ============================================================================
+// Format versioning
+// ============================================================================
+//
+// The flags byte (last byte of the payload) is laid out as:
+//
+//     bit 7..5: format version (currently 0)
+//     bit 4..2: reserved (must be 0)
+//     bit 1:    unit_mm
+//     bit 0:    include_mat
+//
+// Version 0 covers both the 30-byte format and the legacy 28-byte format
+// (distinguished by payload length). All URLs generated before versioning
+// was introduced already have zero in the top bits, so they decode as
+// version 0 with no wire change. A future incompatible format must bump
+// the version so old payloads can't be misparsed; this decoder rejects
+// any version it doesn't recognize.
+
+/// Current binary format version (stored in the top 3 bits of the flags byte)
+const FORMAT_VERSION: u8 = 0;
+
+/// Bit position of the version within the flags byte
+const VERSION_SHIFT: u8 = 5;
+
+// Field ranges: values are stored as fixed-point ×10000.
+//   uint24 fields max: 0xFFFFFF / 10000 = 1677.7215"
+//   uint16 fields max: 0xFFFF / 10000 = 6.5535"
+// Out-of-range values are clamped on encode (never silently wrapped).
+const MAX_UINT24: f64 = 0xFF_FFFF as f64;
+const MAX_UINT16: f64 = 0xFFFF as f64;
+
+/// Pack a value as big-endian uint24 (3 bytes), clamped to [0, 1677.7215]
 fn pack_uint24(val: f64) -> [u8; 3] {
-    let v = (val * 10000.0) as u32;
+    let v = (val * 10000.0).clamp(0.0, MAX_UINT24) as u32;
     [
         ((v >> 16) & 0xFF) as u8,
         ((v >> 8) & 0xFF) as u8,
@@ -60,9 +96,9 @@ fn unpack_uint24(bytes: &[u8]) -> f64 {
     v as f64 / 10000.0
 }
 
-/// Pack a value as big-endian uint16 (2 bytes)
+/// Pack a value as big-endian uint16 (2 bytes), clamped to [0, 6.5535]
 fn pack_uint16(val: f64) -> [u8; 2] {
-    let v = (val * 10000.0) as u16;
+    let v = (val * 10000.0).clamp(0.0, MAX_UINT16) as u16;
     [
         ((v >> 8) & 0xFF) as u8,
         (v & 0xFF) as u8,
@@ -77,12 +113,13 @@ fn unpack_uint16(bytes: &[u8]) -> f64 {
 
 /// Generate a compact shareable URL encoding all frame settings
 ///
-/// Binary format (30 bytes → ~40 chars base64):
-///     5 × uint24: h, w, mw, fw, fd (×10000 for 4 decimal precision)
-///     7 × uint16: gt, mt, at, bt, rw, rd, bw (×10000 for 4 decimal precision)
-///     1 × byte: flags (bit 0 = mat, bit 1 = unit_mm)
+/// Binary format version 0 (30 bytes → ~40 chars base64):
+///     5 × uint24: h, w, mw, fw, fd (×10000 for 4 decimal precision, max 1677.7215")
+///     7 × uint16: gt, mt, at, bt, rw, rd, bw (×10000 for 4 decimal precision, max 6.5535")
+///     1 × byte: flags (bit 0 = mat, bit 1 = unit_mm, bits 5-7 = format version)
 ///
-/// All values stored in inches internally.
+/// All values stored in inches internally. Out-of-range values are clamped
+/// to each field's representable range rather than wrapping.
 pub fn generate_shareable_url(params: &ShareableParams) -> String {
     let mut packed = Vec::with_capacity(30);
 
@@ -102,8 +139,11 @@ pub fn generate_shareable_url(params: &ShareableParams) -> String {
     packed.extend_from_slice(&pack_uint16(params.rabbet_depth));
     packed.extend_from_slice(&pack_uint16(params.blade_width));
 
-    // Flags byte (1 byte total)
-    let flags = (params.include_mat as u8) | ((params.unit_mm as u8) << 1);
+    // Flags byte (1 byte total): flag bits plus version in the top 3 bits.
+    // Version 0 leaves the top bits zero, so the wire format is unchanged.
+    let flags = (params.include_mat as u8)
+        | ((params.unit_mm as u8) << 1)
+        | (FORMAT_VERSION << VERSION_SHIFT);
     packed.push(flags);
 
     // Base64 encode (URL-safe, no padding)
@@ -158,6 +198,13 @@ pub fn decode_shareable_url(url: &str) -> Result<ShareableParams, DecodeError> {
         let f = bytes[27];
         (rd, rd, bw, f)  // rabbet_width = rabbet_depth for backwards compatibility
     };
+
+    // Reject payloads from a future format version rather than misparsing them.
+    // (Pre-versioning URLs have zero in the top bits, so they pass as version 0.)
+    let version = flags >> VERSION_SHIFT;
+    if version != FORMAT_VERSION {
+        return Err(DecodeError::UnsupportedVersion(version));
+    }
 
     let include_mat = (flags & 0x01) != 0;
     let unit_mm = (flags & 0x02) != 0;
@@ -340,6 +387,137 @@ mod tests {
         let url = format!("https://example.com/?d={}", b64);
         let result = decode_shareable_url(&url);
         assert!(matches!(result, Err(DecodeError::TruncatedData)));
+    }
+
+    // --- Format versioning ---
+
+    #[test]
+    fn test_encoder_writes_version_zero() {
+        let params = ShareableParams {
+            artwork_height: 8.0,
+            artwork_width: 12.0,
+            mat_width: 2.0,
+            frame_width: 0.75,
+            frame_depth: 0.75,
+            glazing_thickness: 0.093,
+            matboard_thickness: 0.055,
+            artwork_thickness: 0.008,
+            backing_thickness: 0.125,
+            rabbet_width: 0.375,
+            rabbet_depth: 0.375,
+            blade_width: 0.125,
+            include_mat: true,
+            unit_mm: true,
+        };
+        let encoded = generate_shareable_url(&params);
+        let bytes = URL_SAFE_NO_PAD.decode(&encoded).unwrap();
+        let flags = bytes[29];
+        // Top 3 bits (version) must be zero; flag bits intact
+        assert_eq!(flags >> VERSION_SHIFT, FORMAT_VERSION);
+        assert_eq!(flags & 0x03, 0x03);
+    }
+
+    #[test]
+    fn test_decode_unknown_version_rejected() {
+        // Valid 30-byte payload, but with a future version in the flags byte
+        let mut payload = vec![0u8; 30];
+        payload[29] = 0x01 | (1 << VERSION_SHIFT); // version 1, include_mat set
+        let b64 = URL_SAFE_NO_PAD.encode(&payload);
+        let url = format!("https://example.com/?d={}", b64);
+        let result = decode_shareable_url(&url);
+        assert!(matches!(result, Err(DecodeError::UnsupportedVersion(1))));
+    }
+
+    #[test]
+    fn test_decode_legacy_unknown_version_rejected() {
+        // The version check also applies to the legacy 28-byte format
+        let mut payload = vec![0u8; 28];
+        payload[27] = 7 << VERSION_SHIFT; // version 7
+        let b64 = URL_SAFE_NO_PAD.encode(&payload);
+        let url = format!("https://example.com/?d={}", b64);
+        let result = decode_shareable_url(&url);
+        assert!(matches!(result, Err(DecodeError::UnsupportedVersion(7))));
+    }
+
+    // --- Encode clamping (out-of-range values must not wrap) ---
+
+    #[test]
+    fn test_encode_clamps_oversized_uint16_fields() {
+        // 7.0" exceeds the uint16 max of 6.5535" — must clamp, not wrap
+        let params = ShareableParams {
+            artwork_height: 10.0,
+            artwork_width: 10.0,
+            mat_width: 2.0,
+            frame_width: 0.75,
+            frame_depth: 0.75,
+            glazing_thickness: 7.0,
+            matboard_thickness: 0.055,
+            artwork_thickness: 0.008,
+            backing_thickness: 0.125,
+            rabbet_width: 100.0,
+            rabbet_depth: 0.375,
+            blade_width: 0.125,
+            include_mat: true,
+            unit_mm: false,
+        };
+        let encoded = generate_shareable_url(&params);
+        let url = format!("https://example.com/?d={}", encoded);
+        let decoded = decode_shareable_url(&url).unwrap();
+        assert!((decoded.glazing_thickness - 6.5535).abs() < 0.0001);
+        assert!((decoded.rabbet_width - 6.5535).abs() < 0.0001);
+        // In-range neighbors are untouched
+        assert!((decoded.rabbet_depth - 0.375).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_encode_clamps_oversized_uint24_fields() {
+        // 2000" exceeds the uint24 max of 1677.7215" — must clamp, not wrap
+        let params = ShareableParams {
+            artwork_height: 2000.0,
+            artwork_width: 12.0,
+            mat_width: 2.0,
+            frame_width: 0.75,
+            frame_depth: 0.75,
+            glazing_thickness: 0.093,
+            matboard_thickness: 0.055,
+            artwork_thickness: 0.008,
+            backing_thickness: 0.125,
+            rabbet_width: 0.375,
+            rabbet_depth: 0.375,
+            blade_width: 0.125,
+            include_mat: true,
+            unit_mm: false,
+        };
+        let encoded = generate_shareable_url(&params);
+        let url = format!("https://example.com/?d={}", encoded);
+        let decoded = decode_shareable_url(&url).unwrap();
+        assert!((decoded.artwork_height - 1677.7215).abs() < 0.0001);
+        assert!((decoded.artwork_width - 12.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_encode_clamps_negative_values_to_zero() {
+        let params = ShareableParams {
+            artwork_height: -5.0,
+            artwork_width: 12.0,
+            mat_width: 2.0,
+            frame_width: 0.75,
+            frame_depth: 0.75,
+            glazing_thickness: -0.1,
+            matboard_thickness: 0.055,
+            artwork_thickness: 0.008,
+            backing_thickness: 0.125,
+            rabbet_width: 0.375,
+            rabbet_depth: 0.375,
+            blade_width: 0.125,
+            include_mat: false,
+            unit_mm: false,
+        };
+        let encoded = generate_shareable_url(&params);
+        let url = format!("https://example.com/?d={}", encoded);
+        let decoded = decode_shareable_url(&url).unwrap();
+        assert_eq!(decoded.artwork_height, 0.0);
+        assert_eq!(decoded.glazing_thickness, 0.0);
     }
 
     // --- Precision round-trip at boundaries ---

@@ -24,7 +24,12 @@ impl FrameSize {
 }
 
 /// Complete frame design with all dimensions and materials
+///
+/// `#[serde(default)]` keeps old saved JSON (history entries, shared designs)
+/// loadable when new fields are added later: missing fields fall back to the
+/// presets.json defaults via the `Default` impl below.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct FrameDesign {
     // Artwork dimensions
     pub artwork_width: f64,
@@ -360,6 +365,20 @@ mod tests {
         assert_close(design.artwork_thickness, d.artwork_thickness, "artwork");
         assert_close(design.backing_thickness, d.backing_thickness, "backing");
         assert_close(design.assembly_margin, d.assembly_margin, "assembly_margin");
+    }
+
+    #[test]
+    fn test_deserialize_partial_json_fills_defaults() {
+        // Old saved JSON missing fields (e.g., from before a field was added)
+        // must still load, with missing fields taking their default values
+        let json = r#"{"artwork_width": 14.0, "artwork_height": 11.0}"#;
+        let design: FrameDesign = serde_json::from_str(json).unwrap();
+        assert_close(design.artwork_width, 14.0, "artwork_width from json");
+        assert_close(design.artwork_height, 11.0, "artwork_height from json");
+        let d = presets::get_defaults();
+        assert_close(design.frame_material_width, d.frame_material_width, "frame_width defaulted");
+        assert_close(design.rabbet_depth, d.rabbet_depth, "rabbet_depth defaulted");
+        assert_eq!(design.symmetrical_mat, d.symmetrical_mat);
     }
 
     #[test]
