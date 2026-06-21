@@ -2217,7 +2217,7 @@
         function formatDisplay(value, unitMm) {
             switch (currentDisplayFormat) {
                 case 'decimal':
-                    return formatDisplay(value, unitMm);
+                    return formatValueWithDecimal(value, unitMm);
                 case 'tape':
                     return formatValueTapeMeasure(value, unitMm);
                 case 'fractions':
