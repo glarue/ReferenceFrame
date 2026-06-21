@@ -263,6 +263,38 @@ impl DiagramStyle {
         style
     }
 
+    /// Create a style for on-screen dark mode.
+    ///
+    /// Inverts the surface (dark background, light frame lines) and swaps the
+    /// dimension palette to the lighter palette variants (from data/presets.json
+    /// `palette_light`) so the four distinct dimension hues stay legible against
+    /// a dark background. Geometry, typography, and section material fills are
+    /// unchanged from `default()` — only colors are touched.
+    ///
+    /// The background matches the web app's dark surface (`--md-surface`,
+    /// #0E1117) so the SVG sits seamlessly inside the diagram panel. PDF/print
+    /// export must NOT use this (printing dark wastes ink) — use `for_pdf()`.
+    pub fn for_dark() -> Self {
+        let mut style = Self::default();
+
+        style.background_color = "#0E1117".to_string(); // matches web --md-surface (dark)
+        style.line_color = "#E0E0E0".to_string(); // light gray frame lines
+
+        // Dimension hues: lighter palette variants for contrast on dark.
+        style.dimension_color = "#94A7B8".to_string(); // Blue Slate (light) - primary/default
+        style.inside_dimension_color = "#7EC7B1".to_string(); // Seaweed (light) - inside dims
+        style.outside_dimension_color = "#94A7B8".to_string(); // Blue Slate (light) - outside dims
+        style.mat_dimension_color = "#F7A675".to_string(); // Atomic Tangerine (light) - mat dims
+        style.artwork_dimension_color = "#FBBB6D".to_string(); // Carrot Orange (light) - artwork dims
+        style.accent_color = "#7EC7B1".to_string(); // Seaweed (light)
+        style.content_boundary_color = "#C2AD90".to_string(); // light warm tan - content boundary
+        style.artwork_color = "#B8D4A2".to_string(); // Willow Green (light) - artwork boundary
+        style.warning_color = "#FB8A8C".to_string(); // Strawberry Red (light)
+        style.success_color = "#B8D4A2".to_string(); // Willow Green (light)
+
+        style
+    }
+
     /// Get the offset for a given dimension level
     pub fn get_dimension_offset(&self, level: u8) -> f64 {
         self.dimension_offset_base + (level as f64 * self.dimension_offset_step)
@@ -375,6 +407,24 @@ mod tests {
         assert!(style.dimension_font_size > DiagramStyle::default().dimension_font_size);
         assert!(style.label_font_size > DiagramStyle::default().label_font_size);
         assert!(style.dimension_offset_base > DiagramStyle::default().dimension_offset_base);
+    }
+
+    #[test]
+    fn test_dark_style() {
+        let dark = DiagramStyle::for_dark();
+        let default = DiagramStyle::default();
+        // Background is dark, not the default white.
+        assert_ne!(dark.background_color, default.background_color);
+        assert_eq!(dark.background_color, "#0E1117");
+        // Frame lines are light (inverted from default).
+        assert_ne!(dark.line_color, default.line_color);
+        // Geometry/typography untouched — only colors change.
+        assert_eq!(dark.dimension_font_size, default.dimension_font_size);
+        assert_eq!(dark.frame_stroke_width, default.frame_stroke_width);
+        assert_eq!(dark.margin, default.margin);
+        // Distinct-meaning dimension hues stay distinct (mat vs artwork vs inside).
+        assert_ne!(dark.mat_dimension_color, dark.artwork_dimension_color);
+        assert_ne!(dark.mat_dimension_color, dark.inside_dimension_color);
     }
 
     #[test]
