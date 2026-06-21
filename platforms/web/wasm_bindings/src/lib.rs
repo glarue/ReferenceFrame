@@ -396,6 +396,17 @@ pub fn decode_shareable_url(url: &str) -> Result<String, JsValue> {
 
 // Visualization functions
 
+/// Pick the on-screen diagram style: dark mode or default (light).
+/// PDF/print export uses `DiagramStyle::for_pdf()` instead and must stay light.
+fn screen_style(dark_mode: bool) -> referenceframe_core::visualization::DiagramStyle {
+    use referenceframe_core::visualization::DiagramStyle;
+    if dark_mode {
+        DiagramStyle::for_dark()
+    } else {
+        DiagramStyle::default()
+    }
+}
+
 /// Generate a plan view SVG diagram
 #[wasm_bindgen(js_name = "generatePlanViewSvg")]
 pub fn generate_plan_view_svg(
@@ -407,8 +418,9 @@ pub fn generate_plan_view_svg(
     use_decimal_display: bool,
     corner_detail_enabled: bool,
     axis_breaks_enabled: bool,
+    dark_mode: bool,
 ) -> String {
-    use referenceframe_core::visualization::{generate_diagram, DiagramOptions, ViewOption};
+    use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
 
     let options = DiagramOptions {
         view: ViewOption::PlanOnly,
@@ -425,7 +437,8 @@ pub fn generate_plan_view_svg(
         ..Default::default()
     };
 
-    let result = generate_diagram(&design.inner, &options);
+    let style = screen_style(dark_mode);
+    let result = generate_diagram_with_style(&design.inner, &options, &style);
     result.svg
 }
 
@@ -438,8 +451,9 @@ pub fn generate_section_view_svg(
     unit_mm: bool,
     use_tape_segments: bool,
     use_decimal_display: bool,
+    dark_mode: bool,
 ) -> String {
-    use referenceframe_core::visualization::{generate_diagram, DiagramOptions, ViewOption};
+    use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
 
     let options = DiagramOptions {
         view: ViewOption::SectionOnly,
@@ -454,7 +468,8 @@ pub fn generate_section_view_svg(
         ..Default::default()
     };
 
-    let result = generate_diagram(&design.inner, &options);
+    let style = screen_style(dark_mode);
+    let result = generate_diagram_with_style(&design.inner, &options, &style);
     result.svg
 }
 
@@ -466,10 +481,11 @@ pub fn generate_combined_view_svg(
     canvas_height: f64,
     unit_mm: bool,
     include_title: bool,
+    dark_mode: bool,
 ) -> String {
     generate_combined_view_svg_with_title(
         design, canvas_width, canvas_height, unit_mm, include_title,
-        false, None, false, false, true, true,
+        false, None, false, false, true, true, dark_mode,
     )
 }
 
@@ -490,6 +506,7 @@ pub fn generate_combined_view_svg_with_title(
     use_decimal_display: bool,
     corner_detail_enabled: bool,
     axis_breaks_enabled: bool,
+    dark_mode: bool,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, DiagramStyle, ViewOption};
 
@@ -508,8 +525,11 @@ pub fn generate_combined_view_svg_with_title(
         ..Default::default()
     };
 
+    // PDF/print stays light regardless of theme (printing dark wastes ink).
     let style = if for_pdf {
         DiagramStyle::for_pdf()
+    } else if dark_mode {
+        DiagramStyle::for_dark()
     } else {
         DiagramStyle::default()
     };

@@ -1980,7 +1980,9 @@ button:active {
 /* Visualization container */
 .svg-container {
     position: relative;
-    background: #ffffff;
+    /* Follows the theme: #ffffff in light, --md-surface (#0E1117) in dark, which
+       matches DiagramStyle::for_dark()'s SVG background so there is no seam. */
+    background: var(--md-surface);
     border-radius: var(--md-shape-small);
     padding: var(--svg-container-padding);
     display: block;
@@ -3055,5 +3057,78 @@ h3 {
 @media (max-width: 768px) {
     .size-selectors-row {
         grid-template-columns: 1fr;
+    }
+}
+
+/* ================================================================
+ * Print stylesheet
+ * Prints the diagram + results only, on a clean white page.
+ * The diagram is re-rendered in light colors via beforeprint (see index.html).
+ * ================================================================ */
+@media print {
+    /* Force a light surface regardless of the active theme (no wasted ink). */
+    :root,
+    [data-theme="dark"],
+    [data-theme="light"],
+    [data-theme="system"] {
+        --md-surface: #ffffff;
+        --md-surface-container-lowest: #ffffff;
+        --md-surface-container-low: #ffffff;
+        --md-surface-container: #ffffff;
+        --md-surface-container-high: #ffffff;
+        --md-surface-container-highest: #ffffff;
+        --rf-bg: #ffffff;
+        --rf-bg-dark: #ffffff;
+        --rf-bg-section: #ffffff;
+        --rf-bg-input: #ffffff;
+        --rf-surface: #ffffff;
+        --rf-text: #1a1a1a;
+        --rf-text-light: #1a1a1a;
+    }
+
+    html, body, .container {
+        background: #ffffff !important;
+        color: #1a1a1a !important;
+    }
+
+    /* Hide app chrome — keep only the diagram and results. */
+    .header-row,
+    .inputs-column,
+    .results-actions,
+    .validation-section,
+    .performance,
+    .app-footer,
+    .modal-overlay,
+    .fraction-keyboard,
+    #install-banner {
+        display: none !important;
+    }
+
+    /* Let the results column use the full page width. */
+    .main-layout {
+        display: block !important;
+    }
+    .results-column {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: none !important;
+    }
+
+    /* Flatten cards — no shadows/borders/backgrounds on paper. */
+    .section,
+    .svg-container {
+        box-shadow: none !important;
+        border: none !important;
+        background: #ffffff !important;
+        break-inside: avoid;
+    }
+
+    /* Avoid splitting the diagram across pages. */
+    .svg-container {
+        page-break-inside: avoid;
+    }
+
+    @page {
+        margin: 0.5in;
     }
 }
