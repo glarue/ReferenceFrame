@@ -1,6 +1,6 @@
 [package]
 name = "referenceframe_core"
-version = "1.7.0"
+version = "1.7.1"
 edition = "2021"
 authors = ["ReferenceFrame Contributors"]
 description = "Platform-agnostic picture frame design calculation library"
