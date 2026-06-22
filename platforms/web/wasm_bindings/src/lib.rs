@@ -473,7 +473,10 @@ pub fn generate_section_view_svg(
     result.svg
 }
 
-/// Generate combined view SVG (for PDF export)
+/// Generate combined view SVG for on-screen display.
+///
+/// Honors the user's display format (tape/decimal); corner detail and axis
+/// breaks are auto-enabled (they only render when geometry warrants).
 #[wasm_bindgen(js_name = "generateCombinedViewSvg")]
 pub fn generate_combined_view_svg(
     design: &WasmFrameDesign,
@@ -481,11 +484,13 @@ pub fn generate_combined_view_svg(
     canvas_height: f64,
     unit_mm: bool,
     include_title: bool,
+    use_tape_segments: bool,
+    use_decimal_display: bool,
     dark_mode: bool,
 ) -> String {
     generate_combined_view_svg_with_title(
         design, canvas_width, canvas_height, unit_mm, include_title,
-        false, None, false, false, true, true, dark_mode,
+        false, None, use_tape_segments, use_decimal_display, true, true, dark_mode,
     )
 }
 
