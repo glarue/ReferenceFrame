@@ -9,6 +9,11 @@ Checked against presets.json colors.palette / palette_light / palette_dark:
   - platforms/web/index.html        COLOR_PALETTE array (base hex)
   - core/src/visualization/style.rs palette reference comment block
 
+Also checks presets.json aspect_ratios against the mobile aspect-ratio presets:
+  - platforms/mobile/lib/constants/aspect_ratio_presets.dart (ratio/name/annotation/sizes/order)
+(presets.json mirrors mobile here; web's flat STANDARD_SIZES is an intentionally
+separate size dropdown and is not covered.)
+
 Run from anywhere: python3 scripts/check_presets_drift.py
 Exits nonzero on any mismatch. Wired into CI (.github/workflows/test.yml).
 """
@@ -115,6 +120,63 @@ if stale:
         f"style.rs: commented palette hex values not in presets.json palette: {stale}"
     )
 
+# --- aspect_ratio_presets.dart vs presets.json aspect_ratios ---
+# presets.json mirrors the mobile AspectRatioPresets (ratio, name, annotation,
+# common_sizes, and display order). Mobile is nested/gitignored, so absent in CI
+# checkouts — checked on dev machines, like the Dart color checks above.
+ar_json = {k: v for k, v in presets.get("aspect_ratios", {}).items() if not k.startswith("_")}
+ar_path = ROOT / "platforms/mobile/lib/constants/aspect_ratio_presets.dart"
+if not ar_path.exists():
+    print("note: aspect_ratio_presets.dart not present (CI checkout) — skipping aspect-ratio check")
+else:
+    ar_dart = ar_path.read_text()
+    block_re = re.compile(
+        r"static const (\w+) = AspectRatioPreset\(\s*"
+        r"ratio:\s*([\d.]+),\s*"
+        r"name:\s*'([^']*)',\s*"
+        r"annotation:\s*'([^']*)',\s*"
+        r"key:\s*'([^']*)',\s*"
+        r"commonSizes:\s*\[(.*?)\],\s*\);",
+        re.S,
+    )
+    size_re = re.compile(r"StandardSize\(short:\s*([\d.]+),\s*long:\s*([\d.]+),\s*name:\s*'([^']*)'\)")
+    by_key, var_to_key = {}, {}
+    for var, ratio, name, annot, key, sizes_body in block_re.findall(ar_dart):
+        var_to_key[var] = key
+        by_key[key] = {
+            "ratio": float(ratio),
+            "name": name,
+            "annotation": annot,
+            "sizes": [(float(s), float(l), nm) for s, l, nm in size_re.findall(sizes_body)],
+        }
+    all_m = re.search(r"static const all = \[(.*?)\];", ar_dart, re.S)
+    dart_order = (
+        [var_to_key[v] for v in re.findall(r"^\s*(\w+),", all_m.group(1), re.M) if v in var_to_key]
+        if all_m else []
+    )
+    json_keys = list(ar_json.keys())
+    if dart_order != json_keys:
+        errors.append(
+            f"aspect_ratios: display order {dart_order} (dart) != {json_keys} (presets.json)"
+        )
+    for key, jv in ar_json.items():
+        dv = by_key.get(key)
+        if dv is None:
+            errors.append(f"aspect_ratios: '{key}' in presets.json but not in aspect_ratio_presets.dart")
+            continue
+        if abs(dv["ratio"] - float(jv["ratio"])) > 1e-9:
+            errors.append(f"aspect_ratios '{key}': ratio {dv['ratio']} (dart) != {jv['ratio']} (presets.json)")
+        if dv["name"] != jv["name"]:
+            errors.append(f"aspect_ratios '{key}': name {dv['name']!r} (dart) != {jv['name']!r} (presets.json)")
+        if dv["annotation"] != jv.get("annotation"):
+            errors.append(f"aspect_ratios '{key}': annotation {dv['annotation']!r} (dart) != {jv.get('annotation')!r} (presets.json)")
+        jsizes = [(float(s["short"]), float(s["long"]), s["name"]) for s in jv["common_sizes"]]
+        if dv["sizes"] != jsizes:
+            errors.append(f"aspect_ratios '{key}': sizes {dv['sizes']} (dart) != {jsizes} (presets.json)")
+    for key in by_key:
+        if key not in ar_json:
+            errors.append(f"aspect_ratios: '{key}' in aspect_ratio_presets.dart but not in presets.json")
+
 if errors:
     print(f"PRESETS DRIFT DETECTED ({len(errors)} mismatch(es)):", file=sys.stderr)
     for e in errors:
@@ -123,3 +185,5 @@ if errors:
 
 total = sum(len(t) for t in variants.values())
 print(f"OK: {total} palette values consistent across CSS, Dart, HTML, and style.rs")
+if ar_path.exists():
+    print(f"OK: {len(ar_json)} aspect ratios consistent between presets.json and aspect_ratio_presets.dart")
