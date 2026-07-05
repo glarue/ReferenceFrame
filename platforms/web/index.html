@@ -1926,6 +1926,7 @@
             }
 
             currentUnit = unit;
+            saveUnitPreference(unit);
             document.getElementById('btn-inches').classList.toggle('active', unit === 'inches');
             document.getElementById('btn-mm').classList.toggle('active', unit === 'mm');
 
@@ -1934,6 +1935,9 @@
 
             updateLabels();
             updateRangeSubtitles();
+            // Re-render size dropdowns so their labels use the new unit
+            renderStandardSizes();
+            renderCustomSizes();
             calculate();
         };
 
@@ -3486,8 +3490,8 @@
                     // Restore unit preference if changed
                     const data = JSON.parse(text);
                     if (data.unit && data.unit !== currentUnit) {
-                        // Update unit toggle
-                        toggleUnit();
+                        // Apply the imported unit preference
+                        setUnit(data.unit);
                     }
                 } else {
                     alert(`Import failed: ${result.message}`);
@@ -3527,7 +3531,8 @@
             STANDARD_SIZES.forEach((size, index) => {
                 const option = document.createElement('option');
                 option.value = index;
-                option.textContent = `${size.name}" (${size.height}" × ${size.width}")`;
+                const unitMm = currentUnit === 'mm';
+                option.textContent = `${size.name} (${formatValue(size.height, unitMm)} × ${formatValue(size.width, unitMm)})`;
                 select.appendChild(option);
             });
         }
@@ -3572,7 +3577,8 @@
             sizes.forEach(({ name, height, width }) => {
                 const option = document.createElement('option');
                 option.value = name;
-                option.textContent = `${name} (${height}" × ${width}")`;
+                const unitMm = currentUnit === 'mm';
+                option.textContent = `${name} (${formatValue(height, unitMm)} × ${formatValue(width, unitMm)})`;
                 select.appendChild(option);
             });
 
@@ -3639,8 +3645,9 @@
                 return;
             }
 
-            // Generate default name
-            const defaultName = `${height}" × ${width}"`;
+            // Generate default name (in the current display unit)
+            const unitMm = currentUnit === 'mm';
+            const defaultName = `${formatValue(height, unitMm)} × ${formatValue(width, unitMm)}`;
             const name = prompt('Enter a name for this size:', defaultName);
 
             if (!name || !name.trim()) {
@@ -3789,6 +3796,11 @@
                     if (lastSettings) {
                         console.log('Restoring last settings...');
                         loadConfigIntoForm(lastSettings);
+                    }
+                    // Restore the saved unit preference (setUnit converts the
+                    // input fields and re-renders in the chosen unit).
+                    if (loadUnitPreference() === 'mm') {
+                        setUnit('mm');
                     }
                 }
             }, 500); // Wait for WASM to fully initialize
