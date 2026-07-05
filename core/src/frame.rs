@@ -729,7 +729,7 @@ mod tests {
         let mut design = FrameDesign::default();
         design.frame_material_depth = 0.1; // way too shallow for the stack
         design.enforce_constraints(); // clamps rabbet_depth ≤ frame_material_depth
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         let warnings = result.warnings();
         assert!(
             warnings.iter().any(|w| w.message.contains("exceeds rabbet depth")),
@@ -742,7 +742,7 @@ mod tests {
     fn test_no_warnings_default_design() {
         use crate::validation::{validate_design, ValidationConfig};
         let design = FrameDesign::default();
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.warnings().is_empty(), "default should have no warnings, got: {:?}", result.warnings());
     }
 

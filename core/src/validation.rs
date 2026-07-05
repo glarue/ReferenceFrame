@@ -360,8 +360,22 @@ impl WasmValidationResult {
 }
 
 /// Validate a frame design against the given configuration
-pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> ValidationResult {
+pub fn validate_design(design: &FrameDesign, config: &ValidationConfig, use_mm: bool) -> ValidationResult {
     let mut result = ValidationResult::new();
+
+    let unit = if use_mm { conversions::Unit::Millimeters } else { conversions::Unit::Inches };
+    // Decimal style (replaces the old {:.3}"/{:.1}" value formats). Trims trailing
+    // zeros for a clean read: 12.000" -> 12", 0.750" -> 0.75", 0.093" kept; mm to 0.1mm.
+    let fmt_dec = |v: f64| -> String {
+        if use_mm {
+            format!("{:.1}mm", v * 25.4)
+        } else {
+            let s = format!("{:.3}", v);
+            format!("{}\"", s.trim_end_matches('0').trim_end_matches('.'))
+        }
+    };
+    // Fraction style (was format_inches_as_fraction): app-style fraction inches, or mm.
+    let fmt_frac = |v: f64| -> String { conversions::format_value(v, unit) };
 
     // === HARD ERRORS ===
 
@@ -369,17 +383,17 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
     if design.frame_material_width < config.min_frame_width {
         result.add(ValidationIssue::error(
             "frame_material_width",
-            &format!("Frame width must be at least {:.3}\"", config.min_frame_width),
+            &format!("Frame width must be at least {}", fmt_dec(config.min_frame_width)),
         ).with_details(
-            format!("Current: {:.3}\", Minimum: {:.3}\"", design.frame_material_width, config.min_frame_width),
+            format!("Current: {}, Minimum: {}", fmt_dec(design.frame_material_width), fmt_dec(config.min_frame_width)),
         ));
     }
     if design.frame_material_width > config.max_frame_width {
         result.add(ValidationIssue::error(
             "frame_material_width",
-            &format!("Frame width must be at most {:.1}\"", config.max_frame_width),
+            &format!("Frame width must be at most {}", fmt_dec(config.max_frame_width)),
         ).with_details(
-            format!("Current: {:.3}\", Maximum: {:.1}\"", design.frame_material_width, config.max_frame_width),
+            format!("Current: {}, Maximum: {}", fmt_dec(design.frame_material_width), fmt_dec(config.max_frame_width)),
         ));
     }
 
@@ -387,17 +401,17 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
     if design.frame_material_depth < config.min_frame_depth {
         result.add(ValidationIssue::error(
             "frame_material_depth",
-            &format!("Frame depth must be at least {:.3}\"", config.min_frame_depth),
+            &format!("Frame depth must be at least {}", fmt_dec(config.min_frame_depth)),
         ).with_details(
-            format!("Current: {:.3}\", Minimum: {:.3}\"", design.frame_material_depth, config.min_frame_depth),
+            format!("Current: {}, Minimum: {}", fmt_dec(design.frame_material_depth), fmt_dec(config.min_frame_depth)),
         ));
     }
     if design.frame_material_depth > config.max_frame_depth {
         result.add(ValidationIssue::error(
             "frame_material_depth",
-            &format!("Frame depth must be at most {:.1}\"", config.max_frame_depth),
+            &format!("Frame depth must be at most {}", fmt_dec(config.max_frame_depth)),
         ).with_details(
-            format!("Current: {:.3}\", Maximum: {:.1}\"", design.frame_material_depth, config.max_frame_depth),
+            format!("Current: {}, Maximum: {}", fmt_dec(design.frame_material_depth), fmt_dec(config.max_frame_depth)),
         ));
     }
 
@@ -406,26 +420,26 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
     if design.rabbet_width > max_rabbet_width {
         result.add(ValidationIssue::error(
             "rabbet_width",
-            &format!("Rabbet width too large - must leave at least {:.3}\" lip", config.min_lip_width),
+            &format!("Rabbet width too large - must leave at least {} lip", fmt_dec(config.min_lip_width)),
         ).with_details(
-            format!("Current rabbet: {:.3}\", Frame width: {:.3}\", Max rabbet: {:.3}\"",
-                design.rabbet_width, design.frame_material_width, max_rabbet_width),
+            format!("Current rabbet: {}, Frame width: {}, Max rabbet: {}",
+                fmt_dec(design.rabbet_width), fmt_dec(design.frame_material_width), fmt_dec(max_rabbet_width)),
         ));
     }
     if design.rabbet_width < config.min_rabbet {
         result.add(ValidationIssue::error(
             "rabbet_width",
-            &format!("Rabbet width must be at least {:.3}\"", config.min_rabbet),
+            &format!("Rabbet width must be at least {}", fmt_dec(config.min_rabbet)),
         ).with_details(
-            format!("Current: {:.3}\"", design.rabbet_width),
+            format!("Current: {}", fmt_dec(design.rabbet_width)),
         ));
     }
     if design.rabbet_width > config.max_rabbet {
         result.add(ValidationIssue::error(
             "rabbet_width",
-            &format!("Rabbet width must be at most {:.1}\"", config.max_rabbet),
+            &format!("Rabbet width must be at most {}", fmt_dec(config.max_rabbet)),
         ).with_details(
-            format!("Current: {:.3}\"", design.rabbet_width),
+            format!("Current: {}", fmt_dec(design.rabbet_width)),
         ));
     }
 
@@ -434,26 +448,26 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
     if design.rabbet_depth > max_rabbet_depth {
         result.add(ValidationIssue::error(
             "rabbet_depth",
-            &format!("Rabbet depth too large - must leave at least {:.3}\" face", config.min_face_depth),
+            &format!("Rabbet depth too large - must leave at least {} face", fmt_dec(config.min_face_depth)),
         ).with_details(
-            format!("Current rabbet: {:.3}\", Frame depth: {:.3}\", Max rabbet: {:.3}\"",
-                design.rabbet_depth, design.frame_material_depth, max_rabbet_depth),
+            format!("Current rabbet: {}, Frame depth: {}, Max rabbet: {}",
+                fmt_dec(design.rabbet_depth), fmt_dec(design.frame_material_depth), fmt_dec(max_rabbet_depth)),
         ));
     }
     if design.rabbet_depth < config.min_rabbet {
         result.add(ValidationIssue::error(
             "rabbet_depth",
-            &format!("Rabbet depth must be at least {:.3}\"", config.min_rabbet),
+            &format!("Rabbet depth must be at least {}", fmt_dec(config.min_rabbet)),
         ).with_details(
-            format!("Current: {:.3}\"", design.rabbet_depth),
+            format!("Current: {}", fmt_dec(design.rabbet_depth)),
         ));
     }
     if design.rabbet_depth > config.max_rabbet {
         result.add(ValidationIssue::error(
             "rabbet_depth",
-            &format!("Rabbet depth must be at most {:.1}\"", config.max_rabbet),
+            &format!("Rabbet depth must be at most {}", fmt_dec(config.max_rabbet)),
         ).with_details(
-            format!("Current: {:.3}\"", design.rabbet_depth),
+            format!("Current: {}", fmt_dec(design.rabbet_depth)),
         ));
     }
 
@@ -462,16 +476,16 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
         result.add(ValidationIssue::error(
             "artwork_height",
             &format!("Artwork height ({}) exceeds maximum ({})",
-                conversions::format_inches_as_fraction(design.artwork_height),
-                conversions::format_inches_as_fraction(config.max_artwork_dimension)),
+                fmt_frac(design.artwork_height),
+                fmt_frac(config.max_artwork_dimension)),
         ));
     }
     if design.artwork_width > config.max_artwork_dimension {
         result.add(ValidationIssue::error(
             "artwork_width",
             &format!("Artwork width ({}) exceeds maximum ({})",
-                conversions::format_inches_as_fraction(design.artwork_width),
-                conversions::format_inches_as_fraction(config.max_artwork_dimension)),
+                fmt_frac(design.artwork_width),
+                fmt_frac(config.max_artwork_dimension)),
         ));
     }
 
@@ -481,16 +495,16 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
             result.add(ValidationIssue::error(
                 field,
                 &format!("{} ({}) must be at least {}",
-                    label, conversions::format_inches_as_fraction(value),
-                    conversions::format_inches_as_fraction(min)),
+                    label, fmt_frac(value),
+                    fmt_frac(min)),
             ));
         }
         if value > max {
             result.add(ValidationIssue::error(
                 field,
                 &format!("{} ({}) must be at most {}",
-                    label, conversions::format_inches_as_fraction(value),
-                    conversions::format_inches_as_fraction(max)),
+                    label, fmt_frac(value),
+                    fmt_frac(max)),
             ));
         }
     };
@@ -512,17 +526,17 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
         if design.mat_overlap < config.min_mat_overlap {
             result.add(ValidationIssue::error(
                 "mat_overlap",
-                &format!("Mat overlap must be at least {:.4}\"", config.min_mat_overlap),
+                &format!("Mat overlap must be at least {}", fmt_dec(config.min_mat_overlap)),
             ).with_details(
-                format!("Current: {:.3}\"", design.mat_overlap),
+                format!("Current: {}", fmt_dec(design.mat_overlap)),
             ));
         }
         if design.mat_overlap > config.max_mat_overlap {
             result.add(ValidationIssue::error(
                 "mat_overlap",
-                &format!("Mat overlap must be at most {:.1}\"", config.max_mat_overlap),
+                &format!("Mat overlap must be at most {}", fmt_dec(config.max_mat_overlap)),
             ).with_details(
-                format!("Current: {:.3}\". This would make the mat opening negative!", design.mat_overlap),
+                format!("Current: {}. This would make the mat opening negative!", fmt_dec(design.mat_overlap)),
             ));
         }
 
@@ -533,19 +547,19 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
         if design.mat_overlap > max_safe_overlap_h {
             result.add(ValidationIssue::error(
                 "mat_overlap",
-                &format!("Mat overlap ({:.2}\") too large for artwork height ({:.2}\")",
-                    design.mat_overlap, design.artwork_height),
+                &format!("Mat overlap ({}) too large for artwork height ({})",
+                    fmt_dec(design.mat_overlap), fmt_dec(design.artwork_height)),
             ).with_details(
-                format!("Maximum safe overlap: {:.2}\" (would leave 1\" opening)", max_safe_overlap_h),
+                format!("Maximum safe overlap: {} (would leave 1\" opening)", fmt_dec(max_safe_overlap_h)),
             ));
         }
         if design.mat_overlap > max_safe_overlap_w {
             result.add(ValidationIssue::error(
                 "mat_overlap",
-                &format!("Mat overlap ({:.2}\") too large for artwork width ({:.2}\")",
-                    design.mat_overlap, design.artwork_width),
+                &format!("Mat overlap ({}) too large for artwork width ({})",
+                    fmt_dec(design.mat_overlap), fmt_dec(design.artwork_width)),
             ).with_details(
-                format!("Maximum safe overlap: {:.2}\" (would leave 1\" opening)", max_safe_overlap_w),
+                format!("Maximum safe overlap: {} (would leave 1\" opening)", fmt_dec(max_safe_overlap_w)),
             ));
         }
     }
@@ -565,8 +579,8 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
             "rabbet_depth",
             "Material stack exceeds rabbet depth",
         ).with_details(
-            format!("Stack: {:.3}\", Rabbet: {:.3}\", Overflow: {:.3}\"",
-                total_stack, design.rabbet_depth, overflow),
+            format!("Stack: {}, Rabbet: {}, Overflow: {}",
+                fmt_dec(total_stack), fmt_dec(design.rabbet_depth), fmt_dec(overflow)),
         ));
     }
 
@@ -576,7 +590,7 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
         if mat_h < config.warn_min_mat_opening || mat_w < config.warn_min_mat_opening {
             result.add(ValidationIssue::warning(
                 "mat_overlap",
-                &format!("Mat opening ({:.2}\" × {:.2}\") is very small", mat_h, mat_w),
+                &format!("Mat opening ({} × {}) is very small", fmt_dec(mat_h), fmt_dec(mat_w)),
             ).with_details("Check mat overlap setting"));
         }
     }
@@ -594,15 +608,15 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
                 "artwork_width",
                 "Artwork narrower than frame opening - will show gap",
             ).with_details(
-                format!("Artwork: {:.3}\", Opening: {:.3}\", Gap: {:.3}\"",
-                    design.artwork_width, opening_width, gap),
+                format!("Artwork: {}, Opening: {}, Gap: {}",
+                    fmt_dec(design.artwork_width), fmt_dec(opening_width), fmt_dec(gap)),
             ));
         } else {
             let overlap_per_side = (design.artwork_width - opening_width) / 2.0;
             if overlap_per_side < config.warn_artwork_opening_overlap && overlap_per_side > 0.0 {
                 result.add(ValidationIssue::warning(
                     "artwork_width",
-                    &format!("Artwork extends only {:.3}\" past opening per side", overlap_per_side),
+                    &format!("Artwork extends only {} past opening per side", fmt_dec(overlap_per_side)),
                 ).with_details("May not secure properly under glazing"));
             }
         }
@@ -613,15 +627,15 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig) -> Valid
                 "artwork_height",
                 "Artwork shorter than frame opening - will show gap",
             ).with_details(
-                format!("Artwork: {:.3}\", Opening: {:.3}\", Gap: {:.3}\"",
-                    design.artwork_height, opening_height, gap),
+                format!("Artwork: {}, Opening: {}, Gap: {}",
+                    fmt_dec(design.artwork_height), fmt_dec(opening_height), fmt_dec(gap)),
             ));
         } else {
             let overlap_per_side = (design.artwork_height - opening_height) / 2.0;
             if overlap_per_side < config.warn_artwork_opening_overlap && overlap_per_side > 0.0 {
                 result.add(ValidationIssue::warning(
                     "artwork_height",
-                    &format!("Artwork extends only {:.3}\" past opening per side", overlap_per_side),
+                    &format!("Artwork extends only {} past opening per side", fmt_dec(overlap_per_side)),
                 ).with_details("May not secure properly under glazing"));
             }
         }
@@ -672,7 +686,7 @@ mod tests {
     fn test_valid_design() {
         let design = test_design();
         let config = ValidationConfig::default();
-        let result = validate_design(&design, &config);
+        let result = validate_design(&design, &config, false);
         assert!(result.is_valid(), "Design should be valid: {:?}", result.issues);
     }
 
@@ -681,7 +695,7 @@ mod tests {
         let mut design = test_design();
         design.rabbet_width = 1.4; // Almost as wide as frame
         let config = ValidationConfig::default();
-        let result = validate_design(&design, &config);
+        let result = validate_design(&design, &config, false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "rabbet_width"));
     }
@@ -691,7 +705,7 @@ mod tests {
         let mut design = test_design();
         design.backing_thickness = 0.5; // Make stack too thick
         let config = ValidationConfig::default();
-        let result = validate_design(&design, &config);
+        let result = validate_design(&design, &config, false);
         assert!(result.has_warnings());
         assert!(result.issues.iter().any(|i| 
             i.severity == ValidationSeverity::Warning && 
@@ -725,7 +739,7 @@ mod tests {
         // overlap_per_side = (8.5 - 8.4) / 2 = 0.05
         // warn_artwork_opening_overlap default is 0.125, so 0.05 < 0.125 → warning
         let config = ValidationConfig::default();
-        let result = validate_design(&design, &config);
+        let result = validate_design(&design, &config, false);
         assert!(result.has_warnings(), "Expected warning about small overlap: {:?}", result.issues);
         assert!(result.issues.iter().any(|i|
             i.field == "artwork_width" &&
@@ -737,7 +751,7 @@ mod tests {
         let mut design = test_design();
         design.artwork_width = 150.0;
         let config = ValidationConfig::default();
-        let result = validate_design(&design, &config);
+        let result = validate_design(&design, &config, false);
         assert!(result.has_errors(), "Expected error for oversized artwork: {:?}", result.issues);
         assert!(result.issues.iter().any(|i|
             i.field == "artwork_width" &&
@@ -758,7 +772,7 @@ mod tests {
     fn test_frame_width_below_minimum() {
         let mut design = test_design();
         design.frame_material_width = 0.25; // Below min 0.5"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "frame_material_width" && i.message.contains("at least")));
     }
@@ -767,7 +781,7 @@ mod tests {
     fn test_frame_width_above_maximum() {
         let mut design = test_design();
         design.frame_material_width = 15.0; // Above max 12"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "frame_material_width" && i.message.contains("at most")));
     }
@@ -776,7 +790,7 @@ mod tests {
     fn test_frame_depth_below_minimum() {
         let mut design = test_design();
         design.frame_material_depth = 0.25; // Below min 0.5"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "frame_material_depth" && i.message.contains("at least")));
     }
@@ -785,7 +799,7 @@ mod tests {
     fn test_frame_depth_above_maximum() {
         let mut design = test_design();
         design.frame_material_depth = 7.0; // Above max 6"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "frame_material_depth" && i.message.contains("at most")));
     }
@@ -796,7 +810,7 @@ mod tests {
     fn test_rabbet_depth_too_deep() {
         let mut design = test_design();
         design.rabbet_depth = 0.7; // Leaves < 0.125" face on 0.75" depth
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "rabbet_depth" && i.message.contains("leave")));
     }
@@ -805,7 +819,7 @@ mod tests {
     fn test_rabbet_below_minimum() {
         let mut design = test_design();
         design.rabbet_width = 0.05; // Below min 0.125"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "rabbet_width" && i.message.contains("at least")));
     }
@@ -815,7 +829,7 @@ mod tests {
         let mut design = test_design();
         design.frame_material_width = 6.0; // Wide enough to allow large rabbet
         design.rabbet_width = 3.5; // Above max 3.0"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "rabbet_width" && i.message.contains("at most")));
     }
@@ -826,7 +840,7 @@ mod tests {
     fn test_glazing_thickness_above_maximum() {
         let mut design = test_design();
         design.glazing_thickness = 1.0; // Above max 0.5"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "glazing_thickness"));
     }
@@ -835,7 +849,7 @@ mod tests {
     fn test_artwork_thickness_below_minimum() {
         let mut design = test_design();
         design.artwork_thickness = 0.0; // Below min 0.001"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "artwork_thickness"));
     }
@@ -844,7 +858,7 @@ mod tests {
     fn test_backing_thickness_above_maximum() {
         let mut design = test_design();
         design.backing_thickness = 1.0; // Above max 0.5"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "backing_thickness"));
     }
@@ -853,7 +867,7 @@ mod tests {
     fn test_assembly_margin_above_maximum() {
         let mut design = test_design();
         design.assembly_margin = 0.5; // Above max 0.25"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "assembly_margin"));
     }
@@ -862,7 +876,7 @@ mod tests {
     fn test_matboard_thickness_above_maximum() {
         let mut design = test_design();
         design.matboard_thickness = 0.75; // Above max 0.5"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "matboard_thickness"));
     }
@@ -875,7 +889,7 @@ mod tests {
         design.mat_width_top_bottom = 2.0; // Enable mat
         design.artwork_height = 4.0;
         design.mat_overlap = 1.75; // max_safe = 4.0/2 - 0.5 = 1.5
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "mat_overlap" && i.message.contains("too large for artwork height")));
     }
@@ -886,7 +900,7 @@ mod tests {
         design.mat_width_sides = 2.0; // Enable mat
         design.artwork_width = 3.0;
         design.mat_overlap = 1.25; // max_safe = 3.0/2 - 0.5 = 1.0
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "mat_overlap" && i.message.contains("too large for artwork width")));
     }
@@ -896,7 +910,7 @@ mod tests {
         let mut design = test_design();
         design.mat_width_top_bottom = 2.0;
         design.mat_overlap = 0.01; // Below min 0.0625"
-        let result = validate_design(&design, &ValidationConfig::default());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "mat_overlap" && i.message.contains("at least")));
     }
@@ -911,7 +925,7 @@ mod tests {
         design.artwork_width = 2.0;
         design.artwork_height = 80.0; // Outer ratio well above 10:1
         let config = ValidationConfig::default();
-        let result = validate_design(&design, &config);
+        let result = validate_design(&design, &config, false);
         assert!(result.issues.iter().any(|i|
             i.severity == ValidationSeverity::Warning &&
             i.message.contains("aspect ratio")),
@@ -929,7 +943,7 @@ mod tests {
         // Actually mat_opening = artwork - 2*overlap = 2.5 - 1.25 = 1.25, but we need < 1.0
         design.mat_overlap = 0.875; // Opens to 2.5 - 1.75 = 0.75 < 1.0
         let config = ValidationConfig::default();
-        let result = validate_design(&design, &config);
+        let result = validate_design(&design, &config, false);
         assert!(result.issues.iter().any(|i|
             i.severity == ValidationSeverity::Warning &&
             i.message.contains("very small")));
@@ -991,7 +1005,7 @@ mod tests {
         let mut design = test_design();
         design.artwork_width = 200.0; // Produces opening >> 120"
         let config = ValidationConfig::default();
-        let result = validate_design(&design, &config);
+        let result = validate_design(&design, &config, false);
         assert!(result.has_errors());
         // Should have both artwork_width max dimension error AND opening error
         assert!(result.issues.iter().any(|i| i.field == "artwork_width"));

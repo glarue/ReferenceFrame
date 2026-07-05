@@ -133,21 +133,21 @@ fn tape_measure_rounds_half_up_at_finest_denominator() {
 fn baseline_default_design_is_valid() {
     let mut design = FrameDesign::new(11.0, 14.0);
     design.enforce_constraints();
-    let result = validate_design(&design, &ValidationConfig::default());
+    let result = validate_design(&design, &ValidationConfig::default(), false);
     assert!(result.is_valid(), "default 11x14 should be valid: {:?}", result.issues);
 }
 
 #[test]
 fn zero_artwork_is_rejected() {
     let design = FrameDesign::new(0.0, 0.0);
-    let result = validate_design(&design, &ValidationConfig::default());
+    let result = validate_design(&design, &ValidationConfig::default(), false);
     assert!(!result.is_valid(), "zero artwork must produce a validation error");
 }
 
 #[test]
 fn negative_artwork_is_rejected() {
     let design = FrameDesign::new(-5.0, -8.0);
-    let result = validate_design(&design, &ValidationConfig::default());
+    let result = validate_design(&design, &ValidationConfig::default(), false);
     assert!(!result.is_valid(), "negative artwork must produce a validation error");
 }
 
@@ -160,7 +160,7 @@ fn zero_artwork_no_mat_errors_on_artwork_field() {
     design.mat_width_top_bottom = 0.0;
     assert!(!design.has_mat(), "test setup: expected no mat");
 
-    let result = validate_design(&design, &ValidationConfig::default());
+    let result = validate_design(&design, &ValidationConfig::default(), false);
     assert!(!result.is_valid());
     assert!(
         result
