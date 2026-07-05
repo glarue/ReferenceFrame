@@ -296,6 +296,32 @@
                     </div>
                 </div>
 
+                <!-- Design History -->
+                <div class="section">
+                    <h2 class="collapsible-header" id="history-header" role="button" aria-expanded="false" aria-controls="history-content">
+                        <span class="material-symbols-outlined header-icon">history</span>
+                        <span class="header-title">Design History</span>
+                        <span class="material-symbols-outlined toggle-icon">expand_more</span>
+                    </h2>
+                    <div class="collapsible-content" id="history-content">
+                        <!-- Save current design to history -->
+                        <div class="configs-save-section">
+                            <button id="save-history" class="btn-primary-compact">Save to History</button>
+                        </div>
+
+                        <!-- History status message -->
+                        <div class="export-status" id="history-status" role="status" style="display: none;"></div>
+
+                        <!-- History list -->
+                        <div class="history-list" id="history-list"></div>
+
+                        <!-- Clear all history -->
+                        <div class="history-clear-section">
+                            <button id="clear-history" class="btn-secondary">🗑️ Clear All History</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- View Toggle -->
                 <div class="section">
                     <h2>View</h2>
@@ -593,7 +619,14 @@
             getTypicalRangeHint,
             validateDesign,
             DimensionInput,
-            decimalToFraction
+            decimalToFraction,
+            createHistory,
+            addToHistory,
+            getHistoryEntry,
+            removeHistoryEntry,
+            updateHistoryTitle,
+            clearHistory,
+            getHistoryLength
         } from './pkg/referenceframe_wasm.js?v=20260621-displayfmt';
 
         // Namespace import for optional exports (getCoreVersion is only
@@ -3342,6 +3375,229 @@
             window.calculate();
         }
 
+        // ===================================================================
+        // Design History
+        // ===================================================================
+
+        /**
+         * Restore a design (parsed FrameDesign object with Rust field names)
+         * into the form. Sets artwork dimensions explicitly, then reuses
+         * loadConfigIntoForm for everything else (which recalculates).
+         */
+        function restoreDesignToForm(design) {
+            setDimensionValue('artwork-height', design.artwork_height);
+            setDimensionValue('artwork-width', design.artwork_width);
+            loadConfigIntoForm({
+                mat_width_tb: design.mat_width_top_bottom,
+                mat_width_lr: design.mat_width_sides,
+                mat_width_single: (design.mat_width_top_bottom + design.mat_width_sides) / 2,
+                separate_mat_borders: !design.symmetrical_mat,
+                frame_width: design.frame_material_width,
+                frame_depth: design.frame_material_depth,
+                glazing_thickness: design.glazing_thickness,
+                matboard_thickness: design.matboard_thickness,
+                artwork_thickness: design.artwork_thickness,
+                backing_thickness: design.backing_thickness,
+                rabbet_width: design.rabbet_width,
+                rabbet_depth: design.rabbet_depth,
+                assembly_margin: design.assembly_margin,
+                mat_overlap: design.mat_overlap,
+                blade_width: getDimensionValue('blade-width'), // keep current; not in FrameDesign
+                include_mat: (design.mat_width_top_bottom > 0 || design.mat_width_sides > 0)
+            });
+        }
+
+        // Show a brief (non-blocking) status message in the history panel.
+        let historyStatusHideTimer = null;
+        function showHistoryStatus(message) {
+            const statusEl = document.getElementById('history-status');
+            if (!statusEl) return;
+            statusEl.textContent = message;
+            statusEl.style.display = 'block';
+            clearTimeout(historyStatusHideTimer);
+            historyStatusHideTimer = setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 4000);
+        }
+
+        // addToHistory returns { history, isNew } (or { error, history } on
+        // failure). Normalize to the updated history JSON string, preserving
+        // the previous history if the WASM call reported an error.
+        function unwrapAddToHistory(result, previousHistory) {
+            try {
+                const parsed = JSON.parse(result);
+                if (parsed.error) {
+                    console.error('addToHistory error:', parsed.error);
+                    return parsed.history || previousHistory;
+                }
+                return parsed.history || previousHistory;
+            } catch (e) {
+                console.error('Could not parse addToHistory result:', e);
+                return previousHistory;
+            }
+        }
+
+        // Escape a string for safe insertion into innerHTML.
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        /**
+         * Handle "Save to History" button click
+         */
+        function handleSaveToHistory() {
+            if (!currentDesign) {
+                alert('Calculate a design first');
+                return;
+            }
+
+            const unitMm = currentUnit === 'mm';
+            const height = getDimensionValue('artwork-height');
+            const width = getDimensionValue('artwork-width');
+            const defaultTitle = `${formatValue(height, unitMm)} × ${formatValue(width, unitMm)}`;
+
+            const title = prompt('Name this design:', defaultTitle);
+            if (title === null) {
+                return; // User cancelled
+            }
+
+            let h = getHistory() || createHistory();
+            // timestamp is an i64 (bigint) parameter — pass a BigInt.
+            const result = addToHistory(h, currentDesign.toJson(), BigInt(Date.now()), title.trim() || defaultTitle, false);
+            h = unwrapAddToHistory(result, h);
+            saveHistory(h);
+            renderHistory();
+            showHistoryStatus('Saved to history');
+        }
+
+        /**
+         * Render the design history list (newest first)
+         */
+        function renderHistory() {
+            const listEl = document.getElementById('history-list');
+            if (!listEl) return;
+
+            const historyJson = getHistory();
+            let entries = [];
+            if (historyJson) {
+                try {
+                    entries = JSON.parse(historyJson).entries || [];
+                } catch (e) {
+                    console.error('Error parsing history:', e);
+                    entries = [];
+                }
+            }
+
+            if (entries.length === 0) {
+                listEl.innerHTML = '<div class="history-empty">No saved designs yet</div>';
+                return;
+            }
+
+            listEl.innerHTML = entries.map((entry, index) => {
+                const title = entry.title || 'Untitled';
+                const timestamps = Array.isArray(entry.timestamps) ? entry.timestamps : [];
+                const latestTs = timestamps.length ? Math.max(...timestamps) : Date.now();
+                const dateStr = new Date(latestTs).toLocaleString();
+                const savedHint = timestamps.length > 1
+                    ? ` &middot; saved ${timestamps.length} times`
+                    : '';
+
+                return `
+                    <div class="history-item">
+                        <div class="history-item-info">
+                            <div class="history-item-title">${escapeHtml(title)}</div>
+                            <div class="history-item-meta">${escapeHtml(dateStr)}${savedHint}</div>
+                        </div>
+                        <div class="history-item-actions">
+                            <button class="btn-secondary" onclick="restoreHistoryEntry(${index})" title="Restore this design">Restore</button>
+                            <button class="btn-icon-small" onclick="renameHistoryEntry(${index})" title="Rename" aria-label="Rename">✏️</button>
+                            <button class="btn-icon-small" onclick="deleteHistoryEntry(${index})" title="Delete" aria-label="Delete">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Restore a history entry into the form
+         */
+        window.restoreHistoryEntry = function(index) {
+            const historyJson = getHistory();
+            if (!historyJson) return;
+
+            // getHistoryEntry returns the full entry ({ design, timestamps, title })
+            const entryJson = getHistoryEntry(historyJson, index);
+            if (!entryJson) return;
+
+            let entry;
+            try {
+                entry = JSON.parse(entryJson);
+            } catch (e) {
+                console.error('Error parsing history entry:', e);
+                return;
+            }
+
+            const design = entry.design;
+            if (!design) return;
+
+            restoreDesignToForm(design);
+            showHistoryStatus(`Restored "${entry.title || 'design'}"`);
+        };
+
+        /**
+         * Rename a history entry
+         */
+        window.renameHistoryEntry = function(index) {
+            const historyJson = getHistory();
+            if (!historyJson) return;
+
+            let entries = [];
+            try {
+                entries = JSON.parse(historyJson).entries || [];
+            } catch (e) {
+                console.error('Error parsing history:', e);
+                return;
+            }
+            const current = (entries[index] && entries[index].title) || '';
+
+            const newTitle = prompt('Rename design:', current);
+            if (newTitle === null) {
+                return; // Cancelled
+            }
+
+            saveHistory(updateHistoryTitle(historyJson, index, newTitle.trim() || current));
+            renderHistory();
+        };
+
+        /**
+         * Delete a history entry
+         */
+        window.deleteHistoryEntry = function(index) {
+            const historyJson = getHistory();
+            if (!historyJson) return;
+
+            if (!confirm('Delete this design from history?')) {
+                return;
+            }
+
+            saveHistory(removeHistoryEntry(historyJson, index));
+            renderHistory();
+        };
+
+        /**
+         * Clear all history entries
+         */
+        function handleClearHistory() {
+            if (!confirm('Delete all designs from history? This cannot be undone.')) {
+                return;
+            }
+
+            saveHistory(createHistory());
+            renderHistory();
+        }
+
         /**
          * Render saved configurations dropdown
          */
@@ -3786,6 +4042,44 @@
                 console.error('configs-header or configs-content not found!', {
                     header: configsHeader,
                     content: configsContent
+                });
+            }
+
+            // Render design history
+            renderHistory();
+
+            // Wire up save-to-history button
+            const saveHistoryBtn = document.getElementById('save-history');
+            if (saveHistoryBtn) {
+                saveHistoryBtn.addEventListener('click', handleSaveToHistory);
+                console.log('Save to history button wired up');
+            } else {
+                console.error('save-history button not found!');
+            }
+
+            // Wire up clear-history button
+            const clearHistoryBtn = document.getElementById('clear-history');
+            if (clearHistoryBtn) {
+                clearHistoryBtn.addEventListener('click', handleClearHistory);
+                console.log('Clear history button wired up');
+            } else {
+                console.error('clear-history button not found!');
+            }
+
+            // Make history section collapsible (matches configs section pattern)
+            const historyHeader = document.getElementById('history-header');
+            const historyContent = document.getElementById('history-content');
+            if (historyHeader && historyContent) {
+                historyHeader.addEventListener('click', () => {
+                    historyHeader.classList.toggle('expanded');
+                    historyContent.classList.toggle('expanded');
+                    historyHeader.setAttribute('aria-expanded', historyHeader.classList.contains('expanded'));
+                });
+                console.log('History header click listener attached');
+            } else {
+                console.error('history-header or history-content not found!', {
+                    header: historyHeader,
+                    content: historyContent
                 });
             }
 

@@ -2905,6 +2905,63 @@ h3 {
     margin: 10px 0;
 }
 
+/* Design history list */
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.history-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--rf-text-muted);
+    font-style: italic;
+}
+
+.history-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--rf-surface);
+    border: 1px solid var(--rf-line);
+    border-radius: var(--md-shape-small);
+}
+
+.history-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.history-item-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rf-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-item-meta {
+    font-size: 11px;
+    color: var(--rf-text-muted);
+    margin-top: 2px;
+}
+
+.history-item-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.history-clear-section {
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rf-line);
+}
+
 /* Confirmation dialog styling (if needed) */
 .confirm-dialog {
     position: fixed;

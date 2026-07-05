@@ -14,7 +14,8 @@ const STORAGE_KEYS = {
     THEME: 'frame_designer_theme',
     CUSTOM_COLORS: 'frame_designer_custom_colors',
     CUSTOM_DEFAULTS: 'frame_designer_custom_defaults',
-    DISPLAY_FORMAT: 'frame_designer_display_format'
+    DISPLAY_FORMAT: 'frame_designer_display_format',
+    HISTORY: 'referenceframe_history'
 };
 
 // ============================================================================
@@ -453,6 +454,38 @@ function loadDisplayFormat() {
     } catch (e) {
         console.error('Error loading display format:', e);
         return 'fractions';
+    }
+}
+
+// ============================================================================
+// Design History Management
+// ============================================================================
+// The history payload is already a versioned structure (produced by the WASM
+// history API: { version, max_entries, entries }), so we store the raw history
+// JSON string as-is rather than wrapping it in the versioned-list envelope.
+
+/**
+ * Load the stored design history JSON string
+ * @returns {string|null} History JSON string, or null if none stored
+ */
+function getHistory() {
+    try {
+        return localStorage.getItem(STORAGE_KEYS.HISTORY);
+    } catch (e) {
+        console.error('Error loading history:', e);
+        return null;
+    }
+}
+
+/**
+ * Save the design history JSON string
+ * @param {string} historyJson - History JSON produced by the WASM history API
+ */
+function saveHistory(historyJson) {
+    try {
+        localStorage.setItem(STORAGE_KEYS.HISTORY, historyJson);
+    } catch (e) {
+        console.error('Error saving history:', e);
     }
 }
 
