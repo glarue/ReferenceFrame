@@ -1015,9 +1015,9 @@ impl WasmValidationResult {
 
 /// Validate a frame design
 #[wasm_bindgen(js_name = "validateDesign")]
-pub fn validate_design(design: &WasmFrameDesign, config: &ValidationConfig) -> WasmValidationResult {
+pub fn validate_design(design: &WasmFrameDesign, config: &ValidationConfig, use_mm: bool) -> WasmValidationResult {
     // Call the core validate_design and wrap the result
-    let result = validation::validate_design(&design.inner, &config.0);
+    let result = validation::validate_design(&design.inner, &config.0, use_mm);
     // Wrap ValidationResult in WasmValidationResult using constructor
     WasmValidationResult(validation::WasmValidationResult::new(result))
 }

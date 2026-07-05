@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260705-sharev1">
+    <link rel="stylesheet" href="./styles.css?v=20260705-valunits">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -629,12 +629,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260705-sharev1';
+        } from './pkg/referenceframe_wasm.js?v=20260705-valunits';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260705-sharev1';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260705-valunits';
 
         console.log('WASM imports successful');
 
@@ -1514,8 +1514,8 @@
                 // Store globally for PDF export (will be kept alive, not freed)
                 currentDesign = design;
 
-                // Run validation against config
-                const validationResult = validateDesign(design, validationConfig);
+                // Run validation against config (unit-aware messages)
+                const validationResult = validateDesign(design, validationConfig, unitMm);
                 const hasErrors = validationResult.hasErrors();
                 const hasWarnings = validationResult.hasWarnings();
                 
