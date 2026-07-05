@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260621-displayfmt">
+    <link rel="stylesheet" href="./styles.css?v=20260705-history">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -354,6 +354,7 @@
                         <div class="results-actions">
                             <input type="text" id="pdf-title" class="pdf-title-input" placeholder="PDF title (optional)">
                             <button class="reset-btn" onclick="loadDefaults()">Reset</button>
+                            <button class="reset-btn" onclick="copySummary()" id="copy-summary" title="Copy a plain-text cut list to the clipboard">📋 Copy</button>
                             <button class="reset-btn" onclick="printDesign()" id="print-btn" title="Print or save as PDF via the browser (works offline)">Print</button>
                             <button class="reset-btn" onclick="exportPdf()" id="export-pdf-btn">Export PDF</button>
                         </div>
@@ -608,6 +609,7 @@
             inchesToMm,
             mmToInches,
             getDefaults,
+            getPresetsJson,
             generatePlanViewSvg,
             generateSectionViewSvg,
             generateCombinedViewSvg,
@@ -627,12 +629,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260621-displayfmt';
+        } from './pkg/referenceframe_wasm.js?v=20260705-history';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260621-displayfmt';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260705-history';
 
         console.log('WASM imports successful');
 
@@ -3129,8 +3131,8 @@
             }
 
             addHeader('Rabbet', 2);
-            addLabelValue('Width (x-axis):', `${formatDisplay(currentDesign.rabbet_width, useMm)}`, 2);
-            addLabelValue('Depth (z-axis):', `${formatDisplay(currentDesign.rabbet_depth, useMm)}`, 2);
+            addLabelValue('Width (x-axis):', `${formatDisplay(currentDesign.rabbetWidth, useMm)}`, 2);
+            addLabelValue('Depth (z-axis):', `${formatDisplay(currentDesign.rabbetDepth, useMm)}`, 2);
             addSpace(2);
 
             addHeader('Specs', 2);
@@ -3141,7 +3143,7 @@
             // === COLUMN 3: Depth ===
             addHeader('Depth', 3);
             const depthRequired = currentDesign.getRabbetZDepthRequired();
-            const depthAvailable = currentDesign.rabbet_depth;
+            const depthAvailable = currentDesign.rabbetDepth;
             addLabelValue('Required:', `${formatDisplay(depthRequired, useMm)}`, 3, 'black', true);
             addLabelValue('Available:', `${formatDisplay(depthAvailable, useMm)}`, 3);
             if (depthRequired <= depthAvailable) {
@@ -3158,6 +3160,114 @@
             addLabelValue('Artwork:', `${formatDisplay(currentDesign.artworkThickness, useMm)}`, 3);
             addLabelValue('Backing:', `${formatDisplay(currentDesign.backingThickness, useMm)}`, 3);
         }
+
+        // Build a plain-text cut-list summary from the current design.
+        // Mirrors the iOS shareText output (export_service.dart). Recomputes
+        // everything from currentDesign (a WasmFrameDesign) so it does not
+        // depend on calculate()'s local variables. All dimensions respect the
+        // current unit via formatDisplay(). Returned arrays are [height, width].
+        function buildTextSummary() {
+            const unitMm = currentUnit === 'mm';
+            const fmt = (v) => formatDisplay(v, unitMm);
+
+            const [outsideH, outsideW] = currentDesign.getFrameOutsideDimensions();
+            const [insideH, insideW] = currentDesign.getFrameInsideDimensions();
+            const [matH, matW] = currentDesign.getMatboardDimensions();
+            const [matOpenH, matOpenW] = currentDesign.getMatOpeningDimensions();
+            const hasMat = currentDesign.includeMat;
+
+            const depthRequired = currentDesign.getRabbetZDepthRequired();
+            const bladeWidth = getDimensionValue('blade-width');
+            const totalWood = currentDesign.getTotalWoodLength(bladeWidth, 0.0625);
+
+            const cutList = JSON.parse(currentDesign.getCutListJson());
+            const cutLength = (key) => {
+                const pieces = cutList[key];
+                if (Array.isArray(pieces) && pieces.length > 0) {
+                    return pieces[0].outside_length;
+                }
+                return 0;
+            };
+
+            const lines = [];
+            lines.push('REFERENCE FRAME DESIGN');
+            lines.push('=====================');
+            lines.push('');
+
+            lines.push('ARTWORK:');
+            lines.push(`  Size: ${fmt(currentDesign.artworkHeight)} × ${fmt(currentDesign.artworkWidth)}`);
+            lines.push('');
+
+            lines.push('FRAME:');
+            lines.push(`  Outside: ${fmt(outsideH)} × ${fmt(outsideW)}`);
+            lines.push(`  Inside: ${fmt(insideH)} × ${fmt(insideW)}`);
+            lines.push(`  Face Width: ${fmt(currentDesign.frameWidth)}`);
+            lines.push('');
+
+            if (hasMat) {
+                lines.push('MATBOARD:');
+                lines.push(`  Size: ${fmt(matH)} × ${fmt(matW)}`);
+                lines.push(`  Opening: ${fmt(matOpenH)} × ${fmt(matOpenW)}`);
+                lines.push(`  Border (T/B): ${fmt(currentDesign.matWidthTopBottom)}`);
+                lines.push(`  Border (Sides): ${fmt(currentDesign.matWidthSides)}`);
+                lines.push(`  Overlap: ${fmt(currentDesign.matOverlap)}`);
+                lines.push('');
+            }
+
+            lines.push('RABBET:');
+            lines.push(`  Width: ${fmt(currentDesign.rabbetWidth)}`);
+            lines.push(`  Depth: ${fmt(currentDesign.rabbetDepth)}`);
+            lines.push(`  Depth Required: ${fmt(depthRequired)}`);
+            lines.push('');
+
+            lines.push('CUT LIST:');
+            lines.push(`  Top/Bottom: ${fmt(cutLength('horizontal_pieces'))} (x2)`);
+            lines.push(`  Sides: ${fmt(cutLength('vertical_pieces'))} (x2)`);
+            lines.push(`  Total Wood: ${fmt(totalWood)}`);
+            lines.push('');
+
+            lines.push('SPECS:');
+            lines.push(`  Assembly Margin: ${fmt(currentDesign.assemblyMargin)}`);
+            lines.push(`  Blade Width: ${fmt(bladeWidth)}`);
+            lines.push('');
+
+            lines.push('Generated by ReferenceFrame');
+
+            return lines.join('\n');
+        }
+
+        // Copy the plain-text summary to the clipboard (with a Web Share
+        // fallback on platforms that support it).
+        window.copySummary = async function() {
+            if (!currentDesign) {
+                alert('Calculate a design first');
+                return;
+            }
+
+            const text = buildTextSummary();
+            const btn = document.getElementById('copy-summary');
+            const originalLabel = btn ? btn.textContent : null;
+
+            try {
+                await navigator.clipboard.writeText(text);
+                if (btn) {
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => { btn.textContent = originalLabel; }, 2000);
+                }
+            } catch (clipboardError) {
+                console.warn('Clipboard write failed, trying share:', clipboardError);
+                // Fall back to the Web Share API where available (mobile).
+                if (navigator.share) {
+                    try {
+                        await navigator.share({ text, title: 'Frame Design' });
+                        return;
+                    } catch (shareError) {
+                        console.warn('Share failed:', shareError);
+                    }
+                }
+                showExportError('Could not copy to clipboard');
+            }
+        };
 
         // Add QR code to PDF
         async function addQrCode(pdf) {
@@ -3181,8 +3291,8 @@
                     matboard_thickness: currentDesign.matboardThickness,
                     artwork_thickness: currentDesign.artworkThickness,
                     backing_thickness: currentDesign.backingThickness,
-                    rabbet_width: currentDesign.rabbet_width,
-                    rabbet_depth: currentDesign.rabbet_depth,
+                    rabbet_width: currentDesign.rabbetWidth,
+                    rabbet_depth: currentDesign.rabbetDepth,
                     blade_width: getDimensionValue('blade-width'),
                     include_mat: includeMat,
                     unit_mm: currentUnit === 'mm'
@@ -3762,35 +3872,56 @@
         // Artwork Size Management
         // ===================================================================
 
-        // Standard sizes (Height × Width in inches)
-        const STANDARD_SIZES = [
-            { name: "4×6", height: 4.0, width: 6.0 },
-            { name: "5×7", height: 5.0, width: 7.0 },
-            { name: "8×10", height: 8.0, width: 10.0 },
-            { name: "8.5×11", height: 8.5, width: 11.0 },  // Letter
-            { name: "11×14", height: 11.0, width: 14.0 },
-            { name: "12×16", height: 12.0, width: 16.0 },
-            { name: "16×20", height: 16.0, width: 20.0 },
-            { name: "20×30", height: 20.0, width: 30.0 }
-        ];
+        // Lookup rebuilt on every renderStandardSizes() call. Each entry is
+        // { short, long } (edge lengths in inches). The dropdown option value
+        // is the index into this array, so a selection maps directly back to
+        // its edge dimensions without relying on any global preset ordering.
+        let standardSizeLookup = [];
 
         /**
-         * Render standard sizes dropdown
+         * Render standard sizes dropdown, grouped by aspect ratio.
+         * Sourced from the canonical aspect_ratios in presets.json (single
+         * source of truth). Size names ("4×6") are unit-agnostic, so no unit
+         * formatting is applied here (callable from setUnit() with no args).
          */
         function renderStandardSizes() {
             const select = document.getElementById('standard-sizes');
             if (!select) return;
 
-            // Clear existing options except first
+            standardSizeLookup = [];
             select.innerHTML = '<option value="">-- Select a size --</option>';
 
-            STANDARD_SIZES.forEach((size, index) => {
-                const option = document.createElement('option');
-                option.value = index;
-                const unitMm = currentUnit === 'mm';
-                option.textContent = `${size.name} (${formatValue(size.height, unitMm)} × ${formatValue(size.width, unitMm)})`;
-                select.appendChild(option);
-            });
+            try {
+                const presets = JSON.parse(getPresetsJson());
+                const aspectRatios = presets.aspect_ratios || {};
+
+                for (const [ratioKey, group] of Object.entries(aspectRatios)) {
+                    // Skip metadata keys (e.g. "_comment")
+                    if (ratioKey.startsWith('_')) continue;
+                    if (!group || !Array.isArray(group.common_sizes)) continue;
+
+                    const optgroup = document.createElement('optgroup');
+                    const labelName = group.name || ratioKey;
+                    optgroup.label = group.annotation
+                        ? `${labelName} · ${group.annotation}`
+                        : labelName;
+
+                    group.common_sizes.forEach((size) => {
+                        const index = standardSizeLookup.length;
+                        standardSizeLookup.push({ short: size.short, long: size.long });
+                        const option = document.createElement('option');
+                        option.value = String(index);
+                        option.textContent = size.name;
+                        optgroup.appendChild(option);
+                    });
+
+                    select.appendChild(optgroup);
+                }
+            } catch (e) {
+                // Leave the dropdown with just the placeholder rather than
+                // throwing if presets.json / aspect_ratios is unavailable.
+                console.error('Could not build standard sizes from presets:', e);
+            }
         }
 
         /**
@@ -3807,13 +3938,15 @@
          */
         function handleStandardSizeSelect() {
             const select = document.getElementById('standard-sizes');
-            const index = parseInt(select.value);
+            const index = parseInt(select.value, 10);
 
             if (isNaN(index)) return;
 
-            const size = STANDARD_SIZES[index];
+            const size = standardSizeLookup[index];
             if (size) {
-                applyStandardSize(size.height, size.width);
+                // Height = short edge, width = long edge (matches the previous
+                // STANDARD_SIZES semantics where "4×6" set height=4, width=6).
+                applyStandardSize(size.short, size.long);
             }
         }
 
