@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260705-history">
+    <link rel="stylesheet" href="./styles.css?v=20260705-sharev1">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -629,12 +629,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260705-history';
+        } from './pkg/referenceframe_wasm.js?v=20260705-sharev1';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260705-history';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260705-sharev1';
 
         console.log('WASM imports successful');
 
@@ -2080,19 +2080,17 @@
             const params = {
                 artwork_height: getDimensionValue('artwork-height'),
                 artwork_width: getDimensionValue('artwork-width'),
-                // For URL params, use average of 4 mat border values (backwards compatibility)
-                mat_width: includeMat ? (
-                    getDimensionValue('mat-width-top') +
-                    getDimensionValue('mat-width-bottom') +
-                    getDimensionValue('mat-width-left') +
-                    getDimensionValue('mat-width-right')
-                ) / 4 : 0,
+                // Separate top/bottom and left/right mat borders (format v1)
+                mat_width: includeMat ? (getDimensionValue('mat-width-top') + getDimensionValue('mat-width-bottom')) / 2 : 0,
+                mat_width_sides: includeMat ? (getDimensionValue('mat-width-left') + getDimensionValue('mat-width-right')) / 2 : 0,
+                mat_overlap: includeMat ? getDimensionValue('mat-overlap') : 0,
                 frame_width: getDimensionValue('frame-width'),
                 frame_depth: getDimensionValue('frame-depth'),
                 glazing_thickness: getDimensionValue('glazing-thickness'),
                 matboard_thickness: getDimensionValue('matboard-thickness'),
                 artwork_thickness: getDimensionValue('artwork-thickness'),
                 backing_thickness: getDimensionValue('backing-thickness'),
+                assembly_margin: getDimensionValue('assembly-margin'),
                 rabbet_width: getDimensionValue('rabbet-width'),
                 rabbet_depth: getDimensionValue('rabbet-depth'),
                 blade_width: getDimensionValue('blade-width'),
@@ -2538,19 +2536,36 @@
                 // Set all values using setDimensionValue (values from URL are in inches)
                 setDimensionValue('artwork-height', params.artwork_height);
                 setDimensionValue('artwork-width', params.artwork_width);
-                // Set mat width (backwards compatibility - use single mode)
-                setDimensionValue('mat-width-single', params.mat_width);
-                setDimensionValue('mat-width-top', params.mat_width);
-                setDimensionValue('mat-width-bottom', params.mat_width);
-                setDimensionValue('mat-width-left', params.mat_width);
-                setDimensionValue('mat-width-right', params.mat_width);
-                document.getElementById('separate-mat-borders').checked = false;
+                // Mat borders: separate top/bottom vs left/right when they differ
+                // (format v1); symmetric otherwise (v0 links mirror mat_width into
+                // mat_width_sides).
+                const matTb = params.mat_width;
+                const matLr = (params.mat_width_sides != null) ? params.mat_width_sides : params.mat_width;
+                const separateBorders = Math.abs(matTb - matLr) > 0.001;
+                setDimensionValue('mat-width-top', matTb);
+                setDimensionValue('mat-width-bottom', matTb);
+                setDimensionValue('mat-width-left', matLr);
+                setDimensionValue('mat-width-right', matLr);
+                setDimensionValue('mat-width-tb', matTb);
+                setDimensionValue('mat-width-lr', matLr);
+                setDimensionValue('mat-width-single', (matTb + matLr) / 2);
+                document.getElementById('separate-mat-borders').checked = separateBorders;
+                // Mat overlap (format v1; v0 links carry the default)
+                if (params.mat_overlap != null) {
+                    setDimensionValue('mat-overlap', params.mat_overlap);
+                    setDimensionValue('mat-overlap-separate', params.mat_overlap);
+                }
+                toggleMatBorderMode();
                 setDimensionValue('frame-width', params.frame_width);
                 setDimensionValue('frame-depth', params.frame_depth);
                 setDimensionValue('glazing-thickness', params.glazing_thickness);
                 setDimensionValue('matboard-thickness', params.matboard_thickness);
                 setDimensionValue('artwork-thickness', params.artwork_thickness);
                 setDimensionValue('backing-thickness', params.backing_thickness);
+                // Assembly margin (format v1; v0 links carry the default)
+                if (params.assembly_margin != null) {
+                    setDimensionValue('assembly-margin', params.assembly_margin);
+                }
                 setDimensionValue('rabbet-width', params.rabbet_width);
                 setDimensionValue('rabbet-depth', params.rabbet_depth);
                 setDimensionValue('blade-width', params.blade_width);
@@ -3278,19 +3293,17 @@
                 const shareableParams = {
                     artwork_height: currentDesign.artworkHeight,
                     artwork_width: currentDesign.artworkWidth,
-                    // Use average of 4 mat borders for shareable URL (backwards compatibility)
-                    mat_width: includeMat ? (
-                        getDimensionValue('mat-width-top') +
-                        getDimensionValue('mat-width-bottom') +
-                        getDimensionValue('mat-width-left') +
-                        getDimensionValue('mat-width-right')
-                    ) / 4 : 0,
+                    // Separate top/bottom and left/right mat borders (format v1)
+                    mat_width: includeMat ? currentDesign.matWidthTopBottom : 0,
+                    mat_width_sides: includeMat ? currentDesign.matWidthSides : 0,
+                    mat_overlap: includeMat ? currentDesign.matOverlap : 0,
                     frame_width: currentDesign.frameWidth,
                     frame_depth: currentDesign.frameDepth,
                     glazing_thickness: currentDesign.glazingThickness,
                     matboard_thickness: currentDesign.matboardThickness,
                     artwork_thickness: currentDesign.artworkThickness,
                     backing_thickness: currentDesign.backingThickness,
+                    assembly_margin: currentDesign.assemblyMargin,
                     rabbet_width: currentDesign.rabbetWidth,
                     rabbet_depth: currentDesign.rabbetDepth,
                     blade_width: getDimensionValue('blade-width'),
