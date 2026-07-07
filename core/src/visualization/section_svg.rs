@@ -4,7 +4,7 @@
 //! `generate_section_legend`, and `generate_title_block`.
 //! Extracted from `svg.rs` to keep that file focused on view orchestration.
 
-use crate::frame::FrameDesign;
+use crate::frame::{FrameDesign, FrameStyle};
 use crate::conversions::{format_dimension, Unit};
 use super::types::{DiagramOptions, DimensionCallout, DimensionType};
 use super::style::{DiagramStyle, FillPattern};
@@ -891,13 +891,20 @@ pub(crate) fn build_section_svg(
         &style.success_color
     };
 
-    // Format rabbet dimensions - show both if different (non-square rabbet)
-    let rabbet_label = if (design.rabbet_width - design.rabbet_depth).abs() < 0.001 {
-        // Square rabbet - just show one value
-        format!("Rabbet: {}", fmt(design.rabbet_depth))
-    } else {
-        // Non-square rabbet - show width × depth
-        format!("Rabbet: {} × {}", fmt(design.rabbet_width), fmt(design.rabbet_depth))
+    // Format rabbet dimensions. Sight-size/float frames have no lip over the
+    // art, so we label the channel depth and note the absence of a lip rather
+    // than a "Rabbet: W × D" overlap.
+    let rabbet_label = match design.frame_style {
+        FrameStyle::SightSize =>
+            format!("Sight-size — no lip · depth {}", fmt(design.rabbet_depth)),
+        FrameStyle::Float =>
+            format!("Float — no lip · depth {}", fmt(design.rabbet_depth)),
+        FrameStyle::Rabbet if (design.rabbet_width - design.rabbet_depth).abs() < 0.001 =>
+            // Square rabbet - just show one value
+            format!("Rabbet: {}", fmt(design.rabbet_depth)),
+        FrameStyle::Rabbet =>
+            // Non-square rabbet - show width × depth
+            format!("Rabbet: {} × {}", fmt(design.rabbet_width), fmt(design.rabbet_depth)),
     };
 
     // Clearance/interference text on separate line to avoid overlap with material labels

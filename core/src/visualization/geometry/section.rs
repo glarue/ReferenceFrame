@@ -250,7 +250,12 @@ impl SectionViewGeometry {
         // rabbet_width = horizontal lip overlap (how far frame extends over content)
         // rabbet_depth = vertical z-axis depth of cutout (space for materials)
         // Note: rabbet_h_s already calculated above for vertical centering
-        let rabbet_w_s = design.rabbet_width * scale;  // Horizontal (lip width)
+        let rabbet_w_s = design.rabbet_width * scale;  // Physical rabbet (material illustration width)
+        // Lip actually drawn over the art face: rabbet_width for traditional
+        // frames, zero for sight-size/float (opening = art, no lip). Kept
+        // separate from rabbet_w_s so the material stack keeps a visible width
+        // even when the lip is zero.
+        let lip_w_s = design.lip_over_art() * scale;
 
         // Frame orientation in diagram:
         // - TOP = front of frame (visible face when hanging)
@@ -266,7 +271,8 @@ impl SectionViewGeometry {
         // - Backing at bottom (toward back of frame)
 
         // Materials position - they sit in the rabbet, pressed against the lip
-        let content_x = origin_x + frame_width_s - rabbet_w_s;
+        // (or flush to the frame's inner face when there is no lip).
+        let content_x = origin_x + frame_width_s - lip_w_s;
 
         // Lip position: the lip is at (displayed_frame_depth - rabbet_depth) from origin
         // This formula works whether or not axis break is used, because frame_depth_s
@@ -325,10 +331,12 @@ impl SectionViewGeometry {
 
         // Rabbet area - the actual rabbet cutout at bottom-right of L-shape
         // Same formula works with or without axis break since frame_depth_s is already truncated
+        // Rabbet cutout width follows the lip (zero for sight-size/float), so the
+        // L-shape collapses to a plain profile with no lip over the art.
         let rabbet_area = Rect::new(
-            origin_x + frame_width_s - rabbet_w_s,
+            origin_x + frame_width_s - lip_w_s,
             origin_y + frame_depth_s - rabbet_h_s,
-            rabbet_w_s,
+            lip_w_s,
             rabbet_h_s,
         );
 

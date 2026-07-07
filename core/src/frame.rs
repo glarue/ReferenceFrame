@@ -23,6 +23,28 @@ impl FrameSize {
     }
 }
 
+/// How the frame relates to the artwork edge.
+///
+/// Determines the sight (visible) opening and whether the frame lip covers the
+/// artwork face — see [`FrameDesign::lip_over_art`] for the geometry each style
+/// implies. Serializes as `snake_case` ("rabbet", "sight_size", "float") for
+/// clean JS/JSON interop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum FrameStyle {
+    /// Traditional rabbet: the frame lip overlaps the artwork by `rabbet_width`,
+    /// so the sight opening is smaller than the artwork. Historical default.
+    #[default]
+    Rabbet,
+    /// Sight-size: the sight opening equals the artwork exactly — no lip over the
+    /// art face, the full image is visible edge to edge.
+    SightSize,
+    /// Float frame: the opening is *larger* than the art by `float_reveal` per
+    /// side (a visible gap), art mounted from behind. The reveal is wired up in
+    /// Phase 2 — today Float behaves like SightSize (zero lip, opening = art).
+    Float,
+}
+
 /// Complete frame design with all dimensions and materials
 ///
 /// `#[serde(default)]` keeps old saved JSON (history entries, shared designs)
@@ -58,6 +80,13 @@ pub struct FrameDesign {
     // Flags
     pub symmetrical_mat: bool,
     pub no_artwork_margin: bool,
+
+    // Frame style — sight-size / float support
+    /// Traditional rabbet (default), sight-size (opening = art), or float.
+    pub frame_style: FrameStyle,
+    /// Float reveal: gap per side between art and opening (inches). Only used by
+    /// `FrameStyle::Float`; wired up in Phase 2 (stored but inert before then).
+    pub float_reveal: f64,
 }
 
 impl Default for FrameDesign {
@@ -81,6 +110,8 @@ impl Default for FrameDesign {
             assembly_margin: d.assembly_margin,
             symmetrical_mat: d.symmetrical_mat,
             no_artwork_margin: false,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         }
     }
 }
@@ -118,6 +149,11 @@ impl FrameDesign {
             self.mat_overlap = max_overlap;
         }
 
+        // Float reveal is a positive gap (Phase 2); never negative.
+        if self.float_reveal < 0.0 {
+            self.float_reveal = 0.0;
+        }
+
         // Enforce minimum dimensions
         const MIN_DIMENSION: f64 = 0.0625; // 1/16 inch minimum
         self.frame_material_width = self.frame_material_width.max(MIN_DIMENSION);
@@ -137,8 +173,25 @@ impl FrameDesign {
     }
 
     /// Check if this design includes matting
+    ///
+    /// Only traditional rabbet frames use a mat; sight-size and float styles are
+    /// for canvas & panel work (mounted from behind — no mat, no glazing).
     pub fn has_mat(&self) -> bool {
-        self.mat_width_sides > 0.0 || self.mat_width_top_bottom > 0.0
+        self.frame_style == FrameStyle::Rabbet
+            && (self.mat_width_sides > 0.0 || self.mat_width_top_bottom > 0.0)
+    }
+
+    /// How much the frame lip covers the artwork face, per side (inches).
+    ///
+    /// The signed "art reveal": positive = traditional lip overlap
+    /// (opening = art − 2·lip); zero = sight-size (opening = art). Float's
+    /// negative reveal (opening > art) is wired up in Phase 2 — for now Float
+    /// reports zero lip, identical to sight-size.
+    pub fn lip_over_art(&self) -> f64 {
+        match self.frame_style {
+            FrameStyle::Rabbet => self.rabbet_width,
+            FrameStyle::SightSize | FrameStyle::Float => 0.0,
+        }
     }
 
     /// Helper: add border to both dimensions
@@ -157,9 +210,12 @@ impl FrameDesign {
             let visible_width = mat_opening_width + (2.0 * self.mat_width_sides);
             (visible_height, visible_width)
         } else {
-            // Without mat, artwork sits directly in rabbet - frame overlaps by rabbet_width
-            let visible_height = self.artwork_height - (2.0 * self.rabbet_width);
-            let visible_width = self.artwork_width - (2.0 * self.rabbet_width);
+            // No mat: the frame lip covers the art by `lip_over_art()` per side —
+            // rabbet_width for traditional frames, zero for sight-size/float
+            // (opening = artwork).
+            let lip = self.lip_over_art();
+            let visible_height = self.artwork_height - (2.0 * lip);
+            let visible_width = self.artwork_width - (2.0 * lip);
             (visible_height, visible_width)
         }
     }
@@ -191,10 +247,35 @@ impl FrameDesign {
 
     /// Calculate physical dimensions of the matboard
     ///
-    /// Matboard extends into the rabbet area on all sides (by rabbet_width)
+    /// Matboard extends into the rabbet area on all sides (by rabbet_width).
+    /// This is the **rabbet opening** — the exact size the loose components
+    /// (glazing, backing, matboard outer) seat into. It is the reference size
+    /// used by the diagrams; the drop-in *cut* size (with assembly clearance)
+    /// is `get_fitted_component_dimensions`.
     pub fn get_matboard_dimensions(&self) -> (f64, f64) {
         let (inside_h, inside_w) = self.get_frame_inside_dimensions();
         self.add_border(inside_h, inside_w, self.rabbet_width)
+    }
+
+    /// The XY assembly clearance applied to component cuts, per side (inches).
+    ///
+    /// This is the same `assembly_margin` value that provides depth clearance
+    /// for the material stack — broadened to mean "assembly slack around the
+    /// package in every direction". Capped at `rabbet_width` so a component is
+    /// never cut so small it slips out from under the lip.
+    pub fn xy_assembly_margin(&self) -> f64 {
+        self.assembly_margin.min(self.rabbet_width).max(0.0)
+    }
+
+    /// Cut size for the loose components that seat in the rabbet — glazing,
+    /// backing, and the matboard's outer edge — i.e. the rabbet opening
+    /// (`get_matboard_dimensions`) reduced by the assembly margin on each side
+    /// so they drop in without binding. Frame shops build in this clearance;
+    /// the exact rabbet opening is always available alongside it.
+    pub fn get_fitted_component_dimensions(&self) -> (f64, f64) {
+        let (h, w) = self.get_matboard_dimensions();
+        let m = 2.0 * self.xy_assembly_margin();
+        ((h - m).max(0.0), (w - m).max(0.0))
     }
 
     /// Calculate dimensions of the opening cut in the matboard
@@ -302,9 +383,11 @@ impl FrameDesign {
             glazing_thickness: lerp(from.glazing_thickness, to.glazing_thickness, t),
             frame_material_depth: lerp(from.frame_material_depth, to.frame_material_depth, t),
             assembly_margin: lerp(from.assembly_margin, to.assembly_margin, t),
-            // Boolean fields: use destination value (can't interpolate booleans)
+            float_reveal: lerp(from.float_reveal, to.float_reveal, t),
+            // Boolean/enum fields: use destination value (can't interpolate)
             symmetrical_mat: to.symmetrical_mat,
             no_artwork_margin: to.no_artwork_margin,
+            frame_style: to.frame_style,
         }
     }
 }
@@ -1049,5 +1132,142 @@ mod tests {
         // Tape measure format: "13-1/4\""
         assert!(tape.contains("13"), "tape should contain whole inches");
         assert!(tape.contains("1/4"), "tape should contain 1/4 fraction");
+    }
+
+    // ========================================================================
+    // Frame style — sight-size & float (Phase 1)
+    // ========================================================================
+
+    #[test]
+    fn test_default_frame_style_is_rabbet() {
+        let d = FrameDesign::default();
+        assert_eq!(d.frame_style, FrameStyle::Rabbet);
+        assert_close(d.float_reveal, 0.0, "default float_reveal");
+    }
+
+    #[test]
+    fn test_lip_over_art_by_style() {
+        let mut d = FrameDesign::default();
+        d.rabbet_width = 0.375;
+        d.frame_style = FrameStyle::Rabbet;
+        assert_close(d.lip_over_art(), 0.375, "rabbet lip = rabbet_width");
+        d.frame_style = FrameStyle::SightSize;
+        assert_close(d.lip_over_art(), 0.0, "sight-size lip = 0");
+        d.frame_style = FrameStyle::Float;
+        assert_close(d.lip_over_art(), 0.0, "float lip = 0 (phase 1)");
+    }
+
+    #[test]
+    fn test_sight_size_opening_equals_artwork() {
+        let mut d = FrameDesign::new(8.0, 12.0);
+        d.mat_width_top_bottom = 0.0;
+        d.mat_width_sides = 0.0;
+        d.frame_style = FrameStyle::SightSize;
+        // Opening equals the artwork exactly — no lip.
+        assert_pair(d.get_visible_dimensions(), (8.0, 12.0), "sight-size opening");
+    }
+
+    #[test]
+    fn test_sight_size_ignores_mat() {
+        // Even with mat widths set, a non-rabbet style has no mat: opening = art.
+        let mut d = FrameDesign::new(8.0, 12.0);
+        d.mat_width_top_bottom = 2.0;
+        d.mat_width_sides = 2.0;
+        d.frame_style = FrameStyle::SightSize;
+        assert!(!d.has_mat(), "sight-size has no mat");
+        assert_pair(d.get_visible_dimensions(), (8.0, 12.0), "opening ignores mat");
+    }
+
+    #[test]
+    fn test_rabbet_style_no_mat_unchanged() {
+        // Rabbet must reproduce the historical no-mat calculation exactly.
+        let mut d = FrameDesign::new(8.0, 12.0);
+        d.mat_width_top_bottom = 0.0;
+        d.mat_width_sides = 0.0;
+        d.rabbet_width = 0.375;
+        // 8 - 0.75 = 7.25, 12 - 0.75 = 11.25
+        assert_pair(d.get_visible_dimensions(), (7.25, 11.25), "rabbet opening unchanged");
+    }
+
+    #[test]
+    fn test_float_phase1_behaves_like_sight_size() {
+        let mut d = FrameDesign::new(10.0, 10.0);
+        d.mat_width_top_bottom = 0.0;
+        d.mat_width_sides = 0.0;
+        d.frame_style = FrameStyle::Float;
+        d.float_reveal = 0.25; // stored, but inert in phase 1
+        assert_pair(d.get_visible_dimensions(), (10.0, 10.0), "float opening = art (phase 1)");
+    }
+
+    #[test]
+    fn test_enforce_constraints_clamps_negative_float_reveal() {
+        let mut d = FrameDesign::default();
+        d.float_reveal = -1.0;
+        d.enforce_constraints();
+        assert_close(d.float_reveal, 0.0, "negative reveal clamped");
+    }
+
+    #[test]
+    fn test_frame_style_serde_snake_case() {
+        let mut d = FrameDesign::default();
+        d.frame_style = FrameStyle::SightSize;
+        let json = serde_json::to_string(&d).unwrap();
+        assert!(json.contains("\"frame_style\":\"sight_size\""),
+            "serializes snake_case, got: {}", json);
+        let back: FrameDesign = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.frame_style, FrameStyle::SightSize);
+    }
+
+    #[test]
+    fn test_old_json_without_frame_style_defaults_rabbet() {
+        // JSON predating the field must load with frame_style = Rabbet.
+        let json = r#"{"artwork_width": 14.0, "artwork_height": 11.0}"#;
+        let d: FrameDesign = serde_json::from_str(json).unwrap();
+        assert_eq!(d.frame_style, FrameStyle::Rabbet);
+        assert_close(d.float_reveal, 0.0, "float_reveal defaulted");
+    }
+
+    #[test]
+    fn test_interpolate_float_reveal_and_style() {
+        let mut from = FrameDesign::new(8.0, 12.0);
+        from.frame_style = FrameStyle::Rabbet;
+        from.float_reveal = 0.0;
+        let mut to = FrameDesign::new(8.0, 12.0);
+        to.frame_style = FrameStyle::Float;
+        to.float_reveal = 0.5;
+        let mid = FrameDesign::interpolate(&from, &to, 0.5);
+        assert_close(mid.float_reveal, 0.25, "reveal lerps");
+        assert_eq!(mid.frame_style, FrameStyle::Float, "style uses destination");
+    }
+
+    // ========================================================================
+    // Fitted component cut size (XY assembly clearance)
+    // ========================================================================
+
+    #[test]
+    fn test_fitted_components_default() {
+        // Default: matboard (rabbet opening) = 12.5 × 16.5, assembly_margin 1/16".
+        // Fitted = opening − 2×(1/16") = 12.375 × 16.375.
+        let d = FrameDesign::default();
+        assert_pair(d.get_matboard_dimensions(), (12.5, 16.5), "rabbet opening (exact)");
+        assert_pair(d.get_fitted_component_dimensions(), (12.375, 16.375), "fitted cut");
+    }
+
+    #[test]
+    fn test_fitted_equals_exact_when_margin_zero() {
+        let mut d = FrameDesign::default();
+        d.assembly_margin = 0.0;
+        assert_pair(d.get_fitted_component_dimensions(), d.get_matboard_dimensions(),
+            "no margin → fitted equals exact");
+    }
+
+    #[test]
+    fn test_xy_assembly_margin_capped_at_rabbet_width() {
+        let mut d = FrameDesign::default();
+        d.rabbet_width = 0.25;
+        d.assembly_margin = 1.0; // absurdly large; must cap at rabbet_width
+        assert_close(d.xy_assembly_margin(), 0.25, "capped at rabbet_width");
+        let (fh, fw) = d.get_fitted_component_dimensions();
+        assert!(fh >= 0.0 && fw >= 0.0, "fitted never negative");
     }
 }

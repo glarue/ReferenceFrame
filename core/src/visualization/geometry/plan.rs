@@ -65,8 +65,9 @@ impl PlanViewGeometry {
             (None, None)
         };
 
-        // Content area (extends under rabbet lip by rabbet_width)
-        let rabbet_width_scaled = design.rabbet_width * scale;
+        // Content area (extends under the frame lip by lip_over_art — zero for
+        // sight-size/float, so the artwork fills the opening exactly).
+        let rabbet_width_scaled = design.lip_over_art() * scale;
         let content_area = Rect::new(
             frame_inner.x - rabbet_width_scaled,
             frame_inner.y - rabbet_width_scaled,
@@ -314,7 +315,9 @@ impl PlanViewGeometry {
         use_corner_detail: bool,
         style: &DiagramStyle,
     ) {
-        if use_corner_detail && design.frame_material_width > 0.0 {
+        // Corner detail zooms the rabbet lip / mat overlap; there's nothing to
+        // show for sight-size/float (no lip over the art), so skip it there.
+        if use_corner_detail && design.frame_material_width > 0.0 && design.lip_over_art() > 0.0 {
             geo.corner_detail = Some(Self::compute_corner_detail(design, geo, canvas_width, style));
         }
     }
@@ -384,7 +387,7 @@ impl PlanViewGeometry {
 
         let mut geo = Self::build_rects(design, scale, origin_x, origin_y, None);
 
-        if use_corner_detail && design.frame_material_width > 0.0 {
+        if use_corner_detail && design.frame_material_width > 0.0 && design.lip_over_art() > 0.0 {
             geo.corner_detail = Some(Self::compute_corner_detail(design, &geo, canvas_width, style));
         }
 

@@ -6,7 +6,7 @@
 use wasm_bindgen::prelude::*;
 use referenceframe_core::{
     conversions::{self, Unit},
-    frame::FrameDesign,
+    frame::{FrameDesign, FrameStyle},
     aspect_ratio::AspectLockState,
     shareable_url::{self, ShareableParams},
     presets,
@@ -206,6 +206,35 @@ impl WasmFrameDesign {
         self.inner.no_artwork_margin = value;
     }
 
+    /// Frame style as a snake_case string: "rabbet", "sight_size", or "float".
+    #[wasm_bindgen(getter, js_name = "frameStyle")]
+    pub fn frame_style(&self) -> String {
+        match self.inner.frame_style {
+            FrameStyle::Rabbet => "rabbet",
+            FrameStyle::SightSize => "sight_size",
+            FrameStyle::Float => "float",
+        }.to_string()
+    }
+
+    #[wasm_bindgen(setter, js_name = "frameStyle")]
+    pub fn set_frame_style(&mut self, value: String) {
+        self.inner.frame_style = match value.as_str() {
+            "sight_size" => FrameStyle::SightSize,
+            "float" => FrameStyle::Float,
+            _ => FrameStyle::Rabbet,
+        };
+    }
+
+    #[wasm_bindgen(getter, js_name = "floatReveal")]
+    pub fn float_reveal(&self) -> f64 {
+        self.inner.float_reveal
+    }
+
+    #[wasm_bindgen(setter, js_name = "floatReveal")]
+    pub fn set_float_reveal(&mut self, value: f64) {
+        self.inner.float_reveal = value;
+    }
+
     #[wasm_bindgen(getter, js_name = "includeMat")]
     pub fn has_mat(&self) -> bool {
         self.inner.has_mat()
@@ -239,10 +268,18 @@ impl WasmFrameDesign {
         vec![h, w]
     }
 
-    /// Get matboard dimensions - returns [height, width]
+    /// Get matboard dimensions (the exact rabbet opening) - returns [height, width]
     #[wasm_bindgen(js_name = "getMatboardDimensions")]
     pub fn get_matboard_dimensions(&self) -> Vec<f64> {
         let (h, w) = self.inner.get_matboard_dimensions();
+        vec![h, w]
+    }
+
+    /// Get the drop-in cut size for glazing/backing/matboard-outer (rabbet
+    /// opening minus assembly clearance per side) - returns [height, width]
+    #[wasm_bindgen(js_name = "getFittedComponentDimensions")]
+    pub fn get_fitted_component_dimensions(&self) -> Vec<f64> {
+        let (h, w) = self.inner.get_fitted_component_dimensions();
         vec![h, w]
     }
 
@@ -585,6 +622,8 @@ pub fn get_defaults() -> String {
         "backingThickness": d.backing_thickness,
         "bladeWidth": d.blade_width,
         "assemblyMargin": d.assembly_margin,
+        "frameStyle": "rabbet",
+        "floatReveal": 0.0,
     });
     serde_json::to_string(&defaults).unwrap_or_default()
 }

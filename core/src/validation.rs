@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::conversions;
-use crate::frame::FrameDesign;
+use crate::frame::{FrameDesign, FrameStyle};
 use crate::presets;
 
 /// Validation configuration with user-adjustable limits
@@ -415,32 +415,37 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig, use_mm: 
         ));
     }
 
-    // Rabbet width - structural constraint
+    // Rabbet width - structural constraint.
+    // These enforce a front lip that retains the artwork, so they only apply to
+    // traditional rabbet frames. Sight-size and float frames have no lip over
+    // the art (retained from behind), so rabbet_width doesn't gate the opening.
     let max_rabbet_width = design.frame_material_width - config.min_lip_width;
-    if design.rabbet_width > max_rabbet_width {
-        result.add(ValidationIssue::error(
-            "rabbet_width",
-            &format!("Rabbet width too large - must leave at least {} lip", fmt_dec(config.min_lip_width)),
-        ).with_details(
-            format!("Current rabbet: {}, Frame width: {}, Max rabbet: {}",
-                fmt_dec(design.rabbet_width), fmt_dec(design.frame_material_width), fmt_dec(max_rabbet_width)),
-        ));
-    }
-    if design.rabbet_width < config.min_rabbet {
-        result.add(ValidationIssue::error(
-            "rabbet_width",
-            &format!("Rabbet width must be at least {}", fmt_dec(config.min_rabbet)),
-        ).with_details(
-            format!("Current: {}", fmt_dec(design.rabbet_width)),
-        ));
-    }
-    if design.rabbet_width > config.max_rabbet {
-        result.add(ValidationIssue::error(
-            "rabbet_width",
-            &format!("Rabbet width must be at most {}", fmt_dec(config.max_rabbet)),
-        ).with_details(
-            format!("Current: {}", fmt_dec(design.rabbet_width)),
-        ));
+    if design.frame_style == FrameStyle::Rabbet {
+        if design.rabbet_width > max_rabbet_width {
+            result.add(ValidationIssue::error(
+                "rabbet_width",
+                &format!("Rabbet width too large - must leave at least {} lip", fmt_dec(config.min_lip_width)),
+            ).with_details(
+                format!("Current rabbet: {}, Frame width: {}, Max rabbet: {}",
+                    fmt_dec(design.rabbet_width), fmt_dec(design.frame_material_width), fmt_dec(max_rabbet_width)),
+            ));
+        }
+        if design.rabbet_width < config.min_rabbet {
+            result.add(ValidationIssue::error(
+                "rabbet_width",
+                &format!("Rabbet width must be at least {}", fmt_dec(config.min_rabbet)),
+            ).with_details(
+                format!("Current: {}", fmt_dec(design.rabbet_width)),
+            ));
+        }
+        if design.rabbet_width > config.max_rabbet {
+            result.add(ValidationIssue::error(
+                "rabbet_width",
+                &format!("Rabbet width must be at most {}", fmt_dec(config.max_rabbet)),
+            ).with_details(
+                format!("Current: {}", fmt_dec(design.rabbet_width)),
+            ));
+        }
     }
 
     // Rabbet depth - structural constraint

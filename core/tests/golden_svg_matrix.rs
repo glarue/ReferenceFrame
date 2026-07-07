@@ -9,7 +9,7 @@
 
 use std::path::PathBuf;
 
-use referenceframe_core::FrameDesign;
+use referenceframe_core::{FrameDesign, FrameStyle};
 use referenceframe_core::visualization::{
     DiagramOptions, ViewOption, generate_diagram,
 };
@@ -38,6 +38,8 @@ fn base_design() -> FrameDesign {
         assembly_margin: 0.0625,
         symmetrical_mat: true,
         no_artwork_margin: false,
+        frame_style: FrameStyle::Rabbet,
+        float_reveal: 0.0,
     }
 }
 
@@ -159,6 +161,20 @@ fn asymmetric_mat() -> FrameDesign {
     }
 }
 
+/// Sight-size frame: opening = artwork, no lip over the art face.
+fn sight_size_11x14() -> FrameDesign {
+    FrameDesign {
+        artwork_width: 14.0,
+        artwork_height: 11.0,
+        frame_material_width: 1.0,
+        frame_material_depth: 0.75,
+        rabbet_width: 0.375,
+        rabbet_depth: 0.375,
+        frame_style: FrameStyle::SightSize,
+        ..base_design()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Options builders
 // ---------------------------------------------------------------------------
@@ -271,6 +287,11 @@ const MATRIX: &[MatrixEntry] = &[
     // -- Subset x Both x mm (2) --
     MatrixEntry { name: "standard_8x10_both_mm",  design_fn: standard_8x10,  options_fn: opts_both_mm },
     MatrixEntry { name: "matted_16x20_both_mm",   design_fn: matted_16x20,   options_fn: opts_both_mm },
+
+    // -- Sight-size (no lip; opening = artwork), inches --
+    MatrixEntry { name: "sight_size_11x14_plan_inches",    design_fn: sight_size_11x14, options_fn: opts_plan_inches },
+    MatrixEntry { name: "sight_size_11x14_section_inches", design_fn: sight_size_11x14, options_fn: opts_section_inches },
+    MatrixEntry { name: "sight_size_11x14_both_inches",    design_fn: sight_size_11x14, options_fn: opts_both_inches },
 ];
 
 fn opts_section_mm() -> DiagramOptions {

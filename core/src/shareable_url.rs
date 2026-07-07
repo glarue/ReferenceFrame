@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use crate::frame::FrameStyle;
 
 /// Parameters for shareable URL encoding
 ///
@@ -33,6 +34,10 @@ pub struct ShareableParams {
     pub blade_width: f64,
     pub include_mat: bool,
     pub unit_mm: bool,
+    #[serde(default)]
+    pub frame_style: FrameStyle, // format v2 (packed into reserved flag bits 3-2)
+    #[serde(default)]
+    pub float_reveal: f64, // format v2 (appended uint16)
 }
 
 /// Defaults applied to the format-v1 fields when decoding an older (v0) URL
@@ -56,7 +61,7 @@ impl std::fmt::Display for DecodeError {
         match self {
             DecodeError::InvalidUrl => write!(f, "Invalid URL format"),
             DecodeError::InvalidBase64 => write!(f, "Invalid base64 encoding"),
-            DecodeError::TruncatedData => write!(f, "Truncated data (expected 28, 30, or 37 bytes)"),
+            DecodeError::TruncatedData => write!(f, "Truncated data (expected 28, 30, 37, or 39 bytes)"),
             DecodeError::UnsupportedVersion(v) => {
                 write!(f, "Unsupported format version {} (decoder supports version {})", v, FORMAT_VERSION)
             }
@@ -72,24 +77,30 @@ impl std::error::Error for DecodeError {}
 //
 // The flags byte (last byte of the payload) is laid out as:
 //
-//     bit 7..5: format version (currently 0)
-//     bit 4..2: reserved (must be 0)
+//     bit 7..5: format version (currently 2)
+//     bit 4:    reserved (must be 0)
+//     bit 3..2: frame_style (0 = rabbet, 1 = sight-size, 2 = float; format v2)
 //     bit 1:    unit_mm
 //     bit 0:    include_mat
 //
 // Version 0 covers the 30-byte format and the legacy 28-byte format
 // (distinguished by payload length); version 1 adds 7 trailing bytes for
-// mat_width_sides, mat_overlap, and assembly_margin (37 bytes total). All URLs
-// generated before versioning have zero in the top bits, so they decode as
-// version 0. The decoder reads BOTH v0 and v1; any other version is rejected.
-// Payload length implies the version (28/30 → v0, 37 → v1) and is cross-checked
-// against the version bits so a mismatched/future payload can't be misparsed.
+// mat_width_sides, mat_overlap, and assembly_margin (37 bytes total); version 2
+// appends float_reveal (uint16 → 39 bytes total) and stores frame_style in the
+// previously-reserved flag bits 3..2. All URLs generated before versioning have
+// zero in the top bits, so they decode as version 0 / rabbet. The decoder reads
+// v0, v1, and v2; any other version is rejected. Payload length implies the
+// version (28/30 → v0, 37 → v1, 39 → v2) and is cross-checked against the
+// version bits so a mismatched/future payload can't be misparsed.
 
 /// Current binary format version (stored in the top 3 bits of the flags byte)
-const FORMAT_VERSION: u8 = 1;
+const FORMAT_VERSION: u8 = 2;
 
 /// Byte length of a version-1 payload (30-byte v0 layout + 7 appended bytes)
 const V1_LEN: usize = 37;
+
+/// Byte length of a version-2 payload (37-byte v1 layout + float_reveal uint16)
+const V2_LEN: usize = 39;
 
 /// Bit position of the version within the flags byte
 const VERSION_SHIFT: u8 = 5;
@@ -132,20 +143,40 @@ fn unpack_uint16(bytes: &[u8]) -> f64 {
     v as f64 / 10000.0
 }
 
+/// Map a frame style to its 2-bit code for the flags byte (format v2).
+fn frame_style_to_bits(style: FrameStyle) -> u8 {
+    match style {
+        FrameStyle::Rabbet => 0,
+        FrameStyle::SightSize => 1,
+        FrameStyle::Float => 2,
+    }
+}
+
+/// Decode a frame style from flag bits 3..2 (0 / absent → rabbet).
+fn frame_style_from_bits(bits: u8) -> FrameStyle {
+    match bits & 0x03 {
+        1 => FrameStyle::SightSize,
+        2 => FrameStyle::Float,
+        _ => FrameStyle::Rabbet,
+    }
+}
+
 /// Generate a compact shareable URL encoding all frame settings
 ///
-/// Binary format version 1 (37 bytes → ~50 chars base64):
+/// Binary format version 2 (39 bytes → ~52 chars base64):
 ///     5 × uint24: h, w, mw (top/bottom), fw, fd (×10000, max 1677.7215")
 ///     7 × uint16: gt, mt, at, bt, rw, rd, bw (×10000, max 6.5535")
-///     1 × byte:   flags (bit 0 = mat, bit 1 = unit_mm, bits 5-7 = format version)
+///     1 × byte:   flags (bit 0 = mat, bit 1 = unit_mm, bits 3-2 = frame_style,
+///                        bits 5-7 = format version)
 ///     1 × uint24: mat_width_sides (left/right)
 ///     2 × uint16: mat_overlap, assembly_margin
+///     1 × uint16: float_reveal
 ///
 /// The first 30 bytes are byte-identical to the v0 layout (so v0 URLs are a
-/// prefix); v1 appends the last 7 bytes after the flags byte. All values are
-/// stored in inches; out-of-range values are clamped rather than wrapped.
+/// prefix); v1 appends 7 bytes after the flags byte, v2 appends 2 more. All
+/// values are stored in inches; out-of-range values are clamped, not wrapped.
 pub fn generate_shareable_url(params: &ShareableParams) -> String {
-    let mut packed = Vec::with_capacity(V1_LEN);
+    let mut packed = Vec::with_capacity(V2_LEN);
 
     // uint24 fields: h, w, mw (top/bottom), fw, fd (15 bytes total)
     packed.extend_from_slice(&pack_uint24(params.artwork_height));
@@ -163,9 +194,11 @@ pub fn generate_shareable_url(params: &ShareableParams) -> String {
     packed.extend_from_slice(&pack_uint16(params.rabbet_depth));
     packed.extend_from_slice(&pack_uint16(params.blade_width));
 
-    // Flags byte (1 byte total): flag bits plus version in the top 3 bits.
+    // Flags byte (1 byte total): flag bits, frame_style (bits 3-2), and version
+    // in the top 3 bits.
     let flags = (params.include_mat as u8)
         | ((params.unit_mm as u8) << 1)
+        | (frame_style_to_bits(params.frame_style) << 2)
         | (FORMAT_VERSION << VERSION_SHIFT);
     packed.push(flags);
 
@@ -173,6 +206,9 @@ pub fn generate_shareable_url(params: &ShareableParams) -> String {
     packed.extend_from_slice(&pack_uint24(params.mat_width_sides));
     packed.extend_from_slice(&pack_uint16(params.mat_overlap));
     packed.extend_from_slice(&pack_uint16(params.assembly_margin));
+
+    // Version-2 appended field (2 bytes).
+    packed.extend_from_slice(&pack_uint16(params.float_reveal));
 
     // Base64 encode (URL-safe, no padding). Returns just the encoded string;
     // the caller builds the full URL based on their deployment location.
@@ -197,7 +233,7 @@ pub fn decode_shareable_url(url: &str) -> Result<ShareableParams, DecodeError> {
     let flags = match bytes.len() {
         28 => bytes[27],
         30 => bytes[29],
-        V1_LEN => bytes[29],
+        V1_LEN | V2_LEN => bytes[29],
         _ => return Err(DecodeError::TruncatedData),
     };
 
@@ -242,10 +278,23 @@ pub fn decode_shareable_url(url: &str) -> Result<ShareableParams, DecodeError> {
             }
         };
 
+    // Format v2 appends float_reveal (uint16) and stores frame_style in the
+    // flag bits; older formats have zero there → rabbet / zero reveal.
+    let frame_style = frame_style_from_bits(flags >> 2);
+    let float_reveal = if bytes.len() == V2_LEN {
+        unpack_uint16(&bytes[37..39])
+    } else {
+        0.0
+    };
+
     // The version bits must match the version implied by the payload length,
     // so a corrupt or future payload is rejected rather than misparsed.
     let version = flags >> VERSION_SHIFT;
-    let expected_version = if bytes.len() == V1_LEN { 1 } else { 0 };
+    let expected_version = match bytes.len() {
+        V2_LEN => 2,
+        V1_LEN => 1,
+        _ => 0,
+    };
     if version != expected_version {
         return Err(DecodeError::UnsupportedVersion(version));
     }
@@ -271,6 +320,8 @@ pub fn decode_shareable_url(url: &str) -> Result<ShareableParams, DecodeError> {
         blade_width,
         include_mat,
         unit_mm,
+        frame_style,
+        float_reveal,
     })
 }
 
@@ -314,6 +365,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
 
         let encoded = generate_shareable_url(&params);
@@ -346,6 +399,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
 
         let encoded = generate_shareable_url(&params);
@@ -464,6 +519,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
         let encoded = generate_shareable_url(&params);
         let bytes = URL_SAFE_NO_PAD.decode(&encoded).unwrap();
@@ -518,6 +575,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
         let encoded = generate_shareable_url(&params);
         let url = format!("https://example.com/?d={}", encoded);
@@ -549,6 +608,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
         let encoded = generate_shareable_url(&params);
         let url = format!("https://example.com/?d={}", encoded);
@@ -577,6 +638,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
         let encoded = generate_shareable_url(&params);
         let url = format!("https://example.com/?d={}", encoded);
@@ -607,6 +670,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
         let encoded = generate_shareable_url(&params);
         let url = format!("https://example.com/?d={}", encoded);
@@ -635,6 +700,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
         let encoded = generate_shareable_url(&params);
         let url = format!("https://example.com/?d={}", encoded);
@@ -668,6 +735,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
         let encoded = generate_shareable_url(&params);
         let url = format!("https://example.com/?d={}", encoded);
@@ -698,6 +767,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
         let encoded = generate_shareable_url(&params);
         let url = format!("https://example.com/?d={}", encoded);
@@ -729,6 +800,8 @@ mod tests {
             mat_width_sides: 0.0,
             mat_overlap: 0.0,
             assembly_margin: 0.0,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
 
         let encoded = generate_shareable_url(&params);
@@ -774,11 +847,14 @@ mod tests {
             blade_width: 0.125,
             include_mat: true,
             unit_mm: false,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
         };
 
         let encoded = generate_shareable_url(&params);
-        // v1 payloads are 37 bytes.
-        assert_eq!(URL_SAFE_NO_PAD.decode(&encoded).unwrap().len(), V1_LEN);
+        // The encoder always writes the current format (v2 = 39 bytes); the v1
+        // fields still round-trip.
+        assert_eq!(URL_SAFE_NO_PAD.decode(&encoded).unwrap().len(), V2_LEN);
 
         let decoded = decode_shareable_url(&format!("?d={}", encoded)).unwrap();
         let tol = 0.0001;
@@ -819,5 +895,84 @@ mod tests {
         assert!((p.mat_overlap - DEFAULT_MAT_OVERLAP).abs() < tol);
         assert!((p.assembly_margin - DEFAULT_ASSEMBLY_MARGIN).abs() < tol);
         assert!(p.include_mat && p.unit_mm);
+        // Pre-v2 payload → rabbet style, no reveal.
+        assert_eq!(p.frame_style, FrameStyle::Rabbet);
+        assert_eq!(p.float_reveal, 0.0);
+    }
+
+    // --- Format v2: frame_style + float_reveal ---
+
+    #[test]
+    fn test_v2_frame_style_and_reveal_roundtrip() {
+        let params = ShareableParams {
+            artwork_height: 16.0,
+            artwork_width: 20.0,
+            mat_width: 0.0,
+            mat_width_sides: 0.0,
+            mat_overlap: 0.0,
+            frame_width: 1.5,
+            frame_depth: 1.5,
+            glazing_thickness: 0.0,
+            matboard_thickness: 0.0,
+            artwork_thickness: 0.75,
+            backing_thickness: 0.125,
+            assembly_margin: 0.0625,
+            rabbet_width: 0.375,
+            rabbet_depth: 1.0,
+            blade_width: 0.125,
+            include_mat: false,
+            unit_mm: false,
+            frame_style: FrameStyle::SightSize,
+            float_reveal: 0.25,
+        };
+        let encoded = generate_shareable_url(&params);
+        // v2 payloads are 39 bytes.
+        assert_eq!(URL_SAFE_NO_PAD.decode(&encoded).unwrap().len(), V2_LEN);
+        let decoded = decode_shareable_url(&format!("?d={}", encoded)).unwrap();
+        assert_eq!(decoded.frame_style, FrameStyle::SightSize);
+        assert!((decoded.float_reveal - 0.25).abs() < 0.0001);
+        // Neighbouring fields still round-trip.
+        assert!((decoded.rabbet_depth - 1.0).abs() < 0.0001);
+        assert!((decoded.artwork_thickness - 0.75).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_v2_float_style_roundtrip() {
+        let mut params = ShareableParams::default();
+        params.artwork_height = 12.0;
+        params.artwork_width = 12.0;
+        params.frame_style = FrameStyle::Float;
+        params.float_reveal = 0.375;
+        let encoded = generate_shareable_url(&params);
+        let decoded = decode_shareable_url(&format!("?d={}", encoded)).unwrap();
+        assert_eq!(decoded.frame_style, FrameStyle::Float);
+        assert!((decoded.float_reveal - 0.375).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_v1_payload_decodes_as_rabbet() {
+        // A hand-built v1 (37-byte) payload predates frame_style; it must decode
+        // as rabbet with zero reveal (flag bits 3-2 were reserved/zero).
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&pack_uint24(8.0));
+        bytes.extend_from_slice(&pack_uint24(12.0));
+        bytes.extend_from_slice(&pack_uint24(2.0));
+        bytes.extend_from_slice(&pack_uint24(0.75));
+        bytes.extend_from_slice(&pack_uint24(0.75));
+        bytes.extend_from_slice(&pack_uint16(0.093));
+        bytes.extend_from_slice(&pack_uint16(0.055));
+        bytes.extend_from_slice(&pack_uint16(0.008));
+        bytes.extend_from_slice(&pack_uint16(0.125));
+        bytes.extend_from_slice(&pack_uint16(0.375));
+        bytes.extend_from_slice(&pack_uint16(0.375));
+        bytes.extend_from_slice(&pack_uint16(0.125));
+        bytes.push(0x01 | (1 << VERSION_SHIFT)); // version 1, include_mat set
+        bytes.extend_from_slice(&pack_uint24(2.0));
+        bytes.extend_from_slice(&pack_uint16(0.125));
+        bytes.extend_from_slice(&pack_uint16(0.0625));
+        assert_eq!(bytes.len(), V1_LEN);
+        let p = decode_shareable_url(&format!("?d={}", URL_SAFE_NO_PAD.encode(&bytes))).unwrap();
+        assert_eq!(p.frame_style, FrameStyle::Rabbet);
+        assert_eq!(p.float_reveal, 0.0);
     }
 }

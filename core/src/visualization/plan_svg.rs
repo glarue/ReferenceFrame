@@ -431,8 +431,10 @@ pub(crate) fn build_plan_svg(
         svg.push_str("  </g>\n");
     }
 
-    // Frame/mat overlap visualization - semi-transparent fill showing rabbet overlap area
-    let rabbet_scaled = design.rabbet_width * geometry.scale;
+    // Frame/mat overlap visualization - semi-transparent fill showing rabbet overlap area.
+    // Uses lip_over_art (zero for sight-size/float) so the fill vanishes when the
+    // frame has no lip over the artwork.
+    let rabbet_scaled = design.lip_over_art() * geometry.scale;
     if rabbet_scaled > 0.5 {
         svg.push_str("  <g id=\"rabbet-overlap\">\n");
         let ox = geometry.content_area.x;

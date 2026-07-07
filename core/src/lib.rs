@@ -21,7 +21,7 @@ pub mod input_parser;
 pub mod history;
 
 // Re-export key types for convenience
-pub use frame::{FrameDesign, FrameSize};
+pub use frame::{FrameDesign, FrameSize, FrameStyle};
 pub use conversions::{Unit, format_value, inches_to_mm, mm_to_inches};
 pub use aspect_ratio::{
     AspectLockState, get_aspect_ratio_display, get_aspect_ratio_display_from_ratio,

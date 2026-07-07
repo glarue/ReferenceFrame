@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260705-valunits">
+    <link rel="stylesheet" href="./styles.css?v=20260707-fitmargin">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -223,6 +223,15 @@
                                 </div>
                             </div>
                             <div>
+                                <div class="section-subtitle">Frame Style</div>
+                                <div class="input-group">
+                                    <label for="frame-style">Style</label>
+                                    <select class="input-small" id="frame-style">
+                                        <option value="rabbet">Rabbet (lip over art)</option>
+                                        <option value="sight_size">Sight-size (opening = artwork)</option>
+                                    </select>
+                                    <small id="frame-style-hint">Sight-size: full image visible, no lip over the art.</small>
+                                </div>
                                 <div class="section-subtitle">Rabbet Settings</div>
                                 <div class="input-group">
                                     <label for="rabbet-width">Rabbet Width</label>
@@ -629,12 +638,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260705-valunits';
+        } from './pkg/referenceframe_wasm.js?v=20260707-fitmargin';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260705-valunits';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260707-fitmargin';
 
         console.log('WASM imports successful');
 
@@ -1507,6 +1516,7 @@
                 design.backingThickness = backingThickness;
                 design.rabbetWidth = rabbetWidth;
                 design.rabbetDepth = rabbetDepth;
+                design.frameStyle = document.getElementById('frame-style')?.value || 'rabbet';
                 design.assemblyMargin = assemblyMargin;
 
                 design.validate();
@@ -1546,6 +1556,8 @@
                 const [insideH, insideW] = design.getFrameInsideDimensions();
                 const [outsideH, outsideW] = design.getFrameOutsideDimensions();
                 const [matH, matW] = design.getMatboardDimensions();
+                const [fitH, fitW] = design.getFittedComponentDimensions();
+                const hasFitAllowance = (matH - fitH) > 0.0005;
                 const [matOpenH, matOpenW] = design.getMatOpeningDimensions();
                 const depthRequired = design.getRabbetZDepthRequired();
                 const errorMargin = 0.0625;
@@ -1671,13 +1683,28 @@
                     html += `<th>Width</th>`;
                     html += `</tr></thead>`;
                     html += `<tbody>`;
-                    html += `<tr class="cut-dimension-row">`;
-                    html += `<td>Outside</td>`;
-                    html += `<td>${formatDisplay(matH, unitMm)}</td>`;
-                    html += `<td>${formatDisplay(matW, unitMm)}</td>`;
-                    html += `</tr>`;
+                    if (hasFitAllowance) {
+                        // Drop-in cut size (with assembly clearance) is what you cut;
+                        // the exact rabbet opening is listed alongside.
+                        html += `<tr class="cut-dimension-row">`;
+                        html += `<td>Cut to fit</td>`;
+                        html += `<td>${formatDisplay(fitH, unitMm)}</td>`;
+                        html += `<td>${formatDisplay(fitW, unitMm)}</td>`;
+                        html += `</tr>`;
+                        html += `<tr class="incidental-row">`;
+                        html += `<td>Outside (exact)</td>`;
+                        html += `<td>${formatDisplay(matH, unitMm)}</td>`;
+                        html += `<td>${formatDisplay(matW, unitMm)}</td>`;
+                        html += `</tr>`;
+                    } else {
+                        html += `<tr class="cut-dimension-row">`;
+                        html += `<td>Outside</td>`;
+                        html += `<td>${formatDisplay(matH, unitMm)}</td>`;
+                        html += `<td>${formatDisplay(matW, unitMm)}</td>`;
+                        html += `</tr>`;
+                    }
                     html += `<tr class="incidental-row">`;
-                    html += `<td>Inside</td>`;
+                    html += `<td>Inside (opening)</td>`;
                     html += `<td>${formatDisplay(matOpenH, unitMm)}</td>`;
                     html += `<td>${formatDisplay(matOpenW, unitMm)}</td>`;
                     html += `</tr>`;
@@ -2094,6 +2121,8 @@
                 rabbet_width: getDimensionValue('rabbet-width'),
                 rabbet_depth: getDimensionValue('rabbet-depth'),
                 blade_width: getDimensionValue('blade-width'),
+                frame_style: document.getElementById('frame-style')?.value || 'rabbet',
+                float_reveal: 0,
                 include_mat: includeMat,
                 unit_mm: unitMm
             };
@@ -2569,6 +2598,10 @@
                 setDimensionValue('rabbet-width', params.rabbet_width);
                 setDimensionValue('rabbet-depth', params.rabbet_depth);
                 setDimensionValue('blade-width', params.blade_width);
+                // Frame style (format v2; older links default to rabbet)
+                if (params.frame_style) {
+                    document.getElementById('frame-style').value = params.frame_style;
+                }
 
                 document.getElementById('include-mat').checked = params.include_mat;
                 updateMatVisibility();
@@ -2606,6 +2639,9 @@
                 });
             }
         });
+
+        // Frame style is a <select> (not an <input>) — recalc on change.
+        document.getElementById('frame-style')?.addEventListener('change', () => calculate());
 
         // Add blur handlers to normalize fractional inputs (inches mode only)
         dimensionInputIds.forEach(id => {
@@ -3307,6 +3343,8 @@
                     rabbet_width: currentDesign.rabbetWidth,
                     rabbet_depth: currentDesign.rabbetDepth,
                     blade_width: getDimensionValue('blade-width'),
+                    frame_style: currentDesign.frameStyle,
+                    float_reveal: currentDesign.floatReveal,
                     include_mat: includeMat,
                     unit_mm: currentUnit === 'mm'
                 };
@@ -3421,6 +3459,7 @@
                 backing_thickness: getDimensionValue('backing-thickness'),
                 rabbet_width: getDimensionValue('rabbet-width'),
                 rabbet_depth: getDimensionValue('rabbet-depth'),
+                frame_style: document.getElementById('frame-style')?.value || 'rabbet',
                 assembly_margin: getDimensionValue('assembly-margin'),
                 blade_width: getDimensionValue('blade-width'),
                 mat_overlap: getDimensionValue('mat-overlap'),
@@ -3489,6 +3528,7 @@
             setDimensionValue('backing-thickness', config.backing_thickness);
             setDimensionValue('rabbet-width', config.rabbet_width);
             setDimensionValue('rabbet-depth', config.rabbet_depth);
+            if (config.frame_style) document.getElementById('frame-style').value = config.frame_style;
             setDimensionValue('assembly-margin', config.assembly_margin);
             setDimensionValue('blade-width', config.blade_width);
             setDimensionValue('mat-overlap', config.mat_overlap);
