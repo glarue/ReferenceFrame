@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260707-fitmargin">
+    <link rel="stylesheet" href="./styles.css?v=20260707-sightlip">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -638,12 +638,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260707-fitmargin';
+        } from './pkg/referenceframe_wasm.js?v=20260707-sightlip';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260707-fitmargin';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260707-sightlip';
 
         console.log('WASM imports successful');
 
@@ -1746,6 +1746,27 @@
                     }
 
                     html += `</div>`;
+                    html += `</div>`;
+                } else {
+                    // No mat: surface the glazing/backing seat (rabbet opening) and
+                    // the drop-in cut size, so the component dimensions — which are
+                    // larger than the artwork for sight-size (held by the lip) —
+                    // are visible rather than implied.
+                    html += `<h3 class="section-header">`;
+                    html += `<span class="material-symbols-outlined">layers</span>`;
+                    html += `Glazing & Backing`;
+                    html += `</h3>`;
+                    html += `<div class="result-card" style="padding: 12px;">`;
+                    html += `<table class="dimension-table">`;
+                    html += `<thead><tr><th></th><th>Height</th><th>Width</th></tr></thead>`;
+                    html += `<tbody>`;
+                    if (hasFitAllowance) {
+                        html += `<tr class="cut-dimension-row"><td>Cut to fit</td><td>${formatDisplay(fitH, unitMm)}</td><td>${formatDisplay(fitW, unitMm)}</td></tr>`;
+                        html += `<tr class="incidental-row"><td>Seat (rabbet)</td><td>${formatDisplay(matH, unitMm)}</td><td>${formatDisplay(matW, unitMm)}</td></tr>`;
+                    } else {
+                        html += `<tr class="cut-dimension-row"><td>Seat (rabbet)</td><td>${formatDisplay(matH, unitMm)}</td><td>${formatDisplay(matW, unitMm)}</td></tr>`;
+                    }
+                    html += `</tbody></table>`;
                     html += `</div>`;
                 }
 

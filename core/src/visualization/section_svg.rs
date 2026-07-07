@@ -895,10 +895,13 @@ pub(crate) fn build_section_svg(
     // art, so we label the channel depth and note the absence of a lip rather
     // than a "Rabbet: W × D" overlap.
     let rabbet_label = match design.frame_style {
+        // Sight-size/float still have a real rabbet — the lip grabs the
+        // (oversized) glazing/backing; it just clears the artwork.
         FrameStyle::SightSize =>
-            format!("Sight-size — no lip · depth {}", fmt(design.rabbet_depth)),
+            format!("Sight-size · rabbet {} × {} (clears art)",
+                fmt(design.rabbet_width), fmt(design.rabbet_depth)),
         FrameStyle::Float =>
-            format!("Float — no lip · depth {}", fmt(design.rabbet_depth)),
+            format!("Float · rabbet {} × {}", fmt(design.rabbet_width), fmt(design.rabbet_depth)),
         FrameStyle::Rabbet if (design.rabbet_width - design.rabbet_depth).abs() < 0.001 =>
             // Square rabbet - just show one value
             format!("Rabbet: {}", fmt(design.rabbet_depth)),

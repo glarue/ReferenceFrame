@@ -250,11 +250,11 @@ impl SectionViewGeometry {
         // rabbet_width = horizontal lip overlap (how far frame extends over content)
         // rabbet_depth = vertical z-axis depth of cutout (space for materials)
         // Note: rabbet_h_s already calculated above for vertical centering
-        let rabbet_w_s = design.rabbet_width * scale;  // Physical rabbet (material illustration width)
-        // Lip actually drawn over the art face: rabbet_width for traditional
-        // frames, zero for sight-size/float (opening = art, no lip). Kept
-        // separate from rabbet_w_s so the material stack keeps a visible width
-        // even when the lip is zero.
+        let rabbet_w_s = design.rabbet_width * scale;  // Physical rabbet / lip width (always drawn)
+        // How far the lip covers the ARTWORK: rabbet_width for traditional
+        // frames, zero for sight-size (there the lip grabs the oversized
+        // glazing/backing, not the art). Drives how far the artwork tucks under
+        // the lip; the lip itself is always present.
         let lip_w_s = design.lip_over_art() * scale;
 
         // Frame orientation in diagram:
@@ -270,9 +270,17 @@ impl SectionViewGeometry {
         // - Glazing at top (touches lip)
         // - Backing at bottom (toward back of frame)
 
-        // Materials position - they sit in the rabbet, pressed against the lip
-        // (or flush to the frame's inner face when there is no lip).
-        let content_x = origin_x + frame_width_s - lip_w_s;
+        // Glazing, mat, and backing seat against the rabbet wall, under the lip
+        // — this is what physically holds the stack in, for EVERY style
+        // (sight-size included, where the glazing/backing are deliberately cut
+        // larger than the art so the lip can grab them).
+        let content_x = origin_x + frame_width_s - rabbet_w_s;
+        // The ARTWORK only tucks under the lip by `lip_over_art` (rabbet_width
+        // for traditional, zero for sight-size). So for sight-size the art edge
+        // sits at the sight line — visible, not under the lip — while the lip
+        // still retains the glazing/backing behind it.
+        let art_inset = (rabbet_w_s - lip_w_s).max(0.0);
+        let art_content_x = content_x + art_inset;
 
         // Lip position: the lip is at (displayed_frame_depth - rabbet_depth) from origin
         // This formula works whether or not axis break is used, because frame_depth_s
@@ -306,9 +314,9 @@ impl SectionViewGeometry {
         };
 
         let artwork = Rect::new(
-            content_x,
+            art_content_x,
             current_y,
-            layer_width,
+            (layer_width - art_inset).max(0.0),
             artwork_t * scale,
         );
         current_y += artwork_t * scale;
@@ -329,14 +337,14 @@ impl SectionViewGeometry {
             design.assembly_margin * scale,
         );
 
-        // Rabbet area - the actual rabbet cutout at bottom-right of L-shape
-        // Same formula works with or without axis break since frame_depth_s is already truncated
-        // Rabbet cutout width follows the lip (zero for sight-size/float), so the
-        // L-shape collapses to a plain profile with no lip over the art.
+        // Rabbet area - the actual rabbet cutout at bottom-right of the L-shape.
+        // Always the physical rabbet: the lip is real for every style (it holds
+        // the glazing/backing). Sight-size differs only in that the ARTWORK is
+        // not drawn under it (see art_content_x above).
         let rabbet_area = Rect::new(
-            origin_x + frame_width_s - lip_w_s,
+            origin_x + frame_width_s - rabbet_w_s,
             origin_y + frame_depth_s - rabbet_h_s,
-            lip_w_s,
+            rabbet_w_s,
             rabbet_h_s,
         );
 
