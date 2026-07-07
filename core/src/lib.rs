@@ -19,6 +19,8 @@ pub mod visualization;
 pub mod validation;
 pub mod input_parser;
 pub mod history;
+pub mod joinery;
+pub mod hanging;
 
 // Re-export key types for convenience
 pub use frame::{FrameDesign, FrameSize, FrameStyle};
