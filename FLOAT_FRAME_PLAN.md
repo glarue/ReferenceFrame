@@ -1,6 +1,8 @@
 # Float & Sight-Size Frame Support — Implementation Plan
 
-Status: **proposed** (no code yet). Author: review of the codebase 2026-07-06.
+Status: **Phase 1 (sight-size) shipped & deployed to web (2026-07-07)**; XY
+assembly-clearance shipped; iOS port + Phase 2 (float) pending. Live status:
+[`FLOAT_FRAME_TODO.md`](./FLOAT_FRAME_TODO.md). Original spec (2026-07-06) below.
 
 ## 1. Goal
 

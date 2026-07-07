@@ -9,7 +9,7 @@ data model. Phase 2 = float (gap/reveal + tray rendering). Phase 3 = Z-reveal
 
 ---
 
-## Phase 1 — Sight-size  ·  status: **core + web DONE & verified; mobile TODO**
+## Phase 1 — Sight-size  ·  status: **core + web SHIPPED & DEPLOYED (live); mobile TODO**
 
 ### ✅ Core (`core/`) — done, tested
 - [x] `FrameStyle` enum `{ Rabbet, SightSize, Float }` (serde `snake_case`), re-exported from crate root — `frame.rs`, `lib.rs`
@@ -51,12 +51,12 @@ The flagship; keep it at least as polished as web. Steps:
 - [ ] **Tests**: `design_state` routing (prefer Rust-free helpers — note the `flutter test`/`RustLib` limitation blocks anything constructing `DesignState`).
 - [ ] **Build + verify**: `./rebuild.sh run`; confirm sight-size opening = art, section shows no lip, share/QR round-trips.
 
-### ⬜ Housekeeping (when shipping)
-- [ ] Optional web polish: grey/disable the "Rabbet Width" input when Sight-size is selected (it no longer affects the opening, only the section channel depth).
-- [ ] Commit — **root repo**: core + web + wasm + goldens; **mobile repo**: bridge + Flutter. (Nothing committed yet.)
-- [ ] Web deploy: bump `CACHE_NAME` + `RUNTIME_CACHE` in `platforms/web/sw.js` (currently v10 → v11); `./build_wasm.sh` already done; then deploy.
+### Housekeeping
+- [x] ~~Grey out "Rabbet Width" under Sight-size~~ — **superseded**: `rabbet_width` IS meaningful for sight-size (it's how far the lip grabs the oversized glazing). Keep it; maybe add a per-style hint clarifying its role.
+- [x] **Root repo** committed + **deployed to live web** (2026-07-07): core + web + wasm + goldens. Service worker → v12, cache-bust `20260707-sightlip`.
+- [ ] **Mobile repo** commit (bridge + Flutter) — pending the mobile port.
 - [ ] iOS build: mobile changes ship on the next `fastlane beta`/`release`.
-- [ ] `/release-notes` + version bumps (`release.sh`) — `feat:` (minor) for core/app/bridge.
+- [ ] `release.sh` version bump (`feat:` → core minor) — when cutting the mobile build / a core release; not needed for the (already-live) web.
 
 ---
 
@@ -85,7 +85,14 @@ still uses the exact rabbet opening).
 - [x] Core: `get_fitted_component_dimensions()` = rabbet opening − 2×`assembly_margin`; `xy_assembly_margin()` capped at `rabbet_width` so parts stay under the lip; +3 tests. `get_matboard_dimensions()` unchanged (the exact reference).
 - [x] WASM `getFittedComponentDimensions`; web Matboard table shows **"Cut to fit"** + **"Outside (exact)"** (single "Outside" row when margin 0). Cache-bust → `20260707-fitmargin`. 5/5 WASM smoke checks.
 - [ ] Web **PDF** export: mirror the "cut to fit" size (PDF currently shows the exact matboard size only — `index.html:~3149/3209`).
-- [ ] No-mat / canvas path: optionally surface a glazing/backing "cut to fit" line (component W×H only shows when a mat is present today).
+- [x] No-mat / canvas path: "Glazing & Backing" card shows seat (rabbet opening) + cut to fit — makes the oversized-for-sight-size component size explicit.
+
+### Sight-size section view — retaining lip (fix, 2026-07-07) · DONE
+Reviewer flagged the section looked like nothing held the stack. The rabbet was
+always modelled (glazing/backing = art + 2×rabbet_width, held by the lip); only
+the *drawing* collapsed the lip. Fixed: section always draws the lip, glazing/
+backing seat under it, artwork inset to the sight line (`art_inset = rabbet_w −
+lip_over_art`, so traditional frames stay byte-identical). Deployed.
 - [ ] **Mobile**: mirror in the calculator results (rolls into the mobile-port item above).
 
 ---
