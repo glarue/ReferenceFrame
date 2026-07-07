@@ -11,6 +11,7 @@ pub mod style;
 pub mod geometry;
 pub mod callouts;
 pub mod layout;
+mod overlays;
 pub mod collision;
 mod svg_util;
 mod section_svg;

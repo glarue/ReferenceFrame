@@ -143,6 +143,17 @@ pub(crate) fn render_corner_detail(
         fi_x, top_y, fi_x, fi_y, cx + arm_right, fi_y, style.line_color, outer_sw
     ));
 
+    // Spline slot chord across the zoomed corner (edge-to-edge; the clip
+    // trims any excess). Same slot the plan-view chords show.
+    if options.show_spline {
+        if let Some(leg) = super::overlays::plan_spline_leg(design, s) {
+            svg.push_str(&format!(
+                "    <line x1=\"{:.2}\" y1=\"{:.2}\" x2=\"{:.2}\" y2=\"{:.2}\" stroke=\"{}\" stroke-width=\"2\" stroke-dasharray=\"5,3\"/>\n",
+                cx + leg, cy, cx, cy - leg, style.accent_color
+            ));
+        }
+    }
+
     svg.push_str("    </g>\n"); // end clipped group (geometry only)
 
     // ============ DIMENSION CALLOUTS (outside clip, inside box clip) ============
@@ -382,12 +393,31 @@ pub(crate) fn build_plan_svg(
     style: &DiagramStyle,
 ) -> String {
     // Calculate viewBox dimensions
-    let (min_x, min_y, viewbox_width, viewbox_height) = if options.show_callouts {
+    let (min_x, min_y, mut viewbox_width, mut viewbox_height) = if options.show_callouts {
         compute_plan_viewbox(geometry, layout, style)
     } else {
         // Without callouts (preview mode): use fixed viewBox matching canvas dimensions
         (0.0, 0.0, options.canvas_width, options.canvas_height)
     };
+
+    // Overlay annotation card (spline/hanging measurements) sits in a right
+    // gutter outside all callouts — widen the viewBox to make room for it.
+    // Preview mode (no callouts) draws marks only, no card.
+    const CARD_GAP: f64 = 14.0;
+    let overlay_card = if options.show_callouts {
+        let unit = if options.unit_mm { Unit::Millimeters } else { Unit::Inches };
+        let fmt = |v: f64| format_dimension(v, unit, options.use_tape_segments, options.use_decimal_display);
+        super::overlays::plan_overlay_card(geometry, design, style, options, &fmt)
+    } else {
+        None
+    };
+    let card_pos = overlay_card.as_ref().map(|card| {
+        let cx = min_x + viewbox_width + CARD_GAP;
+        let cy = geometry.frame_outer.y;
+        viewbox_width += card.width + 2.0 * CARD_GAP;
+        viewbox_height = viewbox_height.max(cy - min_y + card.height + CARD_GAP);
+        (cx, cy)
+    });
 
     // Build SVG with dynamic viewBox
     let mut svg = String::new();
@@ -654,6 +684,16 @@ pub(crate) fn build_plan_svg(
             c.callout.dimension_type,
             super::types::DimensionType::MatCutWidth | super::types::DimensionType::MatCutHeight
         );
+        // Overlay marks render below dimension callouts and the corner-detail
+        // inset, so callout masks and the inset cleanly cover them; their
+        // measurements live in the overlay card, not over the diagram.
+        if options.show_hanging {
+            super::overlays::render_plan_hanging(&mut svg, geometry, design, style);
+        }
+        if options.show_spline {
+            super::overlays::render_plan_splines(&mut svg, geometry, design, style);
+        }
+
         let mut dimension_labels = String::new();
         svg.push_str("  <g id=\"dimensions\">\n");
         for callout in &layout.positioned_callouts {
@@ -910,6 +950,11 @@ pub(crate) fn build_plan_svg(
             }
         }
         svg.push_str("  </g>\n");
+    }
+
+    // Overlay annotation card in the right gutter (viewBox already widened)
+    if let (Some(card), Some((cx, cy))) = (&overlay_card, card_pos) {
+        super::overlays::render_overlay_card(&mut svg, card, cx, cy, style);
     }
 
     svg.push_str("</svg>");

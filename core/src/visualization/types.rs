@@ -442,6 +442,14 @@ pub struct DiagramOptions {
     /// Enable axis break compression in Auto mode (default true)
     #[serde(default = "default_true")]
     pub axis_breaks_enabled: bool,
+
+    /// Show spline (corner key) slot placement overlay (default false)
+    #[serde(default)]
+    pub show_spline: bool,
+
+    /// Show hanging hardware (D-rings, wire, hook) overlay (default false)
+    #[serde(default)]
+    pub show_hanging: bool,
 }
 
 fn default_true() -> bool { true }
@@ -461,6 +469,8 @@ impl Default for DiagramOptions {
             detail_mode: DetailMode::Auto,
             corner_detail_enabled: true,
             axis_breaks_enabled: true,
+            show_spline: false,
+            show_hanging: false,
         }
     }
 }

@@ -52,7 +52,25 @@ fn golden_dir() -> PathBuf {
 /// - If `UPDATE_GOLDEN=1`, always write.
 /// - If the golden file does not exist, create it (first-run friendly).
 /// - Otherwise assert equality.
+/// Every `&` in emitted SVG must start a known entity — a bare ampersand is
+/// invalid XML and breaks browser rendering even though string comparison
+/// passes. (Caught in the wild via a "Joinery & Hanging" label.)
+fn assert_valid_entities(name: &str, svg: &str) {
+    for (i, _) in svg.match_indices('&') {
+        let rest = &svg[i + 1..];
+        let ok = ["amp;", "lt;", "gt;", "quot;", "apos;", "#"]
+            .iter()
+            .any(|e| rest.starts_with(e));
+        assert!(
+            ok,
+            "`{name}`: bare `&` at byte {i} is invalid XML: ...{}...",
+            &svg[i.saturating_sub(40)..(i + 20).min(svg.len())]
+        );
+    }
+}
+
 fn assert_golden(name: &str, svg: &str) {
+    assert_valid_entities(name, svg);
     let path = golden_dir().join(format!("{name}.svg"));
     let update = std::env::var("UPDATE_GOLDEN").map(|v| v == "1").unwrap_or(false);
 
@@ -292,7 +310,53 @@ const MATRIX: &[MatrixEntry] = &[
     MatrixEntry { name: "sight_size_11x14_plan_inches",    design_fn: sight_size_11x14, options_fn: opts_plan_inches },
     MatrixEntry { name: "sight_size_11x14_section_inches", design_fn: sight_size_11x14, options_fn: opts_section_inches },
     MatrixEntry { name: "sight_size_11x14_both_inches",    design_fn: sight_size_11x14, options_fn: opts_both_inches },
+
+    // -- Spline / hanging overlays (opt-in flags), inches --
+    MatrixEntry { name: "spline_standard_8x10_section_inches", design_fn: standard_8x10, options_fn: opts_section_spline },
+    MatrixEntry { name: "spline_standard_8x10_plan_inches",    design_fn: standard_8x10, options_fn: opts_plan_spline },
+    MatrixEntry { name: "hanging_matted_16x20_plan_inches",    design_fn: matted_16x20,  options_fn: opts_plan_hanging },
+    MatrixEntry { name: "overlays_matted_16x20_both_inches",   design_fn: matted_16x20,  options_fn: opts_both_overlays },
+
+    // -- Interference warning (backdropped, drawn above the legend) --
+    MatrixEntry { name: "interference_8x10_section_inches", design_fn: interference_8x10, options_fn: opts_section_inches },
 ];
+
+/// Shallow rabbet: the material stack overruns the channel -> INTERFERENCE.
+fn interference_8x10() -> FrameDesign {
+    FrameDesign {
+        rabbet_depth: 0.25,
+        ..standard_8x10()
+    }
+}
+
+fn opts_section_spline() -> DiagramOptions {
+    DiagramOptions {
+        show_spline: true,
+        ..opts_section_inches()
+    }
+}
+
+fn opts_plan_spline() -> DiagramOptions {
+    DiagramOptions {
+        show_spline: true,
+        ..opts_plan_inches()
+    }
+}
+
+fn opts_plan_hanging() -> DiagramOptions {
+    DiagramOptions {
+        show_hanging: true,
+        ..opts_plan_inches()
+    }
+}
+
+fn opts_both_overlays() -> DiagramOptions {
+    DiagramOptions {
+        show_spline: true,
+        show_hanging: true,
+        ..opts_both_inches()
+    }
+}
 
 fn opts_section_mm() -> DiagramOptions {
     DiagramOptions {
