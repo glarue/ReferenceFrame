@@ -230,7 +230,7 @@
                                         <option value="rabbet">Rabbet (lip over art)</option>
                                         <option value="sight_size">Sight-size (opening = artwork)</option>
                                     </select>
-                                    <small id="frame-style-hint">Sight-size: full image visible, no lip over the art.</small>
+                                    <small id="frame-style-hint">Traditional: the rabbet lip overlaps the artwork edge.</small>
                                 </div>
                                 <div class="section-subtitle">Rabbet Settings</div>
                                 <div class="input-group">
@@ -2706,7 +2706,15 @@
         });
 
         // Frame style is a <select> (not an <input>) — recalc on change.
-        document.getElementById('frame-style')?.addEventListener('change', () => calculate());
+        document.getElementById('frame-style')?.addEventListener('change', () => {
+            const hint = document.getElementById('frame-style-hint');
+            if (hint) {
+                hint.textContent = document.getElementById('frame-style')?.value === 'sight_size'
+                    ? 'Full image visible — the lip grabs the oversized glazing, not the art.'
+                    : 'Traditional: the rabbet lip overlaps the artwork edge.';
+            }
+            calculate();
+        });
         // Diagram layer toggles: re-render the diagram and the results card
         document.getElementById('show-spline')?.addEventListener('change', () => calculate());
         document.getElementById('show-hanging')?.addEventListener('change', () => calculate());
@@ -3243,6 +3251,11 @@
                 const matWidthAvg = (matWidthTopBottom + matWidthSides) / 2;
 
                 addLabelValue('Full Size:', `${stripUnit(formatDisplay(matH, useMm))} × ${stripUnit(formatDisplay(matW, useMm))}${unit}`, 2);
+                // Drop-in cut size when assembly clearance applies in XY
+                const [pdfFitH, pdfFitW] = currentDesign.getFittedComponentDimensions();
+                if ((matH - pdfFitH) > 0.0005) {
+                    addLabelValue('Cut to fit:', `${stripUnit(formatDisplay(pdfFitH, useMm))} × ${stripUnit(formatDisplay(pdfFitW, useMm))}${unit}`, 2);
+                }
                 addLabelValue('Opening:', `${stripUnit(formatDisplay(matOpenH, useMm))} × ${stripUnit(formatDisplay(matOpenW, useMm))}${unit}`, 2);
                 addLabelValue('Visual Width:', `${formatDisplay(matWidthAvg, useMm)} (avg)`, 2);
                 addLabelValue('Overlap:', `${formatDisplay(matOverlap, useMm)}`, 2);
@@ -3528,6 +3541,7 @@
                 rabbet_width: getDimensionValue('rabbet-width'),
                 rabbet_depth: getDimensionValue('rabbet-depth'),
                 frame_style: document.getElementById('frame-style')?.value || 'rabbet',
+                float_reveal: 0,
                 assembly_margin: getDimensionValue('assembly-margin'),
                 blade_width: getDimensionValue('blade-width'),
                 mat_overlap: getDimensionValue('mat-overlap'),
@@ -3633,6 +3647,7 @@
                 rabbet_depth: design.rabbet_depth,
                 assembly_margin: design.assembly_margin,
                 mat_overlap: design.mat_overlap,
+                frame_style: design.frame_style || 'rabbet',
                 blade_width: getDimensionValue('blade-width'), // keep current; not in FrameDesign
                 include_mat: (design.mat_width_top_bottom > 0 || design.mat_width_sides > 0)
             });
