@@ -679,6 +679,7 @@ pub fn get_weight_estimate(
     design: &WasmFrameDesign,
     wood_key: Option<String>,
     glazing_key: Option<String>,
+    backing_key: Option<String>,
     overlay_params_json: Option<String>,
 ) -> String {
     use referenceframe_core::weight::{estimate_weight, WeightParams};
@@ -689,6 +690,9 @@ pub fn get_weight_estimate(
     }
     if let Some(spec) = glazing_key.as_deref().and_then(|k| m.sheet.get(k)) {
         params.glazing = spec.into();
+    }
+    if let Some(spec) = backing_key.as_deref().and_then(|k| m.sheet.get(k)) {
+        params.backing = spec.into();
     }
     let hanging = parse_overlay_params(&overlay_params_json)
         .hanging

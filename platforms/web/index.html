@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260708-weight">
+    <link rel="stylesheet" href="./styles.css?v=20260708-materials">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -242,6 +242,20 @@
                                     <label for="rabbet-depth">Rabbet Depth</label>
                                     <input type="text" class="input-small" id="rabbet-depth" inputmode="decimal" placeholder="e.g. 0.375 or 3/8">
                                     <small id="range-rabbet-depth">Typical: 5/16" - 3/8"
+                                </div>
+                                <div class="section-subtitle">Materials (weight estimate)</div>
+                                <div class="input-group">
+                                    <label for="wood-species">Wood</label>
+                                    <select class="input-small" id="wood-species"></select>
+                                </div>
+                                <div class="input-group">
+                                    <label for="glazing-material">Glazing</label>
+                                    <select class="input-small" id="glazing-material"></select>
+                                </div>
+                                <div class="input-group">
+                                    <label for="backing-material">Backing</label>
+                                    <select class="input-small" id="backing-material"></select>
+                                    <small>Feeds the weight &amp; wire-tension estimate.</small>
                                 </div>
                                 <div class="section-subtitle">Assembly & Cutting</div>
                                 <div class="input-group">
@@ -630,6 +644,7 @@
             getSplineEnvelope,
             getHangingLayout,
             getWeightEstimate,
+            getMaterialsJson,
             generateShareableUrl,
             decodeShareableUrl,
             getWasmVersion,
@@ -645,12 +660,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260708-weight';
+        } from './pkg/referenceframe_wasm.js?v=20260708-materials';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260708-weight';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260708-materials';
 
         console.log('WASM imports successful');
 
@@ -1794,7 +1809,11 @@
                             html += `<tr><td>Wire cut length</td><td>${formatDisplay(hj.wire_cut_length, unitMm)}</td></tr>`;
                             html += `<tr class="incidental-row"><td>Hook below frame top</td><td>${formatDisplay(hj.hook_below_top, unitMm)}</td></tr>`;
                             // Weight + tension: sourced density ranges (generic wood, glass)
-                            const wj = JSON.parse(getWeightEstimate(design));
+                            const wj = JSON.parse(getWeightEstimate(design,
+                                document.getElementById('wood-species')?.value || null,
+                                document.getElementById('glazing-material')?.value || null,
+                                document.getElementById('backing-material')?.value || null,
+                                null));
                             if (wj) {
                                 const wt = (lb) => {
                                     const v = unitMm ? lb * 0.4536 : lb;
@@ -2732,6 +2751,39 @@
         // Diagram layer toggles: re-render the diagram and the results card
         document.getElementById('show-spline')?.addEventListener('change', () => calculate());
         document.getElementById('show-hanging')?.addEventListener('change', () => calculate());
+
+        // Weight-material pickers: populated from the sourced density index,
+        // persisted locally (weight-model preferences, not design fields)
+        (function initMaterialPickers() {
+            const materials = JSON.parse(getMaterialsJson());
+            const fill = (id, entries, storageKey, fallback) => {
+                const select = document.getElementById(id);
+                if (!select) return;
+                for (const [key, spec] of entries) {
+                    const opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = spec.name;
+                    select.appendChild(opt);
+                }
+                select.value = localStorage.getItem(storageKey) || fallback;
+                if (!select.value) select.value = fallback;
+                select.addEventListener('change', () => {
+                    localStorage.setItem(storageKey, select.value);
+                    calculate();
+                });
+            };
+            // Generic buckets first, then species alphabetically
+            const woods = Object.entries(materials.woods);
+            const generics = woods.filter(([k]) => k.startsWith('generic'));
+            const species = woods.filter(([k]) => !k.startsWith('generic'));
+            fill('wood-species', [...generics, ...species], 'rf_weight_wood', 'generic');
+            fill('glazing-material',
+                ['glass', 'acrylic'].map(k => [k, materials.sheet[k]]),
+                'rf_weight_glazing', 'glass');
+            fill('backing-material',
+                ['foamcore', 'hardboard', 'mdf_panel'].map(k => [k, materials.sheet[k]]),
+                'rf_weight_backing', 'foamcore');
+        })();
 
         // Add blur handlers to normalize fractional inputs (inches mode only)
         dimensionInputIds.forEach(id => {
