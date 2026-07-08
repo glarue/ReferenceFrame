@@ -20,6 +20,7 @@ use crate::joinery::{spline_envelope, SplineParams};
 
 use super::geometry::{estimate_text_width, PlanViewGeometry, SectionViewGeometry};
 use super::style::DiagramStyle;
+use super::svg_util::BASELINE_SHIFT_RATIO;
 use super::types::DiagramOptions;
 
 /// Spline slot fill needs a darker companion for outline/text contrast.
@@ -32,12 +33,13 @@ fn push_backdropped_text(
     svg: &mut String,
     x: f64,
     y: f64,
+    font_size: f64,
     anchor: &str,
     color: &str,
     style: &DiagramStyle,
     text: &str,
 ) {
-    let text_w = estimate_text_width(text, style.dimension_font_size);
+    let text_w = estimate_text_width(text, font_size);
     let pad = 4.0;
     let bg_x = match anchor {
         "end" => x - text_w,
@@ -47,15 +49,18 @@ fn push_backdropped_text(
     svg.push_str(&format!(
         r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="0.82" rx="3"/>"#,
         bg_x,
-        y - style.dimension_font_size * 0.75 - pad / 2.0,
+        y - font_size * 0.75 - pad / 2.0,
         text_w + 2.0 * pad,
-        style.dimension_font_size * 1.5 + pad,
+        font_size * 1.5 + pad,
         style.background_color
     ));
     svg.push('\n');
+    // Manual baseline shift for vertical centering: dominant-baseline is
+    // ignored by flutter_svg and svg2pdf (see svg_util::BASELINE_SHIFT_RATIO)
     svg.push_str(&format!(
-        r#"    <text transform="translate({x:.2}, {y:.2})" fill="{color}" font-family="{}" font-size="{}px" text-anchor="{anchor}" dominant-baseline="central">{text}</text>"#,
-        style.font_family, style.dimension_font_size
+        r#"    <text transform="translate({x:.2}, {y:.2})" fill="{color}" font-family="{}" font-size="{}px" text-anchor="{anchor}">{text}</text>"#,
+        style.font_family, font_size,
+        y = y + font_size * BASELINE_SHIFT_RATIO,
     ));
     svg.push('\n');
 }
@@ -112,15 +117,17 @@ pub(crate) fn render_section_splines(
         );
         // Label sits inside the slot band when it fits; on small mouldings
         // (compact canvases) it moves beside the slot with a backdrop instead
-        // of straddling the profile edge.
-        if estimate_text_width(&label, style.dimension_font_size) + 20.0 <= w {
+        // of straddling the profile edge. Sized like the neighboring material
+        // labels (scaled down in the combined panel).
+        let label_fs = style.material_label_font_size();
+        if estimate_text_width(&label, label_fs) + 20.0 <= w {
             svg.push_str(&format!(
-                r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="start" dominant-baseline="central">{}</text>"#,
+                r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="start">{}</text>"#,
                 fp.x + inset + 10.0,
-                yc,
+                yc + label_fs * BASELINE_SHIFT_RATIO,
                 SPLINE_TEXT,
                 style.font_family,
-                style.dimension_font_size,
+                label_fs,
                 label
             ));
             svg.push('\n');
@@ -129,6 +136,7 @@ pub(crate) fn render_section_splines(
                 svg,
                 fp.x + inset + w + 8.0,
                 yc,
+                label_fs,
                 "start",
                 &style.accent_color,
                 style,
@@ -356,9 +364,9 @@ pub(crate) fn render_overlay_card(
         ));
         svg.push('\n');
         svg.push_str(&format!(
-            r#"    <text transform="translate({:.2}, {:.2})" fill="{color}" font-family="{}" font-size="{}px" text-anchor="start" dominant-baseline="central">{text}</text>"#,
+            r#"    <text transform="translate({:.2}, {:.2})" fill="{color}" font-family="{}" font-size="{}px" text-anchor="start">{text}</text>"#,
             x + CARD_PAD + 12.0,
-            ly,
+            ly + style.dimension_font_size * BASELINE_SHIFT_RATIO,
             style.font_family,
             style.dimension_font_size
         ));

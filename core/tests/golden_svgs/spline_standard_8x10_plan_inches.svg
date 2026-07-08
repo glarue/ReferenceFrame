@@ -85,6 +85,6 @@
     <rect x="822.46" y="74.00" width="261.90" height="49.00" fill="#FFFFFF" stroke="#999" stroke-width="0.75" rx="4"/>
     <text transform="translate(953.41, 88.00)" fill="#555" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="10.8" font-weight="bold" text-anchor="middle">Joinery</text>
     <rect x="832.46" y="100.00" width="7" height="7" rx="1.5" fill="#46af8f"/>
-    <text transform="translate(844.46, 103.50)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start" dominant-baseline="central">spline slots (dashed) · max 7/8" deep</text>
+    <text transform="translate(844.46, 107.70)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">spline slots (dashed) · max 7/8" deep</text>
   </g>
 </svg>

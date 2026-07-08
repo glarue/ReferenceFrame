@@ -108,10 +108,10 @@
     <rect x="787.15" y="74.00" width="173.03" height="87.00" fill="#FFFFFF" stroke="#999" stroke-width="0.75" rx="4"/>
     <text transform="translate(873.66, 88.00)" fill="#555" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="10.8" font-weight="bold" text-anchor="middle">Hanging</text>
     <rect x="797.15" y="100.00" width="7" height="7" rx="1.5" fill="#f3722c"/>
-    <text transform="translate(809.15, 103.50)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start" dominant-baseline="central">hook 1.80" below top</text>
+    <text transform="translate(809.15, 107.70)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">hook 1.80" below top</text>
     <rect x="797.15" y="119.00" width="7" height="7" rx="1.5" fill="#577590"/>
-    <text transform="translate(809.15, 122.50)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start" dominant-baseline="central">hangers 7.58" from top</text>
+    <text transform="translate(809.15, 126.70)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">hangers 7.58" from top</text>
     <rect x="797.15" y="138.00" width="7" height="7" rx="1.5" fill="#577590"/>
-    <text transform="translate(809.15, 141.50)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start" dominant-baseline="central">wire cut 33.78"</text>
+    <text transform="translate(809.15, 145.70)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">wire cut 33.78"</text>
   </g>
 </svg>
