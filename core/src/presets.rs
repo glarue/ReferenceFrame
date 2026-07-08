@@ -15,6 +15,7 @@ const PRESETS_JSON: &str = include_str!("../data/presets.json");
 pub struct PresetsData {
     pub colors: ColorPalette,
     pub defaults: Defaults,
+    pub materials: Materials,
     pub validation_limits: ValidationLimits,
     pub presets: Presets,
 }
@@ -184,6 +185,37 @@ pub fn get_defaults() -> &'static Defaults {
 /// Get just the preset arrays
 pub fn get_presets() -> &'static Presets {
     &get_presets_data().presets
+}
+
+/// One material's density (lb/ft^3 at ~12% MC for woods) with its
+/// plausible low/high range and a short source citation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MaterialSpec {
+    pub name: String,
+    pub lb_ft3: f64,
+    pub low: f64,
+    pub high: f64,
+    pub source: String,
+}
+
+/// Sourced density index for weight estimation. Keys are stable snake_case
+/// identifiers ("generic", "red_oak", "glass", "foamcore", ...).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Materials {
+    pub woods: std::collections::BTreeMap<String, MaterialSpec>,
+    pub sheet: std::collections::BTreeMap<String, MaterialSpec>,
+}
+
+impl Materials {
+    /// The honest pine-to-oak bucket used when no species is chosen
+    pub fn wood_default(&self) -> &MaterialSpec {
+        &self.woods["generic"]
+    }
+}
+
+/// Get the sourced material density index
+pub fn get_materials() -> &'static Materials {
+    &get_presets_data().materials
 }
 
 /// Get the default validation limits

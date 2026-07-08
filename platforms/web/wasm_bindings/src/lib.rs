@@ -664,6 +664,39 @@ pub fn get_hanging_layout(design: &WasmFrameDesign, overlay_params_json: Option<
     }
 }
 
+
+/// Sourced material-density index (for species/material pickers)
+#[wasm_bindgen(js_name = "getMaterialsJson")]
+pub fn get_materials_json() -> String {
+    serde_json::to_string(referenceframe_core::presets::get_materials()).unwrap_or_default()
+}
+
+/// Weight + wire-tension estimate as JSON. `wood_key`/`glazing_key` select
+/// entries from the materials index (defaults: "generic" wood, "glass");
+/// `overlay_params_json` supplies hanging-parameter overrides.
+#[wasm_bindgen(js_name = "getWeightEstimate")]
+pub fn get_weight_estimate(
+    design: &WasmFrameDesign,
+    wood_key: Option<String>,
+    glazing_key: Option<String>,
+    overlay_params_json: Option<String>,
+) -> String {
+    use referenceframe_core::weight::{estimate_weight, WeightParams};
+    let m = referenceframe_core::presets::get_materials();
+    let mut params = WeightParams::default();
+    if let Some(spec) = wood_key.as_deref().and_then(|k| m.woods.get(k)) {
+        params.wood = spec.into();
+    }
+    if let Some(spec) = glazing_key.as_deref().and_then(|k| m.sheet.get(k)) {
+        params.glazing = spec.into();
+    }
+    let hanging = parse_overlay_params(&overlay_params_json)
+        .hanging
+        .unwrap_or_default();
+    let est = estimate_weight(&design.inner, &params, &hanging);
+    serde_json::to_string(&est).unwrap_or_else(|_| "null".to_string())
+}
+
 // Default constants
 
 #[wasm_bindgen(js_name = "getDefaults")]

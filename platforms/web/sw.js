@@ -20,8 +20,8 @@
 // activate handler below.
 // ============================================================================
 
-const CACHE_NAME = 'referenceframe-wasm-v13';
-const RUNTIME_CACHE = 'referenceframe-runtime-v13';
+const CACHE_NAME = 'referenceframe-wasm-v14';
+const RUNTIME_CACHE = 'referenceframe-runtime-v14';
 
 // Resources to cache immediately on install
 const PRECACHE_URLS = [

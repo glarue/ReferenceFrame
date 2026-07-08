@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260707-joinery">
+    <link rel="stylesheet" href="./styles.css?v=20260708-weight">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -629,6 +629,7 @@
             generateCombinedViewSvgForPdf,
             getSplineEnvelope,
             getHangingLayout,
+            getWeightEstimate,
             generateShareableUrl,
             decodeShareableUrl,
             getWasmVersion,
@@ -644,12 +645,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260707-joinery';
+        } from './pkg/referenceframe_wasm.js?v=20260708-weight';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260707-joinery';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260708-weight';
 
         console.log('WASM imports successful');
 
@@ -1792,6 +1793,19 @@
                             html += `<tr><td>Hangers from top</td><td>${formatDisplay(hj.ring_drop, unitMm)}</td></tr>`;
                             html += `<tr><td>Wire cut length</td><td>${formatDisplay(hj.wire_cut_length, unitMm)}</td></tr>`;
                             html += `<tr class="incidental-row"><td>Hook below frame top</td><td>${formatDisplay(hj.hook_below_top, unitMm)}</td></tr>`;
+                            // Weight + tension: sourced density ranges (generic wood, glass)
+                            const wj = JSON.parse(getWeightEstimate(design));
+                            if (wj) {
+                                const wt = (lb) => {
+                                    const v = unitMm ? lb * 0.4536 : lb;
+                                    return v >= 10 ? v.toFixed(0) : v.toFixed(1);
+                                };
+                                const wUnit = unitMm ? 'kg' : 'lb';
+                                html += `<tr><td>Est. weight</td><td>${wt(wj.total.low)}–${wt(wj.total.high)} ${wUnit}</td></tr>`;
+                                if (wj.tension) {
+                                    html += `<tr class="incidental-row"><td>Wire tension (per leg)</td><td>≈${wj.tension.multiplier.toFixed(2)}× weight · ${wt(wj.tension.per_leg_lb.low)}–${wt(wj.tension.per_leg_lb.high)} ${wUnit}</td></tr>`;
+                                }
+                            }
                         } else {
                             html += `<tr class="incidental-row"><td colspan="2">Frame too narrow for side hangers</td></tr>`;
                         }

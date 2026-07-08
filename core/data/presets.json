@@ -107,6 +107,43 @@
     "hanging_wrap_allowance": 3.0
   },
 
+  "materials": {
+    "_comment": "Material densities (lb/ft3) for weight estimation, with low/high ranges for error propagation. Woods at ~12% MC; ranges are the FPL Wood Handbook's ~10% between-tree coefficient of variation unless the entry is a group/engineered product. Stretched canvas is deliberately absent: fabric gsm doesn't fit the density x volume model (stretcher bars dominate).",
+    "_sources": "Woods: wood-database.com species pages (each cites USDA FPL Wood Handbook GTR-190 specific gravities); MDF: ANSI A208.2 / CORRIM; glass: Pilkington ATS-129 (ASTM C1036 governs thickness); acrylic: Plexiglas/Curbell datasheets; rag mat: Talas Rising Museum Board (1000 gsm / 60 pt); paper mat: SBS paperboard 0.63-0.87 g/cm3; foamcore: 32x40x3/16 sheet = 1.5 lb; hardboard: CPA EPD 800-1100 kg/m3; photo paper: Epson 260 gsm @ 10 mil",
+    "woods": {
+      "generic": { "name": "Any frame wood", "lb_ft3": 32.0, "low": 22.0, "high": 48.0, "source": "pine-to-oak span, FPL Wood Handbook" },
+      "generic_softwood": { "name": "Generic softwood", "lb_ft3": 28.0, "low": 21.0, "high": 36.0, "source": "cedar-to-Douglas-fir span, FPL" },
+      "generic_hardwood": { "name": "Generic hardwood", "lb_ft3": 38.0, "low": 23.0, "high": 52.0, "source": "basswood-to-white-oak span, FPL" },
+      "eastern_white_pine": { "name": "Eastern White Pine", "lb_ft3": 25.0, "low": 22.0, "high": 28.0, "source": "wood-database.com (FPL SG12 0.40)" },
+      "ponderosa_pine": { "name": "Ponderosa Pine", "lb_ft3": 28.0, "low": 25.0, "high": 31.0, "source": "wood-database.com (FPL SG12 0.45)" },
+      "finger_jointed_pine": { "name": "Finger-Jointed Pine", "lb_ft3": 28.0, "low": 22.0, "high": 32.0, "source": "pine feedstock span" },
+      "poplar": { "name": "Poplar", "lb_ft3": 29.0, "low": 26.0, "high": 32.0, "source": "wood-database.com (FPL SG12 0.46)" },
+      "basswood": { "name": "Basswood", "lb_ft3": 26.0, "low": 23.0, "high": 29.0, "source": "wood-database.com (FPL SG12 0.42)" },
+      "red_alder": { "name": "Alder", "lb_ft3": 28.0, "low": 25.0, "high": 31.0, "source": "wood-database.com (FPL SG12 0.45)" },
+      "soft_maple": { "name": "Soft Maple", "lb_ft3": 38.0, "low": 33.0, "high": 41.0, "source": "wood-database.com (FPL SG12 0.61)" },
+      "hard_maple": { "name": "Hard Maple", "lb_ft3": 44.0, "low": 40.0, "high": 48.0, "source": "wood-database.com (FPL SG12 0.71)" },
+      "red_oak": { "name": "Red Oak", "lb_ft3": 44.0, "low": 39.0, "high": 48.0, "source": "wood-database.com (FPL SG12 0.70)" },
+      "white_oak": { "name": "White Oak", "lb_ft3": 47.0, "low": 42.0, "high": 52.0, "source": "wood-database.com (FPL SG12 0.75)" },
+      "black_walnut": { "name": "Black Walnut", "lb_ft3": 38.0, "low": 34.0, "high": 42.0, "source": "wood-database.com (FPL SG12 0.61)" },
+      "black_cherry": { "name": "Black Cherry", "lb_ft3": 35.0, "low": 31.0, "high": 39.0, "source": "wood-database.com (FPL SG12 0.56)" },
+      "white_ash": { "name": "White Ash", "lb_ft3": 42.0, "low": 38.0, "high": 46.0, "source": "wood-database.com (FPL SG12 0.67)" },
+      "yellow_birch": { "name": "Yellow Birch", "lb_ft3": 43.0, "low": 39.0, "high": 47.0, "source": "wood-database.com (FPL SG12 0.69)" },
+      "douglas_fir": { "name": "Douglas-Fir", "lb_ft3": 32.0, "low": 28.0, "high": 36.0, "source": "wood-database.com (FPL SG12 0.51)" },
+      "western_red_cedar": { "name": "Western Red Cedar", "lb_ft3": 23.0, "low": 21.0, "high": 25.0, "source": "wood-database.com (FPL SG12 0.37)" },
+      "honduran_mahogany": { "name": "Honduran Mahogany", "lb_ft3": 37.0, "low": 33.0, "high": 41.0, "source": "wood-database.com (FPL SG12 0.59)" },
+      "mdf_moulding": { "name": "MDF Moulding", "lb_ft3": 48.0, "low": 40.0, "high": 50.0, "source": "ANSI A208.2 standard-density panel" }
+    },
+    "sheet": {
+      "glass": { "name": "Glass (float)", "lb_ft3": 156.0, "low": 154.2, "high": 157.3, "source": "Pilkington ATS-129 (2.50 g/cm3)" },
+      "acrylic": { "name": "Acrylic", "lb_ft3": 74.3, "low": 73.0, "high": 74.9, "source": "Plexiglas datasheet (1.19 g/cm3)" },
+      "matboard_paper": { "name": "Mat board (paper core)", "lb_ft3": 44.0, "low": 39.3, "high": 54.3, "source": "SBS paperboard 0.63-0.87 g/cm3" },
+      "matboard_rag": { "name": "Museum rag mat", "lb_ft3": 41.0, "low": 37.5, "high": 46.8, "source": "Talas: Rising Museum Board 1000 gsm / 60 pt" },
+      "foamcore": { "name": "Foam board", "lb_ft3": 10.8, "low": 8.1, "high": 11.9, "source": "32x40x3/16 sheet @ 1.5 lb (0.17 g/cm3); thickness-dependent" },
+      "hardboard": { "name": "Hardboard / HDF", "lb_ft3": 59.0, "low": 50.0, "high": 68.7, "source": "CPA EPD 800-1100 kg/m3" },
+      "mdf_panel": { "name": "MDF panel", "lb_ft3": 47.0, "low": 37.5, "high": 50.0, "source": "engineering refs 600-800 kg/m3" },
+      "photo_paper": { "name": "Photo/print paper", "lb_ft3": 64.0, "low": 56.0, "high": 72.0, "source": "Epson RC 260 gsm @ 10 mil (1.02 g/cm3)" }
+    }
+  },
   "validation_limits": {
     "_comment": "Default validation thresholds (ValidationConfig::default). All dimensions in inches.",
 
