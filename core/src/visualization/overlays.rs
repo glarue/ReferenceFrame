@@ -26,6 +26,40 @@ use super::types::DiagramOptions;
 const SPLINE_STROKE: &str = "#2e7a63";
 const SPLINE_TEXT: &str = "#0d3d30";
 
+/// Overlay label with a semi-opaque backdrop so it stays legible over any
+/// geometry or callout lines it crosses.
+fn push_backdropped_text(
+    svg: &mut String,
+    x: f64,
+    y: f64,
+    anchor: &str,
+    color: &str,
+    style: &DiagramStyle,
+    text: &str,
+) {
+    let text_w = estimate_text_width(text, style.dimension_font_size);
+    let pad = 4.0;
+    let bg_x = match anchor {
+        "end" => x - text_w,
+        "middle" => x - text_w / 2.0,
+        _ => x,
+    } - pad;
+    svg.push_str(&format!(
+        r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="0.82" rx="3"/>"#,
+        bg_x,
+        y - style.dimension_font_size * 0.75 - pad / 2.0,
+        text_w + 2.0 * pad,
+        style.dimension_font_size * 1.5 + pad,
+        style.background_color
+    ));
+    svg.push('\n');
+    svg.push_str(&format!(
+        r#"    <text transform="translate({x:.2}, {y:.2})" fill="{color}" font-family="{}" font-size="{}px" text-anchor="{anchor}" dominant-baseline="central">{text}</text>"#,
+        style.font_family, style.dimension_font_size
+    ));
+    svg.push('\n');
+}
+
 /// Spline slots on the section-view moulding profile.
 ///
 /// Section orientation: TOP of the profile is the front face; the rabbet
@@ -76,18 +110,31 @@ pub(crate) fn render_section_splines(
             fmt(slot.max_penetration),
             if slot.over_rabbet { " (limited by rabbet)" } else { "" },
         );
-        // Label sits inside the slot band — slots are wide and tall at
-        // diagram scale, and this keeps the text within the viewBox.
-        svg.push_str(&format!(
-            r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="start" dominant-baseline="central">{}</text>"#,
-            fp.x + inset + 10.0,
-            yc,
-            SPLINE_TEXT,
-            style.font_family,
-            style.dimension_font_size,
-            label
-        ));
-        svg.push('\n');
+        // Label sits inside the slot band when it fits; on small mouldings
+        // (compact canvases) it moves beside the slot with a backdrop instead
+        // of straddling the profile edge.
+        if estimate_text_width(&label, style.dimension_font_size) + 20.0 <= w {
+            svg.push_str(&format!(
+                r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="start" dominant-baseline="central">{}</text>"#,
+                fp.x + inset + 10.0,
+                yc,
+                SPLINE_TEXT,
+                style.font_family,
+                style.dimension_font_size,
+                label
+            ));
+            svg.push('\n');
+        } else {
+            push_backdropped_text(
+                svg,
+                fp.x + inset + w + 8.0,
+                yc,
+                "start",
+                &style.accent_color,
+                style,
+                &label,
+            );
+        }
     }
     svg.push_str("  </g>\n");
 }

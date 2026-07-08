@@ -412,11 +412,26 @@ pub(crate) fn build_plan_svg(
         None
     };
     let card_pos = overlay_card.as_ref().map(|card| {
-        let cx = min_x + viewbox_width + CARD_GAP;
-        let cy = geometry.frame_outer.y;
-        viewbox_width += card.width + 2.0 * CARD_GAP;
-        viewbox_height = viewbox_height.max(cy - min_y + card.height + CARD_GAP);
-        (cx, cy)
+        // Phone-width or portrait canvases place the card BELOW the content so
+        // it never steals width from the diagram on width-fit displays. The
+        // width check matters for the combined view, whose plan panel gets a
+        // zone-split height that can read as landscape even on a phone.
+        let card_below =
+            options.canvas_width < 500.0 || options.canvas_width < options.canvas_height;
+        if !card_below {
+            // Wide canvas (desktop / combined panels): right gutter
+            let cx = min_x + viewbox_width + CARD_GAP;
+            let cy = geometry.frame_outer.y;
+            viewbox_width += card.width + 2.0 * CARD_GAP;
+            viewbox_height = viewbox_height.max(cy - min_y + card.height + CARD_GAP);
+            (cx, cy)
+        } else {
+            let cx = geometry.frame_outer.x;
+            let cy = min_y + viewbox_height + CARD_GAP;
+            viewbox_height += card.height + 2.0 * CARD_GAP;
+            viewbox_width = viewbox_width.max(cx - min_x + card.width + CARD_GAP);
+            (cx, cy)
+        }
     });
 
     // Build SVG with dynamic viewBox

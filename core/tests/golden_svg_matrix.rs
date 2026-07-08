@@ -319,7 +319,21 @@ const MATRIX: &[MatrixEntry] = &[
 
     // -- Interference warning (backdropped, drawn above the legend) --
     MatrixEntry { name: "interference_8x10_section_inches", design_fn: interference_8x10, options_fn: opts_section_inches },
+
+    // -- Portrait (phone) canvas: overlay card moves below the content --
+    MatrixEntry { name: "overlays_matted_16x20_plan_portrait", design_fn: matted_16x20, options_fn: opts_portrait_overlays },
 ];
+
+fn opts_portrait_overlays() -> DiagramOptions {
+    DiagramOptions {
+        view: ViewOption::PlanOnly,
+        canvas_width: 390.0,
+        canvas_height: 844.0,
+        show_spline: true,
+        show_hanging: true,
+        ..Default::default()
+    }
+}
 
 /// Shallow rabbet: the material stack overruns the channel -> INTERFERENCE.
 fn interference_8x10() -> FrameDesign {
