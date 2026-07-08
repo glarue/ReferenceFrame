@@ -1952,6 +1952,22 @@ button:active {
     border-radius: var(--md-shape-small);
 }
 
+/* Optional diagram layers (spline slots, hanging hardware) */
+.layer-toggles {
+    display: flex;
+    gap: 16px;
+    padding: 2px 6px;
+    font-size: 0.85rem;
+    color: var(--md-on-surface-variant);
+}
+
+.layer-toggles label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
 .view-toggle button {
     flex: 1;
     padding: 6px;

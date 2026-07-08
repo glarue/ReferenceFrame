@@ -16,6 +16,8 @@
 //! slots overlapping the channel's depth band must stop short of the
 //! channel wall so the blade never breaks into the rabbet.
 
+use serde::Serialize;
+
 use crate::frame::FrameDesign;
 
 /// Standard table-saw kerf.
@@ -26,7 +28,7 @@ pub const DEFAULT_MIN_WALL: f64 = 0.125;
 const TWO_SLOT_MIN_DEPTH: f64 = 1.25;
 
 /// Tunable inputs for spline slot planning.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct SplineParams {
     /// Slot (blade kerf) thickness
     pub slot_thickness: f64,
@@ -44,7 +46,7 @@ impl Default for SplineParams {
 }
 
 /// One planned spline slot.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct SplineSlot {
     /// Slot centerline depth, measured from the front face
     pub z_center: f64,
@@ -59,7 +61,7 @@ pub struct SplineSlot {
 }
 
 /// The safe envelope for spline slots on a given design.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SplineEnvelope {
     /// Allowed range for a slot centerline (walls respected at both faces)
     pub center_range: (f64, f64),

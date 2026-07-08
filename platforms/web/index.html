@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260707-sightlip">
+    <link rel="stylesheet" href="./styles.css?v=20260707-joinery">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -339,6 +339,10 @@
                         <button id="btn-section" onclick="setView('section')">Section</button>
                         <button id="btn-both" class="active" onclick="setView('both')">Combined</button>
                     </div>
+                    <div class="layer-toggles">
+                        <label><input type="checkbox" id="show-spline"> Spline slots</label>
+                        <label><input type="checkbox" id="show-hanging"> Hanging hardware</label>
+                    </div>
                 </div>
             </div>
 
@@ -623,6 +627,8 @@
             generateSectionViewSvg,
             generateCombinedViewSvg,
             generateCombinedViewSvgForPdf,
+            getSplineEnvelope,
+            getHangingLayout,
             generateShareableUrl,
             decodeShareableUrl,
             getWasmVersion,
@@ -638,12 +644,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260707-sightlip';
+        } from './pkg/referenceframe_wasm.js?v=20260707-joinery';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260707-sightlip';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260707-joinery';
 
         console.log('WASM imports successful');
 
@@ -1770,6 +1776,42 @@
                     html += `</div>`;
                 }
 
+                // Joinery & Hanging card — only when a diagram layer is toggled on
+                const cardShowSpline = document.getElementById('show-spline')?.checked || false;
+                const cardShowHanging = document.getElementById('show-hanging')?.checked || false;
+                if (cardShowSpline || cardShowHanging) {
+                    html += `<h3 class="section-header">`;
+                    html += `<span class="material-symbols-outlined">handyman</span>`;
+                    html += `Joinery & Hanging`;
+                    html += `</h3>`;
+                    html += `<div class="result-card" style="padding: 12px;">`;
+                    html += `<table class="dimension-table"><tbody>`;
+                    if (cardShowHanging) {
+                        const hj = JSON.parse(getHangingLayout(design));
+                        if (hj) {
+                            html += `<tr><td>Hangers from top</td><td>${formatDisplay(hj.ring_drop, unitMm)}</td></tr>`;
+                            html += `<tr><td>Wire cut length</td><td>${formatDisplay(hj.wire_cut_length, unitMm)}</td></tr>`;
+                            html += `<tr class="incidental-row"><td>Hook below frame top</td><td>${formatDisplay(hj.hook_below_top, unitMm)}</td></tr>`;
+                        } else {
+                            html += `<tr class="incidental-row"><td colspan="2">Frame too narrow for side hangers</td></tr>`;
+                        }
+                    }
+                    if (cardShowSpline) {
+                        const sj = JSON.parse(getSplineEnvelope(design));
+                        if (sj && sj.envelope.recommended.length) {
+                            html += `<tr><td>Spline slots (${formatDisplay(sj.params.slot_thickness, unitMm)} kerf)</td><td>${sj.envelope.recommended.length} per corner</td></tr>`;
+                            for (const slot of sj.envelope.recommended) {
+                                const limited = slot.over_rabbet ? ' · limited by rabbet' : '';
+                                html += `<tr class="incidental-row"><td>· ${formatDisplay(slot.z_center, unitMm)} from face</td><td>≤ ${formatDisplay(slot.max_penetration, unitMm)} deep${limited}</td></tr>`;
+                            }
+                        } else {
+                            html += `<tr class="incidental-row"><td colspan="2">Moulding too shallow for a spline slot</td></tr>`;
+                        }
+                    }
+                    html += `</tbody></table>`;
+                    html += `</div>`;
+                }
+
                 // Depth check with visual progress bar
                 html += `<h3 class="section-header">`;
                 html += `<span class="material-symbols-outlined">straighten</span>`;
@@ -2072,12 +2114,14 @@
             const useDecimal = currentDisplayFormat === 'decimal';
 
             try {
+                const showSpline = document.getElementById('show-spline')?.checked || false;
+                const showHanging = document.getElementById('show-hanging')?.checked || false;
                 if (currentView === 'plan') {
-                    svg = generatePlanViewSvg(design, canvasWidth, canvasHeight, unitMm, useTape, useDecimal, true, true, isDark);
+                    svg = generatePlanViewSvg(design, canvasWidth, canvasHeight, unitMm, useTape, useDecimal, true, true, isDark, showSpline, showHanging);
                 } else if (currentView === 'section') {
-                    svg = generateSectionViewSvg(design, canvasWidth, canvasHeight, unitMm, useTape, useDecimal, isDark);
+                    svg = generateSectionViewSvg(design, canvasWidth, canvasHeight, unitMm, useTape, useDecimal, isDark, showSpline, showHanging);
                 } else {
-                    svg = generateCombinedViewSvg(design, canvasWidth, canvasHeight, unitMm, false, useTape, useDecimal, isDark);
+                    svg = generateCombinedViewSvg(design, canvasWidth, canvasHeight, unitMm, false, useTape, useDecimal, isDark, showSpline, showHanging);
                 }
             } catch (e) {
                 console.error('SVG error:', e);
@@ -2663,6 +2707,9 @@
 
         // Frame style is a <select> (not an <input>) — recalc on change.
         document.getElementById('frame-style')?.addEventListener('change', () => calculate());
+        // Diagram layer toggles: re-render the diagram and the results card
+        document.getElementById('show-spline')?.addEventListener('change', () => calculate());
+        document.getElementById('show-hanging')?.addEventListener('change', () => calculate());
 
         // Add blur handlers to normalize fractional inputs (inches mode only)
         dimensionInputIds.forEach(id => {

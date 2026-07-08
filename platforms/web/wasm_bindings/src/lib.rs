@@ -456,6 +456,8 @@ pub fn generate_plan_view_svg(
     corner_detail_enabled: bool,
     axis_breaks_enabled: bool,
     dark_mode: bool,
+    show_spline: bool,
+    show_hanging: bool,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
 
@@ -471,6 +473,8 @@ pub fn generate_plan_view_svg(
         show_callouts: true,
         corner_detail_enabled,
         axis_breaks_enabled,
+        show_spline,
+        show_hanging,
         ..Default::default()
     };
 
@@ -489,6 +493,8 @@ pub fn generate_section_view_svg(
     use_tape_segments: bool,
     use_decimal_display: bool,
     dark_mode: bool,
+    show_spline: bool,
+    show_hanging: bool,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
 
@@ -502,6 +508,8 @@ pub fn generate_section_view_svg(
         use_tape_segments,
         use_decimal_display,
         show_callouts: true,
+        show_spline,
+        show_hanging,
         ..Default::default()
     };
 
@@ -524,10 +532,13 @@ pub fn generate_combined_view_svg(
     use_tape_segments: bool,
     use_decimal_display: bool,
     dark_mode: bool,
+    show_spline: bool,
+    show_hanging: bool,
 ) -> String {
     generate_combined_view_svg_with_title(
         design, canvas_width, canvas_height, unit_mm, include_title,
         false, None, use_tape_segments, use_decimal_display, true, true, dark_mode,
+        show_spline, show_hanging,
     )
 }
 
@@ -549,6 +560,8 @@ pub fn generate_combined_view_svg_with_title(
     corner_detail_enabled: bool,
     axis_breaks_enabled: bool,
     dark_mode: bool,
+    show_spline: bool,
+    show_hanging: bool,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, DiagramStyle, ViewOption};
 
@@ -564,6 +577,8 @@ pub fn generate_combined_view_svg_with_title(
         show_callouts: true,
         corner_detail_enabled,
         axis_breaks_enabled,
+        show_spline,
+        show_hanging,
         ..Default::default()
     };
 
@@ -600,6 +615,28 @@ pub fn generate_diagram(
 
     serde_json::to_string(&response)
         .map_err(|e| JsValue::from_str(&format!("JSON error: {}", e)))
+}
+
+/// Spline slot planning data as JSON (params + envelope), or "null" when the
+/// moulding can't hold a slot.
+#[wasm_bindgen(js_name = "getSplineEnvelope")]
+pub fn get_spline_envelope(design: &WasmFrameDesign) -> String {
+    use referenceframe_core::joinery::{spline_envelope, SplineParams};
+    let params = SplineParams::default();
+    match spline_envelope(&design.inner, &params) {
+        Some(env) => serde_json::json!({ "params": params, "envelope": env }).to_string(),
+        None => "null".to_string(),
+    }
+}
+
+/// Hanging hardware layout as JSON, or "null" when the frame is too narrow.
+#[wasm_bindgen(js_name = "getHangingLayout")]
+pub fn get_hanging_layout(design: &WasmFrameDesign) -> String {
+    use referenceframe_core::hanging::{hanging_layout, HangingParams};
+    match hanging_layout(&design.inner, &HangingParams::default()) {
+        Some(layout) => serde_json::to_string(&layout).unwrap_or_else(|_| "null".to_string()),
+        None => "null".to_string(),
+    }
 }
 
 // Default constants
