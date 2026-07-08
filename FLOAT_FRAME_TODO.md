@@ -41,20 +41,19 @@ data model. Phase 2 = float (gap/reveal + tray rendering). Phase 3 = Z-reveal
 - [x] Web: cache-bust bumped to `?v=20260706-framestyle` (styles + wasm imports)
 - [x] Verified: `./build_wasm.sh` clean; 7/7 live WASM→JS smoke checks (sight-size opening = art; permalink round-trips style)
 
-### ⬜ Mobile / iOS port (`platforms/mobile/`) — TODO
-The flagship; keep it at least as polished as web. Steps:
-- [ ] **Bridge** (`rust/src/api/simple.rs`): route `float_reveal` through the numeric `update_frame_design`; add a string setter for `frame_style` (e.g. `update_frame_design_string()`, mirroring `update_frame_design_bool`). Mirror `frame_style`+`float_reveal` into the bridge `ShareableParams` build.
-- [ ] **Regenerate the bridge** (flutter_rust_bridge codegen) so the new fn(s) surface in Dart. (Needs `flutter_rust_bridge_codegen`; the design already flows as JSON, so `FrameDesign` fields ride along via serde — only the enum setter needs new plumbing.)
-- [ ] **`state/design_state.dart`**: route `frame_style` (string) + `float_reveal` in get/update; extend the `getRustDefault` / `getAllRustDefaults` maps (frame_style→"rabbet", float_reveal→0).
-- [ ] **`screens/calculator_screen.dart`**: `SegmentedButton` (Rabbet / Sight-size), recalc on change; optionally grey the rabbet-width input under sight-size.
-- [ ] **`services/export_service.dart`**: add `frame_style`+`float_reveal` to `_buildShareableParamsJson` (and PDF dimension list, optional).
-- [ ] **Tests**: `design_state` routing (prefer Rust-free helpers — note the `flutter test`/`RustLib` limitation blocks anything constructing `DesignState`).
-- [ ] **Build + verify**: `./rebuild.sh run`; confirm sight-size opening = art, section shows no lip, share/QR round-trips.
+### ✅ Mobile / iOS port (`platforms/mobile/`) — DONE 2026-07-07 (commits `fbbfefd` bridge, `71a66f6` app)
+- [x] **Bridge**: `float_reveal` in the numeric `update_frame_design`; `update_frame_design_string()` for `frame_style`; `get_fitted_component_dimensions`; spline/hanging JSON getters; `show_spline`/`show_hanging` through the SVG generators. Bridge-side tests cover the new routing.
+- [x] **Bridge regenerated** (`flutter_rust_bridge_codegen generate`, frb 2.11.1).
+- [x] **`state/design_state.dart`**: `getStringField`/`updateStringField`, fitted-dims + spline/hanging wrappers, persisted `showSpline`/`showHanging` prefs threaded into all SVG wrappers.
+- [x] **`screens/calculator_screen.dart`**: Rabbet/Sight-size `SegmentedButton` in Advanced (with per-style hint; rabbet inputs stay editable per the superseded-housekeeping note), "Cut to fit" row + "Glazing & Backing" card, "Joinery & Hanging" results card.
+- [x] **`services/export_service.dart`**: `frame_style`+`float_reveal` in share params. Also fixed two share-link bugs: `frame_depth` read a nonexistent `frame_thickness` design field (encoded 0) and `blade_width` now comes from defaults.
+- [x] **Layer toggles**: Spline Slots / Hanging Hardware switches in the Diagram Detail sheet (persisted, default off).
+- [x] **Build + boot verified**: `flutter build ios --simulator` clean; app installs, launches, and renders on the iPhone simulator. Remaining: hands-on device pass (toggle layers, sight-size section, share/QR round-trip).
 
 ### Housekeeping
 - [x] ~~Grey out "Rabbet Width" under Sight-size~~ — **superseded**: `rabbet_width` IS meaningful for sight-size (it's how far the lip grabs the oversized glazing). Keep it; maybe add a per-style hint clarifying its role.
 - [x] **Root repo** committed + **deployed to live web** (2026-07-07): core + web + wasm + goldens. Service worker → v12, cache-bust `20260707-sightlip`.
-- [ ] **Mobile repo** commit (bridge + Flutter) — pending the mobile port.
+- [x] **Mobile repo** committed 2026-07-07 (`fbbfefd` bridge, `71a66f6` app).
 - [ ] iOS build: mobile changes ship on the next `fastlane beta`/`release`.
 - [ ] `release.sh` version bump (`feat:` → core minor) — when cutting the mobile build / a core release; not needed for the (already-live) web.
 
@@ -84,7 +83,7 @@ change (`assembly_margin` already serialized since v1). No diagram change (viz
 still uses the exact rabbet opening).
 - [x] Core: `get_fitted_component_dimensions()` = rabbet opening − 2×`assembly_margin`; `xy_assembly_margin()` capped at `rabbet_width` so parts stay under the lip; +3 tests. `get_matboard_dimensions()` unchanged (the exact reference).
 - [x] WASM `getFittedComponentDimensions`; web Matboard table shows **"Cut to fit"** + **"Outside (exact)"** (single "Outside" row when margin 0). Cache-bust → `20260707-fitmargin`. 5/5 WASM smoke checks.
-- [ ] Web **PDF** export: mirror the "cut to fit" size (PDF currently shows the exact matboard size only — `index.html:~3149/3209`).
+- [x] Web **PDF** export: "Cut to fit" line added to the Matboard block when clearance applies (2026-07-07).
 - [x] No-mat / canvas path: "Glazing & Backing" card shows seat (rabbet opening) + cut to fit — makes the oversized-for-sight-size component size explicit.
 
 ### Sight-size section view — retaining lip (fix, 2026-07-07) · DONE
@@ -93,7 +92,7 @@ always modelled (glazing/backing = art + 2×rabbet_width, held by the lip); only
 the *drawing* collapsed the lip. Fixed: section always draws the lip, glazing/
 backing seat under it, artwork inset to the sight line (`art_inset = rabbet_w −
 lip_over_art`, so traditional frames stay byte-identical). Deployed.
-- [ ] **Mobile**: mirror in the calculator results (rolls into the mobile-port item above).
+- [x] **Mobile**: mirrored via core SVG (section renders through FFI; done with the mobile port).
 
 ---
 
