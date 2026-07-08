@@ -97,6 +97,13 @@ pub struct Defaults {
     pub backing_thickness: f64,
     pub assembly_margin: f64,
     pub blade_width: f64,
+    // Joinery & hanging parameters (spline kerf/wall in inches; hanger drop
+    // and wire slack as fractions; wrap allowance in inches)
+    pub spline_kerf: f64,
+    pub spline_min_wall: f64,
+    pub hanging_drop_fraction: f64,
+    pub hanging_slack_fraction: f64,
+    pub hanging_wrap_allowance: f64,
 }
 
 /// Default validation thresholds loaded from JSON.

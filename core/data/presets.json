@@ -98,7 +98,13 @@
 
     "_assembly_comment": "1/16 inch assembly clearance, 1/8 inch saw blade kerf",
     "assembly_margin": 0.0625,
-    "blade_width": 0.125
+    "blade_width": 0.125,
+    "_joinery_hanging_comment": "Spline slot kerf and minimum wall (inches); hanger drop as a fraction of frame height, wire slack as a fraction of span, wire wrap per end (inches)",
+    "spline_kerf": 0.125,
+    "spline_min_wall": 0.125,
+    "hanging_drop_fraction": 0.3333333333333333,
+    "hanging_slack_fraction": 0.1,
+    "hanging_wrap_allowance": 3.0
   },
 
   "validation_limits": {

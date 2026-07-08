@@ -6,19 +6,12 @@
 //! when hung, the wire forms two straight legs meeting at the hook, and the
 //! apex rises above the ring line by simple right-triangle geometry.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::frame::FrameDesign;
 
-/// Ring drop as a fraction of outside frame height (industry rule of thumb).
-pub const DEFAULT_DROP_FRACTION: f64 = 1.0 / 3.0;
-/// Extra wire between rings beyond the straight span.
-pub const DEFAULT_SLACK_FRACTION: f64 = 0.10;
-/// Extra wire per end for wrapping back around itself.
-pub const DEFAULT_WRAP_ALLOWANCE: f64 = 3.0;
-
 /// Tunable inputs for hanging layout.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct HangingParams {
     /// Ring drop from the frame top, as a fraction of outside height
     pub drop_fraction: f64,
@@ -29,17 +22,19 @@ pub struct HangingParams {
 }
 
 impl Default for HangingParams {
+    /// Factory values come from presets.json (the single source of truth)
     fn default() -> Self {
+        let d = crate::presets::get_defaults();
         Self {
-            drop_fraction: DEFAULT_DROP_FRACTION,
-            slack_fraction: DEFAULT_SLACK_FRACTION,
-            wrap_allowance: DEFAULT_WRAP_ALLOWANCE,
+            drop_fraction: d.hanging_drop_fraction,
+            slack_fraction: d.hanging_slack_fraction,
+            wrap_allowance: d.hanging_wrap_allowance,
         }
     }
 }
 
 /// Computed hanging layout.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct HangingLayout {
     /// D-ring attachment point below the frame top
     pub ring_drop: f64,

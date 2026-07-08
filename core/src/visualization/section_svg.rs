@@ -179,7 +179,7 @@ pub(crate) fn build_section_svg(
     render_frame_profile(&mut svg, geometry, style);
 
     if options.show_spline {
-        super::overlays::render_section_splines(&mut svg, geometry, design, style, &fmt);
+        super::overlays::render_section_splines(&mut svg, geometry, design, style, &fmt, options.spline_params.unwrap_or_default());
     }
 
     svg.push_str("  </g>\n");

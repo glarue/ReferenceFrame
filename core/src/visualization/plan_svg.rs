@@ -146,7 +146,7 @@ pub(crate) fn render_corner_detail(
     // Spline slot chord across the zoomed corner (edge-to-edge; the clip
     // trims any excess). Same slot the plan-view chords show.
     if options.show_spline {
-        if let Some(leg) = super::overlays::plan_spline_leg(design, s) {
+        if let Some(leg) = super::overlays::plan_spline_leg(design, options.spline_params.unwrap_or_default(), s) {
             svg.push_str(&format!(
                 "    <line x1=\"{:.2}\" y1=\"{:.2}\" x2=\"{:.2}\" y2=\"{:.2}\" stroke=\"{}\" stroke-width=\"2\" stroke-dasharray=\"5,3\"/>\n",
                 cx + leg, cy, cx, cy - leg, style.accent_color
@@ -688,10 +688,10 @@ pub(crate) fn build_plan_svg(
         // inset, so callout masks and the inset cleanly cover them; their
         // measurements live in the overlay card, not over the diagram.
         if options.show_hanging {
-            super::overlays::render_plan_hanging(&mut svg, geometry, design, style);
+            super::overlays::render_plan_hanging(&mut svg, geometry, design, style, options.hanging_params.unwrap_or_default());
         }
         if options.show_spline {
-            super::overlays::render_plan_splines(&mut svg, geometry, design, style);
+            super::overlays::render_plan_splines(&mut svg, geometry, design, style, options.spline_params.unwrap_or_default());
         }
 
         let mut dimension_labels = String::new();

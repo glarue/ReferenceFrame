@@ -450,6 +450,14 @@ pub struct DiagramOptions {
     /// Show hanging hardware (D-rings, wire, hook) overlay (default false)
     #[serde(default)]
     pub show_hanging: bool,
+
+    /// Spline slot parameter overrides (None = presets defaults)
+    #[serde(default)]
+    pub spline_params: Option<crate::joinery::SplineParams>,
+
+    /// Hanging hardware parameter overrides (None = presets defaults)
+    #[serde(default)]
+    pub hanging_params: Option<crate::hanging::HangingParams>,
 }
 
 fn default_true() -> bool { true }
@@ -471,6 +479,8 @@ impl Default for DiagramOptions {
             axis_breaks_enabled: true,
             show_spline: false,
             show_hanging: false,
+            spline_params: None,
+            hanging_params: None,
         }
     }
 }

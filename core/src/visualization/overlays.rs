@@ -39,11 +39,11 @@ pub(crate) fn render_section_splines(
     design: &FrameDesign,
     style: &DiagramStyle,
     fmt: &dyn Fn(f64) -> String,
+    params: SplineParams,
 ) {
     if geometry.use_axis_break || geometry.use_axis_break_y {
         return;
     }
-    let params = SplineParams::default();
     let Some(env) = spline_envelope(design, &params) else {
         return;
     };
@@ -102,11 +102,12 @@ pub(crate) fn render_plan_splines(
     geometry: &PlanViewGeometry,
     design: &FrameDesign,
     style: &DiagramStyle,
+    params: SplineParams,
 ) {
     if geometry.use_axis_break_x || geometry.use_axis_break_y {
         return;
     }
-    let Some(a) = plan_spline_leg(design, geometry.scale) else {
+    let Some(a) = plan_spline_leg(design, params, geometry.scale) else {
         return;
     };
 
@@ -133,8 +134,8 @@ pub(crate) fn render_plan_splines(
 /// Chord leg length (along each outer edge from the corner) for the first
 /// recommended slot at the given scale. Shared by the plan view and the
 /// corner-detail inset so both draw the same slot.
-pub(crate) fn plan_spline_leg(design: &FrameDesign, scale: f64) -> Option<f64> {
-    let env = spline_envelope(design, &SplineParams::default())?;
+pub(crate) fn plan_spline_leg(design: &FrameDesign, params: SplineParams, scale: f64) -> Option<f64> {
+    let env = spline_envelope(design, &params)?;
     let slot = env.recommended.first()?;
     Some(2.0 * slot.max_penetration * scale)
 }
@@ -147,11 +148,12 @@ pub(crate) fn render_plan_hanging(
     geometry: &PlanViewGeometry,
     design: &FrameDesign,
     style: &DiagramStyle,
+    params: HangingParams,
 ) {
     if geometry.use_axis_break_x || geometry.use_axis_break_y {
         return;
     }
-    let Some(layout) = hanging_layout(design, &HangingParams::default()) else {
+    let Some(layout) = hanging_layout(design, &params) else {
         return;
     };
 
@@ -224,7 +226,8 @@ pub(crate) fn plan_overlay_card(
     let mut has_spline = false;
 
     if options.show_hanging {
-        if let Some(layout) = hanging_layout(design, &HangingParams::default()) {
+        let params = options.hanging_params.unwrap_or_default();
+        if let Some(layout) = hanging_layout(design, &params) {
             has_hanging = true;
             lines.push((
                 style.mat_dimension_color.clone(),
@@ -241,7 +244,8 @@ pub(crate) fn plan_overlay_card(
         }
     }
     if options.show_spline {
-        if let Some(env) = spline_envelope(design, &SplineParams::default()) {
+        let params = options.spline_params.unwrap_or_default();
+        if let Some(env) = spline_envelope(design, &params) {
             if let Some(slot) = env.recommended.first() {
                 has_spline = true;
                 lines.push((

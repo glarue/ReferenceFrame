@@ -458,6 +458,7 @@ pub fn generate_plan_view_svg(
     dark_mode: bool,
     show_spline: bool,
     show_hanging: bool,
+    overlay_params_json: Option<String>,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
 
@@ -475,6 +476,8 @@ pub fn generate_plan_view_svg(
         axis_breaks_enabled,
         show_spline,
         show_hanging,
+        spline_params: parse_overlay_params(&overlay_params_json).spline,
+        hanging_params: parse_overlay_params(&overlay_params_json).hanging,
         ..Default::default()
     };
 
@@ -495,6 +498,7 @@ pub fn generate_section_view_svg(
     dark_mode: bool,
     show_spline: bool,
     show_hanging: bool,
+    overlay_params_json: Option<String>,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
 
@@ -510,6 +514,8 @@ pub fn generate_section_view_svg(
         show_callouts: true,
         show_spline,
         show_hanging,
+        spline_params: parse_overlay_params(&overlay_params_json).spline,
+        hanging_params: parse_overlay_params(&overlay_params_json).hanging,
         ..Default::default()
     };
 
@@ -534,11 +540,12 @@ pub fn generate_combined_view_svg(
     dark_mode: bool,
     show_spline: bool,
     show_hanging: bool,
+    overlay_params_json: Option<String>,
 ) -> String {
     generate_combined_view_svg_with_title(
         design, canvas_width, canvas_height, unit_mm, include_title,
         false, None, use_tape_segments, use_decimal_display, true, true, dark_mode,
-        show_spline, show_hanging,
+        show_spline, show_hanging, overlay_params_json,
     )
 }
 
@@ -562,6 +569,7 @@ pub fn generate_combined_view_svg_with_title(
     dark_mode: bool,
     show_spline: bool,
     show_hanging: bool,
+    overlay_params_json: Option<String>,
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, DiagramStyle, ViewOption};
 
@@ -579,6 +587,8 @@ pub fn generate_combined_view_svg_with_title(
         axis_breaks_enabled,
         show_spline,
         show_hanging,
+        spline_params: parse_overlay_params(&overlay_params_json).spline,
+        hanging_params: parse_overlay_params(&overlay_params_json).hanging,
         ..Default::default()
     };
 
@@ -617,12 +627,26 @@ pub fn generate_diagram(
         .map_err(|e| JsValue::from_str(&format!("JSON error: {}", e)))
 }
 
+/// Optional user overrides for overlay parameters, as JSON:
+/// {"spline": {...}, "hanging": {...}} — missing pieces fall back to presets.
+#[derive(serde::Deserialize, Default)]
+struct OverlayParams {
+    spline: Option<referenceframe_core::joinery::SplineParams>,
+    hanging: Option<referenceframe_core::hanging::HangingParams>,
+}
+
+fn parse_overlay_params(json: &Option<String>) -> OverlayParams {
+    json.as_deref()
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or_default()
+}
+
 /// Spline slot planning data as JSON (params + envelope), or "null" when the
 /// moulding can't hold a slot.
 #[wasm_bindgen(js_name = "getSplineEnvelope")]
-pub fn get_spline_envelope(design: &WasmFrameDesign) -> String {
-    use referenceframe_core::joinery::{spline_envelope, SplineParams};
-    let params = SplineParams::default();
+pub fn get_spline_envelope(design: &WasmFrameDesign, overlay_params_json: Option<String>) -> String {
+    use referenceframe_core::joinery::spline_envelope;
+    let params = parse_overlay_params(&overlay_params_json).spline.unwrap_or_default();
     match spline_envelope(&design.inner, &params) {
         Some(env) => serde_json::json!({ "params": params, "envelope": env }).to_string(),
         None => "null".to_string(),
@@ -631,9 +655,10 @@ pub fn get_spline_envelope(design: &WasmFrameDesign) -> String {
 
 /// Hanging hardware layout as JSON, or "null" when the frame is too narrow.
 #[wasm_bindgen(js_name = "getHangingLayout")]
-pub fn get_hanging_layout(design: &WasmFrameDesign) -> String {
-    use referenceframe_core::hanging::{hanging_layout, HangingParams};
-    match hanging_layout(&design.inner, &HangingParams::default()) {
+pub fn get_hanging_layout(design: &WasmFrameDesign, overlay_params_json: Option<String>) -> String {
+    use referenceframe_core::hanging::hanging_layout;
+    let params = parse_overlay_params(&overlay_params_json).hanging.unwrap_or_default();
+    match hanging_layout(&design.inner, &params) {
         Some(layout) => serde_json::to_string(&layout).unwrap_or_else(|_| "null".to_string()),
         None => "null".to_string(),
     }
@@ -661,6 +686,11 @@ pub fn get_defaults() -> String {
         "assemblyMargin": d.assembly_margin,
         "frameStyle": "rabbet",
         "floatReveal": 0.0,
+        "splineKerf": d.spline_kerf,
+        "splineMinWall": d.spline_min_wall,
+        "hangingDropFraction": d.hanging_drop_fraction,
+        "hangingSlackFraction": d.hanging_slack_fraction,
+        "hangingWrapAllowance": d.hanging_wrap_allowance,
     });
     serde_json::to_string(&defaults).unwrap_or_default()
 }
