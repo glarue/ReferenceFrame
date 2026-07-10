@@ -178,9 +178,11 @@ pub(crate) fn build_section_svg(
     // Draw frame as L-shape polygon with rabbet cutout at bottom-right
     render_frame_profile(&mut svg, geometry, style);
 
-    if options.show_spline {
-        super::overlays::render_section_splines(&mut svg, geometry, design, style, &fmt, options.spline_params.unwrap_or_default());
-    }
+    let spline_leader_labels = if options.show_spline {
+        super::overlays::render_section_splines(&mut svg, geometry, design, style, &fmt, options.spline_params.unwrap_or_default())
+    } else {
+        Vec::new()
+    };
 
     svg.push_str("  </g>\n");
 
@@ -398,52 +400,63 @@ pub(crate) fn build_section_svg(
 
     // Materials are drawn at true geometric positions - labels point to actual centers
 
-    struct MaterialLabel<'a> {
-        name: &'a str,
+    struct MaterialLabel {
+        text: String,
         center_y: f64,
         right_edge: f64,
-        thickness: f64,
+        color: String,
     }
 
     let mut materials: Vec<MaterialLabel> = Vec::new();
 
-    materials.push(MaterialLabel {
-        name: "Glazing",
-        center_y: geometry.glazing.y + geometry.glazing.height / 2.0,
-        right_edge: geometry.glazing.right(),
-        thickness: design.glazing_thickness,
-    });
-
-    if let Some(mat) = &geometry.matboard {
+    // Spline slots labeled through this column sit above the stack, so they
+    // lead the list (top of the column), accent-colored to key to the band
+    for leader in &spline_leader_labels {
         materials.push(MaterialLabel {
-            name: "Mat",
-            center_y: mat.y + mat.height / 2.0,
-            right_edge: mat.right(),
-            thickness: design.matboard_thickness,
+            text: leader.text.clone(),
+            center_y: leader.center_y,
+            right_edge: leader.right_edge,
+            color: style.accent_color.clone(),
         });
     }
 
     materials.push(MaterialLabel {
-        name: "Artwork",
+        text: format!("Glazing: {}", fmt(design.glazing_thickness)),
+        center_y: geometry.glazing.y + geometry.glazing.height / 2.0,
+        right_edge: geometry.glazing.right(),
+        color: dim_color.clone(),
+    });
+
+    if let Some(mat) = &geometry.matboard {
+        materials.push(MaterialLabel {
+            text: format!("Mat: {}", fmt(design.matboard_thickness)),
+            center_y: mat.y + mat.height / 2.0,
+            right_edge: mat.right(),
+            color: dim_color.clone(),
+        });
+    }
+
+    materials.push(MaterialLabel {
+        text: format!("Artwork: {}", fmt(design.artwork_thickness)),
         center_y: geometry.artwork.y + geometry.artwork.height / 2.0,
         right_edge: geometry.artwork.right(),
-        thickness: design.artwork_thickness,
+        color: dim_color.clone(),
     });
 
     materials.push(MaterialLabel {
-        name: "Backing",
+        text: format!("Backing: {}", fmt(design.backing_thickness)),
         center_y: geometry.backing.y + geometry.backing.height / 2.0,
         right_edge: geometry.backing.right(),
-        thickness: design.backing_thickness,
+        color: dim_color.clone(),
     });
 
     // Only add assembly margin label if it has meaningful height
     if geometry.assembly_margin.height > 0.5 {
         materials.push(MaterialLabel {
-            name: "Margin",
+            text: format!("Margin: {}", fmt(design.assembly_margin)),
             center_y: geometry.assembly_margin.y + geometry.assembly_margin.height / 2.0,
             right_edge: geometry.assembly_margin.right(),
-            thickness: design.assembly_margin,
+            color: dim_color.clone(),
         });
     }
 
@@ -457,11 +470,20 @@ pub(crate) fn build_section_svg(
     };
     let stack_center = stack_top + (stack_bottom - stack_top) / 2.0;
 
-    let total_label_height = (materials.len() - 1) as f64 * label_spacing;
+    // Material labels keep their long-standing centered positions; spline
+    // labels (when present) stack upward from the column top, toward the
+    // face band their slots live in
+    let spline_count = spline_leader_labels.len();
+    let material_count = materials.len() - spline_count;
+    let total_label_height = (material_count.saturating_sub(1)) as f64 * label_spacing;
     let first_label_y = stack_center - total_label_height / 2.0;
 
     for (i, mat) in materials.iter().enumerate() {
-        let label_y = first_label_y + i as f64 * label_spacing;
+        let label_y = if i < spline_count {
+            first_label_y - (spline_count - i) as f64 * label_spacing
+        } else {
+            first_label_y + (i - spline_count) as f64 * label_spacing
+        };
 
         // Dog-leg leader line:
         // 1. Horizontal from material edge (shorter for compact layout)
@@ -471,7 +493,7 @@ pub(crate) fn build_section_svg(
         svg.push_str(&generate_line_with_arrows(
             mat.right_edge + 3.0, mat.center_y,
             horiz_end_x, mat.center_y,
-            dim_color, style.extension_stroke_width * LEADER_STROKE_RATIO,
+            &mat.color, style.extension_stroke_width * LEADER_STROKE_RATIO,
             true, false, true, // arrow_start only, is_leader
         ));
 
@@ -481,7 +503,7 @@ pub(crate) fn build_section_svg(
             r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
             horiz_end_x, mat.center_y,
             label_base_x - 5.0, label_y,
-            dim_color, style.extension_stroke_width * LEADER_STROKE_RATIO
+            mat.color, style.extension_stroke_width * LEADER_STROKE_RATIO
         ));
         svg.push('\n');
 
@@ -491,10 +513,10 @@ pub(crate) fn build_section_svg(
         let stack_label_font = style.label_font_size * (11.0 / 13.0);
         let text_y = label_y + stack_label_font * BASELINE_SHIFT_RATIO;
         svg.push_str(&format!(
-            r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px">{}: {}</text>"#,
+            r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px">{}</text>"#,
             label_base_x, text_y,
-            dim_color, style.font_family, stack_label_font,
-            mat.name, fmt(mat.thickness)
+            mat.color, style.font_family, stack_label_font,
+            mat.text
         ));
         svg.push('\n');
     }
@@ -505,10 +527,7 @@ pub(crate) fn build_section_svg(
 
     // Estimate max label width by checking each label
     let max_label_width = materials.iter()
-        .map(|m| {
-            let label = format!("{}: {}", m.name, fmt(m.thickness));
-            estimate_text_width(&label, style.material_label_font_size())
-        })
+        .map(|m| estimate_text_width(&m.text, style.material_label_font_size()))
         .fold(0.0_f64, |a, b| a.max(b));
 
     // Position stack dimension with clearance from labels

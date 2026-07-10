@@ -27,6 +27,14 @@ use super::types::DiagramOptions;
 const SPLINE_STROKE: &str = "#2e7a63";
 const SPLINE_TEXT: &str = "#0d3d30";
 
+/// A section slot whose label didn't fit inside the band — labeled through
+/// the section's dog-leg column instead (consumed by the stack-label pass).
+pub(crate) struct SplineLeaderLabel {
+    pub text: String,
+    pub center_y: f64,
+    pub right_edge: f64,
+}
+
 /// Overlay label with a semi-opaque backdrop so it stays legible over any
 /// geometry or callout lines it crosses.
 fn push_backdropped_text(
@@ -79,12 +87,13 @@ pub(crate) fn render_section_splines(
     style: &DiagramStyle,
     fmt: &dyn Fn(f64) -> String,
     params: SplineParams,
-) {
+) -> Vec<SplineLeaderLabel> {
+    let mut leader_labels = Vec::new();
     if geometry.use_axis_break || geometry.use_axis_break_y {
-        return;
+        return leader_labels;
     }
     let Some(env) = spline_envelope(design, &params) else {
-        return;
+        return leader_labels;
     };
 
     let fp = &geometry.frame_profile;
@@ -132,22 +141,17 @@ pub(crate) fn render_section_splines(
             ));
             svg.push('\n');
         } else {
-            // Centered on the slot band: stays within the moulding profile,
-            // structurally clear of the stack's dog-leg labels to the right
-            // and the dimension zones outside the profile.
-            push_backdropped_text(
-                svg,
-                fp.x + inset + w / 2.0,
-                yc,
-                label_fs,
-                "middle",
-                &style.accent_color,
-                style,
-                &label,
-            );
+            // Doesn't fit inside the band: hand it to the section's dog-leg
+            // label column so the band itself stays fully visible.
+            leader_labels.push(SplineLeaderLabel {
+                text: label,
+                center_y: yc,
+                right_edge: fp.x + inset + w,
+            });
         }
     }
     svg.push_str("  </g>\n");
+    leader_labels
 }
 
 /// Spline slot chords across each corner of the plan view, drawn dashed
