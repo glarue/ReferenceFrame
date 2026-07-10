@@ -322,7 +322,29 @@ const MATRIX: &[MatrixEntry] = &[
 
     // -- Portrait (phone) canvas: overlay card moves below the content --
     MatrixEntry { name: "overlays_matted_16x20_plan_portrait", design_fn: matted_16x20, options_fn: opts_portrait_overlays },
+
+    // -- Wide moulding on a phone canvas: slot label centers on the band --
+    MatrixEntry { name: "spline_wide_moulding_section_portrait", design_fn: wide_moulding_16x20, options_fn: opts_portrait_spline_section },
 ];
+
+/// Wide, shallow moulding (2" x 3/4") — the slot label can't fit inside the
+/// slot at phone scale and must not collide with the stack's dog-leg labels.
+fn wide_moulding_16x20() -> FrameDesign {
+    FrameDesign {
+        frame_material_width: 2.0,
+        ..matted_16x20()
+    }
+}
+
+fn opts_portrait_spline_section() -> DiagramOptions {
+    DiagramOptions {
+        view: ViewOption::SectionOnly,
+        canvas_width: 390.0,
+        canvas_height: 600.0,
+        show_spline: true,
+        ..Default::default()
+    }
+}
 
 fn opts_portrait_overlays() -> DiagramOptions {
     DiagramOptions {

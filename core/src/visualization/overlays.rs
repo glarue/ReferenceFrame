@@ -132,12 +132,15 @@ pub(crate) fn render_section_splines(
             ));
             svg.push('\n');
         } else {
+            // Centered on the slot band: stays within the moulding profile,
+            // structurally clear of the stack's dog-leg labels to the right
+            // and the dimension zones outside the profile.
             push_backdropped_text(
                 svg,
-                fp.x + inset + w + 8.0,
+                fp.x + inset + w / 2.0,
                 yc,
                 label_fs,
-                "start",
+                "middle",
                 &style.accent_color,
                 style,
                 &label,
