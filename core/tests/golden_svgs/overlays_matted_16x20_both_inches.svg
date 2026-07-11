@@ -170,8 +170,8 @@
     <rect x="374.29" y="194.97" width="205.75" height="13.72" stroke="#577590" stroke-width="0.5" stroke-dasharray="4,2" fill="none" opacity="0.7"/>
     <polygon points="127.39,51.00 456.59,51.00 456.59,133.30 374.29,133.30 374.29,215.60 127.39,215.60" stroke="#333333" stroke-width="2.5" fill="#8B6914"/>
   <g id="spline-slots">
-    <rect x="128.64" y="78.43" width="300.52" height="27.43" fill="#46af8f" fill-opacity="0.85" stroke="#2e7a63" stroke-width="0.8"/>
-    <text transform="translate(138.64, 95.12)" fill="#0d3d30" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px" text-anchor="start">Spline 1/8" · ≤ 1 3/8" deep</text>
+    <rect x="126.14" y="78.43" width="303.02" height="27.43" fill="#46af8f" fill-opacity="0.85" stroke="#2e7a63" stroke-width="0.8"/>
+    <text transform="translate(137.39, 95.12)" fill="#0d3d30" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px" text-anchor="start">Spline 1/8" · ≤ 1 3/8" deep</text>
   </g>
   </g>
   <g id="section-dimensions">

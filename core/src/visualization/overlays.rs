@@ -98,19 +98,22 @@ pub(crate) fn render_section_splines(
 
     let fp = &geometry.frame_profile;
     let s = geometry.scale;
-    let inset = style.frame_stroke_width / 2.0;
+    let overhang = style.frame_stroke_width / 2.0;
 
     svg.push_str("  <g id=\"spline-slots\">\n");
     for slot in &env.recommended {
         let yc = fp.y + slot.z_center * s;
         let h = params.slot_thickness * s;
-        let w = slot.max_penetration * s - inset;
-        if w <= 0.0 {
+        // The slot is physically open at the outer face: the band covers the
+        // outer stroke at its mouth (the face line genuinely breaks where the
+        // kerf exits), and the inner end sits at true penetration depth.
+        let w = slot.max_penetration * s + overhang;
+        if slot.max_penetration * s <= 0.0 {
             continue;
         }
         svg.push_str(&format!(
             r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="0.85" stroke="{}" stroke-width="0.8"/>"#,
-            fp.x + inset,
+            fp.x - overhang,
             yc - h / 2.0,
             w,
             h,
@@ -132,7 +135,7 @@ pub(crate) fn render_section_splines(
         if estimate_text_width(&label, label_fs) + 20.0 <= w {
             svg.push_str(&format!(
                 r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="start">{}</text>"#,
-                fp.x + inset + 10.0,
+                fp.x + 10.0,
                 yc + label_fs * BASELINE_SHIFT_RATIO,
                 SPLINE_TEXT,
                 style.font_family,
@@ -146,7 +149,7 @@ pub(crate) fn render_section_splines(
             leader_labels.push(SplineLeaderLabel {
                 text: label,
                 center_y: yc,
-                right_edge: fp.x + inset + w,
+                right_edge: fp.x + slot.max_penetration * s,
             });
         }
     }
