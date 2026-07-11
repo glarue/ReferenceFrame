@@ -92,11 +92,20 @@ pub fn spline_envelope(design: &FrameDesign, params: &SplineParams) -> Option<Sp
     let mut recommended = Vec::new();
     let centers: Vec<f64> = if d >= TWO_SLOT_MIN_DEPTH {
         vec![d / 3.0, 2.0 * d / 3.0]
-    } else if face_depth >= t + 2.0 * wall {
-        // A single slot fits entirely in the solid face band
-        vec![face_depth / 2.0]
     } else {
-        vec![d / 2.0]
+        // A single slot centers on the moulding depth — visually balanced on
+        // the profile; when its band crosses the rabbet channel the
+        // penetration rule below shortens it to stay clear of the stack.
+        // Retreat to the solid face band only when the centered slot would
+        // have no usable depth at all (very wide rabbets).
+        let centered = d / 2.0;
+        let over = centered + half > face_depth - wall;
+        let centered_pen = if over { w - rabbet_w - wall } else { w - wall };
+        if centered_pen > 0.0 || face_depth < t + 2.0 * wall {
+            vec![centered]
+        } else {
+            vec![face_depth / 2.0]
+        }
     };
 
     for c in centers {
@@ -156,20 +165,36 @@ mod tests {
     }
 
     #[test]
-    fn single_slot_in_face_band_gets_full_penetration() {
-        // Default-ish moulding: 1" x 3/4", rabbet 3/8 x 3/8 -> face band 3/8
+    fn single_slot_centers_on_depth_and_clears_the_stack() {
+        // Default-ish moulding: 1" x 3/4", rabbet 3/8 x 3/8. Centered at
+        // D/2 the band crosses the channel, so penetration shortens to
+        // width - rabbet - wall.
         let env = spline_envelope(&design(1.0, 0.75, 0.375, 0.375), &SplineParams::default())
             .expect("envelope");
         assert_eq!(env.recommended.len(), 1);
         let slot = env.recommended[0];
-        assert_close(slot.z_center, 0.1875, "z_center centered in face band");
-        assert!(!slot.over_rabbet);
-        assert_close(slot.max_penetration, 0.875, "full width minus wall");
+        assert_close(slot.z_center, 0.375, "centered on moulding depth");
+        assert!(slot.over_rabbet);
+        assert_close(slot.max_penetration, 0.5, "shortened clear of the stack");
         assert_close(
             slot.max_penetration_diagonal,
-            0.875 * std::f64::consts::SQRT_2,
+            0.5 * std::f64::consts::SQRT_2,
             "diagonal penetration",
         );
+    }
+
+    #[test]
+    fn very_wide_rabbet_retreats_to_the_face_band() {
+        // Rabbet 0.9 of a 1" moulding: a centered slot would have no usable
+        // depth (1 - 0.9 - 0.125 < 0), so the slot retreats to the solid
+        // face band where full penetration is safe.
+        let env = spline_envelope(&design(1.0, 0.75, 0.9, 0.375), &SplineParams::default())
+            .expect("envelope");
+        assert_eq!(env.recommended.len(), 1);
+        let slot = env.recommended[0];
+        assert_close(slot.z_center, 0.1875, "centered in the face band");
+        assert!(!slot.over_rabbet);
+        assert_close(slot.max_penetration, 0.875, "full width minus wall");
     }
 
     #[test]
