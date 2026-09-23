@@ -1238,8 +1238,12 @@ pub fn create_history_with_max(max_entries: usize) -> String {
 /// `{ "history": "...", "isNew": true/false }`
 /// On parse error returns: `{ "error": "...", "history": <original> }`
 /// If force_new is true, always creates a new entry even if design already exists.
+///
+/// An empty `title` auto-generates one from the artwork size in the user's
+/// unit: `useMm` true → `215.9 mm × 279.4 mm Frame`, false/omitted →
+/// `8 1/2" × 11" Frame`.
 #[wasm_bindgen(js_name = "addToHistory")]
-pub fn add_to_history(history_json: &str, design_json: &str, timestamp: i64, title: &str, force_new: bool) -> String {
+pub fn add_to_history(history_json: &str, design_json: &str, timestamp: i64, title: &str, force_new: bool, use_mm: Option<bool>) -> String {
     let mut hist = match parse_history(history_json) {
         Ok(h) => h,
         Err(e) => return history_error(&format!("history parse: {}", e), history_json),
@@ -1251,7 +1255,7 @@ pub fn add_to_history(history_json: &str, design_json: &str, timestamp: i64, tit
     };
 
     let is_new = if title.is_empty() {
-        hist.add_entry_auto_title(design, timestamp, force_new)
+        hist.add_entry_auto_title(design, timestamp, force_new, use_mm.unwrap_or(false))
     } else {
         hist.add_entry(design, timestamp, title.to_string(), force_new)
     };

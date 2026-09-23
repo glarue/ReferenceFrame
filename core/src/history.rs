@@ -4,6 +4,7 @@
 //! The core logic is platform-agnostic; storage persistence is handled by platform layers.
 
 use serde::{Deserialize, Serialize};
+use crate::conversions::{format_value, Unit};
 use crate::frame::FrameDesign;
 
 /// Default maximum number of history entries
@@ -43,17 +44,22 @@ impl HistoryEntry {
     }
 
     /// Create entry with auto-generated title based on artwork dimensions
-    pub fn with_auto_title(design: FrameDesign, timestamp: i64) -> Self {
-        let title = Self::generate_title(&design);
+    pub fn with_auto_title(design: FrameDesign, timestamp: i64, use_mm: bool) -> Self {
+        let title = Self::generate_title(&design, use_mm);
         Self::new(design, timestamp, title)
     }
 
-    /// Generate a default title from design dimensions
-    pub fn generate_title(design: &FrameDesign) -> String {
+    /// Generate a default title from the artwork dimensions (height × width)
+    /// in the user's unit, using the shared formatter: `8 1/2" × 11" Frame`
+    /// or `215.9 mm × 279.4 mm Frame`. (Titles used to be one-decimal inches,
+    /// e.g. `8.5" × 11.0" Frame`; stored titles are plain strings, so old
+    /// entries keep their text.)
+    pub fn generate_title(design: &FrameDesign, use_mm: bool) -> String {
+        let unit = if use_mm { Unit::Millimeters } else { Unit::Inches };
         format!(
-            "{:.1}\" × {:.1}\" Frame",
-            design.artwork_height,
-            design.artwork_width
+            "{} × {} Frame",
+            format_value(design.artwork_height, unit),
+            format_value(design.artwork_width, unit)
         )
     }
 
@@ -151,8 +157,8 @@ impl DesignHistory {
     /// Add entry with auto-generated title
     ///
     /// Returns true if this was a new design (or forced new), false if it was a duplicate.
-    pub fn add_entry_auto_title(&mut self, design: FrameDesign, timestamp: i64, force_new: bool) -> bool {
-        let title = HistoryEntry::generate_title(&design);
+    pub fn add_entry_auto_title(&mut self, design: FrameDesign, timestamp: i64, force_new: bool, use_mm: bool) -> bool {
+        let title = HistoryEntry::generate_title(&design, use_mm);
         self.add_entry(design, timestamp, title, force_new)
     }
 
@@ -330,11 +336,20 @@ mod tests {
         let mut history = DesignHistory::new();
         let design = create_test_design();
 
-        history.add_entry_auto_title(design, 1000, false);
+        history.add_entry_auto_title(design.clone(), 1000, false, false);
+        assert_eq!(history.get(0).unwrap().title, "10\" × 8\" Frame");
 
-        let entry = history.get(0).unwrap();
-        assert!(entry.title.contains("10.0"));
-        assert!(entry.title.contains("8.0"));
+        // mm users get mm titles
+        let mut mm_history = DesignHistory::new();
+        mm_history.add_entry_auto_title(design, 1000, false, true);
+        assert_eq!(mm_history.get(0).unwrap().title, "254 mm × 203.2 mm Frame");
+    }
+
+    #[test]
+    fn test_auto_title_uses_fractions() {
+        let design = FrameDesign::new(8.5, 11.75);
+        assert_eq!(HistoryEntry::generate_title(&design, false), "8 1/2\" × 11 3/4\" Frame");
+        assert_eq!(HistoryEntry::with_auto_title(design, 1, false).title, "8 1/2\" × 11 3/4\" Frame");
     }
 
     #[test]
