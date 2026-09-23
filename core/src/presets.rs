@@ -38,17 +38,16 @@ impl ColorPalette {
     /// Get a color hex value by name (e.g., "teal", "primary", "gray_dark")
     /// Returns the hex string without # prefix
     pub fn get(&self, name: &str) -> Option<String> {
-        // Check semantic colors first (may reference palette colors)
+        // Check semantic colors first. Values are palette keys ("blue"),
+        // variant references ("palette_dark.blue"), or direct hex.
         if let Some(value) = self.semantic.get(name) {
-            // If it's a reference like "blue", resolve it
-            if !value.contains('.') && value.len() <= 12 {
-                // Try to resolve from palette
-                if let Some(hex) = self.palette.get(value) {
-                    return Some(hex.clone());
-                }
-            }
-            // Otherwise return as-is (it's a direct hex value)
-            return Some(value.clone());
+            let resolved = match value.split_once('.') {
+                Some(("palette_light", key)) => self.palette_light.get(key),
+                Some(("palette_dark", key)) => self.palette_dark.get(key),
+                Some(("palette", key)) => self.palette.get(key),
+                _ => self.palette.get(value),
+            };
+            return Some(resolved.unwrap_or(value).clone());
         }
 
         // Check main palette
@@ -98,6 +97,9 @@ pub struct Defaults {
     pub backing_thickness: f64,
     pub assembly_margin: f64,
     pub blade_width: f64,
+    /// Extra wood per frame piece (inches), added with the blade kerf to
+    /// Total Wood: `get_total_wood_length(blade_width, wood_error_margin)`
+    pub wood_error_margin: f64,
     // Joinery & hanging parameters (spline kerf/wall in inches; hanger drop
     // and wire slack as fractions; wrap allowance in inches)
     pub spline_kerf: f64,
@@ -293,6 +295,7 @@ pub fn get_default_value(field: &str) -> Option<f64> {
         "backing_thickness" => Some(defaults.backing_thickness),
         "assembly_margin" => Some(defaults.assembly_margin),
         "blade_width" => Some(defaults.blade_width),
+        "wood_error_margin" => Some(defaults.wood_error_margin),
         _ => None,
     }
 }
@@ -338,6 +341,9 @@ mod tests {
         let defaults = get_defaults();
         assert_eq!(defaults.backing_thickness, 0.125);
         assert_eq!(defaults.frame_material_width, 0.75);
+        // Total Wood margin: 1/16" per piece, shared by web and iOS
+        assert_eq!(defaults.wood_error_margin, 0.0625);
+        assert_eq!(get_default_value("wood_error_margin"), Some(0.0625));
     }
 
     #[test]
@@ -394,5 +400,38 @@ mod tests {
     #[test]
     fn test_color_hex() {
         assert_eq!(get_color_hex("teal"), Some("#46AF8F".to_string()));
+    }
+
+    #[test]
+    fn test_semantic_colors_match_ios_factory_mapping() {
+        // iOS SemanticColorCategory factory colors are the reference
+        // (platforms/mobile/lib/models/color_category.dart)
+        let expected = [
+            ("primary", "blue"),
+            ("secondary", "dark_cyan"),
+            ("success", "green"),
+            ("warning", "orange"),
+            ("error", "flag_red"),
+            ("modified", "yellow"),
+            ("cut_dimension", "red_orange"),
+            ("incidental", "teal"),
+            ("material_property", "air_force_blue"),
+        ];
+        let colors = get_colors();
+        for (category, palette_key) in expected {
+            assert_eq!(colors.semantic.get(category).map(String::as_str), Some(palette_key),
+                "semantic.{category}");
+            // Every semantic entry resolves to a palette hex
+            assert_eq!(get_color(category), colors.palette.get(palette_key).cloned(), "{category}");
+        }
+    }
+
+    #[test]
+    fn test_semantic_variant_references_resolve() {
+        // Regression: "palette_dark.blue" used to come back verbatim
+        assert_eq!(get_color_hex("primary_dark"), Some("#3D5265".to_string()));
+        assert_eq!(get_color("secondary_dark"), Some("325D5C".to_string()));
+        // Long palette keys resolve too (the old resolver skipped keys > 12 chars)
+        assert_eq!(get_color("material_property"), Some("7890A5".to_string()));
     }
 }

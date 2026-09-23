@@ -57,16 +57,19 @@
       "black": "000000"
     },
     "semantic": {
-      "_comment": "Semantic color assignments for consistent meaning across platforms",
+      "_comment": "Factory color per semantic category (palette keys; 'palette_dark.x' / 'palette_light.x' pick a variant). Mirrors the iOS SemanticColorCategory factory colors (platforms/mobile/lib/models/color_category.dart), which are the reference.",
       "primary": "blue",
       "primary_dark": "palette_dark.blue",
-      "secondary": "teal",
-      "secondary_dark": "palette_dark.teal",
+      "secondary": "dark_cyan",
+      "secondary_dark": "palette_dark.dark_cyan",
       "success": "green",
       "warning": "orange",
-      "error": "red",
-      "modified": "9B59B6",
-      "custom_value": "teal"
+      "error": "flag_red",
+      "modified": "yellow",
+      "cut_dimension": "red_orange",
+      "incidental": "teal",
+      "material_property": "air_force_blue",
+      "custom_value": "dark_cyan"
     }
   },
 
@@ -99,6 +102,8 @@
     "_assembly_comment": "1/16 inch assembly clearance, 1/8 inch saw blade kerf",
     "assembly_margin": 0.0625,
     "blade_width": 0.125,
+    "_wood_error_margin_comment": "Extra wood per frame piece (inches); Total Wood = perimeter + 4 x (blade_width + wood_error_margin)",
+    "wood_error_margin": 0.0625,
     "_joinery_hanging_comment": "Spline slot kerf and minimum wall (inches); hanger drop as a fraction of frame height, wire slack as a fraction of span, wire wrap per end (inches)",
     "spline_kerf": 0.125,
     "spline_min_wall": 0.125,

@@ -735,6 +735,7 @@ pub fn get_defaults() -> String {
         "artworkThickness": d.artwork_thickness,
         "backingThickness": d.backing_thickness,
         "bladeWidth": d.blade_width,
+        "woodErrorMargin": d.wood_error_margin,
         "assemblyMargin": d.assembly_margin,
         "frameStyle": "rabbet",
         "floatReveal": 0.0,
