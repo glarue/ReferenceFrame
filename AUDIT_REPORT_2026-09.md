@@ -70,19 +70,21 @@ IDs: **A** = user-visible bug (iOS), **W** = user-visible bug (web), **C** = cor
 - Phase 3 notes / new findings: `ios-release.yml` is a gitignored local-only file (never ran in CI) — left in place, T5 removal not needed. A12 made the calculator error banner (`calculator_screen.dart` `lastError`) unreachable — remove or rewire (Phase 5). release.sh runs a full `cargo update` on mobile `rust/` for every core/bridge bump, silently upgrading registry deps (should update only the core entry). `ios/fastlane/README.md` (auto-gen), `FASTLANE_GUIDE.md`, `FASTLANE_QUICKSTART.md`, `SCREENSHOT_GUIDE.md` still mention the removed `screenshots`/`download_metadata` lanes (D4). `upload_metadata` lane has `skip_screenshots: false` vs manual-screenshot policy. Push to main now runs tests twice (test.yml + deploy's reusable call) — harmless.
 
 ### Phase 4 — Needs a decision first (ask, record answer here, then fix)
-- [ ] A7 Total Wood margin (iOS 0.125 saw/0.5 err vs web blade/0.0625) — decision: _
-- [ ] C3 `min_visible_opening`: wire (default → 0.5 to keep behavior) or remove — decision: _
-- [ ] C9 clamp policy: single core policy + thresholds — decision: _
-- [ ] W4/Q7 semantic color mapping reference (web vs iOS vs presets.json) — decision: _
-- [ ] C2 apply rabbet-width checks to sight-size — decision: _
-- [ ] A13 custom defaults on cold start — decision: _
-- [ ] A8 color descriptions: wire theme or reword — decision: _
-- [ ] A9 decimal display gets `"` via Rust — decision: _
-- [ ] C18 `dominant-baseline` — verify on iOS screenshot/PDF first
-- [ ] T9 version `CLAUDE.md`/`.claude/`? — decision: _
+- [x] A7 Total Wood margin — decision (2026-09-23): **1/16" per piece on both** (web's value), both honor the Blade Width setting; margin moves to presets.json
+- [x] C3 `min_visible_opening` — decision: **wire it in, default stays 1/8" per side** (overlap check relaxes from a 1" to a 1/4" minimum opening; web clamp unchanged)
+- [x] C9 clamp policy — decision: **one core policy** honoring min lip / min face / min opening settings, used by both platforms (iOS keeps snackbar notices; needs FRB regen)
+- [x] W4/Q7 semantic colors — decision: **iOS mapping is the reference**; update presets.json + web, make web CSS use the semantic vars, drift-check semantics
+- [x] C2 — decision: **apply rabbet-width checks to sight-size** (Float exempt until Phase 2)
+- [x] A13 — decision: **cold launch starts from custom defaults**
+- [x] A8 — decision: **reword the descriptions** (theme stays fixed)
+- [x] A9 — decision: **yes, decimal mode shows `"` via Rust formatter** (bundled with C9 FRB regen)
+- [x] C18 `dominant-baseline` — verified 2026-09-23 on simulator + iOS PDF: flutter_svg and the `pdf` package ignore it, so iOS plan callouts sit ~0.35em off-center (rotated labels sit outside their line); web (browsers) is centered. Cosmetic, readable. `dy` is not portable; only an explicit y shift (as the artwork label uses) renders the same everywhere. **Deferred into C6** (same placement code; needs visual sign-off). Evidence was in the session scratchpad (c18/).
+- [x] C17 unit-aware history title (pulled in from Phase 5: rides the same FRB regen)
+- Phase 4 notes: mobile bridge gained sibling fns (`apply_input_constraints`, `format_display_value_bridge`, `add_to_history_with_unit`); old `format_dimension_bridge`/`add_to_history`/`validate_frame_design` kept (delegating) — prune in Q2. FRB 2.11.1 regen, content hash 952246595. `ColorPalette::get` resolver fixed (closes C15). New open question: web accent buttons (Export PDF, Save, Save to History, Save Size = raw Seaweed; Share = success green) don't follow any semantic category — should they follow Primary? iOS: Settings "N customized" count uses warningDark (arguably Modified). Other new `ValidationConfig` fields (warnMinMatOpening, min/maxMatOverlap) not exposed in web Settings.
+- [x] T9 — not asked; gitignoring CLAUDE.md/.claude looks intentional (private) — left as is
 
 ### Phase 5 — Larger refactors (each its own mini-plan when started)
-- [ ] C6 callout layout ↔ renderer unification (golden churn; iOS visual check)
+- [ ] C6 callout layout ↔ renderer unification (golden churn; iOS visual check) — include C18: replace `dominant-baseline="central"` with an explicit `BASELINE_SHIFT_RATIO` y shift so iOS/PDF match web
 - [ ] C7 dark-mode diagram colors into `DiagramStyle` (+ inset-box helper)
 - [ ] Q4 boundary: `ShareableParams::from_design`, one camelCase `getDefaults`, overlay/spline/hanging/weight helpers into core, `#[serde(default)]` on param structs, `DiagramOptions` options object
 - [ ] Q5 Dart parsers/formatters → Rust-backed shared utils; `saved_sizes_sheet` display format
@@ -92,7 +94,7 @@ IDs: **A** = user-visible bug (iOS), **W** = user-visible bug (web), **C** = cor
 - [ ] T4 deploy.yml stamps SHA into `?v=`/sw caches; versioned wasm URL
 - [ ] W12/Q9 accessibility passes (web keyboard/labels; iOS semantics/tap targets — Dynamic Type check before layout changes)
 - [ ] W15 history timestamps → seconds (HISTORY_VERSION 2); W16 core aspect label on web
-- [ ] C11, C12, C14, C15, C16 small core cleanups; C17 unit-aware history title (with FRB regen)
+- [ ] C11, C12, C14, C16 small core cleanups (C15 fixed in Phase 4)
 - [ ] D4 archive/consolidate stale docs (root + mobile `RELEASING.md`); refresh README/ARCHITECTURE
 
 ---
