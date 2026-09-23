@@ -1264,4 +1264,44 @@ mod tests {
         let (fh, fw) = d.get_fitted_component_dimensions();
         assert!(fh >= 0.0 && fw >= 0.0, "fitted never negative");
     }
+
+    // ========================================================================
+    // Sight-size components & depth stack
+    // ========================================================================
+    //
+    // 8×10 sight-size, 3/8" rabbet, 1/16" assembly margin (mat widths left set):
+    // opening       = art                              = (8, 10)
+    // rabbet seat   = art + 2×0.375                    = (8.75, 10.75)
+    // fitted cut    = seat − 2×0.0625                  = (8.625, 10.625)
+    // z stack       = glazing + art + backing + margin (no matboard)
+
+    fn sight_size_8x10() -> FrameDesign {
+        FrameDesign {
+            frame_style: FrameStyle::SightSize,
+            rabbet_width: 0.375,
+            assembly_margin: 0.0625,
+            glazing_thickness: 0.093,
+            matboard_thickness: 0.055,
+            artwork_thickness: 0.008,
+            backing_thickness: 0.125,
+            ..FrameDesign::new(8.0, 10.0)
+        }
+    }
+
+    #[test]
+    fn test_sight_size_glazing_and_backing_seat_under_lip() {
+        let d = sight_size_8x10();
+        assert_pair(d.get_visible_dimensions(), (8.0, 10.0), "opening = art");
+        assert_pair(d.get_matboard_dimensions(), (8.75, 10.75), "seat = art + 2×rabbet");
+        assert_pair(d.get_fitted_component_dimensions(), (8.625, 10.625),
+            "cut = seat − 2×margin");
+    }
+
+    #[test]
+    fn test_sight_size_depth_stack_excludes_matboard() {
+        let d = sight_size_8x10();
+        assert!(d.mat_width_top_bottom > 0.0, "test setup: mat widths still set");
+        // 0.093 + 0.008 + 0.125 + 0.0625 = 0.2885 (the 0.055 matboard is ignored)
+        assert_close(d.get_rabbet_z_depth_required(), 0.2885, "sight-size stack");
+    }
 }

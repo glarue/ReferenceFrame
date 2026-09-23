@@ -356,6 +356,16 @@ fn parse_input(input: &str) -> DimensionInput {
 
     // Try to parse as pure decimal/integer first
     if let Ok(val) = cleaned.parse::<f64>() {
+        // f64 parsing accepts "inf", "NaN", "infinity" and overflows like
+        // "1e400" → inf; none of these is a dimension.
+        if !val.is_finite() {
+            return DimensionInput {
+                value: 0.0,
+                original: input.to_string(),
+                was_fractional: false,
+                error: Some(format!("Not a finite number: {}", input)),
+            };
+        }
         let val = if is_negative { -val } else { val };
         return DimensionInput {
             value: val,
@@ -872,5 +882,18 @@ mod tests {
         assert!((spaced.value() - 2.5).abs() < 0.001);
         assert!(adjacent.was_fractional());
         assert!(spaced.was_fractional());
+    }
+
+    #[test]
+    fn test_non_finite_input_rejected() {
+        // f64::from_str accepts these; a dimension must be finite.
+        for s in ["inf", "-inf", "NaN", "infinity", "1e400"] {
+            let dim = DimensionInput::new(s);
+            assert!(!dim.is_valid(), "{s:?} must be rejected");
+            assert!(dim.value().is_finite(), "{s:?} must not leak a non-finite value");
+            assert!(!is_valid_dimension_input(s), "{s:?} rejected by the legacy API too");
+        }
+        // Large but finite values still parse
+        assert!(DimensionInput::new("1e3").is_valid());
     }
 }

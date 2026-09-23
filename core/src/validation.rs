@@ -190,7 +190,8 @@ impl TypicalRanges {
         };
 
         if use_mm {
-            format!("Typical: {:.1}mm - {:.1}mm", min * 25.4, max * 25.4)
+            let mm = conversions::Unit::Millimeters;
+            format!("Typical: {} - {}", conversions::format_value(min, mm), conversions::format_value(max, mm))
         } else {
             format!("Typical: {} - {}", conversions::format_inches_as_fraction(min), conversions::format_inches_as_fraction(max))
         }
@@ -363,12 +364,41 @@ impl WasmValidationResult {
 pub fn validate_design(design: &FrameDesign, config: &ValidationConfig, use_mm: bool) -> ValidationResult {
     let mut result = ValidationResult::new();
 
+    // Non-finite values (NaN/inf) slip through every range comparison below,
+    // so reject them up front and skip the remaining checks.
+    let numeric_fields = [
+        ("artwork_width", "Artwork width", design.artwork_width),
+        ("artwork_height", "Artwork height", design.artwork_height),
+        ("mat_width_top_bottom", "Mat width (top/bottom)", design.mat_width_top_bottom),
+        ("mat_width_sides", "Mat width (sides)", design.mat_width_sides),
+        ("mat_overlap", "Mat overlap", design.mat_overlap),
+        ("rabbet_width", "Rabbet width", design.rabbet_width),
+        ("rabbet_depth", "Rabbet depth", design.rabbet_depth),
+        ("frame_material_width", "Frame width", design.frame_material_width),
+        ("frame_material_depth", "Frame depth", design.frame_material_depth),
+        ("matboard_thickness", "Matboard thickness", design.matboard_thickness),
+        ("artwork_thickness", "Artwork thickness", design.artwork_thickness),
+        ("backing_thickness", "Backing thickness", design.backing_thickness),
+        ("glazing_thickness", "Glazing thickness", design.glazing_thickness),
+        ("assembly_margin", "Assembly margin", design.assembly_margin),
+        ("float_reveal", "Float reveal", design.float_reveal),
+    ];
+    for (field, label, value) in numeric_fields {
+        if !value.is_finite() {
+            result.add(ValidationIssue::error(field, &format!("{} must be a finite number", label)));
+        }
+    }
+    if result.has_errors() {
+        return result;
+    }
+
     let unit = if use_mm { conversions::Unit::Millimeters } else { conversions::Unit::Inches };
     // Decimal style (replaces the old {:.3}"/{:.1}" value formats). Trims trailing
-    // zeros for a clean read: 12.000" -> 12", 0.750" -> 0.75", 0.093" kept; mm to 0.1mm.
+    // zeros for a clean read: 12.000" -> 12", 0.750" -> 0.75", 0.093" kept; mm uses
+    // the shared "12.7 mm" formatter (same as fmt_frac).
     let fmt_dec = |v: f64| -> String {
         if use_mm {
-            format!("{:.1}mm", v * 25.4)
+            conversions::format_value(v, unit)
         } else {
             let s = format!("{:.3}", v);
             format!("{}\"", s.trim_end_matches('0').trim_end_matches('.'))
@@ -571,13 +601,10 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig, use_mm: 
 
     // === SOFT WARNINGS ===
 
-    // Material stack overflow (already shown in viz, but also warn here)
-    let total_stack = design.glazing_thickness
-        + design.matboard_thickness
-        + design.artwork_thickness
-        + design.backing_thickness
-        + design.assembly_margin;
-    
+    // Material stack overflow (already shown in viz, but also warn here). Uses
+    // the same stack as the section view: matboard only counts when there's a mat.
+    let total_stack = design.get_rabbet_z_depth_required();
+
     if total_stack > design.rabbet_depth {
         let overflow = total_stack - design.rabbet_depth;
         result.add(ValidationIssue::warning(
@@ -1014,5 +1041,125 @@ mod tests {
         assert!(result.has_errors());
         // Should have both artwork_width max dimension error AND opening error
         assert!(result.issues.iter().any(|i| i.field == "artwork_width"));
+    }
+
+    // --- Material stack warning uses the real (mat-aware) stack ---
+
+    fn has_stack_warning(result: &ValidationResult) -> bool {
+        result.warnings().iter().any(|w| w.message.contains("stack exceeds"))
+    }
+
+    #[test]
+    fn test_stack_warning_no_mat_excludes_matboard() {
+        // Regression: 8x10, no mat, 5/16" rabbet. Needed stack is
+        // glazing .093 + art .008 + backing .125 + margin .0625 = .2885" < .3125",
+        // but the warning used to add the (unused) matboard → .3435" → false alarm.
+        let mut design = FrameDesign::new(8.0, 10.0);
+        design.mat_width_top_bottom = 0.0;
+        design.mat_width_sides = 0.0;
+        design.rabbet_depth = 0.3125;
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        assert!(!has_stack_warning(&result), "no-mat stack fits: {:?}", result.issues);
+    }
+
+    #[test]
+    fn test_stack_warning_sight_size_ignores_mat_thickness() {
+        // Sight-size never has a mat, even with mat widths set
+        let mut design = FrameDesign::new(8.0, 10.0);
+        design.frame_style = FrameStyle::SightSize;
+        design.rabbet_depth = 0.3125;
+        assert!(design.mat_width_top_bottom > 0.0, "test setup: mat widths set");
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        assert!(!has_stack_warning(&result), "sight-size stack fits: {:?}", result.issues);
+    }
+
+    #[test]
+    fn test_stack_warning_matted_overflow_warns() {
+        // With a mat the same 5/16" rabbet overflows: .3435" > .3125"
+        let mut design = FrameDesign::new(8.0, 10.0);
+        design.rabbet_depth = 0.3125;
+        assert!(design.has_mat());
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        let warning = result.warnings().into_iter()
+            .find(|w| w.message.contains("stack exceeds"))
+            .expect("matted stack should overflow");
+        assert_eq!(warning.field, "rabbet_depth");
+        assert!(warning.details.as_deref().unwrap_or("").contains("Overflow: 0.031\""),
+            "details: {:?}", warning.details);
+    }
+
+    // --- Non-finite guard ---
+
+    #[test]
+    fn test_non_finite_fields_are_errors() {
+        let mut design = FrameDesign::new(f64::NAN, 10.0);
+        design.frame_material_width = f64::INFINITY;
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        assert!(!result.is_valid(), "NaN/inf must not validate clean");
+        let errors = result.errors();
+        assert!(errors.iter().any(|e| e.field == "artwork_height"
+            && e.message == "Artwork height must be a finite number"));
+        assert!(errors.iter().any(|e| e.field == "frame_material_width"));
+        // Remaining checks are skipped, so no nonsense cascade (e.g. "inf" limits)
+        assert_eq!(errors.len(), 2, "only the non-finite fields: {:?}", errors);
+    }
+
+    // --- Frame styles ---
+
+    #[test]
+    fn test_sight_size_design_is_valid_and_skips_mat_checks() {
+        let mut design = FrameDesign::new(11.0, 14.0);
+        design.frame_style = FrameStyle::SightSize;
+        design.mat_overlap = 50.0; // would fail every mat check if a mat applied
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        assert!(result.is_valid(), "sight-size default should be valid: {:?}", result.issues);
+        assert!(!result.issues.iter().any(|i| i.field == "mat_overlap"),
+            "no mat → no mat checks: {:?}", result.issues);
+        // Opening = art, so no "artwork extends only" / gap warnings either
+        assert!(!result.issues.iter().any(|i| i.field == "artwork_width" || i.field == "artwork_height"),
+            "{:?}", result.issues);
+    }
+
+    #[test]
+    fn test_float_design_is_valid() {
+        // Float is inert (behaves like sight-size) until Phase 2
+        let mut design = FrameDesign::new(11.0, 14.0);
+        design.frame_style = FrameStyle::Float;
+        design.float_reveal = 0.25;
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        assert!(result.is_valid(), "float default should be valid: {:?}", result.issues);
+    }
+
+    // --- mm-mode messages ---
+
+    #[test]
+    fn test_mm_messages_use_consistent_mm_format() {
+        let mut design = test_design();
+        design.frame_material_width = 0.25; // below the 1/2" minimum
+        design.glazing_thickness = 0.75;    // above the 1/2" maximum (check_range path)
+        let result = validate_design(&design, &ValidationConfig::default(), true);
+        let frame_err = result.errors().into_iter()
+            .find(|e| e.field == "frame_material_width")
+            .expect("frame width error");
+        assert_eq!(frame_err.message, "Frame width must be at least 12.7 mm");
+        assert!(result.errors().iter().any(|e| e.field == "glazing_thickness"
+            && e.message.ends_with("must be at most 12.7 mm")));
+        // Every value renders as "<n> mm": no inch marks, no "12.7mm" style
+        for issue in &result.issues {
+            for text in [issue.message.as_str(), issue.details.as_deref().unwrap_or("")] {
+                assert!(!text.contains('"'), "inch mark in mm message: {text}");
+                let bytes = text.as_bytes();
+                for (i, _) in text.match_indices("mm") {
+                    assert!(i == 0 || !bytes[i - 1].is_ascii_digit(), "unspaced mm: {text}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_typical_range_hint_mm_format() {
+        let ranges = TypicalRanges::default();
+        assert_eq!(ranges.get_range_hint("frame_width", true), "Typical: 19 mm - 101.6 mm");
+        assert_eq!(ranges.get_range_hint("frame_width", false), "Typical: 3/4\" - 4\"");
     }
 }

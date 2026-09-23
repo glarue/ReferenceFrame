@@ -301,8 +301,15 @@ pub fn convert_to_tape_measure(
 /// * `value` - Measurement in decimal inches
 ///
 /// # Returns
-/// Formatted string like "12 3/4\"" or "1/2\"" or "5\""
+/// Formatted string like "12 3/4\"" or "1/2\"" or "5\"". Negative values
+/// format their magnitude with a leading "-" (e.g. "-3/4\"").
 pub fn format_inches_as_fraction(value: f64) -> String {
+    if value < 0.0 {
+        let magnitude = format_inches_as_fraction(-value);
+        // Values that snap to zero stay unsigned ("0\"", not "-0\"")
+        return if magnitude == "0\"" { magnitude } else { format!("-{}", magnitude) };
+    }
+
     let whole = value.floor() as i32;
     let decimal = value - whole as f64;
 
@@ -319,6 +326,10 @@ pub fn format_inches_as_fraction(value: f64) -> String {
         if ((numerator as f64 / denom as f64) - decimal).abs() < FRACTION_MATCH_TOLERANCE {
             if numerator == 0 {
                 return format!("{}\"", whole);
+            }
+            // Within tolerance just below the next whole inch: carry (never "1/1")
+            if numerator == denom {
+                return format!("{}\"", whole + 1);
             }
 
             // Reduce the fraction
@@ -388,11 +399,9 @@ pub fn format_value_with_decimal(value: f64, unit: Unit) -> String {
     match unit {
         Unit::Inches => {
             let fraction = format_inches_as_fraction(value);
-            // Check if this is a whole number (no fractional part)
-            let whole = value.floor();
-            let decimal_part = value - whole;
-
-            if decimal_part.abs() < FRACTION_MATCH_TOLERANCE {
+            // Check if this is a whole number (within tolerance of the nearest
+            // integer on either side, matching the fraction formatter's carry)
+            if (value - value.round()).abs() < FRACTION_MATCH_TOLERANCE {
                 // Whole number - no need for decimal
                 fraction
             } else {
@@ -469,19 +478,25 @@ fn format_inches_decimal(value: f64) -> String {
 pub fn format_value_tape_measure(value: f64, unit: Unit) -> String {
     match unit {
         Unit::Inches => {
-            let result = convert_to_tape_measure(value, true, DEFAULT_DENOMS);
+            // convert_to_tape_measure requires a non-negative value: format the
+            // magnitude and prefix the sign.
+            let sign = if value < 0.0 { "-" } else { "" };
+            let magnitude = value.abs();
+            let result = convert_to_tape_measure(magnitude, true, DEFAULT_DENOMS);
             let tape_str = result.format();
 
             // Only show decimal if there's an adjustment (meaning the value
             // didn't land exactly on a standard fraction)
             if result.adjustment.is_some() {
                 // Format decimal, strip trailing zeros
-                let decimal = format!("{:.3}", value);
+                let decimal = format!("{:.3}", magnitude);
                 let decimal = decimal.trim_end_matches('0').trim_end_matches('.');
                 let tape_no_quote = tape_str.trim_end_matches('"');
-                format!("{} ({}\")", tape_no_quote, decimal)
-            } else {
+                format!("{}{} ({}{}\")", sign, tape_no_quote, sign, decimal)
+            } else if tape_str == "0\"" {
                 tape_str
+            } else {
+                format!("{}{}", sign, tape_str)
             }
         }
         Unit::Millimeters => format_mm(value),
@@ -720,20 +735,43 @@ mod tests {
         let result = format_inches_as_fraction(12.002);
         assert_ne!(result, "12\"", "12.002 should not snap to clean 12");
 
-        // Near 1.0 from below: 0.999 — decimal part = 0.999, which is
-        // within tolerance of 32/32 (i.e., the numerator rounds to denom)
-        // so it snaps to 1/1 which displays as "0" whole + "1/1" fraction path,
-        // but actually numerator==denom means it becomes whole+1.
-        // The function returns whole=0, decimal=0.999, and 0.999 > tolerance,
-        // so it tries fractions. For denom=2: round(0.999*2)=2, 2/2=1.0,
-        // |1.0 - 0.999| = 0.001 which is AT the boundary.
-        let result = format_inches_as_fraction(0.999);
-        // 0.999 is within tolerance of 1.0 via the fraction loop (numerator rounds to denom)
-        // The function checks numerator==0 not numerator==denom, so it returns "0 2/2" reduced = "0 1/1"
-        // Actually: numerator=2, denom=2, gcd=2, so num=1, den=1 → "0 1/1" or "1/1"
-        // This is a known edge case — the function doesn't guard against num==den after reduction.
-        // Just verify it doesn't panic and produces some output.
-        assert!(!result.is_empty());
+        // Within tolerance just BELOW a whole number: the rounded numerator
+        // equals the denominator, so it carries to the next whole inch
+        // (regression: these used to print "12 1/1\"" / "1/1\"").
+        assert_eq!(format_inches_as_fraction(12.9996), "13\"");
+        assert_eq!(format_inches_as_fraction(0.9995), "1\"");
+        assert_eq!(format_inches_as_fraction(mm_to_inches(279.39)), "11\"");
+
+        // 0.999 is exactly at the (strict) tolerance boundary, so it doesn't
+        // snap — but it must never render as an unreduced "1/1".
+        assert!(!format_inches_as_fraction(0.999).contains("1/1"));
+    }
+
+    #[test]
+    fn test_near_whole_carry_in_decimal_and_tape_variants() {
+        // The decimal variant matches the carry — no "(13)" echo of the whole
+        assert_eq!(format_value_with_decimal(12.9996, Unit::Inches), "13\"");
+        assert_eq!(format_value_with_decimal(mm_to_inches(279.39), Unit::Inches), "11\"");
+        // Tape measure and pure-decimal paths already carried correctly
+        assert_eq!(format_dimension(12.9996, Unit::Inches, true, false), "13\"");
+        assert_eq!(format_dimension(12.9996, Unit::Inches, false, true), "12.9996\"");
+    }
+
+    #[test]
+    fn test_negative_values_keep_sign_and_magnitude() {
+        // Regression: -0.75 used to print "1/4\"" (floor-based split)
+        assert_eq!(format_inches_as_fraction(-0.75), "-3/4\"");
+        assert_eq!(format_inches_as_fraction(-0.25), "-1/4\"");
+        assert_eq!(format_inches_as_fraction(-1.5), "-1 1/2\"");
+        assert_eq!(format_inches_as_fraction(-2.0), "-2\"");
+        // Snaps to zero → unsigned
+        assert_eq!(format_inches_as_fraction(-0.0005), "0\"");
+        assert_eq!(format_value(-0.75, Unit::Inches), "-3/4\"");
+        assert_eq!(format_value_with_decimal(-0.75, Unit::Inches), "-3/4 (-0.75)\"");
+        // Tape measure formats the magnitude (no debug-assert panic) with a sign
+        assert_eq!(format_value_tape_measure(-0.5, Unit::Inches), "-1/2\"");
+        assert_eq!(format_value_tape_measure(-4.72, Unit::Inches), "-4 3/4 - 1/32 (-4.72\")");
+        assert_eq!(format_dimension(-0.75, Unit::Inches, false, true), "-0.75\"");
     }
 
     #[test]
