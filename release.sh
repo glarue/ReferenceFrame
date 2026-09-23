@@ -11,14 +11,23 @@ set -euo pipefail
 # Scopes:
 #   core    core/Cargo.toml              tag: core-v*     repo: root
 #   app     platforms/mobile/pubspec.yaml tag: app-v*      repo: mobile
-#   bridge  platforms/mobile/rust/Cargo.toml tag: bridge-v* repo: root
+#   bridge  platforms/mobile/rust/Cargo.toml tag: bridge-v* repo: mobile
+#
+#   core counts commits touching core/ (root repo); bridge counts commits
+#   touching rust/ (mobile repo); app counts all other mobile-repo commits.
 #
 # Commit prefix → bump:
 #   feat:           → minor
 #   fix: / perf:    → patch
 #   style: / refactor: / build: / ci: / chore: / revert: → patch
-#   feat!: / BREAKING CHANGE → major
+#   feat!: / feat(scope)!: / BREAKING CHANGE → major
 #   docs: / test:   → no bump
+#   Build-number-only commits (the sole change is pubspec.yaml's
+#   `version: X.Y.Z+N` suffix, e.g. after `fastlane bump_build`) → no bump
+#
+# --apply refuses to run if tracked files in an affected repo have
+# uncommitted changes (staged or not), so the release commit contains only
+# the version bump.
 #
 # Usage:
 #   ./release.sh                # Dry run — show what would be bumped
@@ -117,7 +126,7 @@ determine_bump() {
 
 # ── Scope definitions ────────────────────────────────────────────────────────
 
-get_git_dir()    { if [[ "$1" == "app" ]]; then echo "$MOBILE_DIR"; else echo "$ROOT_DIR"; fi; }
+get_git_dir()    { if [[ "$1" == "core" ]]; then echo "$ROOT_DIR"; else echo "$MOBILE_DIR"; fi; }
 get_tag_prefix() { echo "${1}-v"; }
 
 get_version_file() {
@@ -128,12 +137,31 @@ get_version_file() {
     esac
 }
 
-get_path_filter() {
+# Pathspecs (relative to the scope's repo root) whose commits count toward the
+# scope. Sets the global PATHSPEC array.
+set_pathspec() {
     case "$1" in
-        core)   echo "core/" ;;
-        app)    echo "platforms/mobile/" ;;
-        bridge) echo "platforms/mobile/rust/" ;;
+        core)   PATHSPEC=("core/") ;;
+        app)    PATHSPEC=("." ":!rust/") ;;  # whole mobile repo except the bridge crate
+        bridge) PATHSPEC=("rust/") ;;
     esac
+}
+
+# True if a commit's only change (within the given pathspecs) is the build
+# number suffix of pubspec.yaml's `version: X.Y.Z+N` line, e.g. the
+# `build(app): bump build number to N` commits made after `fastlane bump_build`.
+# The shipped app is unchanged, so these must not trigger a semver bump.
+# Usage: is_build_number_only GIT_DIR HASH PATHSPEC...
+is_build_number_only() {
+    local git_dir="$1" hash="$2"
+    shift 2
+    local files changes
+    files="$(git -C "$git_dir" diff-tree --no-commit-id --name-only -r "$hash" -- "$@" 2>/dev/null || true)"
+    [[ "$files" == "pubspec.yaml" ]] || return 1
+    changes="$(git -C "$git_dir" diff-tree --no-commit-id -p -U0 "$hash" -- pubspec.yaml 2>/dev/null \
+        | grep -E '^[-+]' | grep -vE '^(\+\+\+|---) ' || true)"
+    local re='^-version: ([0-9]+\.[0-9]+\.[0-9]+)\+[0-9]+'$'\n''\+version: ([0-9]+\.[0-9]+\.[0-9]+)\+[0-9]+$'
+    [[ "$changes" =~ $re ]] && [[ "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]]
 }
 
 read_version() {
@@ -163,6 +191,34 @@ write_version() {
     esac
 }
 
+# ── Clean-tree check ─────────────────────────────────────────────────────────
+# --apply commits whatever is staged along with the version bump, so refuse to
+# run over uncommitted changes to tracked files. A core bump also commits the
+# mobile Cargo.lock, so it needs both repos clean.
+
+DIRTY_REPOS=()
+for repo in "$ROOT_DIR" "$MOBILE_DIR"; do
+    relevant=false
+    for scope in "${SCOPES[@]}"; do
+        if [[ "$scope" == "core" || "$repo" == "$MOBILE_DIR" ]]; then
+            relevant=true
+        fi
+    done
+    [[ "$relevant" == true && -d "$repo" ]] || continue
+    if [[ -n "$(git -C "$repo" status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
+        DIRTY_REPOS+=("$repo")
+    fi
+done
+
+if [[ "$APPLY" == true && ${#DIRTY_REPOS[@]} -gt 0 ]]; then
+    echo "ERROR: uncommitted changes to tracked files in:" >&2
+    for repo in "${DIRTY_REPOS[@]}"; do
+        echo "  $repo" >&2
+    done
+    echo "Commit or stash them before running --apply." >&2
+    exit 1
+fi
+
 # ── Main loop ────────────────────────────────────────────────────────────────
 
 any_bump=false
@@ -170,29 +226,14 @@ any_bump=false
 for scope in "${SCOPES[@]}"; do
     git_dir="$(get_git_dir "$scope")"
     tag_prefix="$(get_tag_prefix "$scope")"
-    path_filter="$(get_path_filter "$scope")"
-
-    # For app scope, path filter is relative to root but git is in mobile dir.
-    # For bridge, commits are in mobile repo too but path is relative to mobile root.
-    # Determine the right git dir and path for git log.
-    local_git_dir="$git_dir"
-    local_path_filter="$path_filter"
-
-    if [[ "$scope" == "app" ]]; then
-        # App: mobile repo, filter everything except rust/
-        local_path_filter="."
-    elif [[ "$scope" == "bridge" ]]; then
-        # Bridge: mobile repo, filter rust/
-        local_git_dir="$MOBILE_DIR"
-        local_path_filter="rust/"
-    fi
+    set_pathspec "$scope"
 
     # Find latest tag
-    latest_tag="$(git -C "$local_git_dir" tag -l "${tag_prefix}*" --sort=-v:refname | head -1 || true)"
+    latest_tag="$(git -C "$git_dir" tag -l "${tag_prefix}*" --sort=-v:refname | head -1 || true)"
 
     echo "[${scope}] Last tag: ${latest_tag:-(none)}"
 
-    # Build commit range
+    # Build commit range (no tag yet → all history)
     if [[ -n "$latest_tag" ]]; then
         range="${latest_tag}..HEAD"
     else
@@ -200,28 +241,7 @@ for scope in "${SCOPES[@]}"; do
     fi
 
     # Collect commits touching the scope's paths
-    if [[ "$scope" == "app" ]]; then
-        # App: all commits in mobile repo, excluding rust/ directory
-        if [[ -n "$latest_tag" ]]; then
-            commits="$(git -C "$local_git_dir" log --oneline "$range" -- . ':!rust/' 2>/dev/null || true)"
-        else
-            commits="$(git -C "$local_git_dir" log --oneline -- . ':!rust/' 2>/dev/null || true)"
-        fi
-    elif [[ "$scope" == "core" ]]; then
-        # Core: root repo, core/ directory
-        if [[ -n "$latest_tag" ]]; then
-            commits="$(git -C "$local_git_dir" log --oneline "$range" -- "$local_path_filter" 2>/dev/null || true)"
-        else
-            commits="$(git -C "$local_git_dir" log --oneline -- "$local_path_filter" 2>/dev/null || true)"
-        fi
-    else
-        # Bridge: mobile repo, rust/ directory
-        if [[ -n "$latest_tag" ]]; then
-            commits="$(git -C "$local_git_dir" log --oneline "$range" -- "$local_path_filter" 2>/dev/null || true)"
-        else
-            commits="$(git -C "$local_git_dir" log --oneline -- "$local_path_filter" 2>/dev/null || true)"
-        fi
-    fi
+    commits="$(git -C "$git_dir" log --oneline "$range" -- "${PATHSPEC[@]}" 2>/dev/null || true)"
 
     if [[ -z "$commits" ]]; then
         echo "[${scope}] No commits since ${latest_tag:-(beginning)}"
@@ -230,12 +250,19 @@ for scope in "${SCOPES[@]}"; do
     fi
 
     echo "[${scope}] Commits since ${latest_tag:-(beginning)}:"
+    counted=""
     while IFS= read -r line; do
-        echo "  ${line#* }"
+        [[ -z "$line" ]] && continue
+        if is_build_number_only "$git_dir" "${line%% *}" "${PATHSPEC[@]}"; then
+            echo "  ${line#* }  (ignored: build number only)"
+        else
+            echo "  ${line#* }"
+            counted+="${line}"$'\n'
+        fi
     done <<< "$commits"
 
     # Determine bump
-    bump_level="$(echo "$commits" | determine_bump "$local_git_dir")"
+    bump_level="$(printf '%s' "$counted" | determine_bump "$git_dir")"
 
     if [[ "$bump_level" == "none" ]]; then
         echo "[${scope}] No version-relevant commits"
@@ -255,7 +282,20 @@ for scope in "${SCOPES[@]}"; do
 
         # Commit and tag
         version_file="$(get_version_file "$scope")"
-        git -C "$local_git_dir" add "$version_file"
+        git -C "$git_dir" add "$version_file"
+
+        # Core bump: refresh the core entry in the web bindings' Cargo.lock
+        # (same repo) so it lands in the release commit instead of dirtying the
+        # tree on the next WASM build. `cargo metadata` only re-resolves the
+        # path dependency; it does not upgrade registry crates.
+        wasm_lock="$ROOT_DIR/platforms/web/wasm_bindings/Cargo.lock"
+        if [[ "$scope" == "core" && -f "$wasm_lock" ]]; then
+            if ! cargo metadata --format-version 1 --manifest-path "$ROOT_DIR/platforms/web/wasm_bindings/Cargo.toml" > /dev/null; then
+                echo "ERROR: failed to refresh $wasm_lock" >&2
+                exit 1
+            fi
+            git -C "$ROOT_DIR" add "$wasm_lock"
+        fi
 
         # If core or bridge Cargo.toml changed, update the mobile Cargo.lock
         if [[ "$scope" == "core" || "$scope" == "bridge" ]]; then
@@ -278,8 +318,8 @@ for scope in "${SCOPES[@]}"; do
             fi
         fi
 
-        git -C "$local_git_dir" commit -m "chore(release): ${scope} v${new_ver}"
-        git -C "$local_git_dir" tag -a "${tag_prefix}${new_ver}" -m "${scope} v${new_ver}"
+        git -C "$git_dir" commit -m "chore(release): ${scope} v${new_ver}"
+        git -C "$git_dir" tag -a "${tag_prefix}${new_ver}" -m "${scope} v${new_ver}"
         echo "[${scope}] Created tag ${tag_prefix}${new_ver}"
         echo ""
     fi
@@ -287,4 +327,10 @@ done
 
 if [[ "$APPLY" == false && "$any_bump" == true ]]; then
     echo "Run with --apply to execute."
+    if [[ ${#DIRTY_REPOS[@]} -gt 0 ]]; then
+        echo "Note: --apply will refuse until uncommitted changes are committed or stashed in:"
+        for repo in "${DIRTY_REPOS[@]}"; do
+            echo "  $repo"
+        done
+    fi
 fi
