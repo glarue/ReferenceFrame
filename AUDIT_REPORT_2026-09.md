@@ -35,11 +35,12 @@ IDs: **A** = user-visible bug (iOS), **W** = user-visible bug (web), **C** = cor
 - Phase 1 leftovers (do with the related item): `settings_screen.dart` empty `.then` "Trigger rebuild" + "used by both" doc (with Q1); `plan_svg.rs:629,911,920` "white" wording for `background_color` fills; `simple.rs` docs (with Q2/Q4 FRB regen); README/PROJECT_STRATEGY "28-byte" (with D4); `history.rs:29` vs web ms (W15); `validation.rs:418` (C2).
 
 ### Phase 2 — Dead code removal (no behavior change)
-- [ ] Q1 Flutter: `export_screen.dart`, unused screen wrappers, `selectedStandardSize` plumbing, `saveToHistoryQuiet`, `*.dart.backup`, unused DesignState/StorageService/AppColors members, dead theme blocks, unused params, stale always-pass integration tests, `analysis_options` stale exclude, unused import
-- [ ] Q3 core/viz: `FrameSize`, `push_backdropped_text`, `render_zigzag_line`, `use_tick_marks` path, unused `DiagramStyle` fields/`DimensionType` variants, unused `approx` dev-dep (hatch `<pattern>` deferred — changes goldens)
-- [ ] Q3 web: dead CSS blocks (grep-verified incl. JS `classList`), PDF debug logging + per-keystroke `[DEBUG]` logs, dead `rabbet_width ??` fallback, `platforms/web/build.sh`
-- [ ] C8 dead section callouts + their wrong-formula tests
+- [x] Q1 Flutter: `export_screen.dart`, unused screen wrappers, `selectedStandardSize` plumbing, `saveToHistoryQuiet`, `*.dart.backup`, unused DesignState/StorageService/AppColors members, dead theme blocks, unused params, stale always-pass integration tests, `analysis_options` stale exclude, unused import
+- [x] Q3 core/viz: `FrameSize`, `push_backdropped_text`, `render_zigzag_line`, `use_tick_marks` path, unused `DiagramStyle` fields/`DimensionType` variants, unused `approx` dev-dep (hatch `<pattern>` deferred — changes goldens)
+- [x] Q3 web: dead CSS blocks (grep-verified incl. JS `classList`), PDF debug logging + per-keystroke `[DEBUG]` logs, dead `rabbet_width ??` fallback, `platforms/web/build.sh`
+- [x] C8 dead section callouts + their wrong-formula tests
 - Deferred to Phase 5 (need FRB regen / iOS build check): Q2 unused bridge exports, unused pubspec deps
+- Phase 2 notes: also removed 3 scripts that only ran the deleted integration tests, ~34 orphaned CSS custom properties, 7 unused DesignState members, 3 StorageService members; merged DesignState defaults table (fixed `backing_thickness` fallback 0.1875→0.125); fixed `formatDecimalTrimmed(decimals: 0)` + 12 new Dart tests. Kept on purpose: StorageService tape/settings getters (used by `exportAll`/`importAll` — decide with export work), hatch `<pattern>`, C6-related layout fields, MD3 token scales, palette `-light/-dark` vars (drift-checked), W4 semantic tokens. New dead after Phase 2: bridge `getColor` (add to Q2). Docs still referencing removed items (fix in D4): `ARCHITECTURE.md` (build.sh), mobile `UI_TEST_PLAN.md`, `SCREENSHOT_GUIDE.md`, `FASTLANE_KEYS_SCOPE.md`, `ASPECT_RATIO_*.md`.
 
 ### Phase 3 — Low-risk real bugs
 - [ ] A1 single-owner unit preference (+ one-time key migration)
