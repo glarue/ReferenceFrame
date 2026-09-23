@@ -87,12 +87,10 @@ fn generate_plan_view(
     run_collision_pass(&mut geometry, &mut layout, style);
 
     let svg = build_plan_svg(design, &geometry, &callouts, &layout, options, style);
-    let frame_center_x = Some(geometry.frame_outer.center().x);
 
     DiagramResult {
         svg,
         warnings: layout.warnings,
-        frame_center_x,
     }
 }
 
@@ -462,7 +460,6 @@ fn generate_section_view(
     DiagramResult {
         svg,
         warnings: Vec::new(),
-        frame_center_x: None,
     }
 }
 
@@ -618,8 +615,6 @@ fn generate_combined_view(
         let (tx, ty, scale) = calculate_fit_transform(
             vx, vy, vw, vh,
             0.0, title_height, options.canvas_width, plan_render_h,
-            true,
-            None,
         );
         svg.push_str(&format!(
             r#"  <g id="plan-view" transform="translate({:.2}, {:.2}) scale({:.4})">{}</g>"#,
@@ -637,8 +632,6 @@ fn generate_combined_view(
         let (tx, ty, scale) = calculate_fit_transform(
             vx, vy, vw, vh,
             0.0, section_y, options.canvas_width, section_zone_h,
-            true,
-            None,
         );
         svg.push_str(&format!(
             r#"  <g id="section-view" transform="translate({:.2}, {:.2}) scale({:.4})">{}</g>"#,
@@ -657,19 +650,15 @@ fn generate_combined_view(
     let mut warnings = plan_result.warnings;
     warnings.extend(section_result.warnings);
 
-    DiagramResult { svg, warnings, frame_center_x: None }
+    DiagramResult { svg, warnings }
 }
 
 /// Calculate transform (tx, ty, scale) to fit a source rect into a target rect.
-/// Preserves aspect ratio (meet).
-/// - align_top: aligns to top of target (YMin) if true, else centers vertically (YMid)
-/// - frame_center_x: if Some, horizontally centers the frame body (not the viewBox midpoint)
-///   in the dest rect, clamped to keep content within bounds.
+/// Preserves aspect ratio (meet), centers horizontally (XMid), and aligns to
+/// the top of the target (YMin).
 fn calculate_fit_transform(
     src_x: f64, src_y: f64, src_w: f64, src_h: f64,
     dest_x: f64, dest_y: f64, dest_w: f64, dest_h: f64,
-    align_top: bool,
-    frame_center_x: Option<f64>,
 ) -> (f64, f64, f64) {
     if src_w <= 0.0 || src_h <= 0.0 || dest_w <= 0.0 || dest_h <= 0.0 {
         return (dest_x, dest_y, 1.0);
@@ -683,26 +672,12 @@ fn calculate_fit_transform(
     let scale = scale_x.min(scale_y);
 
     let new_w = src_w * scale;
-    let new_h = src_h * scale;
 
-    // Horizontal: center frame body if available, else center viewBox (XMid)
-    let offset_x = if let Some(fc_x) = frame_center_x {
-        // Place the scaled frame center at the horizontal midpoint of dest
-        let raw = dest_w / 2.0 - scale * (fc_x - src_x);
-        // Clamp so content stays within dest bounds
-        raw.max(0.0).min(dest_w - new_w)
-    } else {
-        (dest_w - new_w) / 2.0
-    };
-
-    let offset_y = if align_top {
-        0.0
-    } else {
-        (dest_h - new_h) / 2.0
-    };
+    // Horizontal: center the viewBox (XMid); vertical: top-aligned (YMin)
+    let offset_x = (dest_w - new_w) / 2.0;
 
     let tx = dest_x + offset_x - scale * src_x;
-    let ty = dest_y + offset_y - scale * src_y;
+    let ty = dest_y - scale * src_y;
 
     if !tx.is_finite() || !ty.is_finite() || !scale.is_finite() {
         return (dest_x, dest_y, 1.0);
@@ -1224,6 +1199,5 @@ mod thumbnail_scale_tests {
         let result = generate_diagram_with_style(&d, &opts, &plan_style);
         let (_, _, vw, vh) = extract_viewbox(&result.svg).unwrap();
         assert!(vw > 0.0 && vh > 0.0);
-        assert!(result.frame_center_x.is_some());
     }
 }

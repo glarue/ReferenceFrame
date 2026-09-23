@@ -63,8 +63,6 @@ impl Default for MaterialPatterns {
             matboard: FillPattern::Solid("#F5F0E1".to_string()), // Cream
             artwork: FillPattern::Hatched {
                 color: "#E8E8E8".to_string(),
-                line_color: "#CCCCCC".to_string(),
-                spacing: 3.0,
             },
             backing: FillPattern::Solid("#A0A0A0".to_string()), // Gray (distinct from wood frame)
         }
@@ -76,17 +74,9 @@ impl Default for MaterialPatterns {
 pub enum FillPattern {
     /// Solid color fill
     Solid(String),
-    /// Diagonal hatching
+    /// Diagonal hatching (currently rendered as a flat `color` fill)
     Hatched {
         color: String,
-        line_color: String,
-        spacing: f64,
-    },
-    /// Cross-hatching
-    CrossHatched {
-        color: String,
-        line_color: String,
-        spacing: f64,
     },
 }
 
@@ -110,8 +100,6 @@ pub struct DiagramStyle {
     pub artwork_dimension_color: String,
     /// Accent color for highlights
     pub accent_color: String,
-    /// Content boundary color (dashed outline showing matboard/content edge)
-    pub content_boundary_color: String,
     /// Artwork boundary color (Willow Green)
     pub artwork_color: String,
     /// Warning/alert color (for interference)
@@ -144,10 +132,6 @@ pub struct DiagramStyle {
     pub extension_line_gap: f64,
     /// How far extension lines extend past dimension line
     pub extension_line_overshoot: f64,
-    /// Size of tick marks at dimension line ends
-    pub tick_size: f64,
-    /// Use tick marks instead of arrows
-    pub use_tick_marks: bool,
     /// Base offset for first dimension level from geometry
     pub dimension_offset_base: f64,
     /// Additional offset per stacking level
@@ -159,8 +143,6 @@ pub struct DiagramStyle {
     // Layout margins
     /// Margin around the diagram content
     pub margin: f64,
-    /// Minimum spacing between labels
-    pub label_spacing: f64,
 
     // Section view layout constants (shared between geometry and SVG)
     /// Depth dimension line offset from frame edge (section view, left side)
@@ -202,7 +184,6 @@ impl Default for DiagramStyle {
             mat_dimension_color: "#f3722c".to_string(),     // Atomic Tangerine - mat dimensions
             artwork_dimension_color: "#f8961e".to_string(), // Carrot Orange - artwork dimensions
             accent_color: "#46af8f".to_string(),            // Seaweed - accent
-            content_boundary_color: "#8B7355".to_string(),  // Warm brown - content boundary
             artwork_color: "#90be6d".to_string(),            // Willow Green - artwork boundary
             warning_color: "#f94144".to_string(),           // Strawberry Red - error
             success_color: "#90be6d".to_string(),           // Willow Green - success
@@ -222,8 +203,6 @@ impl Default for DiagramStyle {
             // Dimension styling - arrows for professional look
             extension_line_gap: 6.0,
             extension_line_overshoot: 4.0,
-            tick_size: 8.0,
-            use_tick_marks: false, // Use arrows instead
             dimension_offset_base: 22.0, // Compact spacing from geometry
             dimension_offset_step: 28.0, // Must be > 1.6 × label_font_size (= 20.8); 28 gives 7.2px gap (was 24 = 3.2px, visually crowded on narrow screens)
 
@@ -232,7 +211,6 @@ impl Default for DiagramStyle {
 
             // Layout - minimal margins (dynamic bounds handle label space)
             margin: 8.0,  // Small padding for visual comfort
-            label_spacing: 6.0,
 
             // Section view layout
             section_depth_dim_offset: 18.0,
@@ -288,7 +266,6 @@ impl DiagramStyle {
         style.mat_dimension_color = "#F7A675".to_string(); // Atomic Tangerine (light) - mat dims
         style.artwork_dimension_color = "#FBBB6D".to_string(); // Carrot Orange (light) - artwork dims
         style.accent_color = "#7EC7B1".to_string(); // Seaweed (light)
-        style.content_boundary_color = "#C2AD90".to_string(); // light warm tan - content boundary
         style.artwork_color = "#B8D4A2".to_string(); // Willow Green (light) - artwork boundary
         style.warning_color = "#FB8A8C".to_string(); // Strawberry Red (light)
         style.success_color = "#B8D4A2".to_string(); // Willow Green (light)
@@ -400,7 +377,6 @@ mod tests {
     fn test_default_style() {
         let style = DiagramStyle::default();
         assert_eq!(style.background_color, "#FFFFFF");
-        assert!(!style.use_tick_marks); // Now using arrows instead
     }
 
     #[test]

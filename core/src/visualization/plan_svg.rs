@@ -1001,14 +1001,8 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
         DimensionType::FrameOutsideWidth
         | DimensionType::FrameOutsideHeight => &style.outside_dimension_color,
         DimensionType::MatCutWidth
-        | DimensionType::MatCutHeight
-        | DimensionType::MatOpeningWidth
-        | DimensionType::MatOpeningHeight
-        | DimensionType::MatVisibleWidth
-        | DimensionType::MatVisibleHeight => &style.mat_dimension_color,
-        DimensionType::ArtworkWidth
-        | DimensionType::ArtworkHeight => &style.artwork_dimension_color,
-        _ => &style.dimension_color,
+        | DimensionType::MatCutHeight => &style.mat_dimension_color,
+        DimensionType::TotalStackHeight => &style.dimension_color,
     };
 
     svg.push_str(&format!(r#"    <g class="dimension">"#));
@@ -1090,15 +1084,7 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
     let line_along1 = arrow_line_endpoint_for_target(along_start, style.dimension_stroke_width, true);
     let line_along2 = arrow_line_endpoint_for_target(along_end, style.dimension_stroke_width, false);
 
-    if style.use_tick_marks {
-        let (x1, y1) = xy(line_along1, dim_across);
-        let (x2, y2) = xy(line_along2, dim_across);
-        svg.push_str(&format!(
-            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            x1, y1, x2, y2, dim_color, style.dimension_stroke_width
-        ));
-        svg.push('\n');
-    } else if tight_space {
+    if tight_space {
         // Outward-pointing arrows: short stubs extending outward from extension lines
         let stub_len = arrow_tip_size * 2.5;
         // Start-side arrow: points inward from outside
@@ -1147,36 +1133,13 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
         }
     }
 
-    // Tick marks (only if not using arrows)
-    if style.use_tick_marks {
-        let tick_half = style.tick_size / 2.0;
-        // Start-side tick (angled)
-        let (tx, ty) = xy(along_start, dim_across);
-        svg.push_str(&format!(
-            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            tx - tick_half, ty - tick_half,
-            tx + tick_half, ty + tick_half,
-            dim_color, style.dimension_stroke_width
-        ));
-        svg.push('\n');
-        // End-side tick
-        let (tx, ty) = xy(along_end, dim_across);
-        svg.push_str(&format!(
-            r#"      <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            tx - tick_half, ty - tick_half,
-            tx + tick_half, ty + tick_half,
-            dim_color, style.dimension_stroke_width
-        ));
-        svg.push('\n');
-    }
-
     // Collect arrowhead polygons to re-render after label mask
     // (ensures arrows are visible even when mask overlaps compressed dimensions)
     // In tight_space mode the stubs are outside the extent boundaries and never
     // covered by the mask, so no overlay is needed (and re-rendering inward
     // arrowheads would produce phantom arrows inside the narrow span).
     let mut arrow_overlay = String::new();
-    if !style.use_tick_marks && !tight_space {
+    if !tight_space {
         let (p1x, p1y) = xy(line_along1, dim_across);
         let (p2x, p2y) = xy(line_along2, dim_across);
         // Start arrow (pointing toward start)

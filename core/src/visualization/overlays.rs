@@ -38,44 +38,6 @@ pub(crate) struct SplineLeaderLabel {
     pub right_edge: f64,
 }
 
-/// Overlay label with a semi-opaque backdrop so it stays legible over any
-/// geometry or callout lines it crosses.
-fn push_backdropped_text(
-    svg: &mut String,
-    x: f64,
-    y: f64,
-    font_size: f64,
-    anchor: &str,
-    color: &str,
-    style: &DiagramStyle,
-    text: &str,
-) {
-    let text_w = estimate_text_width(text, font_size);
-    let pad = 4.0;
-    let bg_x = match anchor {
-        "end" => x - text_w,
-        "middle" => x - text_w / 2.0,
-        _ => x,
-    } - pad;
-    svg.push_str(&format!(
-        r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="0.82" rx="3"/>"#,
-        bg_x,
-        y - font_size * 0.75 - pad / 2.0,
-        text_w + 2.0 * pad,
-        font_size * 1.5 + pad,
-        style.background_color
-    ));
-    svg.push('\n');
-    // Manual baseline shift for vertical centering: dominant-baseline is
-    // ignored by flutter_svg and svg2pdf (see svg_util::BASELINE_SHIFT_RATIO)
-    svg.push_str(&format!(
-        r#"    <text transform="translate({x:.2}, {y:.2})" fill="{color}" font-family="{}" font-size="{}px" text-anchor="{anchor}">{text}</text>"#,
-        style.font_family, font_size,
-        y = y + font_size * BASELINE_SHIFT_RATIO,
-    ));
-    svg.push('\n');
-}
-
 /// Spline slots on the section-view moulding profile.
 ///
 /// Section orientation: TOP of the profile is the front face; the rabbet

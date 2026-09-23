@@ -198,8 +198,7 @@ impl PlanViewGeometry {
         // to no-break if the marginal break guard rejects the compression.
         let mut geo = match Self::build_break_geometry(
             design, &dd, frame_outer_width, frame_outer_height,
-            native_scale, canvas_width, canvas_height,
-            available_height, bd.use_corner_detail, style,
+            canvas_width, canvas_height, available_height, style,
         ) {
             Some(g) => g,
             None => return Self::build_no_break_geometry(
@@ -232,11 +231,9 @@ impl PlanViewGeometry {
         dd: &DisplayDimensions,
         frame_outer_width: f64,
         frame_outer_height: f64,
-        _native_scale: f64,
         canvas_width: f64,
         canvas_height: f64,
         available_height: f64,
-        _use_corner_detail: bool,
         style: &DiagramStyle,
     ) -> Option<Self> {
         // Display outer = actual_outer - actual_artwork + display_artwork

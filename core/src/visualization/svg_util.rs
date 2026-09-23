@@ -186,11 +186,6 @@ pub(crate) fn vertical_zigzag(center_x: f64, frame_y: f64, frame_h: f64) -> Zigz
     }
 }
 
-/// Render a dashed zigzag indicator line
-pub(crate) fn render_zigzag_line(svg: &mut String, zz: &ZigzagPoints, line_color: &str, break_line_width: f64) {
-    render_zigzag_line_with_opacity(svg, zz, line_color, break_line_width, 1.0);
-}
-
 /// Render a dashed zigzag indicator line with custom opacity
 pub(crate) fn render_zigzag_line_with_opacity(svg: &mut String, zz: &ZigzagPoints, line_color: &str, break_line_width: f64, opacity: f64) {
     let opacity_attr = if (opacity - 1.0).abs() > 0.001 {
@@ -633,8 +628,7 @@ pub(crate) fn svg_rect(rect: &Rect, stroke: &str, stroke_width: f64, fill: Optio
 pub(crate) fn get_fill_for_pattern(pattern: &FillPattern) -> String {
     match pattern {
         FillPattern::Solid(color) => color.clone(),
-        FillPattern::Hatched { color, .. } => color.clone(),
-        FillPattern::CrossHatched { color, .. } => color.clone(),
+        FillPattern::Hatched { color } => color.clone(),
     }
 }
 

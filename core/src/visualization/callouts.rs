@@ -134,90 +134,31 @@ pub fn generate_plan_callouts(
     callouts
 }
 
-/// Generate callouts for section view
+/// Generate callouts for section view.
+///
+/// Only the total material stack height is produced: the section renderer
+/// (`section_svg.rs`) draws depth, width, per-material labels, and clearance
+/// directly from `SectionViewGeometry`, and consumes just `TotalStackHeight`
+/// from here. Positions are placeholders (the renderer computes its own).
 pub fn generate_section_callouts(
     design: &FrameDesign,
     unit_mm: bool,
     use_tape_segments: bool,
     use_decimal: bool,
 ) -> Vec<DimensionCallout> {
-    let mut callouts = Vec::new();
     let unit = if unit_mm { Unit::Millimeters } else { Unit::Inches };
     // Helper closure for formatting dimensions
     let fmt = |value: f64| format_dimension(value, unit, use_tape_segments, use_decimal);
 
-    // These will use placeholder positions - actual positions
-    // calculated by SectionViewGeometry during layout
-
-    // Frame depth
-    callouts.push(DimensionCallout::new(
-        design.frame_material_depth,
-        fmt(design.frame_material_depth),
-        DimensionType::FrameDepth,
-        Point::new(0.0, 0.0), // Placeholder
-        Point::new(0.0, 1.0),
-    ));
-
-    // Material stack
-    callouts.push(DimensionCallout::new(
-        design.glazing_thickness,
-        format!("Glazing {}", fmt(design.glazing_thickness)),
-        DimensionType::GlazingThickness,
-        Point::new(0.0, 0.0),
-        Point::new(0.0, 1.0),
-    ));
-
-    if design.has_mat() {
-        callouts.push(DimensionCallout::new(
-            design.matboard_thickness,
-            format!("Mat {}", fmt(design.matboard_thickness)),
-            DimensionType::MatboardThickness,
-            Point::new(0.0, 0.0),
-            Point::new(0.0, 1.0),
-        ));
-    }
-
-    callouts.push(DimensionCallout::new(
-        design.artwork_thickness,
-        format!("Artwork {}", fmt(design.artwork_thickness)),
-        DimensionType::ArtworkThickness,
-        Point::new(0.0, 0.0),
-        Point::new(0.0, 1.0),
-    ));
-
-    callouts.push(DimensionCallout::new(
-        design.backing_thickness,
-        format!("Backing {}", fmt(design.backing_thickness)),
-        DimensionType::BackingThickness,
-        Point::new(0.0, 0.0),
-        Point::new(0.0, 1.0),
-    ));
-
-    // Total stack and clearance
+    // Total material stack (excludes assembly margin)
     let total_stack = design.get_rabbet_z_depth_required() - design.assembly_margin;
-    callouts.push(DimensionCallout::new(
+    vec![DimensionCallout::new(
         total_stack,
         fmt(total_stack),  // Just the value, context is clear
         DimensionType::TotalStackHeight,
-        Point::new(0.0, 0.0),
+        Point::new(0.0, 0.0), // Placeholder
         Point::new(0.0, 1.0),
-    ));
-
-    let clearance = design.frame_material_depth - design.get_rabbet_z_depth_required();
-    let clearance_label = if clearance >= 0.0 {
-        format!("Clearance {}", fmt(clearance))
-    } else {
-        format!("INTERFERENCE {}", fmt(-clearance))
-    };
-    callouts.push(DimensionCallout::new(
-        clearance.abs(),
-        clearance_label,
-        DimensionType::Clearance,
-        Point::new(0.0, 0.0),
-        Point::new(0.0, 1.0),
-    ));
-
-    callouts
+    )]
 }
 
 #[cfg(test)]
@@ -261,30 +202,15 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_plan_callouts_no_mat() {
-        let mut design = FrameDesign::new(12.0, 16.0);
-        design.mat_width_top_bottom = 0.0;
-        design.mat_width_sides = 0.0;
-
-        let style = DiagramStyle::default();
-        let geometry = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-        let callouts = generate_plan_callouts(&design, &geometry, false, false, false, &style);
-
-        // Should not have mat callouts
-        let has_mat = callouts.iter().any(|c| c.dimension_type == DimensionType::MatOpeningWidth);
-        assert!(!has_mat);
-    }
-
-    #[test]
     fn test_generate_section_callouts() {
         let design = test_design();
         let callouts = generate_section_callouts(&design, false, false, false);
 
-        // Should have frame depth and material thicknesses
-        assert!(callouts.len() >= 5);
-
-        let has_depth = callouts.iter().any(|c| c.dimension_type == DimensionType::FrameDepth);
-        assert!(has_depth);
+        // Only the total stack height is produced (consumed by section_svg.rs)
+        assert_eq!(callouts.len(), 1);
+        assert_eq!(callouts[0].dimension_type, DimensionType::TotalStackHeight);
+        let expected = design.get_rabbet_z_depth_required() - design.assembly_margin;
+        assert!((callouts[0].value - expected).abs() < 1e-9);
     }
 
     #[test]
@@ -351,33 +277,6 @@ mod tests {
             .find(|c| c.dimension_type == DimensionType::FrameOutsideWidth)
             .unwrap();
         assert!(frame_width_callout.label.contains("mm"));
-    }
-
-    #[test]
-    fn test_interference_label() {
-        // Set rabbet_depth smaller than material stack to trigger interference
-        let mut design = test_design();
-        design.frame_material_depth = 0.05; // Very shallow — will cause interference
-        let callouts = generate_section_callouts(&design, false, false, false);
-
-        let clearance_callout = callouts.iter()
-            .find(|c| c.dimension_type == DimensionType::Clearance)
-            .expect("Should have a Clearance dimension");
-        assert!(clearance_callout.label.contains("INTERFERENCE"),
-            "Expected INTERFERENCE in label, got: {}", clearance_callout.label);
-    }
-
-    #[test]
-    fn test_clearance_label() {
-        // Normal design should have positive clearance
-        let design = test_design();
-        let callouts = generate_section_callouts(&design, false, false, false);
-
-        let clearance_callout = callouts.iter()
-            .find(|c| c.dimension_type == DimensionType::Clearance)
-            .expect("Should have a Clearance dimension");
-        assert!(clearance_callout.label.contains("Clearance"),
-            "Expected 'Clearance' in label, got: {}", clearance_callout.label);
     }
 
     #[test]

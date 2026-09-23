@@ -209,25 +209,11 @@ pub enum DimensionType {
     FrameOutsideHeight,
     FrameInsideWidthInterior,  // Inside width shown inside the frame opening
     FrameInsideHeightInterior, // Inside height shown inside the frame opening
-    MatVisibleWidth,
-    MatVisibleHeight,
     MatCutWidth,      // Total mat cut width (visible + rabbet) - shown on bottom
     MatCutHeight,     // Total mat cut height (visible + rabbet) - shown on left when different
-    MatOpeningWidth,
-    MatOpeningHeight,
-    FrameMaterialWidth,
-    RabbetDepth,
-    ArtworkWidth,
-    ArtworkHeight,
 
     // Section view dimensions
-    FrameDepth,
-    GlazingThickness,
-    MatboardThickness,
-    ArtworkThickness,
-    BackingThickness,
     TotalStackHeight,
-    Clearance,
 }
 
 impl DimensionType {
@@ -245,27 +231,11 @@ impl DimensionType {
             DimensionType::FrameOutsideHeight => 2,
 
             // Section view - always show
-            DimensionType::FrameDepth => 1,
             DimensionType::TotalStackHeight => 1,
 
-            // Should show if space permits
-            DimensionType::MatOpeningWidth => 2,
-            DimensionType::MatOpeningHeight => 2,
-            DimensionType::FrameMaterialWidth => 3,
-            DimensionType::MatVisibleWidth => 3,
-            DimensionType::MatVisibleHeight => 3,
-            DimensionType::MatCutWidth => 2,  // Same as other mat dimensions
-            DimensionType::MatCutHeight => 2,  // Same as other mat dimensions
-            DimensionType::RabbetDepth => 3,
-
-            // Nice to have
-            DimensionType::ArtworkWidth => 4,
-            DimensionType::ArtworkHeight => 4,
-            DimensionType::GlazingThickness => 4,
-            DimensionType::MatboardThickness => 4,
-            DimensionType::ArtworkThickness => 5,
-            DimensionType::BackingThickness => 4,
-            DimensionType::Clearance => 3,
+            // Mat cut dimensions
+            DimensionType::MatCutWidth => 2,
+            DimensionType::MatCutHeight => 2,
         }
     }
 
@@ -284,27 +254,8 @@ impl DimensionType {
             DimensionType::MatCutWidth => Side::Bottom,
             DimensionType::MatCutHeight => Side::Left,
 
-            // Other mat dimensions on same side as corresponding frame dims
-            DimensionType::MatOpeningWidth
-            | DimensionType::MatVisibleWidth
-            | DimensionType::ArtworkWidth => Side::Top,
-
-            DimensionType::MatOpeningHeight
-            | DimensionType::MatVisibleHeight
-            | DimensionType::ArtworkHeight => Side::Right,
-
-            // Small detail dimensions on bottom
-            DimensionType::FrameMaterialWidth
-            | DimensionType::RabbetDepth => Side::Bottom,
-
             // Section view dimensions on right
-            DimensionType::FrameDepth
-            | DimensionType::GlazingThickness
-            | DimensionType::MatboardThickness
-            | DimensionType::ArtworkThickness
-            | DimensionType::BackingThickness
-            | DimensionType::TotalStackHeight
-            | DimensionType::Clearance => Side::Right,
+            DimensionType::TotalStackHeight => Side::Right,
         }
     }
 }
@@ -516,10 +467,6 @@ pub struct DiagramResult {
 
     /// Any warnings (e.g., "Mat width dimension omitted due to space")
     pub warnings: Vec<String>,
-
-    /// Frame outer rect center in SVG coordinates — used by the combined view
-    /// for frame-centered horizontal alignment instead of viewBox-centered.
-    pub frame_center_x: Option<f64>,
 }
 
 #[cfg(test)]
@@ -563,8 +510,6 @@ mod tests {
         assert_eq!(DimensionType::FrameInsideWidthInterior.priority(), 1);
         // Outside dimensions have priority 2 (further from frame)
         assert_eq!(DimensionType::FrameOutsideWidth.priority(), 2);
-        // Nice to have dimensions have lower priority
-        assert_eq!(DimensionType::ArtworkThickness.priority(), 5);
     }
 
     #[test]
