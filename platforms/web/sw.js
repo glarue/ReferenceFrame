@@ -10,14 +10,13 @@
 // support, and produce distinct cache keys here.
 //
 // This service worker complements that convention:
-//   - Documents and any .html/.css/.js/.wasm URL are fetched network-first
-//     (into CACHE_NAME), so deploys reach SW-enabled browsers immediately;
-//     the cache is only a fallback for offline use. There is no origin
-//     check, so the CDN scripts (jsPDF, svg2pdf, qrcode — all .js) also take
-//     this path, and the CDN cache-first branch / RUNTIME_CACHE below are
-//     effectively unused. Offline fallback matches the exact URL (no
-//     ignoreSearch), so offline `?d=` share links miss the cache.
-//     NOTE: see audit W11.
+//   - Same-origin app files (page navigations and .html/.css/.js/.wasm URLs)
+//     are fetched network-first (into CACHE_NAME), so deploys reach
+//     SW-enabled browsers immediately; the cache is only a fallback for
+//     offline use. Offline page loads ignore the query string, so shared
+//     `?d=` links still open from the cached app shell.
+//   - The versioned CDN libraries (jsPDF, svg2pdf, qrcode on cdnjs/unpkg)
+//     are served cache-first from RUNTIME_CACHE.
 //   - Everything else (e.g. manifest.json, Google Fonts CSS/font files) is
 //     served cache-first from CACHE_NAME.
 //
@@ -26,8 +25,8 @@
 // activate handler below.
 // ============================================================================
 
-const CACHE_NAME = 'referenceframe-wasm-v15';
-const RUNTIME_CACHE = 'referenceframe-runtime-v15';
+const CACHE_NAME = 'referenceframe-wasm-v16';
+const RUNTIME_CACHE = 'referenceframe-runtime-v16';
 
 // Resources to cache immediately on install
 const PRECACHE_URLS = [
@@ -73,17 +72,21 @@ self.addEventListener('activate', event => {
 // Fetch event - serve from cache when possible, with network fallback
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
+    const isDocument = event.request.mode === 'navigate' ||
+                       event.request.destination === 'document';
 
-    // Network-first for documents and any .html/.css/.js/.wasm URL. No origin
-    // check: cross-origin CDN scripts (.js) match here too. (The SW is not
-    // registered on localhost, so this is not a dev-time aid.) NOTE: see audit W11.
-    if (event.request.destination === 'document' ||
+    // Network-first for same-origin app files: page loads and any
+    // .html/.css/.js/.wasm URL. (Cross-origin CDN scripts fall through to the
+    // cache-first branch below. The SW is not registered on localhost, so
+    // this is not a dev-time aid.)
+    if (url.origin === self.location.origin && (
+        isDocument ||
         url.pathname.endsWith('.html') ||
         url.pathname.endsWith('.css') ||  // Network-first; styles.css is cache-busted via ?v= in index.html
         url.pathname.endsWith('.js') ||
         url.pathname.endsWith('.wasm') ||  // Network-first; the glue resolves the .wasm URL relative to import.meta.url, so it is fetched WITHOUT the ?v= param
         url.pathname === '/' ||
-        url.pathname.endsWith('/')) {
+        url.pathname.endsWith('/'))) {
         event.respondWith(
             fetch(event.request)
                 .then(response => {
@@ -97,19 +100,20 @@ self.addEventListener('fetch', event => {
                     return response;
                 })
                 .catch(() => {
-                    // Fallback to cache if offline (exact-URL match; no
-                    // ignoreSearch, so e.g. `?d=` share links miss — audit W11)
+                    // Offline: fall back to the cache. Page loads ignore the
+                    // query string so `?d=` share links resolve to the cached
+                    // app shell (the design is decoded client-side).
+                    if (isDocument) {
+                        return caches.match(event.request, { ignoreSearch: true })
+                            .then(cached => cached || caches.match('./index.html'));
+                    }
                     return caches.match(event.request);
                 })
         );
         return;
     }
 
-    // (.wasm requests are handled by the network-first branch above.)
-
-    // Cache-first for CDN hosts. NOTE: effectively unreachable today — the CDN
-    // scripts (jsPDF, svg2pdf, qrcode) all end in .js and are taken by the
-    // network-first branch above, so RUNTIME_CACHE stays empty. See audit W11.
+    // Cache-first for the CDN libraries (URLs are pinned to exact versions)
     if (url.hostname === 'cdnjs.cloudflare.com' ||
         url.hostname === 'unpkg.com') {
         event.respondWith(
