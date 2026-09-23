@@ -229,6 +229,10 @@
     /* Legacy typography tokens */
     --rf-font-size-base: 1rem;
 
+    /* Font stacks */
+    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
     /* ================================================================
      * Layout System - Dimensions & Spacing
      * ================================================================ */
@@ -359,7 +363,7 @@
 }
 
 body {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-sans);
     background: var(--md-surface);
     color: var(--rf-text-light);
     padding: var(--spacing-body);
@@ -845,9 +849,11 @@ input::placeholder {
     transform: translateX(-50%); /* Center on marker */
 }
 
+/* 85% of the theme text color: the original muted gray in light mode, and
+   readable (WCAG AA) on the dark surface too */
 .depth-label-available .label-text,
 .depth-label-available .label-value {
-    color: rgba(64, 64, 64, 0.85);
+    color: color-mix(in srgb, var(--rf-text) 85%, transparent);
 }
 
 .depth-bar-container {
@@ -869,8 +875,8 @@ input::placeholder {
     position: absolute;
     top: 0;
     height: 100%;
-    transition: width var(--md-motion-duration-medium) var(--md-easing-emphasized),
-                left var(--md-motion-duration-medium) var(--md-easing-emphasized);
+    transition: width var(--md-duration-medium2) var(--md-easing-emphasized),
+                left var(--md-duration-medium2) var(--md-easing-emphasized);
 }
 
 /* Green fill: always shows up to available capacity */
@@ -892,9 +898,9 @@ input::placeholder {
     top: -3px;
     height: calc(100% + 6px);
     width: 2px;
-    background: rgba(64, 64, 64, 0.7); /* Dark gray line */
+    background: color-mix(in srgb, var(--rf-text) 70%, transparent); /* Theme text color: dark gray in light mode, light in dark mode */
     margin-left: -1px;
-    transition: left var(--md-motion-duration-medium) var(--md-easing-emphasized);
+    transition: left var(--md-duration-medium2) var(--md-easing-emphasized);
     z-index: 2;
     box-shadow: 0 0 3px rgba(0, 0, 0, 0.3);
 }
@@ -1625,7 +1631,7 @@ button:active {
 .section-subtitle {
     font-size: 12px;
     font-weight: 700;
-    color: var(--rf-text-primary);
+    color: var(--rf-text);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     margin: 14px 0 8px 0;
@@ -1681,7 +1687,7 @@ button:active {
     gap: 16px;
     padding: 2px 6px;
     font-size: 0.85rem;
-    color: var(--md-on-surface-variant);
+    color: var(--rf-text);
 }
 
 .layer-toggles label {
@@ -2698,7 +2704,7 @@ h3 {
     background: var(--rf-bg-secondary);
     border: 1px solid var(--rf-border);
     border-radius: 4px;
-    color: var(--rf-text-primary);
+    color: var(--rf-text);
     cursor: pointer;
 }
 

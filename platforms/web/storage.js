@@ -18,7 +18,14 @@ const STORAGE_KEYS = {
     CUSTOM_COLORS: 'frame_designer_custom_colors',
     CUSTOM_DEFAULTS: 'frame_designer_custom_defaults',
     DISPLAY_FORMAT: 'frame_designer_display_format',
-    HISTORY: 'referenceframe_history'
+    HISTORY: 'referenceframe_history',
+    // Keys used directly by index.html (listed here so backup/restore and
+    // clearAllData cover them)
+    VALIDATION_CONFIG: 'referenceframe_validation_config',
+    SETTINGS_UNIT: 'referenceframe_settings_unit',
+    WEIGHT_WOOD: 'rf_weight_wood',
+    WEIGHT_GLAZING: 'rf_weight_glazing',
+    WEIGHT_BACKING: 'rf_weight_backing'
 };
 
 // ============================================================================
@@ -283,10 +290,13 @@ function loadThemePreference() {
 /**
  * Apply theme to document
  * @param {string} theme - 'system', 'light', or 'dark'
+ * @param {boolean} [persist=true] - Also save it as the theme preference.
+ *   Page-load initialization passes false so an untouched default isn't
+ *   written to storage (a merge import then treats it as unset).
  */
-function applyTheme(theme) {
+function applyTheme(theme, persist = true) {
     document.documentElement.setAttribute('data-theme', theme);
-    saveThemePreference(theme);
+    if (persist) saveThemePreference(theme);
 }
 
 /**
@@ -492,42 +502,107 @@ function saveHistory(historyJson) {
     }
 }
 
+// ============================================================================
+// Backup / Restore
+// ============================================================================
+// Backup files are versioned "MAJOR.MINOR". Any 1.x backup can be imported;
+// fields added in later minors are optional, so older backups still load.
+//   1.0: saved_configs, custom_sizes, custom_colors, custom_defaults,
+//        current_settings, unit
+//   1.1: + history, validation_config, preferences (display format, theme,
+//        settings-modal unit, weight-model material choices)
+
+const BACKUP_FORMAT_VERSION = '1.1';
+
+// Simple string preferences carried in `preferences` (backup field -> key name)
+const BACKUP_PREFERENCE_KEYS = {
+    display_format: 'DISPLAY_FORMAT',
+    theme: 'THEME',
+    settings_unit: 'SETTINGS_UNIT',
+    weight_wood: 'WEIGHT_WOOD',
+    weight_glazing: 'WEIGHT_GLAZING',
+    weight_backing: 'WEIGHT_BACKING'
+};
+
+/**
+ * Parse a stored JSON string, returning null if absent or unparseable
+ * @param {string|null} json
+ * @returns {*} Parsed value or null
+ */
+function parseJsonOrNull(json) {
+    if (!json) return null;
+    try {
+        return JSON.parse(json);
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * True if a backup's version string is one this code can import (major 1)
+ * @param {*} version - The backup's `version` field
+ * @returns {boolean}
+ */
+function isSupportedBackupVersion(version) {
+    return typeof version === 'string' && /^1\.\d+$/.test(version);
+}
+
 /**
  * Export all localStorage data as JSON
  * @param {object} currentSettings - Current form state
  * @param {string} currentUnit - Current unit preference
- * @returns {string} JSON string
+ * @returns {string} JSON string (backup format BACKUP_FORMAT_VERSION)
  */
 function exportAllData(currentSettings, currentUnit) {
+    const preferences = {};
+    for (const [field, keyName] of Object.entries(BACKUP_PREFERENCE_KEYS)) {
+        const value = localStorage.getItem(STORAGE_KEYS[keyName]);
+        if (value !== null) preferences[field] = value;
+    }
     const exportData = {
-        version: '1.0',
+        version: BACKUP_FORMAT_VERSION,
         exported_at: new Date().toISOString(),
         saved_configs: loadSavedConfigs(),
         custom_sizes: loadCustomSizes(),
         custom_colors: loadCustomColors(),
         custom_defaults: loadCustomDefaults(),
         current_settings: currentSettings,
-        unit: currentUnit
+        unit: currentUnit,
+        // 1.1 additions (null when nothing is stored)
+        history: parseJsonOrNull(getHistory()),
+        validation_config: parseJsonOrNull(localStorage.getItem(STORAGE_KEYS.VALIDATION_CONFIG)),
+        preferences
     };
     return JSON.stringify(exportData, null, 2);
 }
 
 /**
  * Import data from JSON
+ *
+ * Merge keeps everything already stored: configs and sizes are added by
+ * name, colors/defaults/preferences only fill gaps, and history and the
+ * validation config are imported only if none is stored. Replace overwrites
+ * each kind of data the backup contains; kinds absent from the backup
+ * (e.g. history in a 1.0 backup) are left as they are.
+ *
  * @param {string} jsonData - JSON string to import
  * @param {string} mode - 'merge' or 'replace'
- * @returns {object} Import result {success: boolean, message: string}
+ * @returns {object} Import result {success: boolean, message: string,
+ *   restored: {history: boolean, validationConfig: boolean, preferences: string[]}}
  */
 function importData(jsonData, mode = 'merge') {
     try {
         const data = JSON.parse(jsonData);
 
-        // Validate version
-        if (!data.version || data.version !== '1.0') {
+        // Validate version (any 1.x backup)
+        if (!data || !isSupportedBackupVersion(data.version)) {
             return { success: false, message: 'Unsupported backup version' };
         }
 
-        if (mode === 'replace') {
+        const replace = mode === 'replace';
+        const restored = { history: false, validationConfig: false, preferences: [] };
+
+        if (replace) {
             // Replace all data (written in current versioned schema)
             saveVersionedList(STORAGE_KEYS.CONFIGS, data.saved_configs || []);
             saveVersionedList(STORAGE_KEYS.CUSTOM_SIZES, data.custom_sizes || []);
@@ -575,6 +650,38 @@ function importData(jsonData, mode = 'merge') {
             }
         }
 
+        // Design history (1.1+): a { entries: [...] } object from the WASM API
+        if (data.history && Array.isArray(data.history.entries)) {
+            const existing = parseJsonOrNull(getHistory());
+            const hasExisting = !!existing && Array.isArray(existing.entries) && existing.entries.length > 0;
+            if (replace || !hasExisting) {
+                saveHistory(JSON.stringify(data.history));
+                restored.history = true;
+            }
+        }
+
+        // Validation config (1.1+): the { version, config } payload index.html stores
+        if (data.validation_config && typeof data.validation_config === 'object') {
+            if (replace || localStorage.getItem(STORAGE_KEYS.VALIDATION_CONFIG) === null) {
+                localStorage.setItem(STORAGE_KEYS.VALIDATION_CONFIG,
+                    JSON.stringify(data.validation_config));
+                restored.validationConfig = true;
+            }
+        }
+
+        // Simple preferences (1.1+)
+        if (data.preferences && typeof data.preferences === 'object') {
+            for (const [field, keyName] of Object.entries(BACKUP_PREFERENCE_KEYS)) {
+                const value = data.preferences[field];
+                if (typeof value !== 'string') continue;
+                const key = STORAGE_KEYS[keyName];
+                if (replace || localStorage.getItem(key) === null) {
+                    localStorage.setItem(key, value);
+                    restored.preferences.push(field);
+                }
+            }
+        }
+
         // Update unit preference
         if (data.unit) {
             localStorage.setItem(STORAGE_KEYS.UNIT, data.unit);
@@ -582,11 +689,16 @@ function importData(jsonData, mode = 'merge') {
 
         const importedConfigs = (data.saved_configs || []).length;
         const importedSizes = (data.custom_sizes || []).length;
-        const message = mode === 'merge'
+        let message = mode === 'merge'
             ? `Merged ${importedConfigs} configurations and ${importedSizes} custom sizes`
             : `Imported ${importedConfigs} configurations and ${importedSizes} custom sizes`;
+        const extras = [];
+        if (restored.history) extras.push('design history');
+        if (restored.validationConfig) extras.push('validation settings');
+        if (restored.preferences.length) extras.push('preferences');
+        if (extras.length) message += `; restored ${extras.join(', ')}`;
 
-        return { success: true, message };
+        return { success: true, message, restored };
     } catch (e) {
         console.error('Error importing data:', e);
         return { success: false, message: `Import failed: ${e.message}` };

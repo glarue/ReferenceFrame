@@ -345,6 +345,13 @@ test('applyTheme sets data-theme attribute and persists the choice', () => {
     assert.equal(ctx.loadThemePreference(), 'dark', 'applyTheme also saves');
 });
 
+test('applyTheme(theme, false) sets the attribute without persisting', () => {
+    const { ctx, KEYS, localStorage, sandbox } = loadStorage();
+    ctx.applyTheme('dark', false);
+    assert.equal(sandbox.document.documentElement.getAttribute('data-theme'), 'dark');
+    assert.equal(localStorage.getItem(KEYS.THEME), null);
+});
+
 test('getEffectiveTheme returns saved non-system value directly', () => {
     const { ctx } = loadStorage();
     ctx.saveThemePreference('light');
@@ -446,7 +453,7 @@ test('exportAllData captures all stores plus passed settings/unit', () => {
     const json = ctx.exportAllData({ width: 10 }, 'mm');
     const data = JSON.parse(json);
 
-    assert.equal(data.version, '1.0');
+    assert.equal(data.version, '1.1');
     assert.ok(typeof data.exported_at === 'string' && data.exported_at.length > 0);
     assert.deepEqual(data.saved_configs, [{ name: 'c1', config: { v: 1 } }]);
     assert.deepEqual(data.custom_sizes, [{ name: 's1', height: 1, width: 2 }]);
@@ -623,6 +630,137 @@ test('importData stores incoming lists in the current versioned envelope', () =>
     const raw = JSON.parse(ctx.localStorage._raw(KEYS.CONFIGS));
     assert.equal(raw.version, vm.runInContext('STORAGE_SCHEMA_VERSION', ctx));
     assert.ok(Array.isArray(raw.items));
+});
+
+// ---------------------------------------------------------------------------
+// Backup format 1.1: history, validation config, preferences
+// ---------------------------------------------------------------------------
+
+const SAMPLE_HISTORY = { version: 1, max_entries: 50, entries: [{ title: 'A', timestamps: [1], design: { artwork_height: 8 } }] };
+const SAMPLE_VALIDATION = { version: 1, config: { min_lip_width: 0.25 } };
+
+function populateExtras(ctx, KEYS, localStorage) {
+    ctx.saveHistory(JSON.stringify(SAMPLE_HISTORY));
+    localStorage.setItem(KEYS.VALIDATION_CONFIG, JSON.stringify(SAMPLE_VALIDATION));
+    ctx.saveDisplayFormat('decimal');
+    ctx.saveThemePreference('dark');
+    localStorage.setItem(KEYS.SETTINGS_UNIT, 'mm');
+    localStorage.setItem(KEYS.WEIGHT_WOOD, 'oak_red');
+    localStorage.setItem(KEYS.WEIGHT_GLAZING, 'acrylic');
+    localStorage.setItem(KEYS.WEIGHT_BACKING, 'mdf_panel');
+}
+
+test('exportAllData (1.1) includes history, validation config and preferences', () => {
+    const { ctx, KEYS, localStorage } = loadStorage();
+    populateExtras(ctx, KEYS, localStorage);
+    const data = JSON.parse(ctx.exportAllData({}, 'inches'));
+    assert.deepEqual(data.history, SAMPLE_HISTORY);
+    assert.deepEqual(data.validation_config, SAMPLE_VALIDATION);
+    assert.deepEqual(data.preferences, {
+        display_format: 'decimal',
+        theme: 'dark',
+        settings_unit: 'mm',
+        weight_wood: 'oak_red',
+        weight_glazing: 'acrylic',
+        weight_backing: 'mdf_panel',
+    });
+});
+
+test('exportAllData leaves 1.1 fields empty when nothing is stored', () => {
+    const { ctx } = loadStorage();
+    const data = JSON.parse(ctx.exportAllData({}, 'inches'));
+    assert.equal(data.history, null);
+    assert.equal(data.validation_config, null);
+    assert.deepEqual(data.preferences, {});
+});
+
+test('export then import (replace) round-trips history, validation config and preferences', () => {
+    const src = loadStorage();
+    populateExtras(src.ctx, src.KEYS, src.localStorage);
+    const json = src.ctx.exportAllData({}, 'inches');
+
+    const dst = loadStorage();
+    dst.ctx.saveHistory(JSON.stringify({ version: 1, max_entries: 50, entries: [{ title: 'old' }] }));
+    const r = dst.ctx.importData(json, 'replace');
+    assert.equal(r.success, true);
+    assert.deepEqual(JSON.parse(dst.ctx.getHistory()), SAMPLE_HISTORY);
+    assert.deepEqual(JSON.parse(dst.localStorage.getItem(dst.KEYS.VALIDATION_CONFIG)), SAMPLE_VALIDATION);
+    assert.equal(dst.ctx.loadDisplayFormat(), 'decimal');
+    assert.equal(dst.ctx.loadThemePreference(), 'dark');
+    assert.equal(dst.localStorage.getItem(dst.KEYS.SETTINGS_UNIT), 'mm');
+    assert.equal(dst.localStorage.getItem(dst.KEYS.WEIGHT_WOOD), 'oak_red');
+    assert.equal(r.restored.history, true);
+    assert.equal(r.restored.validationConfig, true);
+    assert.equal(r.restored.preferences.length, 6);
+    assert.match(r.message, /restored design history, validation settings, preferences/);
+});
+
+test('import merge keeps existing history/config/preferences and only fills gaps', () => {
+    const src = loadStorage();
+    populateExtras(src.ctx, src.KEYS, src.localStorage);
+    const json = src.ctx.exportAllData({}, 'inches');
+
+    const dst = loadStorage();
+    const mine = { version: 1, max_entries: 50, entries: [{ title: 'mine' }] };
+    dst.ctx.saveHistory(JSON.stringify(mine));
+    dst.localStorage.setItem(dst.KEYS.VALIDATION_CONFIG, JSON.stringify({ version: 1, config: { mine: true } }));
+    dst.ctx.saveDisplayFormat('tape');
+
+    const r = dst.ctx.importData(json, 'merge');
+    assert.equal(r.success, true);
+    assert.deepEqual(JSON.parse(dst.ctx.getHistory()), mine);
+    assert.deepEqual(JSON.parse(dst.localStorage.getItem(dst.KEYS.VALIDATION_CONFIG)), { version: 1, config: { mine: true } });
+    assert.equal(dst.ctx.loadDisplayFormat(), 'tape');           // existing wins
+    assert.equal(dst.ctx.loadThemePreference(), 'dark');         // gap filled
+    assert.equal(dst.localStorage.getItem(dst.KEYS.WEIGHT_BACKING), 'mdf_panel');
+    assert.equal(r.restored.history, false);
+    assert.equal(r.restored.validationConfig, false);
+    assert.ok(!r.restored.preferences.includes('display_format'));
+});
+
+test('import merge restores history into an empty (or entry-less) store', () => {
+    const src = loadStorage();
+    populateExtras(src.ctx, src.KEYS, src.localStorage);
+    const json = src.ctx.exportAllData({}, 'inches');
+
+    const dst = loadStorage();
+    dst.ctx.saveHistory(JSON.stringify({ version: 1, max_entries: 50, entries: [] }));
+    const r = dst.ctx.importData(json, 'merge');
+    assert.equal(r.restored.history, true);
+    assert.deepEqual(JSON.parse(dst.ctx.getHistory()), SAMPLE_HISTORY);
+});
+
+test('a 1.0 backup still imports and leaves history/config/preferences untouched', () => {
+    const { ctx, KEYS, localStorage } = loadStorage();
+    const mine = { version: 1, max_entries: 50, entries: [{ title: 'mine' }] };
+    ctx.saveHistory(JSON.stringify(mine));
+    ctx.saveDisplayFormat('tape');
+    const json = JSON.stringify({
+        version: '1.0',
+        saved_configs: [{ name: 'c', config: {} }],
+        custom_sizes: [],
+    });
+    const r = ctx.importData(json, 'replace');
+    assert.equal(r.success, true);
+    assert.deepEqual(ctx.loadSavedConfigs(), [{ name: 'c', config: {} }]);
+    assert.deepEqual(JSON.parse(ctx.getHistory()), mine);
+    assert.equal(ctx.loadDisplayFormat(), 'tape');
+    assert.equal(localStorage.getItem(KEYS.VALIDATION_CONFIG), null);
+    assert.doesNotMatch(r.message, /restored/);
+});
+
+test('importData accepts any 1.x version and ignores malformed 1.1 fields', () => {
+    const { ctx } = loadStorage();
+    const r = ctx.importData(JSON.stringify({
+        version: '1.7',
+        history: { not: 'a history' },
+        validation_config: 'nope',
+        preferences: { theme: 42 },
+    }), 'replace');
+    assert.equal(r.success, true);
+    assert.equal(ctx.getHistory(), null);
+    assert.equal(ctx.loadThemePreference(), 'system');
+    assert.equal(ctx.importData(JSON.stringify({ version: '10.0' }), 'merge').success, false);
 });
 
 // ---------------------------------------------------------------------------

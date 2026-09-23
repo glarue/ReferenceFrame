@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260708-materials">
+    <link rel="stylesheet" href="./styles.css?v=20260923-audit">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -660,12 +660,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260708-materials';
+        } from './pkg/referenceframe_wasm.js?v=20260923-audit';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260708-materials';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260923-audit';
 
         console.log('WASM imports successful');
 
@@ -730,9 +730,13 @@
             }
         });
 
-        // localStorage keys
-        const STORAGE_KEY_CONFIG = 'referenceframe_validation_config';
-        const STORAGE_KEY_SETTINGS_UNIT = 'referenceframe_settings_unit';
+        // localStorage keys (defined in storage.js so backup/restore covers them)
+        const STORAGE_KEY_CONFIG = STORAGE_KEYS.VALIDATION_CONFIG;
+        const STORAGE_KEY_SETTINGS_UNIT = STORAGE_KEYS.SETTINGS_UNIT;
+
+        // Allowance per cut added to the total-wood-length estimate (inches).
+        // Shared by the Results panel, the PDF text, and the Copy summary.
+        const WOOD_ERROR_MARGIN = 0.0625;
 
         // ============================================================================
         // Theme Management
@@ -741,7 +745,7 @@
         // Initialize theme immediately (before WASM loads) to prevent flash
         (function initTheme() {
             currentTheme = loadThemePreference();
-            applyTheme(currentTheme);
+            applyTheme(currentTheme, false);  // don't persist an untouched default
             updateThemeIcon();
         })();
 
@@ -1094,119 +1098,114 @@
         
         updateMatVisibility();
 
-        // Mat border stepper controls
-        window.adjustMatWidth = function(side, delta) {
-            const inputId = `mat-width-${side}`;
-            const currentValue = getDimensionValue(inputId);
-            const newValue = Math.max(0, currentValue + delta);
-            setDimensionValue(inputId, newValue);
+        // ------------------------------------------------------------------
+        // Mat border fields
+        // ------------------------------------------------------------------
+        // Field model (every value stored in inches via setDimensionValue):
+        //   mat-width-single                  visible in single mode
+        //   mat-width-tb / mat-width-lr       visible in separate mode; calculate() reads these
+        //   mat-width-top/-bottom/-left/-right  hidden mirrors, kept for saved-config compat
+        //   mat-overlap / mat-overlap-separate  the overlap field shown in each mode
+        // setMatWidths() owns every write to these fields and the mode checkbox;
+        // the input listeners below only propagate an edit to its mirrors.
 
-            // Sync hidden individual inputs
-            syncMatWidthInputs();
-            calculate();
-        }
+        const MAT_OVERLAP_FIELD_IDS = ['mat-overlap', 'mat-overlap-separate'];
 
-        // Sync hidden individual mat inputs from tb/lr visible inputs
-        function syncMatWidthInputs() {
-            const tbValue = getDimensionValue('mat-width-tb');
-            const lrValue = getDimensionValue('mat-width-lr');
-
-            setDimensionValue('mat-width-top', tbValue);
-            setDimensionValue('mat-width-bottom', tbValue);
-            setDimensionValue('mat-width-left', lrValue);
-            setDimensionValue('mat-width-right', lrValue);
-        }
-
-        // Toggle between single and separate mat border inputs
-        window.toggleMatBorderMode = function() {
-            const separateModeEnabled = document.getElementById('separate-mat-borders').checked;
-            const singleModeRow = document.getElementById('mat-single-mode-row');
-            const separateContainer = document.getElementById('mat-width-separate-container');
-
-            if (separateModeEnabled) {
-                // Switching to separate mode - use existing hidden values if they differ
-                const hiddenTop = getDimensionValue('mat-width-top');
-                const hiddenBottom = getDimensionValue('mat-width-bottom');
-                const hiddenLeft = getDimensionValue('mat-width-left');
-                const hiddenRight = getDimensionValue('mat-width-right');
-
-                // Calculate tb/lr from hidden values (preserve asymmetry if it exists)
-                const tbValue = (hiddenTop + hiddenBottom) / 2;
-                const lrValue = (hiddenLeft + hiddenRight) / 2;
-
-                setDimensionValue('mat-width-tb', tbValue);
-                setDimensionValue('mat-width-lr', lrValue);
-
-                // Sync mat overlap to separate mode input
-                const overlapValue = getDimensionValue('mat-overlap');
-                setDimensionValue('mat-overlap-separate', overlapValue);
-
-                // Sync hidden individual inputs (this will make top=bottom and left=right)
-                syncMatWidthInputs();
-
-                // Show separate inputs, hide single mode row
-                singleModeRow.style.display = 'none';
-                separateContainer.style.display = 'block';
-            } else {
-                // Switching to single mode - use average of tb and lr
-                const tb = getDimensionValue('mat-width-tb');
-                const lr = getDimensionValue('mat-width-lr');
+        /**
+         * Write the mat border fields and mode in one place (does not recalculate).
+         * @param {number} tb - top/bottom border (inches)
+         * @param {number} lr - left/right border (inches); in single mode tb and
+         *   lr are averaged so the single field and tb/lr always agree
+         * @param {?number} overlap - mat overlap (inches); null/undefined leaves it unchanged
+         * @param {boolean} separate - separate-sides mode
+         * @param {string[]} [preserve] - field ids to leave untouched (the field
+         *   the user is typing in, so its text isn't reformatted mid-edit)
+         */
+        function setMatWidths(tb, lr, overlap, separate, preserve = []) {
+            if (!separate) {
                 const average = (tb + lr) / 2;
-                setDimensionValue('mat-width-single', average);
-
-                // Sync mat overlap to single mode input
-                const overlapValue = getDimensionValue('mat-overlap-separate');
-                setDimensionValue('mat-overlap', overlapValue);
-
-                // Sync all hidden inputs to single value
-                setDimensionValue('mat-width-top', average);
-                setDimensionValue('mat-width-bottom', average);
-                setDimensionValue('mat-width-left', average);
-                setDimensionValue('mat-width-right', average);
-
-                // Show single mode row, hide separate inputs
-                singleModeRow.style.display = 'flex';
-                separateContainer.style.display = 'none';
+                tb = average;
+                lr = average;
             }
-
-            // Trigger recalculation
-            calculate();
+            const values = {
+                'mat-width-single': (tb + lr) / 2,
+                'mat-width-tb': tb,
+                'mat-width-lr': lr,
+                'mat-width-top': tb,
+                'mat-width-bottom': tb,
+                'mat-width-left': lr,
+                'mat-width-right': lr
+            };
+            if (overlap != null) {
+                for (const id of MAT_OVERLAP_FIELD_IDS) values[id] = overlap;
+            }
+            for (const [id, value] of Object.entries(values)) {
+                if (!preserve.includes(id)) setDimensionValue(id, value);
+            }
+            document.getElementById('separate-mat-borders').checked = separate;
+            updateMatModeFields();
         }
 
-        // When single mat width changes, sync all hidden inputs (when in single mode)
+        // Show the single-width row or the separate T/B + L/R inputs to match the checkbox
+        function updateMatModeFields() {
+            const separate = document.getElementById('separate-mat-borders').checked;
+            document.getElementById('mat-single-mode-row').style.display = separate ? 'none' : 'flex';
+            document.getElementById('mat-width-separate-container').style.display = separate ? 'block' : 'none';
+        }
+
+        // Mat border stepper controls (separate mode only)
+        window.adjustMatWidth = function(side, delta) {
+            let tb = getDimensionValue('mat-width-tb');
+            let lr = getDimensionValue('mat-width-lr');
+            if (side === 'tb') {
+                tb = Math.max(0, tb + delta);
+            } else {
+                lr = Math.max(0, lr + delta);
+            }
+            // Leave the other visible field's text as the user typed it
+            setMatWidths(tb, lr, null, true, [side === 'tb' ? 'mat-width-lr' : 'mat-width-tb']);
+            calculate();
+        };
+
+        // Toggle between single and separate mat border inputs. Switching to
+        // single mode averages T/B and L/R; the overlap carries over from the
+        // field that was visible.
+        window.toggleMatBorderMode = function() {
+            const separate = document.getElementById('separate-mat-borders').checked;
+            const tb = getDimensionValue('mat-width-tb');
+            const lr = getDimensionValue('mat-width-lr');
+            const overlap = getDimensionValue(separate ? 'mat-overlap' : 'mat-overlap-separate');
+            setMatWidths(tb, lr, overlap, separate);
+            calculate();
+        };
+
+        // Single mode: propagate the single width to tb/lr and the hidden mirrors
         document.getElementById('mat-width-single').addEventListener('input', () => {
-            const separateModeEnabled = document.getElementById('separate-mat-borders').checked;
-            if (!separateModeEnabled) {
-                const singleValue = getDimensionValue('mat-width-single');
-                // Keep tb/lr and hidden individual inputs in sync
-                setDimensionValue('mat-width-tb', singleValue);
-                setDimensionValue('mat-width-lr', singleValue);
-                setDimensionValue('mat-width-top', singleValue);
-                setDimensionValue('mat-width-bottom', singleValue);
-                setDimensionValue('mat-width-left', singleValue);
-                setDimensionValue('mat-width-right', singleValue);
+            if (!document.getElementById('separate-mat-borders').checked) {
+                const value = getDimensionValue('mat-width-single');
+                setMatWidths(value, value, null, false, ['mat-width-single']);
             }
         });
 
-        // When tb/lr inputs change, sync hidden individual inputs
-        document.getElementById('mat-width-tb').addEventListener('input', () => {
-            syncDimension('mat-width-tb');  // Parse fraction/decimal first
-            syncMatWidthInputs();  // Then sync to hidden inputs
-        });
-        document.getElementById('mat-width-lr').addEventListener('input', () => {
-            syncDimension('mat-width-lr');  // Parse fraction/decimal first
-            syncMatWidthInputs();  // Then sync to hidden inputs
-        });
+        // Separate mode: propagate tb/lr edits to the hidden mirrors (and the
+        // hidden single field), leaving both visible fields as typed
+        for (const id of ['mat-width-tb', 'mat-width-lr']) {
+            document.getElementById(id).addEventListener('input', () => {
+                syncDimension(id);  // Parse fraction/decimal first
+                setMatWidths(getDimensionValue('mat-width-tb'), getDimensionValue('mat-width-lr'),
+                    null, true, ['mat-width-tb', 'mat-width-lr']);
+            });
+        }
 
-        // Keep both mat-overlap inputs in sync
-        document.getElementById('mat-overlap').addEventListener('input', () => {
-            const value = getDimensionValue('mat-overlap');
-            setDimensionValue('mat-overlap-separate', value);
-        });
-        document.getElementById('mat-overlap-separate').addEventListener('input', () => {
-            const value = getDimensionValue('mat-overlap-separate');
-            setDimensionValue('mat-overlap', value);
-        });
+        // Keep both mat-overlap fields in sync
+        for (const id of MAT_OVERLAP_FIELD_IDS) {
+            document.getElementById(id).addEventListener('input', () => {
+                const value = getDimensionValue(id);
+                for (const other of MAT_OVERLAP_FIELD_IDS) {
+                    if (other !== id) setDimensionValue(other, value);
+                }
+            });
+        }
 
         // Collapsible Advanced Options
         document.getElementById('advanced-header').addEventListener('click', () => {
@@ -1576,11 +1575,10 @@
                 const [outsideH, outsideW] = design.getFrameOutsideDimensions();
                 const [matH, matW] = design.getMatboardDimensions();
                 const [fitH, fitW] = design.getFittedComponentDimensions();
-                const hasFitAllowance = (matH - fitH) > 0.0005;
+                const hasFitAllowance = hasFitAllowanceFor(matH, fitH);
                 const [matOpenH, matOpenW] = design.getMatOpeningDimensions();
                 const depthRequired = design.getRabbetZDepthRequired();
-                const errorMargin = 0.0625;
-                const totalWood = design.getTotalWoodLength(bladeWidth, errorMargin);
+                const totalWood = design.getTotalWoodLength(bladeWidth, WOOD_ERROR_MARGIN);
 
                 // Get cut list
                 const cutListJson = design.getCutListJson();
@@ -2036,24 +2034,16 @@
         };
 
         window.loadDefaults = function() {
-            if (currentUnit !== 'inches') {
-                currentUnit = 'inches';
-                document.getElementById('btn-inches').classList.add('active');
-                document.getElementById('btn-mm').classList.remove('active');
-                updateLabels();
-            }
+            // Reset shows inches (the unit preference itself is left as saved)
+            const unitChanged = currentUnit !== 'inches';
+            currentUnit = 'inches';
 
             const defaults = JSON.parse(getDefaults());
-            
+
             // Set all values using setDimensionValue (stores in inches, displays per unit)
             setDimensionValue('artwork-height', defaults.artworkHeight);
             setDimensionValue('artwork-width', defaults.artworkWidth);
-            setDimensionValue('mat-width-single', defaults.matWidth);
-            setDimensionValue('mat-width-top', defaults.matWidth);
-            setDimensionValue('mat-width-bottom', defaults.matWidth);
-            setDimensionValue('mat-width-left', defaults.matWidth);
-            setDimensionValue('mat-width-right', defaults.matWidth);
-            setDimensionValue('mat-overlap', defaults.matOverlap);
+            setMatWidths(defaults.matWidth, defaults.matWidth, defaults.matOverlap, false);
             setDimensionValue('frame-width', defaults.frameWidth);
             setDimensionValue('frame-depth', defaults.frameDepth);
             setDimensionValue('glazing-thickness', defaults.glazingThickness);
@@ -2064,32 +2054,30 @@
             setDimensionValue('rabbet-depth', defaults.rabbetDepth);
             setDimensionValue('assembly-margin', defaults.assemblyMargin);
             setDimensionValue('blade-width', defaults.bladeWidth);
-            
+            document.getElementById('frame-style').value = defaults.frameStyle || 'rabbet';
             document.getElementById('include-mat').checked = true;
-            updateMatVisibility();
-            updateOrientation();
-            updateAspectRatio();
+
+            if (unitChanged) renderCustomSizes();  // size labels follow the unit
+            refreshDerivedUi();
             calculate();
         };
 
-        window.setUnit = function(unit) {
-            if (unit === currentUnit) return;
-
-            // Sync all dimensions from current inputs before switching
+        // Switch the display unit without saving the preference, re-rendering
+        // the size dropdowns, or recalculating: re-parse every field in the
+        // old unit, then redisplay it in the new one.
+        function applyUnit(unit) {
             for (const id of dimensionInputIds) {
                 syncDimension(id);
             }
-
             currentUnit = unit;
-            saveUnitPreference(unit);
-            document.getElementById('btn-inches').classList.toggle('active', unit === 'inches');
-            document.getElementById('btn-mm').classList.toggle('active', unit === 'mm');
-
-            // Update all displays for new unit
             updateDimensionDisplays();
+            refreshDerivedUi();
+        }
 
-            updateLabels();
-            updateRangeSubtitles();
+        window.setUnit = function(unit) {
+            if (unit === currentUnit) return;
+            applyUnit(unit);
+            saveUnitPreference(unit);
             // Re-render size dropdowns so their labels use the new unit
             renderStandardSizes();
             renderCustomSizes();
@@ -2382,9 +2370,10 @@
             }
         };
 
-        // Format a value according to current display format preference
-        function formatDisplay(value, unitMm) {
-            switch (currentDisplayFormat) {
+        // Format a value according to the display format preference (the
+        // current one unless an explicit format is passed, e.g. a PDF snapshot)
+        function formatDisplay(value, unitMm, format = currentDisplayFormat) {
+            switch (format) {
                 case 'decimal':
                     return formatValueWithDecimal(value, unitMm);
                 case 'tape':
@@ -2639,6 +2628,37 @@
             }
         }
 
+        // Hint text under the Frame Style select, keyed by option value
+        const FRAME_STYLE_HINTS = {
+            rabbet: 'Traditional: the rabbet lip overlaps the artwork edge.',
+            sight_size: 'Full image visible — the lip grabs the oversized glazing, not the art.'
+        };
+
+        function updateFrameStyleHint() {
+            const hint = document.getElementById('frame-style-hint');
+            const style = document.getElementById('frame-style').value;
+            if (hint) hint.textContent = FRAME_STYLE_HINTS[style] || FRAME_STYLE_HINTS.rabbet;
+        }
+
+        /**
+         * Re-derive every piece of UI that reflects form state rather than being
+         * typed directly: unit toggle and unit labels, typical-range hints, the
+         * frame-style hint, mat mode rows and enabled state, the orientation icon
+         * and the aspect ratio. Call after any programmatic bulk load (shared
+         * link, saved configuration, history restore, reset, unit change).
+         */
+        function refreshDerivedUi() {
+            document.getElementById('btn-inches').classList.toggle('active', currentUnit === 'inches');
+            document.getElementById('btn-mm').classList.toggle('active', currentUnit === 'mm');
+            updateLabels();
+            updateRangeSubtitles();
+            updateFrameStyleHint();
+            updateMatModeFields();
+            updateMatVisibility();
+            updateOrientation();
+            updateAspectRatio();
+        }
+
         // Load from URL parameters
         function loadFromUrl() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -2650,12 +2670,12 @@
                 const paramsJson = decodeShareableUrl(fullUrl);
                 const params = JSON.parse(paramsJson);
 
+                // Show the link's unit (the saved unit preference is left alone).
+                // Converting first keeps fields the link doesn't carry (e.g.
+                // v0 links' overlap/margin) displayed in the right unit.
                 const targetUnit = params.unit_mm ? 'mm' : 'inches';
                 if (targetUnit !== currentUnit) {
-                    currentUnit = targetUnit;
-                    document.getElementById('btn-inches').classList.toggle('active', !params.unit_mm);
-                    document.getElementById('btn-mm').classList.toggle('active', params.unit_mm);
-                    updateLabels();
+                    applyUnit(targetUnit);
                 }
 
                 // Set all values using setDimensionValue (values from URL are in inches)
@@ -2663,24 +2683,12 @@
                 setDimensionValue('artwork-width', params.artwork_width);
                 // Mat borders: separate top/bottom vs left/right when they differ
                 // (format v1); symmetric otherwise (v0 links mirror mat_width into
-                // mat_width_sides).
+                // mat_width_sides). Overlap is format v1; v0 links carry none, so
+                // the current (default) overlap is kept.
                 const matTb = params.mat_width;
                 const matLr = (params.mat_width_sides != null) ? params.mat_width_sides : params.mat_width;
                 const separateBorders = Math.abs(matTb - matLr) > 0.001;
-                setDimensionValue('mat-width-top', matTb);
-                setDimensionValue('mat-width-bottom', matTb);
-                setDimensionValue('mat-width-left', matLr);
-                setDimensionValue('mat-width-right', matLr);
-                setDimensionValue('mat-width-tb', matTb);
-                setDimensionValue('mat-width-lr', matLr);
-                setDimensionValue('mat-width-single', (matTb + matLr) / 2);
-                document.getElementById('separate-mat-borders').checked = separateBorders;
-                // Mat overlap (format v1; v0 links carry the default)
-                if (params.mat_overlap != null) {
-                    setDimensionValue('mat-overlap', params.mat_overlap);
-                    setDimensionValue('mat-overlap-separate', params.mat_overlap);
-                }
-                toggleMatBorderMode();
+                setMatWidths(matTb, matLr, params.mat_overlap, separateBorders);
                 setDimensionValue('frame-width', params.frame_width);
                 setDimensionValue('frame-depth', params.frame_depth);
                 setDimensionValue('glazing-thickness', params.glazing_thickness);
@@ -2700,7 +2708,7 @@
                 }
 
                 document.getElementById('include-mat').checked = params.include_mat;
-                updateMatVisibility();
+                refreshDerivedUi();
 
                 return true;
             } catch (e) {
@@ -2709,78 +2717,88 @@
             }
         }
 
-        // Initialize
-        if (!loadFromUrl()) {
-            // Sync all dimension inputs from the default values applied by
-            // applyDefaultInputValues() during WASM init
-            for (const id of dimensionInputIds) {
+        // Auto-calculate when a dimension field is edited. Every other control
+        // that affects the design has its own listener: include-mat and the
+        // "Mat" label, separate-borders (toggleMatBorderMode), frame style, the
+        // diagram layer toggles, the weight-material selects, and the settings
+        // modal inputs (on change). Other text inputs (PDF title, config name)
+        // deliberately do not recalculate.
+        for (const id of dimensionInputIds) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            el.addEventListener('input', () => {
                 syncDimension(id);
-            }
-            calculate();
-        } else {
-            calculate();
+                calculate();
+            });
         }
 
-        updateOrientation();
-        updateAspectRatio();
-
-        // Auto-calculate on input change (and sync dimensions)
-        document.querySelectorAll('input').forEach(input => {
-            if (input.type !== 'checkbox') {
-                input.addEventListener('input', () => {
-                    if (dimensionInputIds.includes(input.id)) {
-                        syncDimension(input.id);
-                    }
-                    calculate();
-                });
-            }
-        });
-
         // Frame style is a <select> (not an <input>) — recalc on change.
-        document.getElementById('frame-style')?.addEventListener('change', () => {
-            const hint = document.getElementById('frame-style-hint');
-            if (hint) {
-                hint.textContent = document.getElementById('frame-style')?.value === 'sight_size'
-                    ? 'Full image visible — the lip grabs the oversized glazing, not the art.'
-                    : 'Traditional: the rabbet lip overlaps the artwork edge.';
-            }
+        document.getElementById('frame-style').addEventListener('change', () => {
+            updateFrameStyleHint();
             calculate();
         });
         // Diagram layer toggles: re-render the diagram and the results card
         document.getElementById('show-spline')?.addEventListener('change', () => calculate());
         document.getElementById('show-hanging')?.addEventListener('change', () => calculate());
 
-        // Weight-material pickers: populated from the sourced density index,
-        // persisted locally (weight-model preferences, not design fields)
+        // Weight-material pickers: [select id, storage key, fallback option].
+        // Weight-model preferences, persisted locally (not design fields).
+        const MATERIAL_PICKERS = [
+            ['wood-species', STORAGE_KEYS.WEIGHT_WOOD, 'generic'],
+            ['glazing-material', STORAGE_KEYS.WEIGHT_GLAZING, 'glass'],
+            ['backing-material', STORAGE_KEYS.WEIGHT_BACKING, 'foamcore'],
+        ];
+
+        // Select each picker's stored choice (or its fallback if unset/unknown)
+        function syncMaterialPickersFromStorage() {
+            for (const [id, key, fallback] of MATERIAL_PICKERS) {
+                const select = document.getElementById(id);
+                if (!select) continue;
+                let stored = null;
+                try {
+                    stored = localStorage.getItem(key);
+                } catch (e) {
+                    // Storage unavailable (private mode etc.) — use the fallback
+                }
+                select.value = stored || fallback;
+                if (!select.value) select.value = fallback;
+            }
+        }
+
+        // Populate the pickers from the sourced density index
         (function initMaterialPickers() {
             const materials = JSON.parse(getMaterialsJson());
-            const fill = (id, entries, storageKey, fallback) => {
+            const options = {
+                // Generic buckets first, then species alphabetically
+                'wood-species': (() => {
+                    const woods = Object.entries(materials.woods);
+                    return [
+                        ...woods.filter(([k]) => k.startsWith('generic')),
+                        ...woods.filter(([k]) => !k.startsWith('generic'))
+                    ];
+                })(),
+                'glazing-material': ['glass', 'acrylic'].map(k => [k, materials.sheet[k]]),
+                'backing-material': ['foamcore', 'hardboard', 'mdf_panel'].map(k => [k, materials.sheet[k]]),
+            };
+            for (const [id, key] of MATERIAL_PICKERS) {
                 const select = document.getElementById(id);
-                if (!select) return;
-                for (const [key, spec] of entries) {
+                if (!select) continue;
+                for (const [value, spec] of options[id]) {
                     const opt = document.createElement('option');
-                    opt.value = key;
+                    opt.value = value;
                     opt.textContent = spec.name;
                     select.appendChild(opt);
                 }
-                select.value = localStorage.getItem(storageKey) || fallback;
-                if (!select.value) select.value = fallback;
                 select.addEventListener('change', () => {
-                    localStorage.setItem(storageKey, select.value);
+                    try {
+                        localStorage.setItem(key, select.value);
+                    } catch (e) {
+                        console.warn('Could not save material preference:', e);
+                    }
                     calculate();
                 });
-            };
-            // Generic buckets first, then species alphabetically
-            const woods = Object.entries(materials.woods);
-            const generics = woods.filter(([k]) => k.startsWith('generic'));
-            const species = woods.filter(([k]) => !k.startsWith('generic'));
-            fill('wood-species', [...generics, ...species], 'rf_weight_wood', 'generic');
-            fill('glazing-material',
-                ['glass', 'acrylic'].map(k => [k, materials.sheet[k]]),
-                'rf_weight_glazing', 'glass');
-            fill('backing-material',
-                ['foamcore', 'hardboard', 'mdf_panel'].map(k => [k, materials.sheet[k]]),
-                'rf_weight_backing', 'foamcore');
+            }
+            syncMaterialPickersFromStorage();
         })();
 
         // Add blur handlers to normalize fractional inputs (inches mode only)
@@ -2790,6 +2808,33 @@
                 el.addEventListener('blur', normalizeFractionalInput);
             }
         });
+
+        // Initialize. A shared link (?d=) wins; otherwise restore the last
+        // auto-saved settings and the unit preference. This must happen
+        // synchronously before the first calculate(), whose auto-save would
+        // otherwise overwrite the saved settings with the defaults.
+        if (!loadFromUrl()) {
+            // Sync all dimension inputs from the default values applied by
+            // applyDefaultInputValues() during WASM init
+            for (const id of dimensionInputIds) {
+                syncDimension(id);
+            }
+            const lastSettings = loadCurrentSettings();
+            if (lastSettings) {
+                try {
+                    applyConfigToForm(lastSettings);
+                } catch (e) {
+                    console.warn('Could not restore last settings:', e);
+                }
+            }
+            // Unit preference: convert the (inch) fields just restored. The
+            // size dropdowns are rendered later by initializeConfigManagement().
+            if (loadUnitPreference() === 'mm') {
+                applyUnit('mm');
+            }
+            refreshDerivedUi();
+        }
+        calculate();
 
         // ============================================================================
         // PDF EXPORT FUNCTIONALITY
@@ -2876,6 +2921,8 @@
 
         // Main PDF export function
         window.exportPdf = async function() {
+            let snapshot = null;
+            let container = null;
             try {
                 // Clear any previous error and show loading state
                 hideExportError();
@@ -2894,13 +2941,28 @@
                     throw new Error('No design calculated. Please enter dimensions first.');
                 }
 
-                // Generate SVG diagram with PDF-optimized styling (larger fonts)
-                // Use square canvas (1:1) to maximize use of portrait PDF page
-                const unitMm = currentUnit === 'mm';
+                // Snapshot the design and every UI option the export reads, so a
+                // calculate() during the async steps below (which frees
+                // currentDesign) can't change or break the PDF mid-export.
+                snapshot = capturePdfSnapshot();
 
-                // Get custom title from input (empty string means use default "Frame Design")
-                const customTitle = document.getElementById('pdf-title').value.trim() || null;
-                let svgString = generateCombinedViewSvgForPdf(currentDesign, 1200, 1200, unitMm, true, true, customTitle);
+                // Generate SVG diagram with PDF-optimized styling (larger fonts),
+                // with the same display options as the on-screen combined view.
+                // Use square canvas (1:1) to maximize use of portrait PDF page.
+                let svgString = generateCombinedViewSvgForPdf(
+                    snapshot.design, 1200, 1200, snapshot.unitMm,
+                    true,                 // include_title
+                    true,                 // for_pdf: light print style
+                    snapshot.title,       // null = default "Frame Design"
+                    snapshot.useTape,
+                    snapshot.useDecimal,
+                    true,                 // corner_detail_enabled (as on screen)
+                    true,                 // axis_breaks_enabled (as on screen)
+                    false,                // dark_mode: never for PDF
+                    snapshot.showSpline,
+                    snapshot.showHanging,
+                    null                  // overlay params: defaults (as on screen)
+                );
 
                 // Fix font issues for PDF rendering - svg2pdf.js has trouble with custom fonts
                 // Replace font-family with just "Helvetica" (standard PDF font, no fallbacks)
@@ -2923,7 +2985,7 @@
                 // No JavaScript conversion needed - svg2pdf.js will render them directly
 
                 // Create temporary container to parse SVG
-                const container = document.createElement('div');
+                container = document.createElement('div');
                 container.style.position = 'absolute';
                 container.style.visibility = 'hidden';
                 container.innerHTML = svgString;
@@ -3032,16 +3094,13 @@
                     throw new Error('svg2pdf library not available');
                 }
 
-                // Clean up temporary container
-                document.body.removeChild(container);
-
                 // Add text content below diagram
                 const textStartY = diagramY + diagramHeight + gapAfterDiagram;
                 console.log(`  Text starts at: ${textStartY.toFixed(1)}mm`);
-                await addTextContent(pdf, textStartY);
+                addTextContent(pdf, textStartY, snapshot);
 
                 // Generate and add QR code
-                await addQrCode(pdf);
+                await addQrCode(pdf, snapshot);
 
                 // Add footer
                 addPdfFooter(pdf);
@@ -3066,11 +3125,92 @@
                     exportBtn.textContent = 'Export PDF';
                 }, 3000);
                 showExportError(`PDF export failed: ${error.message}`);
+            } finally {
+                // Clean up the temporary SVG container and the private design copy
+                container?.remove();
+                snapshot?.design.free();
             }
         };
 
-        // Add text content to PDF with compact 3-column layout
-        async function addTextContent(pdf, startY) {
+        /**
+         * Capture everything the PDF export needs at one instant: a private
+         * copy of the design (freed by exportPdf) plus the unit, display
+         * format, title, layer toggles, and blade width.
+         */
+        function capturePdfSnapshot() {
+            const unitMm = currentUnit === 'mm';
+            const format = currentDisplayFormat;
+            return {
+                design: WasmFrameDesign.fromJson(currentDesign.toJson()),
+                unitMm,
+                fmt: (value) => formatDisplay(value, unitMm, format),
+                useTape: format === 'tape',
+                useDecimal: format === 'decimal',
+                title: document.getElementById('pdf-title').value.trim() || null,
+                showSpline: document.getElementById('show-spline')?.checked || false,
+                showHanging: document.getElementById('show-hanging')?.checked || false,
+                includeMat: document.getElementById('include-mat').checked,
+                bladeWidth: getDimensionValue('blade-width')
+            };
+        }
+
+        // True when the assembly clearance makes the drop-in "cut to fit" size
+        // smaller than the rabbet seat (heights compared; both axes shrink alike)
+        function hasFitAllowanceFor(seatHeight, fittedHeight) {
+            return (seatHeight - fittedHeight) > 0.0005;
+        }
+
+        /**
+         * Plain-number summary of a design (inches; [height, width] pairs),
+         * shared by the PDF text block and the Copy summary so both report the
+         * same sizes as the Results panel.
+         */
+        function summarizeDesign(design, bladeWidth) {
+            const cutList = JSON.parse(design.getCutListJson());
+            const firstPiece = (key) => {
+                const pieces = cutList[key];
+                return (Array.isArray(pieces) && pieces.length > 0) ? pieces[0] : null;
+            };
+            const [seatH, seatW] = design.getMatboardDimensions();
+            const [fitH, fitW] = design.getFittedComponentDimensions();
+            const [outsideH, outsideW] = design.getFrameOutsideDimensions();
+            const [insideH, insideW] = design.getFrameInsideDimensions();
+            const [openH, openW] = design.getMatOpeningDimensions();
+            return {
+                artwork: [design.artworkHeight, design.artworkWidth],
+                outside: [outsideH, outsideW],
+                inside: [insideH, insideW],
+                frameWidth: design.frameWidth,
+                frameDepth: design.frameDepth,
+                frameStyle: design.frameStyle,
+                hasMat: design.includeMat,
+                // Rabbet seat: exact outer size of the mat (or glazing/backing)
+                seat: [seatH, seatW],
+                // Drop-in size with the assembly clearance applied
+                fitted: [fitH, fitW],
+                hasFitAllowance: hasFitAllowanceFor(seatH, fitH),
+                matOpening: [openH, openW],
+                matWidthTopBottom: design.matWidthTopBottom,
+                matWidthSides: design.matWidthSides,
+                matOverlap: design.matOverlap,
+                rabbetWidth: design.rabbetWidth,
+                rabbetDepth: design.rabbetDepth,
+                depthRequired: design.getRabbetZDepthRequired(),
+                horizontalPiece: firstPiece('horizontal_pieces'),
+                verticalPiece: firstPiece('vertical_pieces'),
+                totalWood: design.getTotalWoodLength(bladeWidth, WOOD_ERROR_MARGIN),
+                bladeWidth,
+                assemblyMargin: design.assemblyMargin,
+                glazingThickness: design.glazingThickness,
+                matboardThickness: design.matboardThickness,
+                artworkThickness: design.artworkThickness,
+                backingThickness: design.backingThickness
+            };
+        }
+
+        // Add text content to PDF with compact 3-column layout. Reads only the
+        // export snapshot (see capturePdfSnapshot), never the live form.
+        function addTextContent(pdf, startY, snap) {
             // Colors (RGB) - match the CSS palette (--rf-* variables), except cerulean
             const colors = {
                 cerulean: [39, 125, 161],    // retired cerulean #277da1 — NOT in the current palette (--rf-blue is #577590); see audit Q7
@@ -3158,135 +3298,98 @@
                 else col3Y += mm;
             }
 
-            // Get current unit
-            const useMm = currentUnit === 'mm';
-            const unit = useMm ? 'mm' : '"';
-            const bladeWidth = getDimensionValue('blade-width');
-            const includesMat = document.getElementById('include-mat').checked;
+            const unit = snap.unitMm ? 'mm' : '"';
+            const fmt = snap.fmt;
+            const d = summarizeDesign(snap.design, snap.bladeWidth);
 
             // === COLUMN 1: Artwork, Frame, Cut List, Material (12 lines) ===
             addHeader('Artwork', 1);
             // Helper to strip unit symbol for dimension pairs (we'll add one at the end)
             // '12"' → '12', '3/8 (0.38)"' → '3/8 (0.38)', '254 mm' → '254', '254 (254.5) mm' → '254 (254.5)'
             const stripUnit = (s) => s.replace(/"$/, '').replace(/ mm$/, '');
+            const pair = ([h, w]) => `${stripUnit(fmt(h))} × ${stripUnit(fmt(w))}${unit}`;
 
-            const artHeight = formatDisplay(currentDesign.artworkHeight, useMm);
-            const artWidth = formatDisplay(currentDesign.artworkWidth, useMm);
-            addText(`${stripUnit(artHeight)} × ${stripUnit(artWidth)}${unit}`, 1);
+            addText(pair(d.artwork), 1);
             addSpace(1);
 
             addHeader('Frame', 1);
-            const [outsideH, outsideW] = currentDesign.getFrameOutsideDimensions();
-            const [insideH, insideW] = currentDesign.getFrameInsideDimensions();
-            addLabelValue('Outside:', `${stripUnit(formatDisplay(outsideH, useMm))} × ${stripUnit(formatDisplay(outsideW, useMm))}${unit}`, 1);
-            addLabelValue('Inside:', `${stripUnit(formatDisplay(insideH, useMm))} × ${stripUnit(formatDisplay(insideW, useMm))}${unit}`, 1);
-            addLabelValue('Frame Material:', `${stripUnit(formatDisplay(currentDesign.frameWidth, useMm))} × ${stripUnit(formatDisplay(currentDesign.frameDepth, useMm))}${unit}`, 1);
+            addLabelValue('Outside:', pair(d.outside), 1);
+            addLabelValue('Inside:', pair(d.inside), 1);
+            addLabelValue('Frame Material:', pair([d.frameWidth, d.frameDepth]), 1);
             addSpace(1);
 
             addHeader('Cut List', 1);
-            const cutListJson = currentDesign.getCutListJson();
-            const cutList = JSON.parse(cutListJson);
-            if (cutList.horizontal_pieces && cutList.horizontal_pieces.length > 0) {
-                const p = cutList.horizontal_pieces[0];
-                addLabelValue('Top/Bottom:', `${formatDisplay(p.outside_length, useMm)} (×${p.quantity})`, 1, 'orange', true);
+            if (d.horizontalPiece) {
+                const p = d.horizontalPiece;
+                addLabelValue('Top/Bottom:', `${fmt(p.outside_length)} (×${p.quantity})`, 1, 'orange', true);
             }
-            if (cutList.vertical_pieces && cutList.vertical_pieces.length > 0) {
-                const p = cutList.vertical_pieces[0];
-                addLabelValue('Left/Right:', `${formatDisplay(p.outside_length, useMm)} (×${p.quantity})`, 1, 'orange', true);
+            if (d.verticalPiece) {
+                const p = d.verticalPiece;
+                addLabelValue('Left/Right:', `${fmt(p.outside_length)} (×${p.quantity})`, 1, 'orange', true);
             }
             addSpace(1);
 
             addHeader('Material', 1);
-            const errorMargin = 0.0625;
-            const totalWood = currentDesign.getTotalWoodLength(bladeWidth, errorMargin);
-            addLabelValue('Total:', `${formatDisplay(totalWood, useMm)}`, 1, 'cerulean', true);
+            addLabelValue('Total:', `${fmt(d.totalWood)}`, 1, 'cerulean', true);
             addText(`(w/ blade width)`, 1, 'gray');
 
             // === COLUMN 2: Matboard, Rabbet, Specs (12 lines with mat, 6 without) ===
 
-            if (includesMat) {
+            if (d.hasMat) {
                 addHeader('Matboard', 2);
-                const [matH, matW] = currentDesign.getMatboardDimensions();
-                const [matOpenH, matOpenW] = currentDesign.getMatOpeningDimensions();
-
-                // Get mat border values (tb/lr)
-                const matWidthTopBottom = getDimensionValue('mat-width-tb');
-                const matWidthSides = getDimensionValue('mat-width-lr');
-                const matOverlap = getDimensionValue('mat-overlap');
-
                 // Use average for display (most informative for asymmetric mats)
-                const matWidthAvg = (matWidthTopBottom + matWidthSides) / 2;
+                const matWidthAvg = (d.matWidthTopBottom + d.matWidthSides) / 2;
 
-                addLabelValue('Full Size:', `${stripUnit(formatDisplay(matH, useMm))} × ${stripUnit(formatDisplay(matW, useMm))}${unit}`, 2);
+                addLabelValue('Full Size:', pair(d.seat), 2);
                 // Drop-in cut size when assembly clearance applies in XY
-                const [pdfFitH, pdfFitW] = currentDesign.getFittedComponentDimensions();
-                if ((matH - pdfFitH) > 0.0005) {
-                    addLabelValue('Cut to fit:', `${stripUnit(formatDisplay(pdfFitH, useMm))} × ${stripUnit(formatDisplay(pdfFitW, useMm))}${unit}`, 2);
+                if (d.hasFitAllowance) {
+                    addLabelValue('Cut to fit:', pair(d.fitted), 2);
                 }
-                addLabelValue('Opening:', `${stripUnit(formatDisplay(matOpenH, useMm))} × ${stripUnit(formatDisplay(matOpenW, useMm))}${unit}`, 2);
-                addLabelValue('Visual Width:', `${formatDisplay(matWidthAvg, useMm)} (avg)`, 2);
-                addLabelValue('Overlap:', `${formatDisplay(matOverlap, useMm)}`, 2);
+                addLabelValue('Opening:', pair(d.matOpening), 2);
+                addLabelValue('Visual Width:', `${fmt(matWidthAvg)} (avg)`, 2);
+                addLabelValue('Overlap:', `${fmt(d.matOverlap)}`, 2);
                 addSpace(2);
             }
 
             addHeader('Rabbet', 2);
-            addLabelValue('Width (x-axis):', `${formatDisplay(currentDesign.rabbetWidth, useMm)}`, 2);
-            addLabelValue('Depth (z-axis):', `${formatDisplay(currentDesign.rabbetDepth, useMm)}`, 2);
+            addLabelValue('Width (x-axis):', `${fmt(d.rabbetWidth)}`, 2);
+            addLabelValue('Depth (z-axis):', `${fmt(d.rabbetDepth)}`, 2);
             addSpace(2);
 
             addHeader('Specs', 2);
-            const assemblyMargin = getDimensionValue('assembly-margin');
-            addLabelValue('Assembly Margin:', `${formatDisplay(assemblyMargin, useMm)}`, 2);
-            addLabelValue('Blade Width:', `${formatDisplay(bladeWidth, useMm)}`, 2);
+            addLabelValue('Assembly Margin:', `${fmt(d.assemblyMargin)}`, 2);
+            addLabelValue('Blade Width:', `${fmt(d.bladeWidth)}`, 2);
 
             // === COLUMN 3: Depth ===
             addHeader('Depth', 3);
-            const depthRequired = currentDesign.getRabbetZDepthRequired();
-            const depthAvailable = currentDesign.rabbetDepth;
-            addLabelValue('Required:', `${formatDisplay(depthRequired, useMm)}`, 3, 'black', true);
-            addLabelValue('Available:', `${formatDisplay(depthAvailable, useMm)}`, 3);
+            const depthRequired = d.depthRequired;
+            const depthAvailable = d.rabbetDepth;
+            addLabelValue('Required:', `${fmt(depthRequired)}`, 3, 'black', true);
+            addLabelValue('Available:', `${fmt(depthAvailable)}`, 3);
             if (depthRequired <= depthAvailable) {
-                const clearance = depthAvailable - depthRequired;
-                addLabelValue('Clearance:', `${formatDisplay(clearance, useMm)}`, 3, 'green', true);
+                addLabelValue('Clearance:', `${fmt(depthAvailable - depthRequired)}`, 3, 'green', true);
             } else {
-                const shortfall = depthRequired - depthAvailable;
-                addLabelValue('Shortfall:', `${formatDisplay(shortfall, useMm)}`, 3, 'red', true);
+                addLabelValue('Shortfall:', `${fmt(depthRequired - depthAvailable)}`, 3, 'red', true);
             }
-            addLabelValue('Glazing:', `${formatDisplay(currentDesign.glazingThickness, useMm)}`, 3);
-            if (includesMat) {
-                addLabelValue('Matboard:', `${formatDisplay(currentDesign.matboardThickness, useMm)}`, 3);
+            addLabelValue('Glazing:', `${fmt(d.glazingThickness)}`, 3);
+            if (d.hasMat) {
+                addLabelValue('Matboard:', `${fmt(d.matboardThickness)}`, 3);
             }
-            addLabelValue('Artwork:', `${formatDisplay(currentDesign.artworkThickness, useMm)}`, 3);
-            addLabelValue('Backing:', `${formatDisplay(currentDesign.backingThickness, useMm)}`, 3);
+            addLabelValue('Artwork:', `${fmt(d.artworkThickness)}`, 3);
+            addLabelValue('Backing:', `${fmt(d.backingThickness)}`, 3);
         }
 
         // Build a plain-text cut-list summary from the current design.
-        // Mirrors the iOS shareText output (export_service.dart). Recomputes
-        // everything from currentDesign (a WasmFrameDesign) so it does not
-        // depend on calculate()'s local variables. All dimensions respect the
-        // current unit via formatDisplay(). Returned arrays are [height, width].
+        // Based on the iOS shareText output (export_service.dart), plus the
+        // frame style, the mat / glazing "cut to fit" size and piece counts, so
+        // it matches the Results panel. All dimensions respect the current unit
+        // and display format via formatDisplay().
         function buildTextSummary() {
             const unitMm = currentUnit === 'mm';
             const fmt = (v) => formatDisplay(v, unitMm);
-
-            const [outsideH, outsideW] = currentDesign.getFrameOutsideDimensions();
-            const [insideH, insideW] = currentDesign.getFrameInsideDimensions();
-            const [matH, matW] = currentDesign.getMatboardDimensions();
-            const [matOpenH, matOpenW] = currentDesign.getMatOpeningDimensions();
-            const hasMat = currentDesign.includeMat;
-
-            const depthRequired = currentDesign.getRabbetZDepthRequired();
-            const bladeWidth = getDimensionValue('blade-width');
-            const totalWood = currentDesign.getTotalWoodLength(bladeWidth, 0.0625);
-
-            const cutList = JSON.parse(currentDesign.getCutListJson());
-            const cutLength = (key) => {
-                const pieces = cutList[key];
-                if (Array.isArray(pieces) && pieces.length > 0) {
-                    return pieces[0].outside_length;
-                }
-                return 0;
-            };
+            const pair = ([h, w]) => `${fmt(h)} × ${fmt(w)}`;
+            const d = summarizeDesign(currentDesign, getDimensionValue('blade-width'));
+            const styleLabels = { rabbet: 'Rabbet', sight_size: 'Sight-size', float: 'Float' };
 
             const lines = [];
             lines.push('REFERENCE FRAME DESIGN');
@@ -3294,40 +3397,58 @@
             lines.push('');
 
             lines.push('ARTWORK:');
-            lines.push(`  Size: ${fmt(currentDesign.artworkHeight)} × ${fmt(currentDesign.artworkWidth)}`);
+            lines.push(`  Size: ${pair(d.artwork)}`);
             lines.push('');
 
             lines.push('FRAME:');
-            lines.push(`  Outside: ${fmt(outsideH)} × ${fmt(outsideW)}`);
-            lines.push(`  Inside: ${fmt(insideH)} × ${fmt(insideW)}`);
-            lines.push(`  Face Width: ${fmt(currentDesign.frameWidth)}`);
+            lines.push(`  Style: ${styleLabels[d.frameStyle] || d.frameStyle}`);
+            lines.push(`  Outside: ${pair(d.outside)}`);
+            lines.push(`  Inside: ${pair(d.inside)}`);
+            lines.push(`  Face Width: ${fmt(d.frameWidth)}`);
             lines.push('');
 
-            if (hasMat) {
+            if (d.hasMat) {
                 lines.push('MATBOARD:');
-                lines.push(`  Size: ${fmt(matH)} × ${fmt(matW)}`);
-                lines.push(`  Opening: ${fmt(matOpenH)} × ${fmt(matOpenW)}`);
-                lines.push(`  Border (T/B): ${fmt(currentDesign.matWidthTopBottom)}`);
-                lines.push(`  Border (Sides): ${fmt(currentDesign.matWidthSides)}`);
-                lines.push(`  Overlap: ${fmt(currentDesign.matOverlap)}`);
+                if (d.hasFitAllowance) {
+                    lines.push(`  Cut to fit: ${pair(d.fitted)}`);
+                    lines.push(`  Outside (exact): ${pair(d.seat)}`);
+                } else {
+                    lines.push(`  Size: ${pair(d.seat)}`);
+                }
+                lines.push(`  Opening: ${pair(d.matOpening)}`);
+                lines.push(`  Border (T/B): ${fmt(d.matWidthTopBottom)}`);
+                lines.push(`  Border (Sides): ${fmt(d.matWidthSides)}`);
+                lines.push(`  Overlap: ${fmt(d.matOverlap)}`);
+                lines.push('');
+            } else {
+                // No mat: the glazing and backing seat in the rabbet directly
+                lines.push('GLAZING & BACKING:');
+                if (d.hasFitAllowance) {
+                    lines.push(`  Cut to fit: ${pair(d.fitted)}`);
+                }
+                lines.push(`  Seat (rabbet): ${pair(d.seat)}`);
                 lines.push('');
             }
 
             lines.push('RABBET:');
-            lines.push(`  Width: ${fmt(currentDesign.rabbetWidth)}`);
-            lines.push(`  Depth: ${fmt(currentDesign.rabbetDepth)}`);
-            lines.push(`  Depth Required: ${fmt(depthRequired)}`);
+            lines.push(`  Width: ${fmt(d.rabbetWidth)}`);
+            lines.push(`  Depth: ${fmt(d.rabbetDepth)}`);
+            lines.push(`  Depth Required: ${fmt(d.depthRequired)}`);
             lines.push('');
 
             lines.push('CUT LIST:');
-            lines.push(`  Top/Bottom: ${fmt(cutLength('horizontal_pieces'))} (x2)`);
-            lines.push(`  Sides: ${fmt(cutLength('vertical_pieces'))} (x2)`);
-            lines.push(`  Total Wood: ${fmt(totalWood)}`);
+            if (d.horizontalPiece) {
+                lines.push(`  Top/Bottom: ${fmt(d.horizontalPiece.outside_length)} (x${d.horizontalPiece.quantity})`);
+            }
+            if (d.verticalPiece) {
+                lines.push(`  Sides: ${fmt(d.verticalPiece.outside_length)} (x${d.verticalPiece.quantity})`);
+            }
+            lines.push(`  Total Wood: ${fmt(d.totalWood)}`);
             lines.push('');
 
             lines.push('SPECS:');
-            lines.push(`  Assembly Margin: ${fmt(currentDesign.assemblyMargin)}`);
-            lines.push(`  Blade Width: ${fmt(bladeWidth)}`);
+            lines.push(`  Assembly Margin: ${fmt(d.assemblyMargin)}`);
+            lines.push(`  Blade Width: ${fmt(d.bladeWidth)}`);
             lines.push('');
 
             lines.push('Generated by ReferenceFrame');
@@ -3368,33 +3489,34 @@
             }
         };
 
-        // Add QR code to PDF
-        async function addQrCode(pdf) {
+        // Add QR code to PDF (from the export snapshot, not the live form)
+        async function addQrCode(pdf, snap) {
             try {
-                // Build ShareableParams JSON from current design
+                // Build ShareableParams JSON from the snapshot design
                 // The generateShareableUrl WASM function expects a JSON string, not a FrameDesign object
-                const includeMat = document.getElementById('include-mat').checked;
+                const design = snap.design;
+                const includeMat = snap.includeMat;
                 const shareableParams = {
-                    artwork_height: currentDesign.artworkHeight,
-                    artwork_width: currentDesign.artworkWidth,
+                    artwork_height: design.artworkHeight,
+                    artwork_width: design.artworkWidth,
                     // Separate top/bottom and left/right mat borders (format v1)
-                    mat_width: includeMat ? currentDesign.matWidthTopBottom : 0,
-                    mat_width_sides: includeMat ? currentDesign.matWidthSides : 0,
-                    mat_overlap: includeMat ? currentDesign.matOverlap : 0,
-                    frame_width: currentDesign.frameWidth,
-                    frame_depth: currentDesign.frameDepth,
-                    glazing_thickness: currentDesign.glazingThickness,
-                    matboard_thickness: currentDesign.matboardThickness,
-                    artwork_thickness: currentDesign.artworkThickness,
-                    backing_thickness: currentDesign.backingThickness,
-                    assembly_margin: currentDesign.assemblyMargin,
-                    rabbet_width: currentDesign.rabbetWidth,
-                    rabbet_depth: currentDesign.rabbetDepth,
-                    blade_width: getDimensionValue('blade-width'),
-                    frame_style: currentDesign.frameStyle,
-                    float_reveal: currentDesign.floatReveal,
+                    mat_width: includeMat ? design.matWidthTopBottom : 0,
+                    mat_width_sides: includeMat ? design.matWidthSides : 0,
+                    mat_overlap: includeMat ? design.matOverlap : 0,
+                    frame_width: design.frameWidth,
+                    frame_depth: design.frameDepth,
+                    glazing_thickness: design.glazingThickness,
+                    matboard_thickness: design.matboardThickness,
+                    artwork_thickness: design.artworkThickness,
+                    backing_thickness: design.backingThickness,
+                    assembly_margin: design.assemblyMargin,
+                    rabbet_width: design.rabbetWidth,
+                    rabbet_depth: design.rabbetDepth,
+                    blade_width: snap.bladeWidth,
+                    frame_style: design.frameStyle,
+                    float_reveal: design.floatReveal,
                     include_mat: includeMat,
-                    unit_mm: currentUnit === 'mm'
+                    unit_mm: snap.unitMm
                 };
 
                 // Generate shareable URL with JSON string
@@ -3517,73 +3639,68 @@
         }
 
         /**
-         * Load configuration into form (DOES NOT change artwork dimensions)
+         * Write a saved configuration into the form without recalculating or
+         * refreshing derived UI (DOES NOT change artwork dimensions — those are
+         * managed separately as custom sizes). Fields missing from older
+         * configs keep their current value.
          */
-        function loadConfigIntoForm(config) {
-            // NOTE: artwork dimensions are NOT loaded from configs
-            // Use custom sizes for that instead
+        function applyConfigToForm(config) {
+            const setIfNumber = (id, value) => {
+                if (typeof value === 'number' && Number.isFinite(value)) {
+                    setDimensionValue(id, value);
+                }
+            };
 
-            // Load mat width values (handle multiple format versions)
+            // Mat borders (handle multiple format versions)
+            let matTb = null;
+            let matLr = null;
+            let separate = false;
             if (config.mat_width_tb !== undefined && config.mat_width_lr !== undefined) {
-                // Newest format with single + tb/lr + checkbox
-                setDimensionValue('mat-width-single', config.mat_width_single);
-                setDimensionValue('mat-width-tb', config.mat_width_tb);
-                setDimensionValue('mat-width-lr', config.mat_width_lr);
-                // Sync hidden individual inputs
-                setDimensionValue('mat-width-top', config.mat_width_tb);
-                setDimensionValue('mat-width-bottom', config.mat_width_tb);
-                setDimensionValue('mat-width-left', config.mat_width_lr);
-                setDimensionValue('mat-width-right', config.mat_width_lr);
-                document.getElementById('separate-mat-borders').checked = config.separate_mat_borders || false;
+                // Newest format: tb/lr + separate-borders checkbox
+                matTb = config.mat_width_tb;
+                matLr = config.mat_width_lr;
+                separate = config.separate_mat_borders || false;
             } else if (config.mat_width_top !== undefined) {
                 // Previous format with 4 separate values - convert to tb/lr
-                const tbAvg = (config.mat_width_top + config.mat_width_bottom) / 2;
-                const lrAvg = (config.mat_width_left + config.mat_width_right) / 2;
-                const overallAvg = (config.mat_width_top + config.mat_width_bottom + config.mat_width_left + config.mat_width_right) / 4;
-
-                setDimensionValue('mat-width-single', overallAvg);
-                setDimensionValue('mat-width-tb', tbAvg);
-                setDimensionValue('mat-width-lr', lrAvg);
-                setDimensionValue('mat-width-top', config.mat_width_top);
-                setDimensionValue('mat-width-bottom', config.mat_width_bottom);
-                setDimensionValue('mat-width-left', config.mat_width_left);
-                setDimensionValue('mat-width-right', config.mat_width_right);
-
+                matTb = (config.mat_width_top + config.mat_width_bottom) / 2;
+                matLr = (config.mat_width_left + config.mat_width_right) / 2;
                 // Enable separate mode if tb or lr pairs differ
                 const tbDiffers = Math.abs(config.mat_width_top - config.mat_width_bottom) > 0.001;
                 const lrDiffers = Math.abs(config.mat_width_left - config.mat_width_right) > 0.001;
-                const pairsDiffer = Math.abs(tbAvg - lrAvg) > 0.001;
-                document.getElementById('separate-mat-borders').checked = pairsDiffer || tbDiffers || lrDiffers;
+                const pairsDiffer = Math.abs(matTb - matLr) > 0.001;
+                separate = pairsDiffer || tbDiffers || lrDiffers;
             } else if (config.mat_width !== undefined || config.mat_width_single !== undefined) {
-                // Old format with single value
-                const singleValue = config.mat_width || config.mat_width_single;
-                setDimensionValue('mat-width-single', singleValue);
-                setDimensionValue('mat-width-tb', singleValue);
-                setDimensionValue('mat-width-lr', singleValue);
-                setDimensionValue('mat-width-top', singleValue);
-                setDimensionValue('mat-width-bottom', singleValue);
-                setDimensionValue('mat-width-left', singleValue);
-                setDimensionValue('mat-width-right', singleValue);
-                document.getElementById('separate-mat-borders').checked = false;
+                // Old format with a single value
+                matTb = matLr = config.mat_width ?? config.mat_width_single;
+            }
+            const overlap = Number.isFinite(config.mat_overlap) ? config.mat_overlap : null;
+            if (Number.isFinite(matTb) && Number.isFinite(matLr)) {
+                setMatWidths(matTb, matLr, overlap, separate);
+            } else if (overlap != null) {
+                for (const id of MAT_OVERLAP_FIELD_IDS) setDimensionValue(id, overlap);
             }
 
-            // Update UI to show correct inputs
-            toggleMatBorderMode();
-            setDimensionValue('frame-width', config.frame_width);
-            setDimensionValue('frame-depth', config.frame_depth);
-            setDimensionValue('glazing-thickness', config.glazing_thickness);
-            setDimensionValue('matboard-thickness', config.matboard_thickness);
-            setDimensionValue('artwork-thickness', config.artwork_thickness);
-            setDimensionValue('backing-thickness', config.backing_thickness);
-            setDimensionValue('rabbet-width', config.rabbet_width);
-            setDimensionValue('rabbet-depth', config.rabbet_depth);
+            setIfNumber('frame-width', config.frame_width);
+            setIfNumber('frame-depth', config.frame_depth);
+            setIfNumber('glazing-thickness', config.glazing_thickness);
+            setIfNumber('matboard-thickness', config.matboard_thickness);
+            setIfNumber('artwork-thickness', config.artwork_thickness);
+            setIfNumber('backing-thickness', config.backing_thickness);
+            setIfNumber('rabbet-width', config.rabbet_width);
+            setIfNumber('rabbet-depth', config.rabbet_depth);
             if (config.frame_style) document.getElementById('frame-style').value = config.frame_style;
-            setDimensionValue('assembly-margin', config.assembly_margin);
-            setDimensionValue('blade-width', config.blade_width);
-            setDimensionValue('mat-overlap', config.mat_overlap);
+            setIfNumber('assembly-margin', config.assembly_margin);
+            setIfNumber('blade-width', config.blade_width);
             document.getElementById('include-mat').checked = config.include_mat !== false;
+        }
 
-            // Trigger recalculation
+        /**
+         * Load a saved configuration into the form, refresh derived UI, and
+         * recalculate (DOES NOT change artwork dimensions)
+         */
+        function loadConfigIntoForm(config) {
+            applyConfigToForm(config);
+            refreshDerivedUi();
             window.calculate();
         }
 
@@ -3650,6 +3767,30 @@
             }
         }
 
+        // True if a string parses as a design-history object ({ entries: [...] })
+        function isHistoryJson(json) {
+            try {
+                const parsed = JSON.parse(json);
+                return !!parsed && Array.isArray(parsed.entries);
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Persist the result of a history mutation (removeHistoryEntry,
+        // updateHistoryTitle). The WASM API returns its input unchanged on a
+        // parse failure; guard anyway so nothing that isn't a history object
+        // (e.g. an older build's { error, history } envelope) overwrites storage.
+        function commitHistoryUpdate(resultJson) {
+            if (isHistoryJson(resultJson)) {
+                saveHistory(resultJson);
+                return true;
+            }
+            console.error('History update returned an unexpected value; keeping stored history:', resultJson);
+            showHistoryStatus('Could not update history');
+            return false;
+        }
+
         // Escape a string for safe insertion into innerHTML.
         function escapeHtml(str) {
             const div = document.createElement('div');
@@ -3676,11 +3817,16 @@
                 return; // User cancelled
             }
 
-            let h = getHistory() || createHistory();
+            let h = getHistory();
+            if (!isHistoryJson(h)) {
+                // Missing, or unreadable (which would make every save fail) — start fresh
+                if (h) console.warn('Stored design history is unreadable; starting a new history');
+                h = createHistory();
+            }
             // timestamp is an i64 (bigint) parameter — pass a BigInt.
             const result = addToHistory(h, currentDesign.toJson(), BigInt(Date.now()), title.trim() || defaultTitle, false);
             h = unwrapAddToHistory(result, h);
-            saveHistory(h);
+            if (!commitHistoryUpdate(h)) return;
             renderHistory();
             showHistoryStatus('Saved to history');
         }
@@ -3780,7 +3926,7 @@
                 return; // Cancelled
             }
 
-            saveHistory(updateHistoryTitle(historyJson, index, newTitle.trim() || current));
+            commitHistoryUpdate(updateHistoryTitle(historyJson, index, newTitle.trim() || current));
             renderHistory();
         };
 
@@ -3795,7 +3941,7 @@
                 return;
             }
 
-            saveHistory(removeHistoryEntry(historyJson, index));
+            commitHistoryUpdate(removeHistoryEntry(historyJson, index));
             renderHistory();
         };
 
@@ -3946,28 +4092,52 @@
                 // Prompt for merge or replace
                 const mode = confirm(
                     'Merge with existing data?\n\n' +
-                    'OK = Merge (keep existing configs, add new ones)\n' +
-                    'Cancel = Replace (delete all existing data)'
+                    'OK = Merge (keep everything you have; add new configurations, ' +
+                    'sizes and colors, and fill in history/settings only where you have none)\n' +
+                    'Cancel = Replace (overwrite your saved data with what the backup contains)'
                 ) ? 'merge' : 'replace';
 
                 const result = importData(text, mode);
 
                 if (result.success) {
+                    applyImportedData(JSON.parse(text));
                     alert(result.message);
-                    renderSavedConfigs();
-
-                    // Restore unit preference if changed
-                    const data = JSON.parse(text);
-                    if (data.unit && data.unit !== currentUnit) {
-                        // Apply the imported unit preference
-                        setUnit(data.unit);
-                    }
                 } else {
                     alert(`Import failed: ${result.message}`);
                 }
             } catch (error) {
                 console.error('Import error:', error);
                 alert(`Import failed: ${error.message}`);
+            }
+        }
+
+        // Re-read everything importData() may have written to storage and
+        // refresh the UI that shows it.
+        function applyImportedData(data) {
+            renderSavedConfigs();
+            renderCustomSizes();
+            renderHistory();
+
+            // Validation limits and the settings-modal unit
+            if (validationConfig) validationConfig.free();
+            validationConfig = null;
+            loadValidationConfig();
+
+            // Appearance: theme, colors, display format
+            currentTheme = loadThemePreference();
+            applyTheme(currentTheme, false);
+            updateThemeIcon();
+            applyCustomColors();
+            currentDisplayFormat = loadDisplayFormat();
+
+            // Weight-model material choices
+            syncMaterialPickersFromStorage();
+
+            // Unit preference (setUnit recalculates); otherwise recalculate here
+            if ((data.unit === 'mm' || data.unit === 'inches') && data.unit !== currentUnit) {
+                setUnit(data.unit);
+            } else {
+                calculate();
             }
         }
 
@@ -4319,21 +4489,8 @@
                 });
             }
 
-            // Restore last settings on page load
-            setTimeout(() => {
-                if (wasmLoaded) {
-                    const lastSettings = loadCurrentSettings();
-                    if (lastSettings) {
-                        console.log('Restoring last settings...');
-                        loadConfigIntoForm(lastSettings);
-                    }
-                    // Restore the saved unit preference (setUnit converts the
-                    // input fields and re-renders in the chosen unit).
-                    if (loadUnitPreference() === 'mm') {
-                        setUnit('mm');
-                    }
-                }
-            }, 500); // Wait for WASM to fully initialize
+            // (Last settings and the unit preference are restored synchronously
+            // in the module's Initialize block, before the first calculate().)
         }
 
         // Run initialization when DOM is ready

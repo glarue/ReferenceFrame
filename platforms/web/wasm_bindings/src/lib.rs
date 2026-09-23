@@ -14,10 +14,11 @@ use referenceframe_core::{
     history,
 };
 
-/// Get the WASM build version for debugging
+/// Get the version of the core library compiled into this WASM build
+/// (core's `CARGO_PKG_VERSION`, e.g. "1.10.0"). Same value as `getCoreVersion`.
 #[wasm_bindgen(js_name = "getWasmVersion")]
 pub fn get_wasm_version() -> String {
-    "2026-01-09-nested-svg-combined".to_string()
+    version::get_core_version().to_string()
 }
 
 /// WASM-friendly wrapper for FrameDesign
@@ -1183,12 +1184,13 @@ pub fn validate_design(design: &WasmFrameDesign, config: &ValidationConfig, use_
 // History Functions (JSON-based API for simplicity)
 // ============================================================================
 
-/// Parse history JSON, returning a structured error JSON on failure
+/// Parse history JSON, returning the parse error message on failure
 fn parse_history(json: &str) -> Result<history::DesignHistory, String> {
     history::DesignHistory::from_json(json).map_err(|e| e.to_string())
 }
 
 /// Build a JSON error response preserving the original history
+/// (used only by `addToHistory`, whose success shape is also an object)
 fn history_error(msg: &str, original_json: &str) -> String {
     serde_json::json!({
         "error": msg,
@@ -1243,13 +1245,14 @@ pub fn add_to_history(history_json: &str, design_json: &str, timestamp: i64, tit
 
 /// Get history entry at index as JSON
 ///
-/// Returns entry JSON, empty string if index invalid,
-/// or `{ "error": "..." }` on parse failure
+/// Returns the entry JSON (`{ design, timestamps, title }`), or an empty
+/// string if the index is invalid or `history_json` fails to parse
+/// (matches the mobile bridge).
 #[wasm_bindgen(js_name = "getHistoryEntry")]
 pub fn get_history_entry(history_json: &str, index: usize) -> String {
     let hist = match parse_history(history_json) {
         Ok(h) => h,
-        Err(e) => return history_error(&format!("history parse: {}", e), history_json),
+        Err(_) => return String::new(),
     };
 
     match hist.get(index) {
@@ -1260,12 +1263,14 @@ pub fn get_history_entry(history_json: &str, index: usize) -> String {
 
 /// Remove history entry at index
 ///
-/// Returns updated history JSON, or `{ "error": "..." }` on parse failure
+/// Returns the updated history JSON. If `history_json` fails to parse, returns
+/// it unchanged (matches the mobile bridge), so callers can always persist the
+/// result without clobbering stored history.
 #[wasm_bindgen(js_name = "removeHistoryEntry")]
 pub fn remove_history_entry(history_json: &str, index: usize) -> String {
     let mut hist = match parse_history(history_json) {
         Ok(h) => h,
-        Err(e) => return history_error(&format!("history parse: {}", e), history_json),
+        Err(_) => return history_json.to_string(),
     };
 
     hist.remove(index);
@@ -1274,12 +1279,13 @@ pub fn remove_history_entry(history_json: &str, index: usize) -> String {
 
 /// Update history entry title
 ///
-/// Returns updated history JSON, or `{ "error": "..." }` on parse failure
+/// Returns the updated history JSON. If `history_json` fails to parse, returns
+/// it unchanged (matches the mobile bridge).
 #[wasm_bindgen(js_name = "updateHistoryTitle")]
 pub fn update_history_title(history_json: &str, index: usize, title: &str) -> String {
     let mut hist = match parse_history(history_json) {
         Ok(h) => h,
-        Err(e) => return history_error(&format!("history parse: {}", e), history_json),
+        Err(_) => return history_json.to_string(),
     };
 
     hist.update_title(index, title.to_string());
@@ -1306,12 +1312,13 @@ pub fn get_history_length(history_json: &str) -> usize {
 
 /// Set max entries and enforce limit
 ///
-/// Returns updated history JSON, or `{ "error": "..." }` on parse failure
+/// Returns the updated history JSON. If `history_json` fails to parse, returns
+/// it unchanged (matches the mobile bridge).
 #[wasm_bindgen(js_name = "setHistoryMaxEntries")]
 pub fn set_history_max_entries(history_json: &str, max_entries: usize) -> String {
     let mut hist = match parse_history(history_json) {
         Ok(h) => h,
-        Err(e) => return history_error(&format!("history parse: {}", e), history_json),
+        Err(_) => return history_json.to_string(),
     };
 
     hist.set_max_entries(max_entries);
