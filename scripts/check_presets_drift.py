@@ -9,6 +9,14 @@ Checked against presets.json colors.palette / palette_light / palette_dark:
   - platforms/web/index.html        COLOR_PALETTE array (base hex)
   - core/src/visualization/style.rs palette reference comment block
 
+Also checks the semantic color mapping (category -> factory palette color, e.g.
+secondary -> dark_cyan) in presets.json colors.semantic against:
+  - platforms/web/index.html        SEMANTIC_CATEGORIES defaults (camelCase)
+  - platforms/web/styles.css        --rf-<category>: var(--rf-<color>) in :root
+                                    (plus the --rf-<category>-dark variants)
+  - platforms/mobile/lib/models/color_category.dart  factoryColorName (camelCase)
+(iOS is the reference for this mapping; presets.json mirrors it.)
+
 Also checks presets.json aspect_ratios against the mobile aspect-ratio presets:
   - platforms/mobile/lib/constants/aspect_ratio_presets.dart (ratio/name/annotation/sizes/order)
 (presets.json mirrors mobile here. Web needs no check: its size dropdown is built
@@ -37,6 +45,14 @@ def snake_to_kebab(name):
 def snake_to_camel(name):
     parts = name.split("_")
     return parts[0] + "".join(p.title() for p in parts[1:])
+
+
+def camel_to_snake(name):
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+def kebab_to_snake(name):
+    return name.replace("-", "_")
 
 
 def check(label, name, expected, actual):
@@ -122,6 +138,69 @@ if stale:
         f"style.rs: commented palette hex values not in presets.json palette: {stale}"
     )
 
+# --- semantic color mapping: presets.json colors.semantic vs web JS, CSS, Dart ---
+# presets.json keys/values are snake_case ("cut_dimension": "red_orange"); web
+# JS and Dart use camelCase, CSS uses kebab-case. Everything is compared in
+# snake_case. Only the category keys are compared (not "_comment",
+# "custom_value", or the "<category>_dark" variant entries, handled below).
+semantic_json = colors.get("semantic", {})
+semantic = {
+    k: v for k, v in semantic_json.items()
+    if not k.startswith("_") and not k.endswith(("_dark", "_light")) and k != "custom_value"
+}
+semantic_variants = {k: v for k, v in semantic_json.items() if k.endswith(("_dark", "_light"))}
+semantic_sources = {}  # label -> {category: color} (snake_case)
+
+for category, color in semantic.items():
+    if color not in colors["palette"]:
+        errors.append(f"presets.json colors.semantic: '{category}' -> '{color}' is not a palette color")
+
+js_block = re.search(r"const SEMANTIC_CATEGORIES = \[(.*?)\];", html, re.S)
+if not js_block:
+    errors.append("index.html: SEMANTIC_CATEGORIES array not found")
+else:
+    semantic_sources["index.html SEMANTIC_CATEGORIES"] = {
+        camel_to_snake(k): camel_to_snake(v)
+        for k, v in re.findall(r"key:\s*'(\w+)'.*?default:\s*'(\w+)'", js_block.group(1))
+    }
+
+root_block = re.search(r":root\s*\{(.*?)\n\}", css, re.S)
+css_root = root_block.group(1) if root_block else ""
+css_map = {}
+for category in semantic:
+    m = re.search(rf"--rf-{snake_to_kebab(category)}:\s*var\(--rf-([a-z-]+)\)", css_root)
+    if m:
+        css_map[category] = kebab_to_snake(m.group(1))
+semantic_sources["styles.css :root"] = css_map
+# "<category>_dark": "palette_dark.<color>" -> --rf-<category>-dark: var(--rf-<color>-dark)
+for key, value in semantic_variants.items():
+    category, variant = key.rsplit("_", 1)
+    color = value.split(".", 1)[1] if "." in value else value
+    m = re.search(rf"--rf-{snake_to_kebab(category)}-{variant}:\s*var\(--rf-([a-z-]+)\)", css_root)
+    expected_var = f"{snake_to_kebab(color)}-{variant}"
+    if not m:
+        errors.append(f"styles.css: --rf-{snake_to_kebab(category)}-{variant} missing (presets.json {key} = {value})")
+    elif m.group(1) != expected_var:
+        errors.append(f"styles.css: --rf-{snake_to_kebab(category)}-{variant} is var(--rf-{m.group(1)}), presets.json {key} = {value}")
+
+if dart is not None:
+    semantic_sources["color_category.dart factoryColorName"] = {
+        camel_to_snake(cat): camel_to_snake(color)
+        for cat, color in re.findall(
+            r"SemanticColorCategory\.(\w+):\s*ColorCategoryInfo\(.*?factoryColorName:\s*'(\w+)'", dart, re.S
+        )
+    }
+
+for label, mapping in semantic_sources.items():
+    for category, expected in semantic.items():
+        actual = mapping.get(category)
+        if actual is None:
+            errors.append(f"{label}: semantic category '{category}' missing (presets.json: {expected})")
+        elif actual != expected:
+            errors.append(f"{label}: '{category}' defaults to '{actual}', presets.json says '{expected}'")
+    for category in set(mapping) - set(semantic):
+        errors.append(f"{label}: semantic category '{category}' not in presets.json colors.semantic")
+
 # --- aspect_ratio_presets.dart vs presets.json aspect_ratios ---
 # presets.json mirrors the mobile AspectRatioPresets (ratio, name, annotation,
 # common_sizes, and display order). Mobile is nested/gitignored, so absent in CI
@@ -187,5 +266,7 @@ if errors:
 
 total = sum(len(t) for t in variants.values())
 print(f"OK: {total} palette values consistent across CSS, Dart, HTML, and style.rs")
+print(f"OK: {len(semantic)} semantic color defaults consistent across presets.json, "
+      + ", ".join(semantic_sources))
 if ar_path.exists():
     print(f"OK: {len(ar_json)} aspect ratios consistent between presets.json and aspect_ratio_presets.dart")
