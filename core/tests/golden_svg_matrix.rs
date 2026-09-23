@@ -5,7 +5,9 @@
 //!
 //! - Normal run: compare generated SVG against golden file, fail on mismatch.
 //! - `UPDATE_GOLDEN=1 cargo test`: overwrite golden files with current output.
-//! - First run (no golden file): auto-create it (no env var needed).
+//! - First run (no golden file): auto-create it locally (no env var needed);
+//!   under CI (`CI` env var set) a missing golden FAILS instead, so a case
+//!   can't pass by silently recording its own output.
 
 use std::path::PathBuf;
 
@@ -67,12 +69,26 @@ fn assert_valid_entities(name: &str, svg: &str) {
 /// Compare `svg` against the golden file at `name.svg` (after checking entities).
 ///
 /// - If `UPDATE_GOLDEN=1`, always write.
-/// - If the golden file does not exist, create it (first-run friendly).
+/// - If the golden file does not exist: fail under CI, otherwise create it
+///   (first-run friendly locally).
 /// - Otherwise assert equality.
 fn assert_golden(name: &str, svg: &str) {
     assert_valid_entities(name, svg);
     let path = golden_dir().join(format!("{name}.svg"));
     let update = std::env::var("UPDATE_GOLDEN").map(|v| v == "1").unwrap_or(false);
+    // GitHub Actions (and most CI) sets CI=true; treat empty/"0"/"false" as unset.
+    let in_ci = std::env::var("CI")
+        .map(|v| !v.is_empty() && v != "0" && !v.eq_ignore_ascii_case("false"))
+        .unwrap_or(false);
+
+    if !update && !path.exists() && in_ci {
+        panic!(
+            "Golden file missing for `{name}`: {}\n\
+             Generate it locally (run `cargo test` without CI set, or with \
+             UPDATE_GOLDEN=1), review it, and commit it.",
+            path.display(),
+        );
+    }
 
     if update || !path.exists() {
         std::fs::write(&path, svg).unwrap_or_else(|e| {
