@@ -17,12 +17,13 @@
 #   revert:    Reverts a previous commit
 #
 # Optional scope in parentheses: feat(parser): ...
-# Breaking changes: feat!: ... or fix!: ... (→ major bump)
+# Breaking changes: feat!: ... or feat(scope)!: ... (→ major bump)
 #
 # Examples:
 #   feat: add custom title support
 #   fix(svg): eliminate potential panics in generation
 #   feat!: redesign configuration API
+#   feat(core)!: drop v0 shareable URLs
 #   chore(release): core v1.1.0
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -35,8 +36,8 @@ if [[ "$commit_msg" =~ $skip_re ]]; then
     exit 0
 fi
 
-# Conventional commit pattern: type(!)?[(scope)]: description
-pattern='^(feat|fix|perf|docs|style|refactor|test|build|ci|chore|revert)(!)?(\([a-zA-Z0-9_/-]+\))?: .+'
+# Conventional commit pattern: type[(scope)][!]: description
+pattern='^(feat|fix|perf|docs|style|refactor|test|build|ci|chore|revert)(\([a-zA-Z0-9_/-]+\))?(!)?: .+'
 
 if [[ ! "$commit_msg" =~ $pattern ]]; then
     echo ""
@@ -45,7 +46,7 @@ if [[ ! "$commit_msg" =~ $pattern ]]; then
     echo "  Format:  <type>[optional scope]: <description>"
     echo ""
     echo "  Types:   feat fix perf docs style refactor test build ci chore revert"
-    echo "  Breaking: feat!: ... or fix!: ..."
+    echo "  Breaking: feat!: ... or feat(scope)!: ..."
     echo ""
     echo "  Your message: $commit_msg"
     echo ""

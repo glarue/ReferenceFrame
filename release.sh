@@ -85,7 +85,7 @@ determine_bump() {
         subject="${line#* }"
 
         # Check for breaking change marker in subject
-        local breaking_re='^(feat|fix|perf|refactor|chore|docs|test|style|ci)!'
+        local breaking_re='^(feat|fix|perf|docs|style|refactor|test|build|ci|chore|revert)(\([^)]+\))?!: '
         if [[ "$subject" =~ $breaking_re ]]; then
             level="major"
             continue
