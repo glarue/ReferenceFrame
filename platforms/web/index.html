@@ -3171,9 +3171,9 @@
 
         // Add text content to PDF with compact 3-column layout
         async function addTextContent(pdf, startY) {
-            // Colors (RGB) - Match CSS palette (--rf-* variables)
+            // Colors (RGB) - match the CSS palette (--rf-* variables), except cerulean
             const colors = {
-                cerulean: [39, 125, 161],    // --rf-blue (#277da1)
+                cerulean: [39, 125, 161],    // retired cerulean #277da1 — NOT in the current palette (--rf-blue is #577590); see audit Q7
                 black: [0, 0, 0],
                 gray: [128, 128, 128],       // --rf-gray (#808080)
                 darkgray: [64, 64, 64],      // --rf-gray-dark (#404040)

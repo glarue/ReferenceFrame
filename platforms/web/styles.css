@@ -2,23 +2,26 @@
 
 /*
  * ================================================================
- * Standardized Color Palette (7 colors + grayscale)
+ * Standardized Color Palette (10 colors + grayscale)
  * Shared across: Web (CSS), Mobile (Flutter), Rust Core (SVG)
  * ================================================================
  *
- * Core Palette (warm → cool gradient):
- * ------------------------------------
- * 🔴 #f94144 Strawberry Red   → Error states, alerts
- * 🟠 #f3722c Atomic Tangerine → Modified/changed indicators
- * 🟠 #f8961e Carrot Orange    → Cut dimensions, highlights
- * 🟡 #f9c74f Tuscan Sun       → Warnings
- * 🟢 #90be6d Willow Green     → Success states, material properties
- * 🔵 #46af8f Seaweed          → Accent, incidental dimensions
- * 🔵 #577590 Blue Slate       → Primary UI color
+ * Source of truth: core/data/presets.json → colors.palette,
+ * palette_light, palette_dark, neutrals. The --rf-* hex values in :root
+ * below are hand-copied from it; scripts/check_presets_drift.py (CI)
+ * fails if the base/-light/-dark values drift.
  *
- * Variants (auto-generated via color-mix):
- * -----------------------------------------
- * Each color has -light (70% + white) and -dark (70% + black) variants
+ * Core Palette: the 10 --rf-* base colors in :root (warm → cool).
+ *
+ * Variants (literal hex values, not computed via color-mix):
+ * ----------------------------------------------------------
+ * -light: hand-tuned values (presets.json palette_light)
+ * -dark:  70% base + 30% black (presets.json palette_dark)
+ *
+ * Semantic roles (primary, error, cut dimension, …) are assigned in the
+ * "Semantic Colors" section of :root below, not here. That mapping is
+ * currently disputed — it differs from presets.json colors.semantic and
+ * from iOS (see audit W4/Q7).
  *
  * Neutrals:
  * ---------
@@ -49,7 +52,7 @@
     --rf-air-force-blue: #7890a5; /* Air Force Blue - hover/backgrounds */
 
     /* ================================================================
-     * Light Variants (70% base + 30% white)
+     * Light Variants (hand-tuned; values from presets.json palette_light)
      * ================================================================ */
     --rf-flag-red-light: #e26365;
     --rf-red-light: #fb8a8c;
@@ -89,7 +92,8 @@
 
     /* ================================================================
      * Semantic Colors - functional naming
-     * Matches iOS Flutter semantic mappings for consistency
+     * NOTE: currently differs from iOS and from presets.json
+     * colors.semantic (see audit Q7)
      * ================================================================ */
     --rf-primary: var(--rf-blue);
     --rf-primary-dark: var(--rf-blue-dark);

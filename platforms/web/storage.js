@@ -2,10 +2,13 @@
  * Storage module for ReferenceFrame
  * Handles saved configurations, custom sizes, and data backup/restore
  *
- * Compatible with PyScript version localStorage schema
+ * Key names are inherited from the retired PyScript version, and legacy
+ * unversioned (bare-array) payloads are still read and upgraded on load.
+ * Writes use the versioned { version, items } envelope (see Schema
+ * Versioning below), so stored data is NOT PyScript-compatible.
  */
 
-// Storage keys (match PyScript for compatibility)
+// Storage keys (names inherited from the PyScript version so existing data is found)
 const STORAGE_KEYS = {
     CONFIGS: 'frame_designer_saved_configs',
     CUSTOM_SIZES: 'frame_designer_custom_sizes',

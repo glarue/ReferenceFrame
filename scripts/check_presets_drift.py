@@ -11,8 +11,10 @@ Checked against presets.json colors.palette / palette_light / palette_dark:
 
 Also checks presets.json aspect_ratios against the mobile aspect-ratio presets:
   - platforms/mobile/lib/constants/aspect_ratio_presets.dart (ratio/name/annotation/sizes/order)
-(presets.json mirrors mobile here; web's flat STANDARD_SIZES is an intentionally
-separate size dropdown and is not covered.)
+(presets.json mirrors mobile here. Web needs no check: its size dropdown is built
+from presets.json aspect_ratios at runtime via getPresetsJson. Not covered: the
+hand-maintained mobile `standardSizes` list in lib/state/storage.dart and the
+AppColors consts in lib/main.dart.)
 
 Run from anywhere: python3 scripts/check_presets_drift.py
 Exits nonzero on any mismatch. Wired into CI (.github/workflows/test.yml).
