@@ -17,7 +17,7 @@
     <!-- Material Symbols font for icons -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./styles.css?v=20260923-audit">
+    <link rel="stylesheet" href="./styles.css?v=20260923-phase4">
 
     <!-- PDF Export Libraries - CDN with integrity hashes for caching -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
@@ -362,6 +362,9 @@
 
             <!-- Right Column: Visualization + Results -->
             <div class="results-column">
+                <!-- Input-constraint notices, e.g. Rabbet width limited to 5/8" (leaves 1/8" lip) -->
+                <div class="constraint-notice" id="constraint-notice" role="status" aria-live="polite" hidden></div>
+
                 <!-- Validation Messages -->
                 <div class="section validation-section" id="validation-section" style="display: none;">
                     <div class="validation-messages" id="validation-messages" role="alert" aria-live="polite"></div>
@@ -450,6 +453,11 @@
                             <label>Minimum Face Depth (after rabbet)</label>
                             <input type="number" id="cfg-min-face-depth" step="0.0625" min="0">
                             <small>Ensures structural integrity</small>
+                        </div>
+                        <div class="settings-group">
+                            <label>Minimum Visible Opening (per side)</label>
+                            <input type="number" id="cfg-min-visible-opening" step="0.0625" min="0">
+                            <small>Artwork left showing past the mat overlap; limits the overlap</small>
                         </div>
                     </div>
                     
@@ -660,12 +668,12 @@
             updateHistoryTitle,
             clearHistory,
             getHistoryLength
-        } from './pkg/referenceframe_wasm.js?v=20260923-audit';
+        } from './pkg/referenceframe_wasm.js?v=20260923-phase4';
 
         // Namespace import for optional exports (getCoreVersion is only
         // present in newer WASM builds; accessing it via the namespace
         // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260923-audit';
+        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260923-phase4';
 
         console.log('WASM imports successful');
 
@@ -734,9 +742,10 @@
         const STORAGE_KEY_CONFIG = STORAGE_KEYS.VALIDATION_CONFIG;
         const STORAGE_KEY_SETTINGS_UNIT = STORAGE_KEYS.SETTINGS_UNIT;
 
-        // Allowance per cut added to the total-wood-length estimate (inches).
+        // Allowance per cut added to the total-wood-length estimate (inches),
+        // from core defaults (presets.json woodErrorMargin) once WASM loads.
         // Shared by the Results panel, the PDF text, and the Copy summary.
-        const WOOD_ERROR_MARGIN = 0.0625;
+        let woodErrorMargin = null;
 
         // ============================================================================
         // Theme Management
@@ -1004,17 +1013,20 @@
         // (Declared before the top-level-await init block below, which
         // calls initCustomColors() during module evaluation.)
 
-        // Semantic color categories with their default mappings
+        // Semantic color categories. Keys, names and factory defaults mirror the
+        // iOS app (platforms/mobile/lib/models/color_category.dart); each maps to
+        // a --rf-* CSS variable (getCssVarName) that the listed elements use.
+        // Descriptions say what the color changes on the web.
         const SEMANTIC_CATEGORIES = [
-            { key: 'primary', name: 'Primary', desc: 'Main buttons, navigation', default: 'blue' },
-            { key: 'secondary', name: 'Secondary', desc: 'Section headers, accents', default: 'teal' },
-            { key: 'success', name: 'Success', desc: 'Depth clearance OK', default: 'green' },
-            { key: 'warning', name: 'Warning', desc: 'Active toggles, caution', default: 'orange' },
-            { key: 'error', name: 'Error', desc: 'Depth shortfall, delete', default: 'flagRed' },
-            { key: 'modified', name: 'Modified', desc: 'Customized values', default: 'yellow' },
-            { key: 'cutDimension', name: 'Cut Dimension', desc: 'Measurements to cut', default: 'redOrange' },
-            { key: 'incidental', name: 'Incidental', desc: 'Reference dimensions', default: 'darkCyan' },
-            { key: 'materialProperty', name: 'Material', desc: 'Material info', default: 'airForceBlue' },
+            { key: 'primary', name: 'Primary', desc: 'Buttons, view/unit toggles, form focus', default: 'blue' },
+            { key: 'secondary', name: 'Secondary', desc: 'Section headers', default: 'darkCyan' },
+            { key: 'success', name: 'Success', desc: 'Depth clearance OK, unlocked state', default: 'green' },
+            { key: 'warning', name: 'Warning', desc: 'Validation warnings', default: 'orange' },
+            { key: 'error', name: 'Error', desc: 'Depth shortfall, errors, delete actions', default: 'flagRed' },
+            { key: 'modified', name: 'Modified', desc: 'Values changed from defaults', default: 'yellow' },
+            { key: 'cutDimension', name: 'Cut Dimension', desc: 'Results: measurements to cut', default: 'redOrange' },
+            { key: 'incidental', name: 'Incidental', desc: 'Results: reference dimensions', default: 'teal' },
+            { key: 'materialProperty', name: 'Material Property', desc: 'Results: material info', default: 'airForceBlue' },
         ];
 
         // 10-color palette (warm → cool)
@@ -1042,6 +1054,7 @@
             // inputs after WASM is ready (and before the first calculate())
             applyDefaultInputValues();
             initDimensionInputs();
+            woodErrorMargin = JSON.parse(getDefaults()).woodErrorMargin;
 
             // Load validation config after WASM is ready
             loadValidationConfig();
@@ -1475,6 +1488,74 @@
             }
         }
 
+        // ------------------------------------------------------------------
+        // Input-constraint notices
+        // ------------------------------------------------------------------
+        // Design fields the core constraint policy may clamp -> inputs showing them
+        const CONSTRAINT_FIELD_INPUTS = {
+            frame_material_width: ['frame-width'],
+            frame_material_depth: ['frame-depth'],
+            rabbet_width: ['rabbet-width'],
+            rabbet_depth: ['rabbet-depth'],
+            mat_overlap: MAT_OVERLAP_FIELD_IDS,
+        };
+        // Clamped fields the user is still typing in; reflected on blur
+        const pendingClampFields = new Set();
+        const CONSTRAINT_NOTICE_DELAY_MS = 500;    // let intermediate keystrokes settle
+        const CONSTRAINT_NOTICE_VISIBLE_MS = 6000;
+        let constraintNoticeShowTimer = null;
+        let constraintNoticeHideTimer = null;
+
+        // applyInputConstraints returns [{ field, old, new, message }] as JSON
+        function parseConstraintAdjustments(json) {
+            try {
+                const parsed = JSON.parse(json);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                console.error('Could not parse constraint adjustments:', e);
+                return [];
+            }
+        }
+
+        /**
+         * Show clamped values in their inputs and announce them. A field the
+         * user is typing in is left alone (rewriting it mid-edit would fight
+         * the keystrokes); it is reflected when it loses focus.
+         */
+        function reflectConstraintAdjustments(adjustments) {
+            const focusedId = document.activeElement?.id;
+            for (const adj of adjustments) {
+                for (const id of CONSTRAINT_FIELD_INPUTS[adj.field] || []) {
+                    if (id === focusedId) {
+                        pendingClampFields.add(id);
+                    } else {
+                        setDimensionValue(id, adj.new);
+                    }
+                }
+            }
+            scheduleConstraintNotice(adjustments.map(a => a.message));
+        }
+
+        // Debounced so transient values while typing (e.g. "0." on the way to
+        // "0.5") don't flash notices; a calculation with no clamps cancels a
+        // pending notice but lets a visible one time out on its own.
+        function scheduleConstraintNotice(messages) {
+            clearTimeout(constraintNoticeShowTimer);
+            if (!messages.length) return;
+            constraintNoticeShowTimer = setTimeout(() => {
+                const el = document.getElementById('constraint-notice');
+                if (!el) return;
+                el.replaceChildren(...[...new Set(messages)].map(message => {
+                    const line = document.createElement('div');
+                    line.textContent = message;
+                    return line;
+                }));
+                el.hidden = false;
+                clearTimeout(constraintNoticeHideTimer);
+                constraintNoticeHideTimer = setTimeout(() => { el.hidden = true; }, CONSTRAINT_NOTICE_VISIBLE_MS);
+            }, CONSTRAINT_NOTICE_DELAY_MS);
+        }
+
         // Main calculate function
         window.calculate = function() {
             if (!wasmLoaded) {
@@ -1496,17 +1577,18 @@
                 const matWidthTopBottom = includeMat ? getDimensionValue('mat-width-tb') : 0;
                 const matWidthSides = includeMat ? getDimensionValue('mat-width-lr') : 0;
 
-                const matOverlap = includeMat ? getDimensionValue('mat-overlap') : 0;
-                const frameWidth = getDimensionValue('frame-width');
-                const frameDepth = getDimensionValue('frame-depth');
+                // (let: the input-constraint policy below may clamp these)
+                let matOverlap = includeMat ? getDimensionValue('mat-overlap') : 0;
+                let frameWidth = getDimensionValue('frame-width');
+                let frameDepth = getDimensionValue('frame-depth');
 
                 // Advanced settings
                 const glazingThickness = getDimensionValue('glazing-thickness');
                 const matboardThickness = getDimensionValue('matboard-thickness');
                 const artworkThickness = getDimensionValue('artwork-thickness');
                 const backingThickness = getDimensionValue('backing-thickness');
-                const rabbetWidth = getDimensionValue('rabbet-width');
-                const rabbetDepth = getDimensionValue('rabbet-depth');
+                let rabbetWidth = getDimensionValue('rabbet-width');
+                let rabbetDepth = getDimensionValue('rabbet-depth');
                 const assemblyMargin = getDimensionValue('assembly-margin');
                 const bladeWidth = getDimensionValue('blade-width');
 
@@ -1537,7 +1619,20 @@
                 design.frameStyle = document.getElementById('frame-style')?.value || 'rabbet';
                 design.assemblyMargin = assemblyMargin;
 
-                design.validate();
+                // Input-constraint policy (core): clamps values the frame can't
+                // physically hold, honoring the validation limits (min lip,
+                // min face, min visible opening). The design now holds the
+                // clamped values; results below must use them, not the raw inputs.
+                const adjustments = parseConstraintAdjustments(
+                    design.applyInputConstraints(validationConfig ? validationConfig.toJson() : null, unitMm));
+                if (adjustments.length) {
+                    matOverlap = design.matOverlap;
+                    frameWidth = design.frameWidth;
+                    frameDepth = design.frameDepth;
+                    rabbetWidth = design.rabbetWidth;
+                    rabbetDepth = design.rabbetDepth;
+                }
+                reflectConstraintAdjustments(adjustments);
 
                 // Store globally for PDF export (will be kept alive, not freed)
                 currentDesign = design;
@@ -1578,7 +1673,7 @@
                 const hasFitAllowance = hasFitAllowanceFor(matH, fitH);
                 const [matOpenH, matOpenW] = design.getMatOpeningDimensions();
                 const depthRequired = design.getRabbetZDepthRequired();
-                const totalWood = design.getTotalWoodLength(bladeWidth, WOOD_ERROR_MARGIN);
+                const totalWood = design.getTotalWoodLength(bladeWidth, woodErrorMargin);
 
                 // Get cut list
                 const cutListJson = design.getCutListJson();
@@ -2525,6 +2620,7 @@
             // Structural
             document.getElementById('cfg-min-lip-width').value = fmt(validationConfig.minLipWidth);
             document.getElementById('cfg-min-face-depth').value = fmt(validationConfig.minFaceDepth);
+            document.getElementById('cfg-min-visible-opening').value = fmt(validationConfig.minVisibleOpening);
 
             // Dimensions
             document.getElementById('cfg-min-frame-width').value = fmt(validationConfig.minFrameWidth);
@@ -2563,6 +2659,7 @@
             // Structural
             validationConfig.minLipWidth = getVal('cfg-min-lip-width');
             validationConfig.minFaceDepth = getVal('cfg-min-face-depth');
+            validationConfig.minVisibleOpening = getVal('cfg-min-visible-opening');
 
             // Dimensions
             validationConfig.minFrameWidth = getVal('cfg-min-frame-width');
@@ -2801,11 +2898,15 @@
             syncMaterialPickersFromStorage();
         })();
 
-        // Add blur handlers to normalize fractional inputs (inches mode only)
+        // Add blur handlers to normalize fractional inputs (inches mode only),
+        // then show any clamp deferred while the field was being edited
         dimensionInputIds.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
                 el.addEventListener('blur', normalizeFractionalInput);
+                el.addEventListener('blur', () => {
+                    if (pendingClampFields.delete(id)) calculate();
+                });
             }
         });
 
@@ -3198,7 +3299,7 @@
                 depthRequired: design.getRabbetZDepthRequired(),
                 horizontalPiece: firstPiece('horizontal_pieces'),
                 verticalPiece: firstPiece('vertical_pieces'),
-                totalWood: design.getTotalWoodLength(bladeWidth, WOOD_ERROR_MARGIN),
+                totalWood: design.getTotalWoodLength(bladeWidth, woodErrorMargin),
                 bladeWidth,
                 assemblyMargin: design.assemblyMargin,
                 glazingThickness: design.glazingThickness,
@@ -3824,7 +3925,9 @@
                 h = createHistory();
             }
             // timestamp is an i64 (bigint) parameter — pass a BigInt.
-            const result = addToHistory(h, currentDesign.toJson(), BigInt(Date.now()), title.trim() || defaultTitle, false);
+            // An empty title lets core auto-generate one in the current unit
+            // (e.g. `215.9 mm × 279.4 mm Frame`)
+            const result = addToHistory(h, currentDesign.toJson(), BigInt(Date.now()), title.trim(), false, unitMm);
             h = unwrapAddToHistory(result, h);
             if (!commitHistoryUpdate(h)) return;
             renderHistory();

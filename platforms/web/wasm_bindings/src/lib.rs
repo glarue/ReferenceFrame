@@ -1125,6 +1125,27 @@ impl ValidationConfig {
     pub fn warn_extreme_aspect_ratio(&self) -> f64 { self.0.warn_extreme_aspect_ratio }
     #[wasm_bindgen(setter, js_name = "warnExtremeAspectRatio")]
     pub fn set_warn_extreme_aspect_ratio(&mut self, val: f64) { self.0.warn_extreme_aspect_ratio = val; }
+
+    // Mat constraints
+    #[wasm_bindgen(getter, js_name = "minVisibleOpening")]
+    pub fn min_visible_opening(&self) -> f64 { self.0.min_visible_opening }
+    #[wasm_bindgen(setter, js_name = "minVisibleOpening")]
+    pub fn set_min_visible_opening(&mut self, val: f64) { self.0.min_visible_opening = val; }
+
+    #[wasm_bindgen(getter, js_name = "warnMinMatOpening")]
+    pub fn warn_min_mat_opening(&self) -> f64 { self.0.warn_min_mat_opening }
+    #[wasm_bindgen(setter, js_name = "warnMinMatOpening")]
+    pub fn set_warn_min_mat_opening(&mut self, val: f64) { self.0.warn_min_mat_opening = val; }
+
+    #[wasm_bindgen(getter, js_name = "minMatOverlap")]
+    pub fn min_mat_overlap(&self) -> f64 { self.0.min_mat_overlap }
+    #[wasm_bindgen(setter, js_name = "minMatOverlap")]
+    pub fn set_min_mat_overlap(&mut self, val: f64) { self.0.min_mat_overlap = val; }
+
+    #[wasm_bindgen(getter, js_name = "maxMatOverlap")]
+    pub fn max_mat_overlap(&self) -> f64 { self.0.max_mat_overlap }
+    #[wasm_bindgen(setter, js_name = "maxMatOverlap")]
+    pub fn set_max_mat_overlap(&mut self, val: f64) { self.0.max_mat_overlap = val; }
 }
 
 /// Get typical ranges as JSON (all fields from core TypicalRanges)

@@ -19,9 +19,9 @@
  * -dark:  70% base + 30% black (presets.json palette_dark)
  *
  * Semantic roles (primary, error, cut dimension, …) are assigned in the
- * "Semantic Colors" section of :root below, not here. That mapping is
- * currently disputed — it differs from presets.json colors.semantic and
- * from iOS (see audit W4/Q7).
+ * "Semantic Colors" section of :root below, not here. Their factory
+ * defaults follow the iOS app (platforms/mobile/lib/models/
+ * color_category.dart) and presets.json colors.semantic.
  *
  * Neutrals:
  * ---------
@@ -40,16 +40,16 @@
      * Core Palette - 10 colors (warm → cool gradient)
      * Matches iOS Flutter palette for cross-platform consistency
      * ================================================================ */
-    --rf-flag-red: #d52023;      /* Flag Red - critical errors, delete */
+    --rf-flag-red: #d52023;      /* Flag Red */
     --rf-red: #f94144;           /* Strawberry Red */
     --rf-red-orange: #f3722c;    /* Atomic Tangerine */
     --rf-orange: #f8961e;        /* Carrot Orange */
     --rf-yellow: #f9c74f;        /* Tuscan Sun */
     --rf-green: #90be6d;         /* Willow Green */
     --rf-teal: #46af8f;          /* Seaweed */
-    --rf-dark-cyan: #478583;     /* Dark Cyan - muted/disabled */
+    --rf-dark-cyan: #478583;     /* Dark Cyan */
     --rf-blue: #577590;          /* Blue Slate */
-    --rf-air-force-blue: #7890a5; /* Air Force Blue - hover/backgrounds */
+    --rf-air-force-blue: #7890a5; /* Air Force Blue */
 
     /* ================================================================
      * Light Variants (hand-tuned; values from presets.json palette_light)
@@ -92,25 +92,38 @@
 
     /* ================================================================
      * Semantic Colors - functional naming
-     * NOTE: currently differs from iOS and from presets.json
-     * colors.semantic (see audit Q7)
+     * Factory defaults match iOS (color_category.dart factoryColorName).
+     * The 9 user-customizable categories (Settings > Appearance) are
+     * overridden at runtime by applyCustomColors() in index.html, which
+     * sets these variables on <html>; style rules must reference these
+     * semantic variables (not the raw palette) for customization to apply.
      * ================================================================ */
-    --rf-primary: var(--rf-blue);
+    --rf-primary: var(--rf-blue);            /* buttons, view/unit toggles, form focus */
     --rf-primary-dark: var(--rf-blue-dark);
-    --rf-secondary: var(--rf-teal);
-    --rf-secondary-dark: var(--rf-teal-dark);
-    --rf-success: var(--rf-green);
+    --rf-secondary: var(--rf-dark-cyan);     /* results section headers */
+    --rf-secondary-dark: var(--rf-dark-cyan-dark);
+    --rf-success: var(--rf-green);           /* depth clearance OK, unlocked */
     --rf-success-dark: var(--rf-green-dark);
-    --rf-warning: var(--rf-orange);
+    --rf-warning: var(--rf-orange);          /* validation warnings */
     --rf-warning-dark: var(--rf-orange-dark);
-    --rf-error: var(--rf-flag-red);
+    --rf-error: var(--rf-flag-red);          /* depth shortfall, errors, delete */
     --rf-error-dark: var(--rf-flag-red-dark);
 
     /* Results display semantic colors */
-    --rf-cut-dimension: var(--rf-red-orange);
-    --rf-incidental: var(--rf-dark-cyan);
-    --rf-material-property: var(--rf-air-force-blue);
-    --rf-modified: var(--rf-yellow);
+    --rf-cut-dimension: var(--rf-red-orange);          /* measurements to cut */
+    --rf-incidental: var(--rf-teal);                   /* reference dimensions */
+    --rf-material-property: var(--rf-air-force-blue); /* material info */
+    --rf-modified: var(--rf-yellow);                   /* values changed from defaults */
+
+    /* Text shades of customizable colors, derived with color-mix so they
+       follow customization. Dark surfaces (these defaults): warning and
+       modified use the base color; error is lifted 30% toward white (the
+       -light palette formula) because the dark reds are too dim for small
+       text. The light-theme and print blocks override these with the
+       base / 70%-plus-black (-dark palette formula) shades. */
+    --rf-warning-text: var(--rf-warning);
+    --rf-modified-text: var(--rf-modified);
+    --rf-error-text: color-mix(in srgb, var(--rf-error) 70%, white);
 
     /* Legacy aliases for backward compatibility */
     --rf-primary-blue: var(--rf-primary);
@@ -118,7 +131,6 @@
     --rf-success-green: var(--rf-success);
     --rf-warning-orange: var(--rf-warning);
     --rf-error-red: var(--rf-error);
-    --rf-purple: var(--rf-primary-blue);
 
     /* Shorthand semantic aliases used in results/tables */
     --rf-bg: var(--rf-bg-dark);
@@ -293,6 +305,9 @@
     --rf-text: var(--rf-gray-dark);
     --rf-text-light: var(--rf-gray-dark);
     --rf-text-muted: #64748b;
+    --rf-warning-text: color-mix(in srgb, var(--rf-warning) 70%, black);
+    --rf-modified-text: color-mix(in srgb, var(--rf-modified) 70%, black);
+    --rf-error-text: var(--rf-error);
 
     /* Border colors */
     --rf-border: rgba(0, 0, 0, 0.12);
@@ -325,6 +340,9 @@
         --rf-text: var(--rf-gray-dark);
         --rf-text-light: var(--rf-gray-dark);
         --rf-text-muted: #64748b;
+        --rf-warning-text: color-mix(in srgb, var(--rf-warning) 70%, black);
+        --rf-modified-text: color-mix(in srgb, var(--rf-modified) 70%, black);
+        --rf-error-text: var(--rf-error);
 
         /* Border colors */
         --rf-border: rgba(0, 0, 0, 0.12);
@@ -629,7 +647,7 @@ input::placeholder {
 }
 
 .section-header-with-checkbox .checkbox-controlled-text {
-    color: var(--rf-blue);
+    color: var(--rf-primary);
     cursor: pointer;
     transition: opacity 0.15s ease;
 }
@@ -886,9 +904,9 @@ input::placeholder {
     border-radius: 3px 0 0 3px;
 }
 
-/* Orange/red overflow fill: shows excess beyond capacity */
+/* Overflow fill: shows the shortfall beyond capacity (error color) */
 .depth-fill-overflow {
-    background: var(--rf-warning-orange);
+    background: var(--rf-error);
     border-radius: 0 3px 3px 0;
 }
 
@@ -916,8 +934,9 @@ input::placeholder {
     color: var(--rf-success-green);
 }
 
+/* Shortfall message (error color, as on iOS) */
 .depth-status-warning {
-    color: var(--rf-warning-orange);
+    color: var(--rf-error-text);
 }
 
 /* Card-based results display (Phase 2 - Style Matching) */
@@ -925,7 +944,7 @@ input::placeholder {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--rf-primary-blue);
+    color: var(--rf-secondary);
     font-size: 14px;
     font-weight: 700;
     text-transform: uppercase;
@@ -966,48 +985,48 @@ input::placeholder {
     padding-left: 8px;  /* Match table alignment: 2px border + 8px padding = 10px total indent */
 }
 
-/* Orange - Cut Dimensions (what you physically cut/modify) */
+/* Cut Dimensions (what you physically cut) */
 .data-item.cut-dimension {
-    border-left-color: var(--rf-orange);
-    background: color-mix(in srgb, var(--rf-orange) 8%, transparent);
+    border-left-color: var(--rf-cut-dimension);
+    background: color-mix(in srgb, var(--rf-cut-dimension) 8%, transparent);
     margin: -4px -8px;
     padding: 10px 12px 10px 8px;
     border-radius: 0 6px 6px 0;
 }
 
 .data-item.cut-dimension .data-label {
-    color: var(--rf-orange);
+    color: var(--rf-cut-dimension);
 }
 
-/* Teal - Incidental Dimensions (derived from cuts) */
+/* Incidental Dimensions (reference, derived from cuts) */
 .data-item.incidental {
-    border-left-color: var(--rf-teal);
+    border-left-color: var(--rf-incidental);
 }
 
 .data-item.incidental .data-label {
-    color: var(--rf-teal);
+    color: var(--rf-incidental);
 }
 
-/* Green - Material Properties (stack components) */
+/* Material Properties (stack components) */
 .data-item.material-property {
-    border-left-color: var(--rf-green);
+    border-left-color: var(--rf-material-property);
 }
 
 .data-item.material-property .data-label {
-    color: var(--rf-green);
+    color: var(--rf-material-property);
 }
 
-/* Purple - Modified from Defaults */
+/* Modified from Defaults */
 .data-item.modified {
-    border-left-color: var(--rf-purple);
-    background: color-mix(in srgb, var(--rf-purple) 8%, transparent);
+    border-left-color: var(--rf-modified);
+    background: color-mix(in srgb, var(--rf-modified) 8%, transparent);
     margin: -4px -8px;
     padding: 10px 12px 10px 8px;
     border-radius: 0 6px 6px 0;
 }
 
 .data-item.modified .data-label {
-    color: var(--rf-purple);
+    color: var(--rf-modified-text);
 }
 
 /* Compact dimension table for Frame and Matboard sections */
@@ -1056,24 +1075,24 @@ input::placeholder {
 }
 
 /* Semantic color highlighting for table rows */
-/* Orange - Cut dimensions */
+/* Cut dimensions */
 .dimension-table tr.cut-dimension-row td {
-    background: color-mix(in srgb, var(--rf-orange) 8%, transparent);
+    background: color-mix(in srgb, var(--rf-cut-dimension) 8%, transparent);
 }
 
 .dimension-table tr.cut-dimension-row td:first-child {
-    color: var(--rf-orange);
-    border-left: 2px solid var(--rf-orange);
+    color: var(--rf-cut-dimension);
+    border-left: 2px solid var(--rf-cut-dimension);
 }
 
-/* Teal - Incidental dimensions */
+/* Incidental dimensions */
 .dimension-table tr.incidental-row td {
-    background: color-mix(in srgb, var(--rf-teal) 5%, transparent);
+    background: color-mix(in srgb, var(--rf-incidental) 5%, transparent);
 }
 
 .dimension-table tr.incidental-row td:first-child {
-    color: var(--rf-teal);
-    border-left: 2px solid var(--rf-teal);
+    color: var(--rf-incidental);
+    border-left: 2px solid var(--rf-incidental);
 }
 
 .data-label {
@@ -1163,7 +1182,7 @@ input::placeholder {
     font-family: var(--font-mono);
     font-size: 16px;
     font-weight: 700;
-    color: var(--rf-primary-blue);
+    color: var(--rf-cut-dimension);
 }
 
 .cut-list-footer {
@@ -1358,7 +1377,7 @@ button:hover {
 }
 
 button:focus-visible {
-    outline: 2px solid rgba(39, 125, 161, 0.5);
+    outline: 2px solid color-mix(in srgb, var(--rf-primary) 50%, transparent);
     outline-offset: 2px;
 }
 
@@ -1396,7 +1415,7 @@ button:active {
 
 .reset-btn:hover {
     background: var(--rf-surface-hover);
-    border-color: var(--rf-blue);
+    border-color: var(--rf-primary);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     transform: translateY(-1px);
 }
@@ -1455,8 +1474,8 @@ button:active {
 
 .pdf-title-input:focus {
     outline: none;
-    border-color: var(--rf-blue);
-    box-shadow: 0 0 0 2px rgba(87, 117, 144, 0.2);
+    border-color: var(--rf-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--rf-primary) 20%, transparent);
 }
 
 /* Performance indicator */
@@ -1537,7 +1556,7 @@ button:active {
     background: white;
     color: var(--rf-primary-blue);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1),
-                0 0 0 1px rgba(39, 124, 160, 0.15);
+                0 0 0 1px color-mix(in srgb, var(--rf-primary) 15%, transparent);
     font-weight: 700;
 }
 
@@ -1946,6 +1965,23 @@ button:active {
     }
 }
 
+/* Input-constraint notices ("Rabbet width limited to …"): informational and
+   auto-hiding, in the primary color; same shape as .export-status */
+.constraint-notice {
+    margin-bottom: var(--section-margin-bottom);
+    padding: 8px 12px;
+    border-left: 3px solid var(--rf-primary);
+    border-radius: 0 var(--md-shape-extra-small) var(--md-shape-extra-small) 0;
+    background: color-mix(in srgb, var(--rf-primary) 10%, var(--md-surface-container));
+    color: var(--rf-text);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.constraint-notice[hidden] {
+    display: none;
+}
+
 /* Validation Styles */
 .validation-section {
     padding: 0 !important;
@@ -1967,13 +2003,13 @@ button:active {
 }
 
 .validation-errors {
-    background: color-mix(in srgb, var(--rf-red) 10%, var(--rf-bg));
-    border: 1px solid var(--rf-red);
+    background: color-mix(in srgb, var(--rf-error) 10%, var(--rf-bg));
+    border: 1px solid var(--rf-error);
 }
 
 .validation-warnings {
-    background: color-mix(in srgb, var(--rf-yellow) 10%, var(--rf-bg));
-    border: 1px solid var(--rf-yellow);
+    background: color-mix(in srgb, var(--rf-warning) 10%, var(--rf-bg));
+    border: 1px solid var(--rf-warning);
 }
 
 .validation-header {
@@ -1983,13 +2019,13 @@ button:active {
 }
 
 .validation-error-header {
-    background: color-mix(in srgb, var(--rf-red) 20%, var(--rf-bg));
-    color: var(--rf-red);
+    background: color-mix(in srgb, var(--rf-error) 20%, var(--rf-bg));
+    color: var(--rf-error-text);
 }
 
 .validation-warning-header {
-    background: color-mix(in srgb, var(--rf-yellow) 20%, var(--rf-bg));
-    color: var(--rf-yellow-dark);
+    background: color-mix(in srgb, var(--rf-warning) 20%, var(--rf-bg));
+    color: var(--rf-warning-text);
 }
 
 .validation-list {
@@ -2011,11 +2047,11 @@ button:active {
 }
 
 .validation-error {
-    color: var(--rf-red);
+    color: var(--rf-error-text);
 }
 
 .validation-warning {
-    color: var(--rf-yellow-dark);
+    color: var(--rf-warning-text);
 }
 
 .validation-details {
@@ -2025,13 +2061,13 @@ button:active {
 
 /* Input field validation highlighting */
 .input-error {
-    border-color: var(--rf-red) !important;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--rf-red) 20%, transparent) !important;
+    border-color: var(--rf-error) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--rf-error) 20%, transparent) !important;
 }
 
 .input-warning {
-    border-color: var(--rf-yellow) !important;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--rf-yellow) 20%, transparent) !important;
+    border-color: var(--rf-warning) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--rf-warning) 20%, transparent) !important;
 }
 
 /* Blocked visualization message */
@@ -2068,7 +2104,7 @@ button:active {
 
 .settings-btn:hover {
     background: var(--rf-surface-hover);
-    border-color: var(--rf-blue);
+    border-color: var(--rf-primary);
 }
 
 /* Theme Toggle Button */
@@ -2085,7 +2121,7 @@ button:active {
 
 .theme-btn:hover {
     background: var(--rf-surface-hover);
-    border-color: var(--rf-blue);
+    border-color: var(--rf-primary);
 }
 
 /* ================================================================
@@ -2342,7 +2378,7 @@ button:active {
 }
 
 .settings-unit-toggle button.active {
-    background: var(--rf-blue);
+    background: var(--rf-primary);
     color: white;
 }
 
@@ -2377,7 +2413,7 @@ button:active {
 }
 
 .settings-tab.active {
-    background: var(--rf-blue);
+    background: var(--rf-primary);
     color: white;
 }
 
@@ -2419,7 +2455,7 @@ button:active {
 
 .settings-group input:focus {
     outline: none;
-    border-color: var(--rf-blue);
+    border-color: var(--rf-primary);
 }
 
 .settings-group small {
@@ -2476,7 +2512,7 @@ button:active {
 
 .config-select:focus {
     outline: none;
-    border-color: var(--rf-blue);
+    border-color: var(--rf-primary);
 }
 
 .config-select option {
@@ -2514,7 +2550,7 @@ button:active {
 
 .configs-save-section #config-name:focus {
     outline: none;
-    border-color: var(--rf-blue);
+    border-color: var(--rf-primary);
 }
 
 /* Compact primary button */
@@ -2559,7 +2595,7 @@ button:active {
 
 .btn-secondary:hover {
     background: var(--rf-surface-hover);
-    border-color: var(--rf-blue);
+    border-color: var(--rf-primary);
 }
 
 .btn-secondary:active {
@@ -2710,7 +2746,7 @@ h3 {
 
 .size-select-compact:focus {
     outline: none;
-    border-color: var(--rf-blue);
+    border-color: var(--rf-primary);
 }
 
 .size-select-compact option {
@@ -2742,10 +2778,11 @@ h3 {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
+/* Delete buttons (trash icons) use the error color */
 .btn-icon-small:hover {
     background: var(--rf-surface-hover);
-    border-color: var(--rf-red);
-    color: var(--rf-red);
+    border-color: var(--rf-error);
+    color: var(--rf-error);
 }
 
 .btn-icon-small:disabled {
@@ -2812,6 +2849,9 @@ h3 {
         --rf-surface: #ffffff;
         --rf-text: #1a1a1a;
         --rf-text-light: #1a1a1a;
+        --rf-warning-text: color-mix(in srgb, var(--rf-warning) 70%, black);
+        --rf-modified-text: color-mix(in srgb, var(--rf-modified) 70%, black);
+        --rf-error-text: var(--rf-error);
     }
 
     html, body, .container {
