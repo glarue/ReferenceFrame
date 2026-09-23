@@ -114,7 +114,7 @@ const V2_LEN: usize = 39;
 /// Bit position of the version within the flags byte
 const VERSION_SHIFT: u8 = 5;
 
-// Field ranges: values are stored as fixed-point ×10000.
+// Field ranges: values are stored as fixed-point ×10000, rounded to nearest.
 //   uint24 fields max: 0xFFFFFF / 10000 = 1677.7215"
 //   uint16 fields max: 0xFFFF / 10000 = 6.5535"
 // Out-of-range values are clamped on encode (never silently wrapped).
@@ -123,7 +123,8 @@ const MAX_UINT16: f64 = 0xFFFF as f64;
 
 /// Pack a value as big-endian uint24 (3 bytes), clamped to [0, 1677.7215]
 fn pack_uint24(val: f64) -> [u8; 3] {
-    let v = (val * 10000.0).clamp(0.0, MAX_UINT24) as u32;
+    // Round (not truncate): 1.13 × 10000 = 11299.999… must store 11300
+    let v = (val * 10000.0).round().clamp(0.0, MAX_UINT24) as u32;
     [
         ((v >> 16) & 0xFF) as u8,
         ((v >> 8) & 0xFF) as u8,
@@ -139,7 +140,7 @@ fn unpack_uint24(bytes: &[u8]) -> f64 {
 
 /// Pack a value as big-endian uint16 (2 bytes), clamped to [0, 6.5535]
 fn pack_uint16(val: f64) -> [u8; 2] {
-    let v = (val * 10000.0).clamp(0.0, MAX_UINT16) as u16;
+    let v = (val * 10000.0).round().clamp(0.0, MAX_UINT16) as u16;
     [
         ((v >> 8) & 0xFF) as u8,
         (v & 0xFF) as u8,
@@ -986,5 +987,150 @@ mod tests {
         let p = decode_shareable_url(&format!("?d={}", URL_SAFE_NO_PAD.encode(&bytes))).unwrap();
         assert_eq!(p.frame_style, FrameStyle::Rabbet);
         assert_eq!(p.float_reveal, 0.0);
+    }
+
+    // --- Encoder rounding ---
+
+    #[test]
+    fn test_encoder_rounds_instead_of_truncating() {
+        // Regression: 1.13 × 10000 = 11299.999… used to truncate to 11299
+        // (→ 1.1299), so a loaded design never equalled the one that was shared.
+        let params = ShareableParams {
+            artwork_height: 1.13,
+            artwork_width: 0.57,
+            mat_width_sides: 1.13,
+            glazing_thickness: 0.57,
+            rabbet_width: 1.13,
+            float_reveal: 0.57,
+            ..ShareableParams::default()
+        };
+        let d = decode_shareable_url(&format!("?d={}", generate_shareable_url(&params))).unwrap();
+        for (label, got, want) in [
+            ("artwork_height (u24)", d.artwork_height, 1.13),
+            ("artwork_width (u24)", d.artwork_width, 0.57),
+            ("mat_width_sides (u24)", d.mat_width_sides, 1.13),
+            ("glazing_thickness (u16)", d.glazing_thickness, 0.57),
+            ("rabbet_width (u16)", d.rabbet_width, 1.13),
+            ("float_reveal (u16)", d.float_reveal, 0.57),
+        ] {
+            assert!((got - want).abs() < 1e-9, "{label}: expected {want}, got {got}");
+        }
+    }
+
+    // --- Frozen fixtures ---
+    //
+    // Literal payloads for every supported format, generated once from raw
+    // fixed-point integers (NOT via this module's pack helpers or encoder) and
+    // hardcoded. They pin the wire format: a change that alters encoder and
+    // decoder together would still break these, just as it would break links
+    // already shared in the wild. Never regenerate them to make a test pass.
+
+    fn assert_params(actual: &ShareableParams, expected: &ShareableParams) {
+        let nums = [
+            ("artwork_height", actual.artwork_height, expected.artwork_height),
+            ("artwork_width", actual.artwork_width, expected.artwork_width),
+            ("mat_width", actual.mat_width, expected.mat_width),
+            ("mat_width_sides", actual.mat_width_sides, expected.mat_width_sides),
+            ("mat_overlap", actual.mat_overlap, expected.mat_overlap),
+            ("frame_width", actual.frame_width, expected.frame_width),
+            ("frame_depth", actual.frame_depth, expected.frame_depth),
+            ("glazing_thickness", actual.glazing_thickness, expected.glazing_thickness),
+            ("matboard_thickness", actual.matboard_thickness, expected.matboard_thickness),
+            ("artwork_thickness", actual.artwork_thickness, expected.artwork_thickness),
+            ("backing_thickness", actual.backing_thickness, expected.backing_thickness),
+            ("assembly_margin", actual.assembly_margin, expected.assembly_margin),
+            ("rabbet_width", actual.rabbet_width, expected.rabbet_width),
+            ("rabbet_depth", actual.rabbet_depth, expected.rabbet_depth),
+            ("blade_width", actual.blade_width, expected.blade_width),
+            ("float_reveal", actual.float_reveal, expected.float_reveal),
+        ];
+        for (name, got, want) in nums {
+            assert!((got - want).abs() < 1e-9, "{name}: expected {want}, got {got}");
+        }
+        assert_eq!(actual.include_mat, expected.include_mat, "include_mat");
+        assert_eq!(actual.unit_mm, expected.unit_mm, "unit_mm");
+        assert_eq!(actual.frame_style, expected.frame_style, "frame_style");
+    }
+
+    #[test]
+    fn test_frozen_fixture_v0_legacy_28_bytes() {
+        // h=10 w=8 mw=2 fw=1.5 fd=0.75, gt/mt/at/bt=.093/.055/.008/.125,
+        // rd=.375 (no rw field), bw=.125, flags=0x01 (mat, inches)
+        const V0_28: &str = "AYagATiAAE4gADqYAB1MA6ICJgBQBOIOpgTiAQ";
+        let d = decode_shareable_url(&format!("?d={V0_28}")).unwrap();
+        assert_params(&d, &ShareableParams {
+            artwork_height: 10.0, artwork_width: 8.0,
+            mat_width: 2.0, mat_width_sides: 2.0, // mirrors mat_width
+            mat_overlap: DEFAULT_MAT_OVERLAP, assembly_margin: DEFAULT_ASSEMBLY_MARGIN,
+            frame_width: 1.5, frame_depth: 0.75,
+            glazing_thickness: 0.093, matboard_thickness: 0.055,
+            artwork_thickness: 0.008, backing_thickness: 0.125,
+            rabbet_width: 0.375, rabbet_depth: 0.375, // square rabbet
+            blade_width: 0.125,
+            include_mat: true, unit_mm: false,
+            frame_style: FrameStyle::Rabbet, float_reveal: 0.0,
+        });
+    }
+
+    #[test]
+    fn test_frozen_fixture_v0_30_bytes() {
+        // h=8 w=12 mw=2.5 fw=1.25 fd=0.875, gt/mt/at/bt=.093/.055/.008/.125,
+        // rw=.25 rd=.375 bw=.125, flags=0x03 (mat, mm)
+        const V0_30: &str = "ATiAAdTAAGGoADDUACIuA6ICJgBQBOIJxA6mBOID";
+        let d = decode_shareable_url(&format!("?d={V0_30}")).unwrap();
+        assert_params(&d, &ShareableParams {
+            artwork_height: 8.0, artwork_width: 12.0,
+            mat_width: 2.5, mat_width_sides: 2.5,
+            mat_overlap: DEFAULT_MAT_OVERLAP, assembly_margin: DEFAULT_ASSEMBLY_MARGIN,
+            frame_width: 1.25, frame_depth: 0.875,
+            glazing_thickness: 0.093, matboard_thickness: 0.055,
+            artwork_thickness: 0.008, backing_thickness: 0.125,
+            rabbet_width: 0.25, rabbet_depth: 0.375, blade_width: 0.125,
+            include_mat: true, unit_mm: true,
+            frame_style: FrameStyle::Rabbet, float_reveal: 0.0,
+        });
+    }
+
+    #[test]
+    fn test_frozen_fixture_v1_37_bytes() {
+        // h=11 w=14 mw=3 fw=1 fd=0.75, gt/mt/at/bt=.093/.055/.008/.125,
+        // rw=.375 rd=.5 bw=.125, flags=0x21 (v1, mat, inches),
+        // mws=2.5 mo=.1875 am=.0625
+        const V1_37: &str = "Aa2wAiLgAHUwACcQAB1MA6ICJgBQBOIOphOIBOIhAGGoB1MCcQ";
+        let d = decode_shareable_url(&format!("?d={V1_37}")).unwrap();
+        assert_params(&d, &ShareableParams {
+            artwork_height: 11.0, artwork_width: 14.0,
+            mat_width: 3.0, mat_width_sides: 2.5,
+            mat_overlap: 0.1875, assembly_margin: 0.0625,
+            frame_width: 1.0, frame_depth: 0.75,
+            glazing_thickness: 0.093, matboard_thickness: 0.055,
+            artwork_thickness: 0.008, backing_thickness: 0.125,
+            rabbet_width: 0.375, rabbet_depth: 0.5, blade_width: 0.125,
+            include_mat: true, unit_mm: false,
+            frame_style: FrameStyle::Rabbet, float_reveal: 0.0,
+        });
+    }
+
+    #[test]
+    fn test_frozen_fixture_v2_39_bytes() {
+        // h=16 w=20 mw=0 fw=1.5 fd=1.25, gt/mt/at/bt=.093/.055/.75/.125,
+        // rw=.375 rd=1 bw=.125, flags=0x46 (v2, sight-size, mm, no mat),
+        // mws=0 mo=.125 am=.0625 reveal=.25
+        const V2_39: &str = "AnEAAw1AAAAAADqYADDUA6ICJh1MBOIOpicQBOJGAAAABOICcQnE";
+        let expected = ShareableParams {
+            artwork_height: 16.0, artwork_width: 20.0,
+            mat_width: 0.0, mat_width_sides: 0.0,
+            mat_overlap: 0.125, assembly_margin: 0.0625,
+            frame_width: 1.5, frame_depth: 1.25,
+            glazing_thickness: 0.093, matboard_thickness: 0.055,
+            artwork_thickness: 0.75, backing_thickness: 0.125,
+            rabbet_width: 0.375, rabbet_depth: 1.0, blade_width: 0.125,
+            include_mat: false, unit_mm: true,
+            frame_style: FrameStyle::SightSize, float_reveal: 0.25,
+        };
+        let d = decode_shareable_url(&format!("?d={V2_39}")).unwrap();
+        assert_params(&d, &expected);
+        // The current encoder must reproduce the frozen v2 payload byte-for-byte
+        assert_eq!(generate_shareable_url(&expected), V2_39);
     }
 }
