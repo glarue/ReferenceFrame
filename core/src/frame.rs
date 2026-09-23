@@ -115,50 +115,15 @@ impl FrameDesign {
         }
     }
 
-    /// Enforce internal constraints on this design (symmetry, clamping, normalization).
+    /// Apply the input-constraint policy in place with the default limits
+    /// (`ValidationConfig::default()`), discarding the adjustment notices.
     ///
-    /// This is NOT validation against user-configurable limits -- for that,
-    /// use `validation::validate_design()` with a `ValidationConfig`.
+    /// Callers that honor user-configured limits or show notices should use
+    /// `constraints::apply_input_constraints` directly. This is NOT validation
+    /// -- for errors/warnings use `validation::validate_design()`.
     pub fn enforce_constraints(&mut self) {
-        // Enforce symmetrical mat if flag is set
-        if self.symmetrical_mat && self.mat_width_sides != self.mat_width_top_bottom {
-            self.mat_width_sides = self.mat_width_top_bottom;
-        }
-
-        // When no_artwork_margin is set, mat opening equals artwork size
-        if self.no_artwork_margin {
-            self.mat_overlap = 0.0;
-        }
-
-        // Clamp mat_overlap to sensible maximum (can't overlap more than half the artwork)
-        let max_overlap_h = self.artwork_height / 2.0 - 0.125; // Leave at least 1/4" visible
-        let max_overlap_w = self.artwork_width / 2.0 - 0.125;
-        let max_overlap = max_overlap_h.min(max_overlap_w).max(0.0);
-        if self.mat_overlap > max_overlap {
-            self.mat_overlap = max_overlap;
-        }
-
-        // Float reveal is a positive gap (Phase 2); never negative.
-        if self.float_reveal < 0.0 {
-            self.float_reveal = 0.0;
-        }
-
-        // Enforce minimum dimensions
-        const MIN_DIMENSION: f64 = 0.0625; // 1/16 inch minimum
-        self.frame_material_width = self.frame_material_width.max(MIN_DIMENSION);
-        self.frame_material_depth = self.frame_material_depth.max(MIN_DIMENSION);
-        self.rabbet_width = self.rabbet_width.max(MIN_DIMENSION);
-        self.rabbet_depth = self.rabbet_depth.max(MIN_DIMENSION);
-
-        // Rabbet constraints: rabbet must fit within frame
-        // Rabbet depth cannot exceed frame depth
-        if self.rabbet_depth > self.frame_material_depth {
-            self.rabbet_depth = self.frame_material_depth;
-        }
-        // Rabbet width cannot exceed frame width
-        if self.rabbet_width > self.frame_material_width {
-            self.rabbet_width = self.frame_material_width;
-        }
+        let config = crate::validation::ValidationConfig::default();
+        *self = crate::constraints::apply_input_constraints(self, &config, false).design;
     }
 
     /// Check if this design includes matting
@@ -766,8 +731,10 @@ mod tests {
         design.frame_material_depth = 0.75;
         design.rabbet_depth = 1.5; // exceeds frame depth
         design.enforce_constraints();
-        assert_close(design.rabbet_width, 0.75, "rabbet_width_clamped");
-        assert_close(design.rabbet_depth, 0.75, "rabbet_depth_clamped");
+        // Default policy leaves a 1/8" lip and a 1/8" face (min_lip_width /
+        // min_face_depth), not just "fits in the frame"
+        assert_close(design.rabbet_width, 0.625, "rabbet_width_clamped");
+        assert_close(design.rabbet_depth, 0.625, "rabbet_depth_clamped");
     }
 
     #[test]
@@ -1303,5 +1270,15 @@ mod tests {
         assert!(d.mat_width_top_bottom > 0.0, "test setup: mat widths still set");
         // 0.093 + 0.008 + 0.125 + 0.0625 = 0.2885 (the 0.055 matboard is ignored)
         assert_close(d.get_rabbet_z_depth_required(), 0.2885, "sight-size stack");
+    }
+
+    #[test]
+    fn test_total_wood_length_with_preset_margins() {
+        // Both platforms: blade kerf + 1/16" error margin per piece (presets.json)
+        let d = FrameDesign::default();
+        let p = presets::get_defaults();
+        // perimeter 61.0 + 4 × (0.125 + 0.0625) = 61.75
+        assert_close(d.get_total_wood_length(p.blade_width, p.wood_error_margin), 61.75,
+            "total wood with preset margins");
     }
 }

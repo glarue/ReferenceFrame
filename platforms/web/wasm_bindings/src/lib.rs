@@ -246,12 +246,31 @@ impl WasmFrameDesign {
 
     // Calculation methods
 
-    /// Enforce internal constraints in place (mat symmetry, overlap/rabbet
-    /// clamps, minimum dimensions) via `FrameDesign::enforce_constraints`.
-    /// Despite the name this is NOT validation — use `validateDesign` for
-    /// errors/warnings against a `ValidationConfig`.
+    /// Apply the core input-constraint policy in place (mat symmetry, overlap
+    /// and rabbet clamps honoring the user's min lip / min face / min visible
+    /// opening, minimum dimensions).
+    ///
+    /// `configJson` is a `ValidationConfig` JSON (`validationConfig.toJson()`);
+    /// `undefined`/`null`/unparseable uses the default limits. Returns a JSON
+    /// array of what changed: `[{ "field", "old", "new", "message" }]`
+    /// (`old`/`new` in inches; `message` short and unit-aware). This is NOT
+    /// validation — use `validateDesign` for errors/warnings.
+    #[wasm_bindgen(js_name = "applyInputConstraints")]
+    pub fn apply_input_constraints(&mut self, config_json: Option<String>, use_mm: bool) -> String {
+        let config: validation::ValidationConfig = config_json
+            .as_deref()
+            .and_then(|json| serde_json::from_str(json).ok())
+            .unwrap_or_default();
+        let outcome = referenceframe_core::constraints::apply_input_constraints(&self.inner, &config, use_mm);
+        self.inner = outcome.design;
+        serde_json::to_string(&outcome.adjustments).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Deprecated alias for `applyInputConstraints(undefined, false)`: applies
+    /// the policy with the default limits and discards the notices. Kept so
+    /// existing callers keep working; prefer `applyInputConstraints`.
     pub fn validate(&mut self) {
-        self.inner.enforce_constraints();
+        self.apply_input_constraints(None, false);
     }
 
     /// Get visible (face) dimensions - returns [height, width]

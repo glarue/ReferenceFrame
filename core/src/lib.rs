@@ -17,6 +17,7 @@ pub mod aspect_ratio;
 pub mod shareable_url;
 pub mod visualization;
 pub mod validation;
+pub mod constraints;
 pub mod input_parser;
 pub mod history;
 pub mod joinery;
@@ -32,6 +33,7 @@ pub use aspect_ratio::{
 };
 pub use shareable_url::{ShareableParams, generate_shareable_url, decode_shareable_url, DecodeError};
 pub use validation::{ValidationConfig, ValidationResult, TypicalRanges, validate_design};
+pub use constraints::{apply_input_constraints, ConstraintAdjustment, ConstraintOutcome};
 pub use input_parser::{
     DimensionInput,
     // Legacy API (kept for backwards compatibility)
