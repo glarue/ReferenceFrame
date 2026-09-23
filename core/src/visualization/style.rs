@@ -1,7 +1,8 @@
 // Diagram styling definitions
 //
-// Defines colors, line weights, and typography for the
-// warm, woodworking-plan aesthetic.
+// Defines colors, line weights, and typography for the diagrams:
+// white background, dark-gray lines, and the shared palette (presets.json)
+// for dimension colors. `for_pdf()` and `for_dark()` derive variants.
 
 use serde::{Deserialize, Serialize};
 
@@ -92,10 +93,10 @@ pub enum FillPattern {
 /// Complete diagram style configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagramStyle {
-    // Colors - warm palette
-    /// Background color (cream/warm white)
+    // Colors
+    /// Background color (white by default; dark surface in `for_dark()`)
     pub background_color: String,
-    /// Primary line color (dark brown/sepia)
+    /// Primary line color (dark gray by default; light gray in `for_dark()`)
     pub line_color: String,
     /// Dimension text and lines color (default/general)
     pub dimension_color: String,
@@ -321,7 +322,8 @@ impl DiagramStyle {
     }
 
     /// Offset from dimension line to mat cut label center.
-    /// Used consistently in callouts, geometry, and SVG rendering.
+    /// Used by geometry (mat cut placement) and SVG rendering/viewBox; NOT by
+    /// layout.rs label_bounds (layout/renderer mismatch — audit C6).
     pub fn mat_cut_label_offset(&self) -> f64 {
         self.extension_line_overshoot + self.label_font_size / 2.0
             + self.dimension_offset_base

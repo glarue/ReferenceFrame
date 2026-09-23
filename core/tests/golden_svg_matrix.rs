@@ -47,11 +47,6 @@ fn golden_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/golden_svgs")
 }
 
-/// Compare `svg` against the golden file at `name.svg`.
-///
-/// - If `UPDATE_GOLDEN=1`, always write.
-/// - If the golden file does not exist, create it (first-run friendly).
-/// - Otherwise assert equality.
 /// Every `&` in emitted SVG must start a known entity — a bare ampersand is
 /// invalid XML and breaks browser rendering even though string comparison
 /// passes. (Caught in the wild via a "Joinery & Hanging" label.)
@@ -69,6 +64,11 @@ fn assert_valid_entities(name: &str, svg: &str) {
     }
 }
 
+/// Compare `svg` against the golden file at `name.svg` (after checking entities).
+///
+/// - If `UPDATE_GOLDEN=1`, always write.
+/// - If the golden file does not exist, create it (first-run friendly).
+/// - Otherwise assert equality.
 fn assert_golden(name: &str, svg: &str) {
     assert_valid_entities(name, svg);
     let path = golden_dir().join(format!("{name}.svg"));
@@ -256,8 +256,9 @@ struct MatrixEntry {
 
 /// Full test matrix.
 ///
-/// Every design gets PlanOnly/inches (7 entries).
-/// A representative subset also gets section, both, mm, and decimal views.
+/// Every base design (7) gets PlanOnly, SectionOnly, and Both in inches.
+/// A representative subset also gets mm and decimal views, followed by
+/// sight-size, spline/hanging overlay, interference, and portrait-canvas cases.
 const MATRIX: &[MatrixEntry] = &[
     // -- All designs x PlanOnly x inches (7) --
     MatrixEntry { name: "standard_8x10_plan_inches",   design_fn: standard_8x10,   options_fn: opts_plan_inches },

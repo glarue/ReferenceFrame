@@ -1,7 +1,8 @@
 // SVG generation for frame diagram
 //
-// Generates professional, warm-aesthetic SVG diagrams from
-// frame designs with adaptive dimension callouts.
+// Entry points and view orchestration: generates SVG diagrams from frame
+// designs with adaptive dimension callouts. Rendering lives in plan_svg.rs /
+// section_svg.rs; the post-layout collision pass lives here.
 
 use crate::frame::FrameDesign;
 use super::types::{
@@ -181,9 +182,10 @@ fn collect_arrow_stub_elements(
 
 /// Collect the corner detail box as a flexible element.
 ///
-/// The corner detail can shift left to clear arrow stubs, or right to clear
-/// left-side callout labels (e.g. MatCutHeight on portrait frames). Its
-/// rightward range is capped at the frame's vertical centerline.
+/// The corner detail can shift along X (left, or right up to the frame's
+/// vertical centerline) to clear immovable arrow stubs. Against callout labels
+/// and the thumbnail it never moves: those have a higher `FlexPriority` and
+/// yield instead (see `collision::resolve`).
 fn collect_corner_detail_element(
     elements: &mut Vec<FlexElement>,
     geometry: &PlanViewGeometry,
@@ -517,8 +519,11 @@ fn generate_combined_view(
 
     // Content-aware zone heights derived from viewBox aspect ratios.
     // Natural height = the height each view needs to fill canvas_width with no side whitespace.
-    // Strategy: proportional scaling when both can't fit at natural size, flooring section at
-    // 70% of its natural height so the legend stays readable for portrait frames.
+    // Strategy:
+    // - Both fit: section = natural, clamped to [0.70, 1.05] × its initial (ratio-split)
+    //   height; plan gets the remainder.
+    // - Don't fit: section = natural, capped at 50% of available; plan gets the rest
+    //   (floored at 25% of available).
     let (plan_zone_h, section_zone_h) = match (plan_viewbox_probe, section_viewbox_probe) {
         (Some((_, _, pvw, pvh)), Some((_, _, svw, svh)))
             if pvw > 0.0 && pvh > 0.0 && svw > 0.0 && svh > 0.0 =>
@@ -540,9 +545,10 @@ fn generate_combined_view(
                 let plan_h = available_height - section_h;
                 (plan_h, section_h)
             } else {
-                // Section gets its full natural height (fills canvas_width); plan gets the rest.
-                // Section content is roughly constant across frame sizes, so a hard floor at
-                // section_natural prevents it from being horizontally squished on portrait frames.
+                // Section gets its full natural height (fills canvas_width), capped at 50% of
+                // the available height; plan gets the rest. Section content is roughly constant
+                // across frame sizes, so keeping it at natural size prevents it from being
+                // horizontally squished on portrait frames.
                 let section_h = section_natural.min(available_height * 0.50);
                 let plan_h = (available_height - section_h).max(available_height * 0.25);
                 (plan_h, section_h)
@@ -961,7 +967,7 @@ mod tests {
     #[test]
     fn test_vertical_axis_break() {
         let mut design = test_design();
-        design.frame_material_depth = 5.0; // Deep frame > 4" threshold
+        design.frame_material_depth = 5.0; // Deep frame > 3" SECTION_AXIS_BREAK_THRESHOLD
         design.frame_material_width = 2.0; // Normal width, no horizontal break
         
         let options = DiagramOptions {
@@ -979,7 +985,7 @@ mod tests {
     #[test]
     fn test_horizontal_axis_break() {
         let mut design = test_design();
-        design.frame_material_width = 5.0; // Wide frame > 4" threshold
+        design.frame_material_width = 5.0; // Wide frame > 3" SECTION_AXIS_BREAK_THRESHOLD
         design.frame_material_depth = 1.0; // Normal depth, no vertical break
         
         let options = DiagramOptions {
@@ -997,8 +1003,8 @@ mod tests {
     #[test]
     fn test_both_axis_breaks() {
         let mut design = test_design();
-        design.frame_material_width = 5.0; // Wide frame > 4" threshold
-        design.frame_material_depth = 5.0; // Deep frame > 4" threshold
+        design.frame_material_width = 5.0; // Wide frame > 3" SECTION_AXIS_BREAK_THRESHOLD
+        design.frame_material_depth = 5.0; // Deep frame > 3" SECTION_AXIS_BREAK_THRESHOLD
 
         let options = DiagramOptions {
             view: ViewOption::SectionOnly,
@@ -1128,7 +1134,8 @@ mod thumbnail_scale_tests {
     }
 
     fn thumb_screen_size(design: &FrameDesign, canvas_w: f64, canvas_h: f64, style: &DiagramStyle) -> f64 {
-        // Replicate generate_combined_view zone calculation to get the real plan scale.
+        // Approximates an OLDER generate_combined_view zone calculation (gap 30, proportional
+        // split). It no longer mirrors production (MIN_GAP, section cap/floor) — audit M5.
         let gap = 30.0;
         let available_h = canvas_h - gap;
         let plan_h_init = available_h * 0.58;

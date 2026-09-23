@@ -30,7 +30,8 @@ pub(crate) fn build_section_svg(
     let unit = if options.unit_mm { Unit::Millimeters } else { Unit::Inches };
     let fmt = |v: f64| format_dimension(v, unit, options.use_tape_segments, options.use_decimal_display);
 
-    // Section view uses black for all dimension lines/text (not the colored scheme from plan view)
+    // Section view uses the single line color for all dimension lines/text (not the colored
+    // scheme from plan view)
     let dim_color = &style.line_color;
 
     // Track content bounds for dynamic viewBox
@@ -269,7 +270,7 @@ pub(crate) fn build_section_svg(
 
     // Frame width dimension (horizontal, at top)
     // Always spans from left edge to right edge (full display width)
-    // Use same offset as calculated in geometry.rs for consistency
+    // Use same offset as calculated in geometry/section.rs for consistency
     let fw_y = frame_y - style.section_width_dim_offset;
     let fw_x1 = frame_x;
     let fw_x2 = frame_x + frame_w;
@@ -498,7 +499,8 @@ pub(crate) fn build_section_svg(
         ));
 
         // 2. Angled segment to label position
-        // Use label_y directly - dominant-baseline="central" centers text at this position
+        // Use label_y directly - the text below is shifted by BASELINE_SHIFT_RATIO so its
+        // visual center sits at this position
         svg.push_str(&format!(
             r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
             horiz_end_x, mat.center_y,

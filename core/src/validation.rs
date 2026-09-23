@@ -742,7 +742,7 @@ mod tests {
         design.rabbet_width = 0.05; // Very small rabbet
         // opening_width = 8.5 - 0.1 = 8.4
         // overlap_per_side = (8.5 - 8.4) / 2 = 0.05
-        // warn_artwork_opening_overlap default is 0.125, so 0.05 < 0.125 → warning
+        // warn_artwork_opening_overlap default is 0.25, so 0.05 < 0.25 → warning
         let config = ValidationConfig::default();
         let result = validate_design(&design, &config, false);
         assert!(result.has_warnings(), "Expected warning about small overlap: {:?}", result.issues);

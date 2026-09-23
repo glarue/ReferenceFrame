@@ -9,10 +9,13 @@
 //! rather than drawn misplaced.
 //!
 //! Plan-view text does NOT sit over the diagram: marks render in place, and
-//! all annotation lines collect into a bordered card in the right gutter
-//! (`plan_overlay_card` + `render_overlay_card`), following the Corner
-//! Detail inset's sectioning language. Marks and card lines share colors so
-//! they key to each other.
+//! all annotation lines collect into a bordered card outside the callouts
+//! (`plan_overlay_card` + `render_overlay_card`) — in the right gutter on
+//! wide canvases, below the content on phone-width/portrait canvases (see
+//! `plan_svg::build_plan_svg`). The card follows the Corner Detail inset's
+//! sectioning language. Marks and card lines share colors so they key to
+//! each other. Plan marks and the card are only drawn when callouts are on
+//! (`show_callouts`); preview mode draws neither.
 
 use crate::frame::FrameDesign;
 use crate::hanging::{hanging_layout, HangingParams};
@@ -127,10 +130,11 @@ pub(crate) fn render_section_splines(
             fmt(slot.max_penetration),
             if slot.over_rabbet { " (limited by rabbet)" } else { "" },
         );
-        // Label sits inside the slot band when it fits; on small mouldings
-        // (compact canvases) it moves beside the slot with a backdrop instead
-        // of straddling the profile edge. Sized like the neighboring material
-        // labels (scaled down in the combined panel).
+        // Label sits inside the slot band when it fits; otherwise (small
+        // mouldings / compact canvases) it is returned as a leader label and
+        // drawn in the section's dog-leg label column instead of straddling
+        // the profile edge. Sized like the neighboring material labels
+        // (scaled down in the combined panel).
         let label_fs = style.material_label_font_size();
         if estimate_text_width(&label, label_fs) + 20.0 <= w {
             svg.push_str(&format!(
@@ -260,8 +264,9 @@ pub(crate) fn render_plan_hanging(
     svg.push_str("  </g>\n");
 }
 
-/// A bordered annotation card holding all overlay measurements, rendered in
-/// the plan view's right gutter instead of over the diagram.
+/// A bordered annotation card holding all overlay measurements, rendered
+/// outside the plan view's callouts (right gutter on wide canvases, below the
+/// content on phone-width/portrait canvases) instead of over the diagram.
 pub(crate) struct OverlayCard {
     pub title: &'static str,
     /// (color, text) per line; colors key to the in-diagram marks

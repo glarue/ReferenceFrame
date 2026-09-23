@@ -622,8 +622,9 @@ impl PlanViewGeometry {
     ///
     /// Note: the SVG renderer pins extension line start to mat_opening.bottom()+3 regardless
     /// of extent_y, and dimension line is anchored to frame_outer.bottom().  Overlap with
-    /// the corner detail box is handled purely by z-ordering in svg.rs (mat cut geometry
-    /// renders before corner detail; labels render after).
+    /// the corner detail box is handled by z-ordering in plan_svg.rs (mat cut geometry
+    /// renders before corner detail; labels render after), plus the post-layout collision
+    /// pass in svg.rs, which may shift the callout.
     pub fn choose_mat_cut_extent(
         frame_inner: &Rect,
         content_area: &Rect,

@@ -64,14 +64,14 @@ impl SectionViewGeometry {
         // =================================================================
         // DYNAMIC SPACE CALCULATION
         // Compute pixel reserves based on actual style and content
-        // These formulas match the SVG rendering code in svg.rs
+        // These formulas match the SVG rendering code in section_svg.rs
         // =================================================================
 
         let font_size = style.dimension_font_size;
         let unit = Unit::Inches; // Use inches for width estimation (worst case)
 
         // LEFT SIDE: Depth dimension callout
-        // Components (from svg.rs):
+        // Components (from section_svg.rs):
         //   dim_x = frame_x - style.section_depth_dim_offset
         //   extension lines extend to dim_x - style.extension_line_overshoot
         //   label_offset = style.label_offset()
@@ -81,7 +81,8 @@ impl SectionViewGeometry {
         let depth_dim_space = style.section_depth_dim_offset + style.extension_line_overshoot.max(label_offset_left + style.label_font_size / 2.0);
 
         // RIGHT SIDE: Material labels + stack dimension
-        // Components (from svg.rs):
+        // Components (from section_svg.rs; spline leader labels that join this
+        // column are not reserved here):
         //   base_offset = style.section_material_label_offset.min(scale * 0.4 + 12.0)
         //   material labels at label_base_x = material_right + base_offset
         //   max_label_width = estimated from text like "Glazing: 3/32""

@@ -130,7 +130,9 @@ pub(crate) const SECTION_DIM_OFFSET_SCALE: f64 = 0.9;  // Section dimension offs
 pub(crate) const BASELINE_SHIFT_RATIO: f64 = 0.35;     // Vertical centering shift for SVG text
 
 // === Tight-Space Dimension Arrows ===
-pub(crate) const TIGHT_SPACE_MULTIPLIER: f64 = 3.0;    // Arrow placed outside when span < multiplier * stroke
+// Arrows flip outside when span < multiplier * arrow-tip length (tip_extension =
+// MARKER_WIDTH * stroke). Used by plan callouts + collision stubs; DimensionArrow uses 2.5.
+pub(crate) const TIGHT_SPACE_MULTIPLIER: f64 = 3.0;
 
 // ============================================================================
 // AXIS BREAK HELPERS
@@ -211,8 +213,8 @@ pub(crate) fn render_zigzag_line_with_opacity(svg: &mut String, zz: &ZigzagPoint
 /// - Horizontal: zigzag perpendicular to a horizontal line (varies in Y)
 /// - Vertical: zigzag perpendicular to a vertical line (varies in X)
 ///
-/// `inner_fraction` controls the width of the inner zigzag points relative to the
-/// full spark extent (e.g., 0.25 for plan view, ~0.167 for section horizontal).
+/// Extents come from the `SPARK_*` constants; the inner zigzag points sit at a
+/// fixed 1/4 of the spark extent from center in both orientations.
 pub(crate) fn render_spark_symbol(
     svg: &mut String,
     center_x: f64,
@@ -666,7 +668,9 @@ pub(crate) fn extract_svg_content(svg: &str) -> String {
             let content = &svg[start + 1..end];
             // Remove background rectangle to avoid overlay issues in combined view
             // Background rect pattern: <rect fill="..." width="100%" height="100%"/>
-            // IMPORTANT: Preserve <defs> section which contains arrow markers
+            // NOTE: plan/section views currently emit no such rect, so this never matches;
+            // it would strip ANY element starting with `<rect fill=` (audit: dead code).
+            // Preserve the <defs> section (patterns; arrows are inline polygons, not markers)
             if let Some(bg_start) = content.find("<rect fill=") {
                 if let Some(bg_end) = content[bg_start..].find("/>") {
                     // Extract parts: before rect (includes defs), and after rect

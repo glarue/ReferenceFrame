@@ -1,7 +1,7 @@
 // Visualization module for generating professional frame diagrams
 //
 // This module provides SVG generation for frame diagrams with:
-// - Warm, woodworking-plan aesthetic
+// - Technical-drawing style with palette-coded dimensions (light, dark, PDF styles)
 // - Adaptive callout placement to avoid overlap
 // - Plan view (front-on) and section view (cross-section)
 // - Consistent output for both in-app display and PDF export

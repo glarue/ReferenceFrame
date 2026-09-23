@@ -147,8 +147,9 @@ impl DimensionInput {
 // ============================================================================
 
 /// Result of parsing a dimension input.
-/// Legacy API -- prefer `DimensionInput` for all new code. This struct is retained
-/// only for backwards compatibility with the WASM bindings layer.
+/// Legacy API -- prefer `DimensionInput` for all new code. Retained because the
+/// mobile bridge (`parse_dimension` in `platforms/mobile/rust/src/api/simple.rs`)
+/// still calls it; the web UI uses `DimensionInput` directly.
 #[deprecated(since = "1.5.0", note = "Use DimensionInput instead")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedDimension {

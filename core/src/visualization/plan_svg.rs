@@ -285,16 +285,19 @@ pub(crate) fn compute_plan_viewbox(
         let is_two_line = callout.callout.label.contains(": ");
         let is_vertical = callout.actual_side == Side::Right || callout.actual_side == Side::Left;
 
-        // label_bounds is centered on dim_line_x, but svg_dimension renders labels
-        // centered at label_x = dim_line_x ± (fs/2 + 2.0) (offset away from frame).
-        //
-        // For vertical labels, the actual screen extent past label_bounds:
-        //   Single-line: label centered at label_x ± fs/2 → ext = fs*0.4 + 2.0
-        //   Two-line outermost: outer line at label_x ± (fs + line_gap), text ± fs/2
-        //     → ext = fs + 2.0  (exact: fs/2 + 2 + fs + fs*0.2 + fs/2 − fs*1.2 = fs + 2)
+        // Vertical label_bounds are centered on dim_line_x, and svg_dimension also
+        // renders vertical labels on the dimension line (label_x = dim_line_x; see
+        // layout.rs), so `ext` below is padding past label_bounds on the outward side:
+        //   Single-line: text ± fs/2 already inside the bounds (± 0.6·fs) → fs*0.4 + 2.0 is slack
+        //   Two-line outermost: outer line at dim_line_x ± (fs + line_gap), text ± fs/2
+        //     → ~0.5·fs past the bounds (± 1.2·fs); fs + 2.0 over-covers it
         //   Two-line non-outermost: centered ± half_line_offset → covered by label_bounds width
         //
-        // For horizontal labels label_bounds height already spans the two-line extent.
+        // Horizontal ": " labels always render as two lines; fs*0.6 covers the outer
+        // line's bleed past label_bounds.
+        //
+        // NOTE: layout/renderer mismatch — audit C6. These values were derived from an
+        // older label offset; they are kept as-is to preserve output until C6 lands.
         let ext = if is_vertical && is_two_line {
             let is_outermost = match callout.actual_side {
                 Side::Right => callout.offset_level == max_right_level,
@@ -303,7 +306,7 @@ pub(crate) fn compute_plan_viewbox(
             };
             if is_outermost { fs + 2.0 } else { fs * 0.6 }
         } else if is_vertical {
-            fs * 0.4 + 2.0   // single-line: label_x offset past dim_line_x
+            fs * 0.4 + 2.0   // single-line: padding past label_bounds (see note above)
         } else if is_two_line {
             fs * 0.6         // horizontal two-line: small glyph bleed
         } else {
@@ -400,9 +403,10 @@ pub(crate) fn build_plan_svg(
         (0.0, 0.0, options.canvas_width, options.canvas_height)
     };
 
-    // Overlay annotation card (spline/hanging measurements) sits in a right
-    // gutter outside all callouts — widen the viewBox to make room for it.
-    // Preview mode (no callouts) draws marks only, no card.
+    // Overlay annotation card (spline/hanging measurements) sits outside all
+    // callouts — right gutter or below the content (see card_pos) — so the
+    // viewBox is widened/extended to make room for it. Preview mode (no
+    // callouts) draws neither the card nor the overlay marks.
     const CARD_GAP: f64 = 14.0;
     let overlay_card = if options.show_callouts {
         let unit = if options.unit_mm { Unit::Millimeters } else { Unit::Inches };
@@ -967,7 +971,8 @@ pub(crate) fn build_plan_svg(
         svg.push_str("  </g>\n");
     }
 
-    // Overlay annotation card in the right gutter (viewBox already widened)
+    // Overlay annotation card at card_pos — right gutter or below the content
+    // (viewBox already extended above)
     if let (Some(card), Some((cx, cy))) = (&overlay_card, card_pos) {
         super::overlays::render_overlay_card(&mut svg, card, cx, cy, style);
     }

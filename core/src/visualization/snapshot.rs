@@ -40,7 +40,9 @@ pub struct LayoutSnapshot {
     /// Whether X / Y axis breaks are active
     pub axis_break_x: bool,
     pub axis_break_y: bool,
-    /// ViewBox as (x, y, w, h) — extracted from generated SVG
+    /// ViewBox as (x, y, w, h) — union of the snapshot's element rects plus
+    /// `style.margin` (see `compute_viewbox`); NOT the SVG's real viewBox
+    /// (`plan_svg::compute_plan_viewbox`)
     pub viewbox: [f64; 4],
     /// Final positioned callouts: DimensionType name → dim_line_position
     pub callout_positions: BTreeMap<String, f64>,
@@ -49,7 +51,8 @@ pub struct LayoutSnapshot {
     pub thumbnail: Option<Rect>,
     /// Number of element pairs that overlap (with 2px margin) — must be 0
     pub overlap_count: usize,
-    /// Whether all element rects fall within the viewBox
+    /// Whether all element rects fall within the viewBox. NOTE: always true as
+    /// computed, since `viewbox` is derived from these same rects (audit M5).
     pub all_within_viewbox: bool,
 }
 

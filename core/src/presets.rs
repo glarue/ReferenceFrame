@@ -228,11 +228,11 @@ pub fn get_presets_json() -> &'static str {
     PRESETS_JSON
 }
 
-/// Legacy field name aliases from the original PyScript era.
+/// Short field names (left) mapped to canonical `FrameDesign` field names (right).
 ///
-/// Platform UI code (web JS, Flutter) sometimes uses these older names.
-/// The canonical names are the JSON keys in `data/presets.json`.
-/// New code should prefer the canonical (right-hand) names.
+/// The short names are the PyScript-era category keys under `presets` in
+/// `data/presets.json`, and some platform UI code (web JS, Flutter) still uses
+/// them. New code should prefer the canonical (right-hand) field names.
 const FIELD_ALIASES: &[(&str, &str)] = &[
     ("frame_face_width", "frame_material_width"),
     ("frame_depth", "frame_material_depth"),

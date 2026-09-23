@@ -1,6 +1,7 @@
-// Aspect ratio utilities
-//
-// Ported from Python aspect_ratio.py with identical behavior
+//! Aspect-ratio display and locking.
+//!
+//! Ratios are height / width throughout. Provides display names for common
+//! ratios and `AspectLockState` for keeping proportions while editing.
 
 use serde::{Deserialize, Serialize};
 

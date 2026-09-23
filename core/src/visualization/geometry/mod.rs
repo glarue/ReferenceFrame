@@ -90,8 +90,11 @@ const RABBET_LABEL_FONT_MULTIPLIER: f64 = 2.2;
 // CORNER DETAIL CONSTANTS
 //
 // The corner detail is a zoomed inset box overlaid on the bottom-left corner
-// of the frame diagram. It shows rabbet, mat overlap, and frame band at a
-// readable scale when the main diagram is too compressed (axis break mode).
+// of the frame diagram. It shows the frame band, the rabbet lip overlap zone,
+// and the content (matboard/artwork) edge at a readable scale whenever the
+// frame face is too narrow at the current scale (CORNER_STROKE_RATIO) — on
+// both the axis-break and no-break paths. Skipped when there is no lip over
+// the art (sight-size/float).
 //
 // Spatial layout inside the box:
 //   +-------------------------------+
@@ -99,7 +102,7 @@ const RABBET_LABEL_FONT_MULTIPLIER: f64 = 2.2;
 //   |  (end-anchored)    corner     |     at 76% of box height from top
 //   |                    |          |
 //   |  <- CORNER_X_MIN ->          |  <- min 30% of box_w from left edge
-//   +-------------------------------+     to leave room for rotated labels
+//   +-------------------------------+     to leave room for the "Rabbet" label
 //
 // Box placement relative to the frame diagram:
 //   - X: overhang 15% left of frame_outer so the L-corner aligns with the
@@ -143,8 +146,9 @@ const CORNER_DETAIL_X_OVERHANG: f64 = 0.15;
 const CORNER_DETAIL_CORNER_X_MIN: f64 = 0.30;
 
 /// Corner origin Y as fraction of box height from box top.
-/// Places the L-corner in the lower quarter, leaving room above for
-/// "Frame", "Mat overlap", and "Rabbet depth" dimension annotations.
+/// Places the L-corner in the lower quarter, leaving room above for the
+/// "Corner Detail" title and the matboard/artwork label (the "Frame"
+/// dimension sits below the corner, "Rabbet" to its left).
 const CORNER_DETAIL_CORNER_Y: f64 = 0.76;
 
 /// Standard Y offset: box top sits at frame_outer.bottom() - box_h * 0.85.
@@ -543,7 +547,8 @@ pub struct PlanViewGeometry {
     pub thumbnail: Option<Rect>,
     /// Whether thumbnail is positioned below (landscape) vs left (portrait)
     pub thumbnail_below: bool,
-    /// Corner detail inset overlay (shown when breaks active)
+    /// Corner detail inset overlay (shown when the frame face is too narrow to
+    /// show rabbet detail — with or without axis breaks; never for sight-size/float)
     pub corner_detail: Option<CornerDetailGeometry>,
     /// Where the thumbnail label text is positioned
     pub thumbnail_label_position: ThumbnailLabelPosition,
@@ -703,8 +708,8 @@ mod tests {
     #[test]
     fn test_vertical_axis_break_triggered() {
         let mut design = test_design();
-        design.frame_material_depth = 5.0; // > 4" threshold
-        design.frame_material_width = 0.75; // < 4" threshold, no horizontal break
+        design.frame_material_depth = 5.0; // > 3" SECTION_AXIS_BREAK_THRESHOLD
+        design.frame_material_width = 0.75; // < 3" threshold, no horizontal break
 
         let style = DiagramStyle::default();
         let geo = SectionViewGeometry::from_design(&design, 700.0, 400.0, &style);
@@ -718,7 +723,7 @@ mod tests {
         assert!(geo.axis_break_end_y > geo.axis_break_start_y, "axis_break_end_y should be > start");
 
         // Frame profile should use truncated depth
-        // display_depth = 0.4 + 0.15 + (rabbet_depth + 0.5) ≈ 1.05 + rabbet_depth
+        // display_depth = 0.4 + 0.11 + (rabbet_depth + 0.5) ≈ 1.01 + rabbet_depth
         assert!(geo.frame_profile.height < 5.0 * geo.scale,
             "Frame height {} should be less than full 5\" * scale {} = {}",
             geo.frame_profile.height, geo.scale, 5.0 * geo.scale);
@@ -806,7 +811,7 @@ mod tests {
     #[test]
     fn test_plan_view_single_axis_break() {
         // 100"w × 10"h extreme landscape — X axis needs break (~0.71%), Y doesn't (~4.9%)
-        // (ratio threshold is 3%; outer dims: ~105" wide, ~15" tall)
+        // (AXIS_BREAK_RATIO threshold is 2.5%; outer dims: ~105" wide, ~15" tall)
         let mut design = FrameDesign::new(10.0, 100.0);
         design.frame_material_width = 0.75;
         design.mat_width_top_bottom = 2.0;

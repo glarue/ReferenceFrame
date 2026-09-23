@@ -1,6 +1,9 @@
-// Frame design models and calculations
-//
-// Ported from Python frame.py with identical calculation behavior
+//! Frame design model and dimension calculations.
+//!
+//! `FrameDesign` holds every design input (all lengths in inches); its methods
+//! derive the opening, moulding, mat, component-cut, and depth-stack sizes.
+//! Frame styles (rabbet / sight-size / float) are unified behind
+//! [`FrameDesign::lip_over_art`].
 
 use serde::{Deserialize, Serialize};
 use crate::presets;
@@ -75,6 +78,10 @@ pub struct FrameDesign {
     pub backing_thickness: f64,
     pub glazing_thickness: f64,
     pub frame_material_depth: f64,
+    /// Assembly clearance (inches), applied both ways: added to the Z depth
+    /// stack (`get_rabbet_z_depth_required`), and taken off each side of the
+    /// parts that seat in the rabbet as XY drop-in clearance
+    /// (`get_fitted_component_dimensions`, capped at `rabbet_width`).
     pub assembly_margin: f64,
 
     // Flags
@@ -174,8 +181,10 @@ impl FrameDesign {
 
     /// Check if this design includes matting
     ///
-    /// Only traditional rabbet frames use a mat; sight-size and float styles are
-    /// for canvas & panel work (mounted from behind — no mat, no glazing).
+    /// Only traditional rabbet frames use a mat; sight-size and float styles
+    /// never do, even with mat widths set. This is mat-only: sight-size still
+    /// seats glazing and backing under the lip, cut to the rabbet opening
+    /// (art + 2·rabbet_width).
     pub fn has_mat(&self) -> bool {
         self.frame_style == FrameStyle::Rabbet
             && (self.mat_width_sides > 0.0 || self.mat_width_top_bottom > 0.0)
@@ -202,7 +211,8 @@ impl FrameDesign {
     /// Calculate visible (face) dimensions of the frame opening
     ///
     /// With mat: mat opening + visible mat borders
-    /// Without mat: artwork sits in rabbet, so frame opening is smaller than artwork
+    /// Without mat: artwork − 2·`lip_over_art()` — smaller than the artwork for
+    /// rabbet frames, equal to it for sight-size (and float, until Phase 2)
     pub fn get_visible_dimensions(&self) -> (f64, f64) {
         if self.has_mat() {
             let (mat_opening_height, mat_opening_width) = self.get_mat_opening_dimensions();

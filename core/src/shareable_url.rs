@@ -1,6 +1,10 @@
-// Shareable URL generation for frame designs
-//
-// Ported from Python shareable_url.py with identical behavior
+//! Shareable URL encoding/decoding for frame designs.
+//!
+//! A design is packed into a compact fixed-point binary payload, base64-encoded
+//! (URL-safe, no padding), and carried in the `?d=` query parameter. The v0
+//! layout was originally ported from the Python `shareable_url.py`; formats v1
+//! and v2 extend it (see "Format versioning" below), and every format still
+//! decodes.
 
 use serde::{Deserialize, Serialize};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -9,9 +13,12 @@ use crate::frame::FrameStyle;
 /// Parameters for shareable URL encoding
 ///
 /// `mat_width` is the top/bottom mat border; `mat_width_sides` is the left/right
-/// border. The three fields added in format v1 (`mat_width_sides`, `mat_overlap`,
-/// `assembly_margin`) carry `#[serde(default)]` so JSON produced before they
-/// existed still deserializes.
+/// border. The fields added in format v1 (`mat_width_sides`, `mat_overlap`,
+/// `assembly_margin`) and v2 (`frame_style`, `float_reveal`) carry
+/// `#[serde(default)]` so JSON produced before they existed still deserializes.
+/// Note that a missing JSON field defaults to zero (rabbet for `frame_style`),
+/// unlike decoding an older *URL*, which fills the v1 fields from
+/// `DEFAULT_MAT_OVERLAP` / `DEFAULT_ASSEMBLY_MARGIN` and mirrors `mat_width`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ShareableParams {
     pub artwork_height: f64,
@@ -52,7 +59,9 @@ pub enum DecodeError {
     InvalidUrl,
     InvalidBase64,
     TruncatedData,
-    /// Format version (top 3 bits of flags byte) is newer than this decoder understands
+    /// Format version (top 3 bits of the flags byte) is not one this decoder
+    /// understands, or disagrees with the version implied by the payload length
+    /// (e.g. version-1 bits on a 30-byte v0 payload)
     UnsupportedVersion(u8),
 }
 
@@ -229,7 +238,8 @@ pub fn decode_shareable_url(url: &str) -> Result<ShareableParams, DecodeError> {
         .map_err(|_| DecodeError::InvalidBase64)?;
 
     // Payload length selects the format: 28/30 = v0 (flags is the last byte),
-    // 37 = v1 (the 30-byte v0 layout plus 7 appended bytes; flags at index 29).
+    // 37 = v1 and 39 = v2 (the 30-byte v0 layout plus 7 or 9 appended bytes;
+    // flags at index 29).
     let flags = match bytes.len() {
         28 => bytes[27],
         30 => bytes[29],
@@ -248,7 +258,7 @@ pub fn decode_shareable_url(url: &str) -> Result<ShareableParams, DecodeError> {
     let artwork_thickness = unpack_uint16(&bytes[19..21]);
     let backing_thickness = unpack_uint16(&bytes[21..23]);
 
-    // rabbet/blade and the v1-only fields depend on the format.
+    // rabbet/blade and the v1+ fields depend on the format.
     let (rabbet_width, rabbet_depth, blade_width, mat_width_sides, mat_overlap, assembly_margin) =
         match bytes.len() {
             28 => {
@@ -266,8 +276,9 @@ pub fn decode_shareable_url(url: &str) -> Result<ShareableParams, DecodeError> {
                 (rw, rd, bw, mat_width, DEFAULT_MAT_OVERLAP, DEFAULT_ASSEMBLY_MARGIN)
             }
             _ => {
-                // v1: appended mat_width_sides (uint24) + mat_overlap +
-                // assembly_margin (uint16), after the flags byte at index 29.
+                // v1/v2: appended mat_width_sides (uint24) + mat_overlap +
+                // assembly_margin (uint16), after the flags byte at index 29
+                // (v2's trailing float_reveal is read below).
                 let rw = unpack_uint16(&bytes[23..25]);
                 let rd = unpack_uint16(&bytes[25..27]);
                 let bw = unpack_uint16(&bytes[27..29]);
@@ -490,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_decode_valid_base64_29_bytes() {
-        // 29 bytes — between the two valid sizes
+        // 29 bytes — not a valid payload length (valid: 28, 30, 37, 39)
         let b64 = URL_SAFE_NO_PAD.encode(&[0u8; 29]);
         let url = format!("https://example.com/?d={}", b64);
         let result = decode_shareable_url(&url);
@@ -500,7 +511,7 @@ mod tests {
     // --- Format versioning ---
 
     #[test]
-    fn test_encoder_writes_version_zero() {
+    fn test_encoder_writes_current_format_version() {
         let params = ShareableParams {
             artwork_height: 8.0,
             artwork_width: 12.0,
@@ -525,14 +536,15 @@ mod tests {
         let encoded = generate_shareable_url(&params);
         let bytes = URL_SAFE_NO_PAD.decode(&encoded).unwrap();
         let flags = bytes[29];
-        // Top 3 bits (version) must be zero; flag bits intact
+        // Top 3 bits carry the current FORMAT_VERSION; flag bits intact
         assert_eq!(flags >> VERSION_SHIFT, FORMAT_VERSION);
         assert_eq!(flags & 0x03, 0x03);
     }
 
     #[test]
-    fn test_decode_unknown_version_rejected() {
-        // Valid 30-byte payload, but with a future version in the flags byte
+    fn test_decode_version_length_mismatch_rejected() {
+        // 30-byte (v0-length) payload whose flags byte claims version 1: the
+        // version bits disagree with the length-implied version, so reject
         let mut payload = vec![0u8; 30];
         payload[29] = 0x01 | (1 << VERSION_SHIFT); // version 1, include_mat set
         let b64 = URL_SAFE_NO_PAD.encode(&payload);

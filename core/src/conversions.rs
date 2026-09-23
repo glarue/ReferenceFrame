@@ -1,6 +1,7 @@
-// Unit conversion and formatting utilities
-//
-// Ported from Python conversions.py to Rust with identical behavior
+//! Unit conversion and dimension formatting.
+//!
+//! Values are stored in inches everywhere; these helpers convert to/from mm
+//! and render inches as fractions, tape-measure segments, or decimals.
 
 use serde::{Deserialize, Serialize};
 
@@ -281,13 +282,15 @@ pub fn convert_to_tape_measure(
 
 // === Dimension Formatting ===
 //
-// Formatting functions and when to use each:
-//   format_inches_as_fraction(val)     -- Pure fraction output: `12 3/8"` (no mm, no decimal)
-//   format_value(val, use_mm)          -- Standard display: fraction or mm based on unit
-//   format_value_with_decimal(val, mm) -- Decimal inches or mm: `12.375"` or `314.3 mm`
-//   format_value_tape_measure(val, mm) -- Tape measure style: `12-3/8"` with hyphens
-//   format_dimension(val, unit, tape, decimal) -- Unified entry point for all formats
-//   format_mm(val)                     -- Internal helper: inches -> mm string
+// Formatting functions and when to use each (all take inches):
+//   format_inches_as_fraction(value)       -- Fraction to 1/32: `12 3/8"` (2-decimal fallback, no mm)
+//   format_value(value, unit)              -- Standard display: fraction, or mm (`25.4 mm`)
+//   format_value_with_decimal(value, unit) -- Fraction + decimal: `12 3/4 (12.75)"`; whole: `10"`
+//   format_value_tape_measure(value, unit) -- Base + adjustment: `4 3/4 - 1/32 (4.72")`
+//   format_dimension(value, unit, use_segments, use_decimal)
+//                                          -- Unified entry point: decimal `4.75"` > segments >
+//                                             format_value (mm ignores both flags)
+//   format_mm(value)                       -- Internal helper: inches -> `25.4 mm`
 
 /// Format a decimal inch value as a fractional measurement
 ///

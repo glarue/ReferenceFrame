@@ -276,7 +276,7 @@ impl DimensionType {
             DimensionType::FrameOutsideWidth => Side::Top,
             DimensionType::FrameOutsideHeight => Side::Right,
 
-            // Inside dimensions - Interior variants used for display, non-Interior are legacy
+            // Inside dimensions (shown inside the frame opening)
             DimensionType::FrameInsideWidthInterior => Side::Top,
             DimensionType::FrameInsideHeightInterior => Side::Right,
 

@@ -84,7 +84,7 @@ pub fn generate_plan_callouts(
             // Mat cut WIDTH (horizontal dimension, uses left/right borders)
             let mat_visible_sides = design.mat_width_sides;
             let mat_cut_width = mat_visible_sides + design.rabbet_width;
-            // Use the pre-computed extent when available (two-pass: geometry.rs chose the side
+            // Use the pre-computed extent when available (two-pass: geometry/plan.rs chose the side
             // before thumbnail placement so the decision is consistent with what was reserved).
             // Fall back to choose_mat_cut_extent for callers that didn't go through from_design.
             let (mat_cut_start, mat_cut_end) = if let Some((start, end)) = geometry.annotation_bounds.mat_cut_extent {

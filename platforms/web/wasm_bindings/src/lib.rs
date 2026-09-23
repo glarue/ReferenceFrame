@@ -235,6 +235,9 @@ impl WasmFrameDesign {
         self.inner.float_reveal = value;
     }
 
+    /// Read-only, derived (there is no `include_mat` field): true when the
+    /// design uses a mat, i.e. rabbet style with a non-zero border
+    /// (`FrameDesign::has_mat`). Always false for sight-size/float.
     #[wasm_bindgen(getter, js_name = "includeMat")]
     pub fn has_mat(&self) -> bool {
         self.inner.has_mat()
@@ -242,7 +245,10 @@ impl WasmFrameDesign {
 
     // Calculation methods
 
-    /// Validate and enforce constraints
+    /// Enforce internal constraints in place (mat symmetry, overlap/rabbet
+    /// clamps, minimum dimensions) via `FrameDesign::enforce_constraints`.
+    /// Despite the name this is NOT validation — use `validateDesign` for
+    /// errors/warnings against a `ValidationConfig`.
     pub fn validate(&mut self) {
         self.inner.enforce_constraints();
     }
@@ -290,7 +296,8 @@ impl WasmFrameDesign {
         vec![h, w]
     }
 
-    /// Get matboard cut dimensions - returns [top_bottom, sides]
+    /// Get mat border cut widths (visible border + rabbet_width hidden under
+    /// the lip) - returns [top_bottom, sides]
     #[wasm_bindgen(js_name = "getMatboardCutDimensions")]
     pub fn get_matboard_cut_dimensions(&self) -> Vec<f64> {
         let (tb, s) = self.inner.get_matboard_cut_dimensions();
@@ -549,7 +556,13 @@ pub fn generate_combined_view_svg(
     )
 }
 
-/// Generate combined view SVG with optional PDF styling and custom title
+/// Generate combined view SVG with full control over styling and detail.
+///
+/// Exported to JS as `generateCombinedViewSvgForPdf`, but not PDF-only: it also
+/// backs the on-screen `generateCombinedViewSvg`. `for_pdf` selects the light
+/// print style (overriding `dark_mode`); otherwise `dark_mode` picks dark/light.
+/// Parameters are positional: trailing args omitted from JS arrive as
+/// `false`/`None`, which disables the corresponding display option.
 ///
 /// title_text: Optional custom title for the diagram (e.g., "Living Room Landscape")
 ///             If None or empty, defaults to "Frame Design"
@@ -671,8 +684,9 @@ pub fn get_materials_json() -> String {
     serde_json::to_string(referenceframe_core::presets::get_materials()).unwrap_or_default()
 }
 
-/// Weight + wire-tension estimate as JSON. `wood_key`/`glazing_key` select
-/// entries from the materials index (defaults: "generic" wood, "glass");
+/// Weight + wire-tension estimate as JSON. `wood_key`/`glazing_key`/`backing_key`
+/// select entries from the materials index (defaults: "generic" wood, "glass",
+/// "foamcore"); a missing or unknown key falls back to that default.
 /// `overlay_params_json` supplies hanging-parameter overrides.
 #[wasm_bindgen(js_name = "getWeightEstimate")]
 pub fn get_weight_estimate(
@@ -794,8 +808,8 @@ pub fn main() {
     console_error_panic_hook::set_once();
 }
 
-// DimensionInput is already exported via #[wasm_bindgen] in input_parser.rs
-// No re-export needed here
+// Core is a pure rlib with no wasm-bindgen dependency, so input-parsing types
+// are exposed to JS through the newtype wrappers below.
 // ============================================================================
 // WASM Wrappers for Input Parsing Types
 // ============================================================================
