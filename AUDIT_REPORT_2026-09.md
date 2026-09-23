@@ -43,29 +43,31 @@ IDs: **A** = user-visible bug (iOS), **W** = user-visible bug (web), **C** = cor
 - Phase 2 notes: also removed 3 scripts that only ran the deleted integration tests, ~34 orphaned CSS custom properties, 7 unused DesignState members, 3 StorageService members; merged DesignState defaults table (fixed `backing_thickness` fallback 0.1875→0.125); fixed `formatDecimalTrimmed(decimals: 0)` + 12 new Dart tests. Kept on purpose: StorageService tape/settings getters (used by `exportAll`/`importAll` — decide with export work), hatch `<pattern>`, C6-related layout fields, MD3 token scales, palette `-light/-dark` vars (drift-checked), W4 semantic tokens. New dead after Phase 2: bridge `getColor` (add to Q2). Docs still referencing removed items (fix in D4): `ARCHITECTURE.md` (build.sh), mobile `UI_TEST_PLAN.md`, `SCREENSHOT_GUIDE.md`, `FASTLANE_KEYS_SCOPE.md`, `ASPECT_RATIO_*.md`.
 
 ### Phase 3 — Low-risk real bugs
-- [ ] A1 single-owner unit preference (+ one-time key migration)
-- [ ] A2 inverse `defaultsKey` mapping in `resetToDefaults` (+ test); bridge logs unknown fields
-- [ ] A3 invert aspect lock on orientation swap; re-lock on `fromJson`
-- [ ] A6 `DesignState.applyConfig()` (restores `frame_style`; one round-trip/notify)
-- [ ] A11 "Include mat" restore uses effective default
-- [ ] A12 side-effect-free format/SVG methods
-- [ ] C1 stack warning uses `get_rabbet_z_depth_required()` (+ no-mat test)
-- [ ] C4 fraction formatter carry + sign (+ real tests; goldens re-run)
-- [ ] C5 reject non-finite input; guard `validate_design`
-- [ ] C10 shareable URL encoder rounds
-- [ ] C13 unified mm formatting in validation messages; C17 unit-aware history title
-- [ ] W1 `setMatWidths()` helper; full reset
-- [ ] W2 restore-before-first-calculate
-- [ ] W6 PDF passes all diagram args
-- [ ] W7 Copy cut list uses fitted sizes / shared results model
-- [ ] W8 `refreshDerivedUi()` on all load paths
-- [ ] W9 define/replace undefined CSS vars; W10 dark depth-gauge contrast
-- [ ] W11 sw.js origin check + `ignoreSearch`
-- [ ] W13 complete export/import; W14 privacy policy wording (web)
-- [ ] W17 scope recalc listener; W18 PDF snapshot; W19 WASM history error contract
-- [ ] T3 release.sh skips build-number-only commits; T5 CI (lockfile, pin wasm-pack, deploy `needs:` tests, node test, drop `ios-release.yml`); T6 fastlane lanes/env; T7 rebuild.sh marker + presets.json; T8 script tidy
-- [ ] G tests accompanying the above (validation non-Rabbet/mm/no-mat, frame sight-size, frozen URL fixtures, golden fails on missing file in CI, Dart storage round-trip)
+- [x] A1 single-owner unit preference (+ one-time key migration)
+- [x] A2 inverse `defaultsKey` mapping in `resetToDefaults` (+ test) — bridge unknown-field logging dropped (would need a bridge change; the Dart fix + test covers it)
+- [x] A3 invert aspect lock on orientation swap; re-lock on `fromJson`
+- [x] A6 `DesignState.applyConfig()` (restores `frame_style`; one round-trip/notify)
+- [x] A11 "Include mat" restore uses effective default
+- [x] A12 side-effect-free format/SVG methods
+- [x] C1 stack warning uses `get_rabbet_z_depth_required()` (+ no-mat test)
+- [x] C4 fraction formatter carry + sign (+ real tests; goldens re-run)
+- [x] C5 reject non-finite input; guard `validate_design`
+- [x] C10 shareable URL encoder rounds
+- [x] C13 unified mm formatting in validation messages (C17 unit-aware history title → moved to Phase 5: changes a bridge signature, needs FRB regen)
+- [x] W1 `setMatWidths()` helper; full reset
+- [x] W2 restore-before-first-calculate
+- [x] W6 PDF passes all diagram args
+- [x] W7 Copy cut list uses fitted sizes / shared results model
+- [x] W8 `refreshDerivedUi()` on all load paths
+- [x] W9 define/replace undefined CSS vars (user chose to keep the intended monospace numbers); W10 dark depth-gauge contrast
+- [x] W11 sw.js origin check + `ignoreSearch`
+- [x] W13 complete export/import
+- [x] W14 privacy policy: discloses web CDN/GitHub Pages requests; iOS claims unchanged (all 3 identical copies updated; dedupe in D4) — **user to review wording**
+- [x] W17 scope recalc listener; W18 PDF snapshot; W19 WASM history error contract
+- [x] T3 release.sh skips build-number-only commits; T5 CI (lockfile, pin wasm-pack, deploy `needs:` tests, node test, ~~drop `ios-release.yml`~~ (local-only, left); T6 fastlane lanes/env; T7 rebuild.sh marker + presets.json; T8 script tidy
+- [x] G tests accompanying the above (validation non-Rabbet/mm/no-mat, frame sight-size, frozen URL fixtures, golden fails on missing file in CI, Dart storage round-trip)
 - Then: `release.sh` dry run → user OK → apply/deploy/TestFlight
+- Phase 3 notes / new findings: `ios-release.yml` is a gitignored local-only file (never ran in CI) — left in place, T5 removal not needed. A12 made the calculator error banner (`calculator_screen.dart` `lastError`) unreachable — remove or rewire (Phase 5). release.sh runs a full `cargo update` on mobile `rust/` for every core/bridge bump, silently upgrading registry deps (should update only the core entry). `ios/fastlane/README.md` (auto-gen), `FASTLANE_GUIDE.md`, `FASTLANE_QUICKSTART.md`, `SCREENSHOT_GUIDE.md` still mention the removed `screenshots`/`download_metadata` lanes (D4). `upload_metadata` lane has `skip_screenshots: false` vs manual-screenshot policy. Push to main now runs tests twice (test.yml + deploy's reusable call) — harmless.
 
 ### Phase 4 — Needs a decision first (ask, record answer here, then fix)
 - [ ] A7 Total Wood margin (iOS 0.125 saw/0.5 err vs web blade/0.0625) — decision: _
@@ -90,7 +92,7 @@ IDs: **A** = user-visible bug (iOS), **W** = user-visible bug (web), **C** = cor
 - [ ] T4 deploy.yml stamps SHA into `?v=`/sw caches; versioned wasm URL
 - [ ] W12/Q9 accessibility passes (web keyboard/labels; iOS semantics/tap targets — Dynamic Type check before layout changes)
 - [ ] W15 history timestamps → seconds (HISTORY_VERSION 2); W16 core aspect label on web
-- [ ] C11, C12, C14, C15, C16 small core cleanups
+- [ ] C11, C12, C14, C15, C16 small core cleanups; C17 unit-aware history title (with FRB regen)
 - [ ] D4 archive/consolidate stale docs (root + mobile `RELEASING.md`); refresh README/ARCHITECTURE
 
 ---
