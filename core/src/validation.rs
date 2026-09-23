@@ -541,7 +541,7 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig, use_mm: 
                 "mat_overlap",
                 &format!("Mat overlap must be at most {}", fmt_dec(config.max_mat_overlap)),
             ).with_details(
-                format!("Current: {}. This would make the mat opening negative!", fmt_dec(design.mat_overlap)),
+                format!("Current: {}", fmt_dec(design.mat_overlap)),
             ));
         }
 
