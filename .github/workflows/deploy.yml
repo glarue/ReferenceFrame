@@ -16,20 +16,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Same checks as test.yml (reused, not duplicated); deploy waits for them
+  test:
+    uses: ./.github/workflows/test.yml
+
   deploy:
+    needs: test
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    env:
+      # Pinned wasm-pack release (matches local dev); bump version + sha256 together
+      WASM_PACK_VERSION: v0.14.0
+      WASM_PACK_SHA256: 278a8d668085821f4d1a637bd864f1713f872b0ae3a118c77562a308c0abfe8d
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        run: |
+          name="wasm-pack-${WASM_PACK_VERSION}-x86_64-unknown-linux-musl"
+          curl -sSfL -o wasm-pack.tar.gz \
+            "https://github.com/rustwasm/wasm-pack/releases/download/${WASM_PACK_VERSION}/${name}.tar.gz"
+          echo "${WASM_PACK_SHA256}  wasm-pack.tar.gz" | sha256sum -c -
+          tar -xzf wasm-pack.tar.gz
+          install -m 755 "${name}/wasm-pack" "$HOME/.cargo/bin/wasm-pack"
+          rm -rf wasm-pack.tar.gz "${name}"
+          wasm-pack --version
 
       - name: Build WASM bindings
         run: ./build_wasm.sh

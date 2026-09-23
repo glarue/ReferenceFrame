@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Called by deploy.yml so a deploy only proceeds when these pass
+  workflow_call:
 
 jobs:
   test:
@@ -19,3 +21,10 @@ jobs:
 
       - name: Check presets.json drift across platforms
         run: python3 scripts/check_presets_drift.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run web storage.js tests
+        run: node --test platforms/web/storage.test.mjs

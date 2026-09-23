@@ -29,6 +29,9 @@ Thumbs.db
 target/
 */target/
 Cargo.lock
+# ...except the web bindings' lockfile: the deployed WASM should build from
+# pinned dependencies (the core lib crate stays unlocked)
+!/platforms/web/wasm_bindings/Cargo.lock
 **/.cargo/
 
 # WASM build outputs
