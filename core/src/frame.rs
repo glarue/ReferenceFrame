@@ -8,24 +8,6 @@
 use serde::{Deserialize, Serialize};
 use crate::presets;
 
-/// Represents a standard or custom frame size
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FrameSize {
-    pub name: String,
-    pub height: f64,  // inches
-    pub width: f64,   // inches
-}
-
-impl FrameSize {
-    pub fn new(name: String, height: f64, width: f64) -> Self {
-        Self {
-            name,
-            height,
-            width,
-        }
-    }
-}
-
 /// How the frame relates to the artwork edge.
 ///
 /// Determines the sight (visible) opening and whether the frame lip covers the
@@ -928,8 +910,10 @@ mod tests {
         assert_close(ow, design.artwork_width, "opening == artwork_w");
         // visible = opening + 2×mat
         assert_close(vh, oh + 2.0 * design.mat_width_top_bottom, "visible = opening + mat");
+        assert_close(vw, ow + 2.0 * design.mat_width_sides, "visible_w = opening_w + mat");
         // inside == visible
         assert_close(ih, vh, "inside == visible");
+        assert_close(iw, vw, "inside_w == visible_w");
         // outside = inside + 2×frame
         assert_close(ooh, ih + 2.0 * design.frame_material_width, "outside = inside + frame");
         assert_close(oow, iw + 2.0 * design.frame_material_width, "outside_w = inside_w + frame");
