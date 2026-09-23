@@ -185,7 +185,7 @@
                         <div class="field">
                             <label id="label-frame-depth">Frame D</label>
                             <input type="text" id="frame-depth" inputmode="decimal" placeholder="e.g. 0.75 or 3/4">
-                            <small id="range-frame-depth">Typical: 1/2" - 2"
+                            <small id="range-frame-depth">Typical: 1/2" - 2"</small>
                         </div>
                     </div>
                 </div>
@@ -241,7 +241,7 @@
                                 <div class="input-group">
                                     <label for="rabbet-depth">Rabbet Depth</label>
                                     <input type="text" class="input-small" id="rabbet-depth" inputmode="decimal" placeholder="e.g. 0.375 or 3/8">
-                                    <small id="range-rabbet-depth">Typical: 5/16" - 3/8"
+                                    <small id="range-rabbet-depth">Typical: 5/16" - 3/8"</small>
                                 </div>
                                 <div class="section-subtitle">Materials (weight estimate)</div>
                                 <div class="input-group">
@@ -261,7 +261,7 @@
                                 <div class="input-group">
                                     <label for="assembly-margin">Assembly Margin</label>
                                     <input type="text" class="input-small" id="assembly-margin" inputmode="decimal" placeholder="e.g. 0.0625 or 1/16">
-                                    <small id="range-assembly-margin">Typical: 0" - 1/16"
+                                    <small id="range-assembly-margin">Typical: 0" - 1/16"</small>
                                 </div>
                                 <div class="input-group">
                                     <label for="blade-width">Blade Width (kerf)</label>
@@ -2309,7 +2309,8 @@
         // Appearance Tab Functions
         // ============================================================================
 
-        let currentDisplayFormat = 'fractions';
+        // Loaded eagerly so the first calculate() already honors the saved format
+        let currentDisplayFormat = loadDisplayFormat();
         let colorPickerTarget = null;
 
         function populateAppearanceTab() {
