@@ -445,12 +445,12 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig, use_mm: 
         ));
     }
 
-    // Rabbet width - structural constraint.
-    // These enforce a front lip that retains the artwork, so they only apply to
-    // traditional rabbet frames. Sight-size and float frames have no lip over
-    // the art (retained from behind), so rabbet_width doesn't gate the opening.
+    // Rabbet width - structural constraint: the rabbet cut must leave a lip.
+    // Rabbet frames' lip holds the art (or mat); sight-size frames' lip holds
+    // the oversized glazing and backing (cut to art + 2·rabbet_width), so both
+    // are checked. Float is exempt until Float Phase 2 defines its channel.
     let max_rabbet_width = design.frame_material_width - config.min_lip_width;
-    if design.frame_style == FrameStyle::Rabbet {
+    if design.frame_style != FrameStyle::Float {
         if design.rabbet_width > max_rabbet_width {
             result.add(ValidationIssue::error(
                 "rabbet_width",
@@ -575,27 +575,34 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig, use_mm: 
             ));
         }
 
-        // Additional check: mat overlap must not exceed half the artwork dimensions
-        // (otherwise mat opening would be negative)
-        let max_safe_overlap_h = design.artwork_height / 2.0 - 0.5; // Leave at least 1" opening
-        let max_safe_overlap_w = design.artwork_width / 2.0 - 0.5;
+        // Additional check: the overlap must leave `min_visible_opening` of art
+        // visible on each side of centre, i.e. overlap ≤ dim/2 − min_visible_opening
+        // (floored at 0). Same rule as the input-constraint policy's clamp.
+        let min_opening = 2.0 * config.min_visible_opening;
+        let overlap_detail = |max: f64| -> String {
+            if max > 0.0 {
+                format!("Maximum overlap: {} (keeps at least a {} opening)",
+                    fmt_dec(max), fmt_dec(min_opening))
+            } else {
+                format!("Maximum overlap: {} (artwork is smaller than the {} minimum opening)",
+                    fmt_dec(max), fmt_dec(min_opening))
+            }
+        };
+        let max_safe_overlap_h = (design.artwork_height / 2.0 - config.min_visible_opening).max(0.0);
+        let max_safe_overlap_w = (design.artwork_width / 2.0 - config.min_visible_opening).max(0.0);
         if design.mat_overlap > max_safe_overlap_h {
             result.add(ValidationIssue::error(
                 "mat_overlap",
                 &format!("Mat overlap ({}) too large for artwork height ({})",
                     fmt_dec(design.mat_overlap), fmt_dec(design.artwork_height)),
-            ).with_details(
-                format!("Maximum safe overlap: {} (would leave 1\" opening)", fmt_dec(max_safe_overlap_h)),
-            ));
+            ).with_details(overlap_detail(max_safe_overlap_h)));
         }
         if design.mat_overlap > max_safe_overlap_w {
             result.add(ValidationIssue::error(
                 "mat_overlap",
                 &format!("Mat overlap ({}) too large for artwork width ({})",
                     fmt_dec(design.mat_overlap), fmt_dec(design.artwork_width)),
-            ).with_details(
-                format!("Maximum safe overlap: {} (would leave 1\" opening)", fmt_dec(max_safe_overlap_w)),
-            ));
+            ).with_details(overlap_detail(max_safe_overlap_w)));
         }
     }
 
@@ -920,7 +927,7 @@ mod tests {
         let mut design = test_design();
         design.mat_width_top_bottom = 2.0; // Enable mat
         design.artwork_height = 4.0;
-        design.mat_overlap = 1.75; // max_safe = 4.0/2 - 0.5 = 1.5
+        design.mat_overlap = 1.95; // max_safe = 4.0/2 - min_visible_opening (0.125) = 1.875
         let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "mat_overlap" && i.message.contains("too large for artwork height")));
@@ -931,7 +938,7 @@ mod tests {
         let mut design = test_design();
         design.mat_width_sides = 2.0; // Enable mat
         design.artwork_width = 3.0;
-        design.mat_overlap = 1.25; // max_safe = 3.0/2 - 0.5 = 1.0
+        design.mat_overlap = 1.45; // max_safe = 3.0/2 - min_visible_opening (0.125) = 1.375
         let result = validate_design(&design, &ValidationConfig::default(), false);
         assert!(result.has_errors());
         assert!(result.issues.iter().any(|i| i.field == "mat_overlap" && i.message.contains("too large for artwork width")));
@@ -1118,6 +1125,66 @@ mod tests {
         // Opening = art, so no "artwork extends only" / gap warnings either
         assert!(!result.issues.iter().any(|i| i.field == "artwork_width" || i.field == "artwork_height"),
             "{:?}", result.issues);
+    }
+
+    #[test]
+    fn test_sight_size_rabbet_width_needs_a_lip() {
+        // The sight-size lip holds the oversized glazing/backing, so a rabbet
+        // as wide as the moulding (no lip) is an error, as for rabbet frames
+        let mut design = FrameDesign::new(11.0, 14.0);
+        design.frame_style = FrameStyle::SightSize;
+        design.rabbet_width = design.frame_material_width;
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        assert!(result.errors().iter().any(|e| e.field == "rabbet_width"
+            && e.message.contains("must leave at least")), "{:?}", result.issues);
+
+        // Default sight-size design still passes
+        let default_sight = FrameDesign { frame_style: FrameStyle::SightSize, ..FrameDesign::default() };
+        let result = validate_design(&default_sight, &ValidationConfig::default(), false);
+        assert!(result.is_valid(), "{:?}", result.issues);
+    }
+
+    #[test]
+    fn test_float_exempt_from_rabbet_width_checks() {
+        // Float stays exempt until Float Phase 2 defines its channel
+        let mut design = FrameDesign::new(11.0, 14.0);
+        design.frame_style = FrameStyle::Float;
+        design.rabbet_width = design.frame_material_width;
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        assert!(!result.issues.iter().any(|i| i.field == "rabbet_width"), "{:?}", result.issues);
+    }
+
+    // --- Mat overlap uses min_visible_opening ---
+
+    #[test]
+    fn test_mat_overlap_limit_uses_min_visible_opening() {
+        // Default 1/8" per side: 4" art allows up to 1 7/8" overlap (1/4" opening).
+        // 1.75" used to fail the old hardcoded 1" minimum opening.
+        let mut design = FrameDesign::new(4.0, 6.0);
+        design.mat_overlap = 1.75;
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        assert!(!result.issues.iter().any(|i| i.message.contains("too large for artwork")),
+            "{:?}", result.issues);
+
+        // A custom 1/2" per side restores the stricter limit (max 1.5")
+        let config = ValidationConfig { min_visible_opening: 0.5, ..ValidationConfig::default() };
+        let result = validate_design(&design, &config, false);
+        let err = result.errors().into_iter()
+            .find(|e| e.message.contains("too large for artwork height"))
+            .expect("overlap error with the stricter config");
+        assert_eq!(err.details.as_deref(), Some("Maximum overlap: 1.5\" (keeps at least a 1\" opening)"));
+    }
+
+    #[test]
+    fn test_mat_overlap_detail_for_tiny_artwork() {
+        let mut design = FrameDesign::new(0.2, 6.0);
+        design.mat_overlap = 0.0625;
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        let err = result.errors().into_iter()
+            .find(|e| e.message.contains("too large for artwork height"))
+            .expect("overlap error");
+        assert_eq!(err.details.as_deref(),
+            Some("Maximum overlap: 0\" (artwork is smaller than the 0.25\" minimum opening)"));
     }
 
     #[test]
