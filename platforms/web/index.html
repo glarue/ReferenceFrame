@@ -98,7 +98,7 @@
                                     <span class="orientation-icon portrait-outline"></span>
                                     <span class="orientation-icon square-outline"></span>
                                 </button>
-                                <span id="aspect-ratio" class="aspect-ratio">3:2</span>
+                                <span id="aspect-ratio" class="aspect-ratio">2:3</span>
                                 <button type="button" id="aspect-lock" class="aspect-lock-btn unlocked" title="Lock aspect ratio" aria-label="Lock aspect ratio" aria-pressed="false" onclick="toggleAspectLock()">
                                     <svg viewBox="0 0 24 24"><path id="lock-icon-path" d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/></svg>
                                 </button>
@@ -659,6 +659,7 @@
             getCoreVersion,
             ValidationConfig,
             getTypicalRangeHint,
+            getAspectRatioDisplay,
             validateDesign,
             DimensionInput,
             createHistory,
@@ -1217,52 +1218,14 @@
             header.setAttribute('aria-expanded', header.classList.contains('expanded'));
         });
 
-        // Aspect ratio helpers
-        function gcd(a, b) {
-            a = Math.abs(Math.round(a * 100));
-            b = Math.abs(Math.round(b * 100));
-            while (b) { [a, b] = [b, a % b]; }
-            return a / 100;
-        }
-
+        // Aspect-ratio label, from core (same as iOS): height:width, with
+        // common ratios named (e.g. 8 × 12 → "2:3", 16 × 20 → "4:5") and other
+        // ratios shown as "x:1" / "1:x".
         function updateAspectRatio() {
             const h = getDimensionValue('artwork-height');
             const w = getDimensionValue('artwork-width');
             const display = document.getElementById('aspect-ratio');
-
-            if (h <= 0 || w <= 0) {
-                display.textContent = '-';
-                return;
-            }
-
-            const ratio = w / h;
-            let text;
-
-            // Common ratios
-            const commonRatios = [
-                [4, 3], [3, 2], [16, 9], [5, 4], [1, 1],
-                [3, 4], [2, 3], [9, 16], [4, 5]
-            ];
-
-            for (const [rw, rh] of commonRatios) {
-                if (Math.abs(ratio - rw / rh) < 0.02) {
-                    text = w >= h ? `${rw}:${rh}` : `${rh}:${rw}`;
-                    break;
-                }
-            }
-
-            if (!text) {
-                const g = gcd(w, h);
-                const rw = Math.round(w / g);
-                const rh = Math.round(h / g);
-                if (rw <= 20 && rh <= 20) {
-                    text = `${rw}:${rh}`;
-                } else {
-                    text = ratio >= 1 ? `${ratio.toFixed(2)}:1` : `1:${(1/ratio).toFixed(2)}`;
-                }
-            }
-
-            display.textContent = text;
+            display.textContent = (h > 0 && w > 0) ? getAspectRatioDisplay(h, w) : '—';
             display.classList.toggle('locked', aspectLocked);
         }
 
