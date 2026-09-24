@@ -639,34 +639,11 @@ pub fn get_weight_estimate(
 
 // Default constants
 
+/// Factory defaults as camelCase JSON (`presets::get_defaults_json`, shared
+/// with the mobile bridge)
 #[wasm_bindgen(js_name = "getDefaults")]
 pub fn get_defaults() -> String {
-    let d = presets::get_defaults();
-    let defaults = serde_json::json!({
-        "artworkHeight": d.artwork_height,
-        "artworkWidth": d.artwork_width,
-        "matWidth": d.mat_width,
-        "matOverlap": d.mat_overlap,
-        "frameWidth": d.frame_material_width,
-        "frameDepth": d.frame_material_depth,
-        "rabbetWidth": d.rabbet_width,
-        "rabbetDepth": d.rabbet_depth,
-        "glazingThickness": d.glazing_thickness,
-        "matboardThickness": d.matboard_thickness,
-        "artworkThickness": d.artwork_thickness,
-        "backingThickness": d.backing_thickness,
-        "bladeWidth": d.blade_width,
-        "woodErrorMargin": d.wood_error_margin,
-        "assemblyMargin": d.assembly_margin,
-        "frameStyle": "rabbet",
-        "floatReveal": 0.0,
-        "splineKerf": d.spline_kerf,
-        "splineMinWall": d.spline_min_wall,
-        "hangingDropFraction": d.hanging_drop_fraction,
-        "hangingSlackFraction": d.hanging_slack_fraction,
-        "hangingWrapAllowance": d.hanging_wrap_allowance,
-    });
-    serde_json::to_string(&defaults).unwrap_or_default()
+    presets::get_defaults_json()
 }
 
 // ============================================================================

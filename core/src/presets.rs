@@ -192,6 +192,69 @@ pub fn get_presets_json() -> &'static str {
     PRESETS_JSON
 }
 
+/// Factory defaults in the camelCase shape both bindings' `getDefaults`
+/// return. `frameWidth`/`frameDepth` name the frame material; `frameStyle`
+/// and `floatReveal` come from `FrameDesign::default()` (presets.json has
+/// no entry for them).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DefaultsJson {
+    artwork_height: f64,
+    artwork_width: f64,
+    mat_width: f64,
+    mat_overlap: f64,
+    frame_width: f64,
+    frame_depth: f64,
+    rabbet_width: f64,
+    rabbet_depth: f64,
+    glazing_thickness: f64,
+    matboard_thickness: f64,
+    artwork_thickness: f64,
+    backing_thickness: f64,
+    blade_width: f64,
+    wood_error_margin: f64,
+    assembly_margin: f64,
+    frame_style: crate::frame::FrameStyle,
+    float_reveal: f64,
+    spline_kerf: f64,
+    spline_min_wall: f64,
+    hanging_drop_fraction: f64,
+    hanging_slack_fraction: f64,
+    hanging_wrap_allowance: f64,
+}
+
+/// Factory defaults as the camelCase JSON object the bindings' `getDefaults`
+/// return (inches; hanging drop/slack are fractions).
+pub fn get_defaults_json() -> String {
+    let d = get_defaults();
+    let design = crate::frame::FrameDesign::default();
+    let json = DefaultsJson {
+        artwork_height: d.artwork_height,
+        artwork_width: d.artwork_width,
+        mat_width: d.mat_width,
+        mat_overlap: d.mat_overlap,
+        frame_width: d.frame_material_width,
+        frame_depth: d.frame_material_depth,
+        rabbet_width: d.rabbet_width,
+        rabbet_depth: d.rabbet_depth,
+        glazing_thickness: d.glazing_thickness,
+        matboard_thickness: d.matboard_thickness,
+        artwork_thickness: d.artwork_thickness,
+        backing_thickness: d.backing_thickness,
+        blade_width: d.blade_width,
+        wood_error_margin: d.wood_error_margin,
+        assembly_margin: d.assembly_margin,
+        frame_style: design.frame_style,
+        float_reveal: design.float_reveal,
+        spline_kerf: d.spline_kerf,
+        spline_min_wall: d.spline_min_wall,
+        hanging_drop_fraction: d.hanging_drop_fraction,
+        hanging_slack_fraction: d.hanging_slack_fraction,
+        hanging_wrap_allowance: d.hanging_wrap_allowance,
+    };
+    serde_json::to_string(&json).unwrap_or_default()
+}
+
 // ============================================================================
 // Color Access Functions
 // ============================================================================
@@ -219,6 +282,33 @@ mod tests {
         assert_eq!(defaults.frame_material_width, 0.75);
         // Total Wood margin: 1/16" per piece, shared by web and iOS
         assert_eq!(defaults.wood_error_margin, 0.0625);
+    }
+
+    #[test]
+    fn test_defaults_json_shape() {
+        let v: serde_json::Value = serde_json::from_str(&get_defaults_json()).unwrap();
+        let obj = v.as_object().unwrap();
+        let d = get_defaults();
+        let expected = [
+            ("artworkHeight", d.artwork_height), ("artworkWidth", d.artwork_width),
+            ("matWidth", d.mat_width), ("matOverlap", d.mat_overlap),
+            ("frameWidth", d.frame_material_width), ("frameDepth", d.frame_material_depth),
+            ("rabbetWidth", d.rabbet_width), ("rabbetDepth", d.rabbet_depth),
+            ("glazingThickness", d.glazing_thickness), ("matboardThickness", d.matboard_thickness),
+            ("artworkThickness", d.artwork_thickness), ("backingThickness", d.backing_thickness),
+            ("bladeWidth", d.blade_width), ("woodErrorMargin", d.wood_error_margin),
+            ("assemblyMargin", d.assembly_margin), ("floatReveal", 0.0),
+            ("splineKerf", d.spline_kerf), ("splineMinWall", d.spline_min_wall),
+            ("hangingDropFraction", d.hanging_drop_fraction),
+            ("hangingSlackFraction", d.hanging_slack_fraction),
+            ("hangingWrapAllowance", d.hanging_wrap_allowance),
+        ];
+        for (key, want) in expected {
+            assert_eq!(obj.get(key).and_then(|x| x.as_f64()), Some(want), "{key}");
+        }
+        assert_eq!(obj["frameStyle"], "rabbet");
+        // Exactly these keys: camelCase only (no snake_case stragglers)
+        assert_eq!(obj.len(), expected.len() + 1);
     }
 
     #[test]
