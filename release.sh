@@ -191,6 +191,19 @@ write_version() {
     esac
 }
 
+# Re-sync a Cargo.lock after a version bump. `cargo metadata` re-resolves only
+# the path/workspace entries (core, the bridge crate) to their current
+# Cargo.toml versions; unlike `cargo update`, it does not upgrade registry
+# crates, so the release commit changes nothing but the bumped versions.
+refresh_path_deps() {
+    local manifest="$1"
+    if ! cargo metadata --format-version 1 --manifest-path "$manifest" > /dev/null; then
+        echo "ERROR: failed to refresh the Cargo.lock for $manifest" >&2
+        echo "       The ${scope} version was bumped but the lockfile was not updated." >&2
+        exit 1
+    fi
+}
+
 # ── Clean-tree check ─────────────────────────────────────────────────────────
 # --apply commits whatever is staged along with the version bump, so refuse to
 # run over uncommitted changes to tracked files. A core bump also commits the
@@ -286,24 +299,17 @@ for scope in "${SCOPES[@]}"; do
 
         # Core bump: refresh the core entry in the web bindings' Cargo.lock
         # (same repo) so it lands in the release commit instead of dirtying the
-        # tree on the next WASM build. `cargo metadata` only re-resolves the
-        # path dependency; it does not upgrade registry crates.
+        # tree on the next WASM build.
         wasm_lock="$ROOT_DIR/platforms/web/wasm_bindings/Cargo.lock"
         if [[ "$scope" == "core" && -f "$wasm_lock" ]]; then
-            if ! cargo metadata --format-version 1 --manifest-path "$ROOT_DIR/platforms/web/wasm_bindings/Cargo.toml" > /dev/null; then
-                echo "ERROR: failed to refresh $wasm_lock" >&2
-                exit 1
-            fi
+            refresh_path_deps "$ROOT_DIR/platforms/web/wasm_bindings/Cargo.toml"
             git -C "$ROOT_DIR" add "$wasm_lock"
         fi
 
-        # If core or bridge Cargo.toml changed, update the mobile Cargo.lock
+        # If core or bridge Cargo.toml changed, refresh their entries in the
+        # mobile Cargo.lock (registry crates stay pinned)
         if [[ "$scope" == "core" || "$scope" == "bridge" ]]; then
-            if ! cargo update --manifest-path "$MOBILE_DIR/rust/Cargo.toml" --quiet; then
-                echo "ERROR: cargo update failed for $MOBILE_DIR/rust/Cargo.toml" >&2
-                echo "       The ${scope} version was bumped but the mobile Cargo.lock was not updated." >&2
-                exit 1
-            fi
+            refresh_path_deps "$MOBILE_DIR/rust/Cargo.toml"
             local_lock="$MOBILE_DIR/rust/Cargo.lock"
             if git -C "$MOBILE_DIR" diff --quiet "$local_lock" 2>/dev/null; then
                 : # No lock change
