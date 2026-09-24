@@ -17,8 +17,6 @@ use super::layout::LayoutResult;
 /// Artwork outline (dashed, inside the mat opening).
 const ARTWORK_OUTLINE_DASH: &str = "4,2";
 const ARTWORK_OUTLINE_OPACITY: f64 = 0.6;
-/// Mat/artwork overlap fill + outline (neutral gray; not yet in DiagramStyle).
-const MAT_OVERLAP_COLOR: &str = "#888888";
 const MAT_OVERLAP_DASH: &str = "3,2";
 const MAT_OVERLAP_OPACITY: f64 = 0.4;
 
@@ -85,7 +83,7 @@ impl<'a> PlanRectStrokes<'a> {
                 opacity: OPACITY_CONTENT_BOUNDARY,
             }),
             mat_overlap: mat_overlap_visible.then_some(RectStroke {
-                rect: &geometry.artwork, color: MAT_OVERLAP_COLOR,
+                rect: &geometry.artwork, color: &style.mat_overlap_color,
                 width: style.extension_stroke_width * 0.8, dasharray: Some(MAT_OVERLAP_DASH),
                 opacity: MAT_OVERLAP_OPACITY,
             }),
@@ -149,19 +147,10 @@ pub(crate) fn render_corner_detail(
         clip_id, bx + clip_inset_left, by + clip_inset_top, bw - clip_inset_left - clip_inset_right, bh - clip_inset_top - clip_inset_bottom
     ));
 
-    // Background box
-    svg.push_str(&format!(
-        "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"{}\" stroke=\"#999\" stroke-width=\"0.75\" rx=\"4\"/>\n",
-        bx, by, bw, bh, style.background_color
-    ));
-
-    // Title — scale with box height
+    // Background box + title (title scales with box height)
     let title_font = (bh * 0.08).min(style.dimension_font_size * 0.9);
     let title_y = by + title_font + 5.0;
-    svg.push_str(&format!(
-        "    <text transform=\"translate({:.2}, {:.2})\" fill=\"#555\" font-family=\"{}\" font-size=\"{:.1}\" font-weight=\"bold\" text-anchor=\"middle\">Corner Detail</text>\n",
-        bx + bw / 2.0, title_y, style.font_family, title_font
-    ));
+    render_inset_box(&mut svg, &cd.box_rect, "Corner Detail", title_font, title_y, style);
 
     // Clipped group for zoomed geometry
     svg.push_str(&format!("    <g clip-path=\"url(#{})\">\n", clip_id));
@@ -578,7 +567,7 @@ pub(crate) fn build_plan_svg(
             );
             svg.push_str(&format!(
                 "    <path d=\"{}\" fill=\"{}\" fill-opacity=\"0.12\" fill-rule=\"evenodd\" stroke=\"none\"/>\n",
-                path_d, MAT_OVERLAP_COLOR
+                path_d, style.mat_overlap_color
             ));
             if let (false, Some(rs)) = (has_breaks, &strokes.mat_overlap) {
                 svg.push_str(&format!(
@@ -923,8 +912,8 @@ pub(crate) fn build_plan_svg(
         let tm = style.thumbnail_metrics();
         svg.push_str("  <g id=\"thumbnail\">\n");
         svg.push_str(&format!(
-            "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"#999\" stroke-width=\"{:.2}\" fill=\"none\"/>\n",
-            thumb.x, thumb.y, thumb.width, thumb.height, tm.stroke_width
+            "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"{}\" stroke-width=\"{:.2}\" fill=\"none\"/>\n",
+            thumb.x, thumb.y, thumb.width, thumb.height, style.muted_color, tm.stroke_width
         ));
         match geometry.thumbnail_label_position {
             ThumbnailLabelPosition::Right => {
@@ -932,12 +921,12 @@ pub(crate) fn build_plan_svg(
                 let label_x = thumb.right() + tm.label_gap;
                 let label_y = thumb.y + thumb.height / 2.0 - 1.0;
                 svg.push_str(&format!(
-                    "    <text transform=\"translate({:.2}, {:.2})\" fill=\"#999\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"start\">Actual</text>\n",
-                    label_x, label_y, style.font_family, tm.font_size
+                    "    <text transform=\"translate({:.2}, {:.2})\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"start\">Actual</text>\n",
+                    label_x, label_y, style.muted_color, style.font_family, tm.font_size
                 ));
                 svg.push_str(&format!(
-                    "    <text transform=\"translate({:.2}, {:.2})\" fill=\"#999\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"start\">proportions</text>\n",
-                    label_x, label_y + tm.line_height, style.font_family, tm.font_size
+                    "    <text transform=\"translate({:.2}, {:.2})\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"start\">proportions</text>\n",
+                    label_x, label_y + tm.line_height, style.muted_color, style.font_family, tm.font_size
                 ));
             }
             ThumbnailLabelPosition::Below => {
@@ -945,12 +934,12 @@ pub(crate) fn build_plan_svg(
                 let label_x = thumb.x + thumb.width / 2.0;
                 let label_y = thumb.bottom() + tm.line_height;
                 svg.push_str(&format!(
-                    "    <text transform=\"translate({:.2}, {:.2})\" fill=\"#999\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"middle\">Actual</text>\n",
-                    label_x, label_y, style.font_family, tm.font_size
+                    "    <text transform=\"translate({:.2}, {:.2})\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"middle\">Actual</text>\n",
+                    label_x, label_y, style.muted_color, style.font_family, tm.font_size
                 ));
                 svg.push_str(&format!(
-                    "    <text transform=\"translate({:.2}, {:.2})\" fill=\"#999\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"middle\">proportions</text>\n",
-                    label_x, label_y + tm.line_height, style.font_family, tm.font_size
+                    "    <text transform=\"translate({:.2}, {:.2})\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}px\" text-anchor=\"middle\">proportions</text>\n",
+                    label_x, label_y + tm.line_height, style.muted_color, style.font_family, tm.font_size
                 ));
             }
         }

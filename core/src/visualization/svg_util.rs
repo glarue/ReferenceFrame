@@ -640,6 +640,27 @@ pub(crate) fn svg_rect(rect: &Rect, stroke: &str, stroke_width: f64, fill: Optio
     ) + "\n"
 }
 
+/// Bordered inset box with a centered bold title — the shared visual language
+/// of the Corner Detail inset and the overlay annotation card. `title` must be
+/// XML-safe text.
+pub(crate) fn render_inset_box(
+    svg: &mut String,
+    rect: &Rect,
+    title: &str,
+    title_font: f64,
+    title_baseline_y: f64,
+    style: &DiagramStyle,
+) {
+    svg.push_str(&format!(
+        "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"0.75\" rx=\"4\"/>\n",
+        rect.x, rect.y, rect.width, rect.height, style.background_color, style.annotation_border_color
+    ));
+    svg.push_str(&format!(
+        "    <text transform=\"translate({:.2}, {:.2})\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}\" font-weight=\"bold\" text-anchor=\"middle\">{}</text>\n",
+        rect.x + rect.width / 2.0, title_baseline_y, style.annotation_title_color, style.font_family, title_font, title
+    ));
+}
+
 /// Get fill color for a pattern
 pub(crate) fn get_fill_for_pattern(pattern: &FillPattern) -> String {
     match pattern {

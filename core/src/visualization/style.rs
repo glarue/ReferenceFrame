@@ -106,6 +106,18 @@ pub struct DiagramStyle {
     pub warning_color: String,
     /// Success color (for clearance OK)
     pub success_color: String,
+    /// Inset/annotation title text (Corner Detail, overlay card)
+    pub annotation_title_color: String,
+    /// Inset/annotation box border (Corner Detail, overlay card)
+    pub annotation_border_color: String,
+    /// De-emphasized annotation (proportional thumbnail outline and its label)
+    pub muted_color: String,
+    /// Mat/artwork overlap fill and outline (neutral gray)
+    pub mat_overlap_color: String,
+    /// Spline slot band outline (the band itself is filled with `accent_color`)
+    pub spline_stroke_color: String,
+    /// Spline label drawn inside the accent-filled slot band
+    pub spline_text_color: String,
 
     // Line weights (in SVG units)
     /// Frame outline stroke width
@@ -187,6 +199,13 @@ impl Default for DiagramStyle {
             artwork_color: "#90be6d".to_string(),            // Willow Green - artwork boundary
             warning_color: "#f94144".to_string(),           // Strawberry Red - error
             success_color: "#90be6d".to_string(),           // Willow Green - success
+            // Neutral annotation grays (not palette colors)
+            annotation_title_color: "#555".to_string(),     // Dark gray - inset titles
+            annotation_border_color: "#999".to_string(),    // Mid gray - inset borders
+            muted_color: "#999".to_string(),                // Mid gray - thumbnail
+            mat_overlap_color: "#888888".to_string(),       // Neutral gray - mat overlap
+            spline_stroke_color: "#2e7a63".to_string(),     // Deep seaweed - slot outline
+            spline_text_color: "#0d3d30".to_string(),       // Darkest seaweed - slot label
 
             // Line weights
             frame_stroke_width: 2.5,
@@ -269,6 +288,16 @@ impl DiagramStyle {
         style.artwork_color = "#B8D4A2".to_string(); // Willow Green (light) - artwork boundary
         style.warning_color = "#FB8A8C".to_string(); // Strawberry Red (light)
         style.success_color = "#B8D4A2".to_string(); // Willow Green (light)
+
+        // Neutral annotation grays, lifted for contrast on the dark surface
+        // (presets.json neutrals): title ~8.7:1, muted ~7.2:1, border ~4.8:1.
+        style.annotation_title_color = "#B0B0B0".to_string(); // gray_light
+        style.annotation_border_color = "#808080".to_string(); // gray_medium
+        style.muted_color = "#A0A0A0".to_string();
+        style.mat_overlap_color = "#A0A0A0".to_string();
+        // Spline outline/label sit on the accent-filled band (light seaweed in
+        // dark mode), not on the background, so the dark greens stay legible
+        // (label ~5.4:1 on the band) and are left unchanged.
 
         style
     }

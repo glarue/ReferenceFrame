@@ -23,12 +23,8 @@ use crate::joinery::{spline_envelope, SplineParams};
 
 use super::geometry::{estimate_text_width, PlanViewGeometry, SectionViewGeometry};
 use super::style::DiagramStyle;
-use super::svg_util::{escape_text, BASELINE_SHIFT_RATIO};
-use super::types::DiagramOptions;
-
-/// Spline slot fill needs a darker companion for outline/text contrast.
-const SPLINE_STROKE: &str = "#2e7a63";
-const SPLINE_TEXT: &str = "#0d3d30";
+use super::svg_util::{escape_text, render_inset_box, BASELINE_SHIFT_RATIO};
+use super::types::{DiagramOptions, Rect};
 
 /// A section slot whose label didn't fit inside the band — labeled through
 /// the section's dog-leg column instead (consumed by the stack-label pass).
@@ -83,7 +79,7 @@ pub(crate) fn render_section_splines(
             w,
             h,
             style.accent_color,
-            SPLINE_STROKE
+            style.spline_stroke_color
         ));
         svg.push('\n');
         let label = format!(
@@ -103,7 +99,7 @@ pub(crate) fn render_section_splines(
                 r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="start">{}</text>"#,
                 fp.x + 10.0,
                 yc + label_fs * BASELINE_SHIFT_RATIO,
-                SPLINE_TEXT,
+                style.spline_text_color,
                 style.font_family,
                 label_fs,
                 escape_text(&label)
@@ -318,20 +314,14 @@ pub(crate) fn render_overlay_card(
     style: &DiagramStyle,
 ) {
     svg.push_str("  <g id=\"overlay-card\">\n");
-    svg.push_str(&format!(
-        r##"    <rect x="{x:.2}" y="{y:.2}" width="{:.2}" height="{:.2}" fill="{}" stroke="#999" stroke-width="0.75" rx="4"/>"##,
-        card.width, card.height, style.background_color
-    ));
-    svg.push('\n');
-    svg.push_str(&format!(
-        r##"    <text transform="translate({:.2}, {:.2})" fill="#555" font-family="{}" font-size="{:.1}" font-weight="bold" text-anchor="middle">{}</text>"##,
-        x + card.width / 2.0,
-        y + 14.0,
-        style.font_family,
+    render_inset_box(
+        svg,
+        &Rect::new(x, y, card.width, card.height),
+        card.title,
         style.dimension_font_size * 0.9,
-        card.title
-    ));
-    svg.push('\n');
+        y + 14.0,
+        style,
+    );
     for (i, (color, text)) in card.lines.iter().enumerate() {
         let ly = y + CARD_TITLE_H + i as f64 * CARD_LINE_H + CARD_LINE_H / 2.0;
         svg.push_str(&format!(
