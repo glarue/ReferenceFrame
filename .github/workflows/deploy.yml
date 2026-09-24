@@ -68,6 +68,43 @@ jobs:
           # Add .nojekyll to prevent Jekyll processing
           touch deploy/.nojekyll
 
+      - name: Stamp cache-busting version (deploy copies only)
+        run: |
+          # Every deploy gets fresh asset URLs and service-worker caches, so the
+          # manual ?v= / sw.js bumps in the sources aren't needed for deploys.
+          # Fails loudly if a refactor changes what there is to stamp.
+          ver="${GITHUB_SHA::8}"
+
+          # Each file carries the same shared ?v=<token> on the 4 cache-busted
+          # URLs (styles.css, storage.js, the WASM JS glue, the .wasm binary):
+          # index.html requests them and sw.js precaches them, so both must get
+          # the same stamp or the offline precache misses. If you add or remove
+          # a cache-busted URL, update EXPECTED_TOKENS.
+          EXPECTED_TOKENS=4
+          token_re='\?v=[A-Za-z0-9._-]+'
+          for f in index.html sw.js; do
+            before=$(grep -oE "$token_re" "deploy/$f" | wc -l || true)
+            sed -E -i.bak "s/${token_re}/?v=${ver}/g" "deploy/$f"
+            rm "deploy/$f.bak"
+            stamped=$(grep -oF "?v=${ver}" "deploy/$f" | wc -l || true)
+            if [ "$before" -ne "$EXPECTED_TOKENS" ] || [ "$stamped" -ne "$EXPECTED_TOKENS" ]; then
+              echo "::error file=platforms/web/$f::expected ${EXPECTED_TOKENS} ?v= tokens to stamp, found ${before}, stamped ${stamped}"
+              exit 1
+            fi
+            echo "$f: stamped ${stamped} URLs with ?v=${ver}"
+          done
+
+          # sw.js: CACHE_NAME / RUNTIME_CACHE version suffix -> -v<sha>, so the
+          # activate handler drops the previous deploy's caches
+          sed -E -i.bak "s/^(const (CACHE_NAME|RUNTIME_CACHE) = '[A-Za-z0-9_-]+-v)[A-Za-z0-9._-]+';/\1${ver}';/" deploy/sw.js
+          rm deploy/sw.js.bak
+          stamped=$(grep -cE "^const (CACHE_NAME|RUNTIME_CACHE) = '[A-Za-z0-9_-]+-v${ver}';" deploy/sw.js || true)
+          if [ "$stamped" -ne 2 ]; then
+            echo "::error file=platforms/web/sw.js::expected to stamp CACHE_NAME and RUNTIME_CACHE, stamped ${stamped}"
+            exit 1
+          fi
+          grep -E "^const (CACHE_NAME|RUNTIME_CACHE) =" deploy/sw.js
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
