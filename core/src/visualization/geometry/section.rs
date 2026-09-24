@@ -82,7 +82,8 @@ impl SectionViewGeometry {
 
         // RIGHT SIDE: Material labels + stack dimension
         // Components (from section_svg.rs; spline leader labels that join this
-        // column are not reserved here):
+        // column are not reserved here — reserving them changes the scale and
+        // thus the spline goldens, so it is deferred to audit 5c):
         //   base_offset = style.section_material_label_offset.min(scale * 0.4 + 12.0)
         //   material labels at label_base_x = material_right + base_offset
         //   max_label_width = estimated from text like "Glazing: 3/32""

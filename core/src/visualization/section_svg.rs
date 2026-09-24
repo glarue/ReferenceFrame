@@ -264,7 +264,7 @@ pub(crate) fn build_section_svg(
         depth_label_x, depth_label_y,
         dim_color, style.font_family, style.label_font_size,
         depth_label_x, depth_label_y,
-        fmt(depth_value)
+        escape_text(&fmt(depth_value))
     ));
     svg.push('\n');
 
@@ -332,7 +332,7 @@ pub(crate) fn build_section_svg(
         r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle">Width: {}</text>"#,
         (fw_x1 + fw_x2) / 2.0, fw_label_y,
         dim_color, style.font_family, style.label_font_size,
-        fmt(geometry.actual_frame_width)
+        escape_text(&fmt(geometry.actual_frame_width))
     ));
     svg.push('\n');
 
@@ -512,13 +512,17 @@ pub(crate) fn build_section_svg(
         // Label text — slightly smaller than primary labels (secondary/contextual role)
         // Position text so baseline is slightly below label_y (visual center)
         // This makes dog-leg line hit visual center regardless of baseline rendering
+        // NOTE: renders at 11/13 (≈0.846) × label_font_size, while width estimates
+        // (below and in geometry/section.rs) use material_label_font_size() (0.85×).
+        // Switching to material_label_font_size() changes the emitted font-size
+        // (e.g. 11.0 → 11.1px), so it is deferred to the output-changing batch (audit 5c).
         let stack_label_font = style.label_font_size * (11.0 / 13.0);
         let text_y = label_y + stack_label_font * BASELINE_SHIFT_RATIO;
         svg.push_str(&format!(
             r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px">{}</text>"#,
             label_base_x, text_y,
             mat.color, style.font_family, stack_label_font,
-            mat.text
+            escape_text(&mat.text)
         ));
         svg.push('\n');
     }
@@ -573,7 +577,7 @@ pub(crate) fn build_section_svg(
             stack_label_x, stack_label_y,
             dim_color, style.font_family, style.label_font_size,
             stack_label_x, stack_label_y,
-            callout.label.clone()
+            escape_text(&callout.label)
         ));
         svg.push('\n');
     }
@@ -642,14 +646,14 @@ pub(crate) fn build_section_svg(
             r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="{}">{}</text>"#,
             text_x + x_off, rabbet_label_y,
             indicator_color, style.font_family, style.label_font_size,
-            text_anchor, rabbet_label
+            text_anchor, escape_text(&rabbet_label)
         ));
         s.push('\n');
         s.push_str(&format!(
             r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="{}">{}</text>"#,
             text_x + x_off, rabbet_label_y + line_height,
             indicator_color, style.font_family, style.label_font_size,
-            text_anchor, clearance_line
+            text_anchor, escape_text(&clearance_line)
         ));
         s.push('\n');
         s
@@ -666,25 +670,10 @@ pub(crate) fn build_section_svg(
     // =================================================================
     // DYNAMIC VIEWBOX: Calculate legend bounds
     // =================================================================
-    // Calculate legend width based on actual text lengths (same logic as generate_section_legend)
-    let material_names = if design.has_mat() {
-        vec!["Frame", "Glazing", "Matboard", "Artwork", "Backing"]
-    } else {
-        vec!["Frame", "Glazing", "Artwork", "Backing"]
-    };
-
-    let mut item_widths: Vec<f64> = material_names.iter().map(|name| {
-        let text_width = name.len() as f64 * style.label_font_size * LEGEND_CHAR_WIDTH_RATIO;
-        LEGEND_SWATCH_SIZE + LEGEND_SWATCH_GAP + text_width + LEGEND_ITEM_GAP
-    }).collect();
-
-    if let Some(last_width) = item_widths.last_mut() {
-        *last_width -= LEGEND_ITEM_GAP;
-    }
-
-    let total_width: f64 = item_widths.iter().sum();
-    let legend_start_x = (options.canvas_width - total_width) / 2.0;
-    let legend_end_x = legend_start_x + total_width;
+    // Legend layout is computed once and shared with generate_section_legend
+    let legend = SectionLegend::new(design, style);
+    let legend_start_x = (options.canvas_width - legend.total_width) / 2.0;
+    let legend_end_x = legend_start_x + legend.total_width;
 
     let content_bottom = geometry.bounds.bottom();
     let legend_y = content_bottom + geometry.legend_gap;
@@ -773,11 +762,10 @@ pub(crate) fn build_section_svg(
     // Compact legend (horizontal at very bottom of canvas)
     // Pass content bounds for dynamic viewBox centering
     final_svg.push_str(&generate_section_legend(
-        design,
+        &legend,
         geometry,
         style,
         options.canvas_width,
-        options.canvas_height,
         Some((shifted_content_min_x, shifted_content_max_x)), // Use shifted bounds for legend centering
     ));
 
@@ -1162,39 +1150,55 @@ fn render_dual_break_profile(
     render_break_zigzags(svg, style, &[&v_zz.top, &v_zz.bottom, &h_zz.left, &h_zz.right]);
 }
 
+/// Section legend entries with their laid-out widths — computed once and used
+/// both for the dynamic viewBox bounds and by `generate_section_legend`.
+pub(crate) struct SectionLegend<'a> {
+    /// (name, fill pattern) per swatch; "Matboard" only when the design has a mat
+    items: Vec<(&'static str, &'a FillPattern)>,
+    /// Advance per item (swatch + gap + estimated text + item gap; no gap after the last)
+    item_widths: Vec<f64>,
+    total_width: f64,
+}
+
+impl<'a> SectionLegend<'a> {
+    pub(crate) fn new(design: &FrameDesign, style: &'a DiagramStyle) -> Self {
+        let items: Vec<(&'static str, &'a FillPattern)> = vec![
+            ("Frame", &style.material_patterns.frame),
+            ("Glazing", &style.material_patterns.glazing),
+            ("Matboard", &style.material_patterns.matboard),
+            ("Artwork", &style.material_patterns.artwork),
+            ("Backing", &style.material_patterns.backing),
+        ].into_iter()
+            .filter(|(name, _)| *name != "Matboard" || design.has_mat())
+            .collect();
+
+        let mut item_widths: Vec<f64> = items.iter().map(|(name, _)| {
+            let text_width = name.len() as f64 * style.label_font_size * LEGEND_CHAR_WIDTH_RATIO;
+            LEGEND_SWATCH_SIZE + LEGEND_SWATCH_GAP + text_width + LEGEND_ITEM_GAP
+        }).collect();
+
+        // Don't add inter-item gap after the last item
+        if let Some(last_width) = item_widths.last_mut() {
+            *last_width -= LEGEND_ITEM_GAP;
+        }
+
+        let total_width: f64 = item_widths.iter().sum();
+        Self { items, item_widths, total_width }
+    }
+}
+
 /// Generate section view legend (horizontal layout positioned below content)
 pub(crate) fn generate_section_legend(
-    design: &FrameDesign,
+    legend: &SectionLegend,
     geometry: &SectionViewGeometry,
     style: &DiagramStyle,
     canvas_width: f64,
-    _canvas_height: f64,
     content_bounds_x: Option<(f64, f64)>, // (min_x, max_x) for dynamic viewBox centering
 ) -> String {
     let mut svg = String::new();
     svg.push_str("  <g id=\"legend\">\n");
 
-    let materials: Vec<(&str, &FillPattern)> = vec![
-        ("Frame", &style.material_patterns.frame),
-        ("Glazing", &style.material_patterns.glazing),
-        ("Matboard", &style.material_patterns.matboard),
-        ("Artwork", &style.material_patterns.artwork),
-        ("Backing", &style.material_patterns.backing),
-    ].into_iter()
-        .filter(|(name, _)| *name != "Matboard" || design.has_mat())
-        .collect();
-
-    let mut item_widths: Vec<f64> = materials.iter().map(|(name, _)| {
-        let text_width = name.len() as f64 * style.label_font_size * LEGEND_CHAR_WIDTH_RATIO;
-        LEGEND_SWATCH_SIZE + LEGEND_SWATCH_GAP + text_width + LEGEND_ITEM_GAP
-    }).collect();
-
-    // Don't add inter-item gap after the last item
-    if let Some(last_width) = item_widths.last_mut() {
-        *last_width -= LEGEND_ITEM_GAP;
-    }
-
-    let total_width: f64 = item_widths.iter().sum();
+    let total_width = legend.total_width;
 
     // Center legend relative to content bounds (for dynamic viewBox) or canvas (for fixed viewBox)
     let start_x = if let Some((min_x, max_x)) = content_bounds_x {
@@ -1209,7 +1213,7 @@ pub(crate) fn generate_section_legend(
     let legend_y = content_bottom + geometry.legend_gap;
 
     let mut current_x = start_x;
-    for ((name, pattern), item_width) in materials.iter().zip(item_widths.iter()) {
+    for ((name, pattern), item_width) in legend.items.iter().zip(legend.item_widths.iter()) {
         let fill = get_fill_for_pattern(pattern);
         svg.push_str(&format!(
             r#"    <rect x="{:.2}" y="{:.2}" width="{}" height="{}" fill="{}" stroke="{}" stroke-width="{}"/>"#,

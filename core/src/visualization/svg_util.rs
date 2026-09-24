@@ -695,6 +695,16 @@ pub(crate) fn extract_svg_content(svg: &str) -> String {
     svg.to_string()
 }
 
+/// Escape XML text-node content (`&`, `<`, `>`). Quotes are left as-is — they
+/// only matter inside attributes. Used for section-view and overlay text.
+/// (Plan callouts use `html_escape`, which also encodes `"` as `&quot;`;
+/// unifying the two would change rendered bytes — audit 5c.)
+pub(crate) fn escape_text(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 /// HTML-escape special characters
 pub(crate) fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")

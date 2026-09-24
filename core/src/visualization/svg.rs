@@ -754,6 +754,13 @@ mod tests {
     }
 
     #[test]
+    fn test_escape_text() {
+        // Text nodes: escape &, <, > but leave inch-mark quotes untouched
+        assert_eq!(escape_text("Glazing: 3/32\""), "Glazing: 3/32\"");
+        assert_eq!(escape_text("A & B <x>"), "A &amp; B &lt;x&gt;");
+    }
+
+    #[test]
     fn test_no_mat_svg() {
         let mut design = FrameDesign::new(12.0, 16.0);
         design.mat_width_top_bottom = 0.0;

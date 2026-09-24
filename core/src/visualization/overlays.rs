@@ -23,7 +23,7 @@ use crate::joinery::{spline_envelope, SplineParams};
 
 use super::geometry::{estimate_text_width, PlanViewGeometry, SectionViewGeometry};
 use super::style::DiagramStyle;
-use super::svg_util::BASELINE_SHIFT_RATIO;
+use super::svg_util::{escape_text, BASELINE_SHIFT_RATIO};
 use super::types::DiagramOptions;
 
 /// Spline slot fill needs a darker companion for outline/text contrast.
@@ -106,7 +106,7 @@ pub(crate) fn render_section_splines(
                 SPLINE_TEXT,
                 style.font_family,
                 label_fs,
-                label
+                escape_text(&label)
             ));
             svg.push('\n');
         } else {
@@ -341,11 +341,12 @@ pub(crate) fn render_overlay_card(
         ));
         svg.push('\n');
         svg.push_str(&format!(
-            r#"    <text transform="translate({:.2}, {:.2})" fill="{color}" font-family="{}" font-size="{}px" text-anchor="start">{text}</text>"#,
+            r#"    <text transform="translate({:.2}, {:.2})" fill="{color}" font-family="{}" font-size="{}px" text-anchor="start">{}</text>"#,
             x + CARD_PAD + 12.0,
             ly + style.dimension_font_size * BASELINE_SHIFT_RATIO,
             style.font_family,
-            style.dimension_font_size
+            style.dimension_font_size,
+            escape_text(text)
         ));
         svg.push('\n');
     }
