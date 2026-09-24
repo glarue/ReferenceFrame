@@ -83,14 +83,14 @@
 
                     <!-- Manual Dimensions -->
                     <div class="input-group">
-                        <label id="label-artwork">Dimensions <span class="text-muted">(inches)</span></label>
+                        <label id="label-artwork" for="artwork-height">Dimensions <span class="text-muted">(inches)</span></label>
                         <div class="dimension-pair">
                             <div class="dimension-inputs">
                                 <span class="dim-label">H</span>
-                                <input type="text" id="artwork-height" inputmode="decimal" placeholder="e.g. 12.5 or 12 1/2">
+                                <input type="text" id="artwork-height" aria-label="Artwork height" inputmode="decimal" placeholder="e.g. 12.5 or 12 1/2">
                                 <span class="separator">×</span>
                                 <span class="dim-label">W</span>
-                                <input type="text" id="artwork-width" inputmode="decimal" placeholder="e.g. 18.75 or 18 3/4">
+                                <input type="text" id="artwork-width" aria-label="Artwork width" inputmode="decimal" placeholder="e.g. 18.75 or 18 3/4">
                             </div>
                             <div class="dimension-controls">
                                 <button type="button" id="orientation-toggle" class="orientation-btn landscape" title="Toggle orientation" aria-label="Toggle orientation" onclick="toggleOrientation()">
@@ -123,8 +123,8 @@
                     <!-- Mat Borders -->
                     <div class="mat-borders-section" id="mat-settings">
                         <div class="section-header-with-toggle">
-                            <label id="label-mat-width" class="section-label">Mat Borders</label>
-                            <label class="toggle-checkbox-label">
+                            <label id="label-mat-width" class="section-label" for="mat-width-single">Mat Borders</label>
+                            <label class="toggle-checkbox-label" for="separate-mat-borders">
                                 <input type="checkbox" id="separate-mat-borders" onchange="toggleMatBorderMode()">
                                 <span class="toggle-text">Separate sides</span>
                             </label>
@@ -133,11 +133,11 @@
                         <!-- Single mode: mat width and overlap side-by-side -->
                         <div class="inline-fields-row" id="mat-single-mode-row">
                             <div class="field" id="mat-width-single-field">
-                                <label>Width</label>
+                                <label for="mat-width-single">Width</label>
                                 <input type="text" id="mat-width-single" inputmode="decimal" placeholder="e.g. 2.0">
                             </div>
                             <div class="field" id="mat-overlap-field-inline">
-                                <label>Overlap</label>
+                                <label for="mat-overlap">Overlap</label>
                                 <input type="text" id="mat-overlap" inputmode="decimal" placeholder="e.g. 1/8">
                             </div>
                         </div>
@@ -146,7 +146,7 @@
                         <div id="mat-width-separate-container" style="display: none;">
                             <div class="mat-borders-grid">
                                 <div class="field field-stepper">
-                                    <label class="field-label-small">Top/Bottom</label>
+                                    <label class="field-label-small" for="mat-width-tb">Top/Bottom</label>
                                     <div class="input-stepper">
                                         <button type="button" class="stepper-btn minus" aria-label="Decrease top/bottom mat width" onclick="adjustMatWidth('tb', -0.125)">−</button>
                                         <input type="text" id="mat-width-tb" inputmode="decimal" placeholder="2.0">
@@ -154,7 +154,7 @@
                                     </div>
                                 </div>
                                 <div class="field field-stepper">
-                                    <label class="field-label-small">Left/Right</label>
+                                    <label class="field-label-small" for="mat-width-lr">Left/Right</label>
                                     <div class="input-stepper">
                                         <button type="button" class="stepper-btn minus" aria-label="Decrease left/right mat width" onclick="adjustMatWidth('lr', -0.125)">−</button>
                                         <input type="text" id="mat-width-lr" inputmode="decimal" placeholder="2.0">
@@ -165,7 +165,7 @@
 
                             <!-- Mat overlap for separate mode -->
                             <div class="field" id="mat-overlap-field-separate" style="margin-top: 12px;">
-                                <label id="label-mat-overlap">Mat Overlap</label>
+                                <label id="label-mat-overlap" for="mat-overlap-separate">Mat Overlap</label>
                                 <input type="text" id="mat-overlap-separate" inputmode="decimal" placeholder="e.g. 0.125 or 1/8">
                             </div>
 
@@ -178,12 +178,12 @@
                     </div>
                     <div class="inline-fields-row">
                         <div class="field">
-                            <label id="label-frame-width">Frame W</label>
+                            <label id="label-frame-width" for="frame-width">Frame W</label>
                             <input type="text" id="frame-width" inputmode="decimal" placeholder="e.g. 1.5 or 1 1/2">
                             <small id="range-frame-width">Typical: 1/2" - 4"</small>
                         </div>
                         <div class="field">
-                            <label id="label-frame-depth">Frame D</label>
+                            <label id="label-frame-depth" for="frame-depth">Frame D</label>
                             <input type="text" id="frame-depth" inputmode="decimal" placeholder="e.g. 0.75 or 3/4">
                             <small id="range-frame-depth">Typical: 1/2" - 2"</small>
                         </div>
@@ -192,7 +192,7 @@
 
                 <!-- Advanced Options -->
                 <div class="section">
-                    <h2 class="collapsible-header" id="advanced-header" role="button" aria-expanded="false" aria-controls="advanced-content">
+                    <h2 class="collapsible-header" id="advanced-header" role="button" tabindex="0" aria-expanded="false" aria-controls="advanced-content">
                         <span class="material-symbols-outlined header-icon">tune</span>
                         <span class="header-title">Advanced Options</span>
                         <span class="material-symbols-outlined toggle-icon">expand_more</span>
@@ -275,7 +275,7 @@
 
                 <!-- Saved Configurations -->
                 <div class="section">
-                    <h2 class="collapsible-header" id="configs-header" role="button" aria-expanded="false" aria-controls="configs-content">
+                    <h2 class="collapsible-header" id="configs-header" role="button" tabindex="0" aria-expanded="false" aria-controls="configs-content">
                         <span class="material-symbols-outlined header-icon">folder</span>
                         <span class="header-title">Saved Configurations</span>
                         <span class="material-symbols-outlined toggle-icon">expand_more</span>
@@ -321,7 +321,7 @@
 
                 <!-- Design History -->
                 <div class="section">
-                    <h2 class="collapsible-header" id="history-header" role="button" aria-expanded="false" aria-controls="history-content">
+                    <h2 class="collapsible-header" id="history-header" role="button" tabindex="0" aria-expanded="false" aria-controls="history-content">
                         <span class="material-symbols-outlined header-icon">history</span>
                         <span class="header-title">Design History</span>
                         <span class="material-symbols-outlined toggle-icon">expand_more</span>
@@ -354,8 +354,8 @@
                         <button id="btn-both" class="active" onclick="setView('both')">Combined</button>
                     </div>
                     <div class="layer-toggles">
-                        <label><input type="checkbox" id="show-spline"> Spline slots</label>
-                        <label><input type="checkbox" id="show-hanging"> Hanging hardware</label>
+                        <label for="show-spline"><input type="checkbox" id="show-spline"> Spline slots</label>
+                        <label for="show-hanging"><input type="checkbox" id="show-hanging"> Hanging hardware</label>
                     </div>
                 </div>
             </div>
@@ -407,14 +407,14 @@
 
         <!-- Share Modal -->
         <div class="modal-overlay" id="share-modal" onclick="closeShareModal(event)">
-            <div class="modal" onclick="event.stopPropagation()">
-                <h3>Share This Design</h3>
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="share-modal-title" onclick="event.stopPropagation()">
+                <h3 id="share-modal-title">Share This Design</h3>
                 <p style="font-size: 12px; color: var(--rf-text-muted); margin-bottom: 12px;">
                     Copy this URL to share your frame design:
                 </p>
                 <div class="modal-url" id="share-url"></div>
                 <div class="modal-buttons">
-                    <span class="copy-success" id="copy-success" style="display: none;">Copied!</span>
+                    <span class="copy-success" id="copy-success" role="status" style="display: none;">Copied!</span>
                     <button class="secondary" onclick="closeShareModal()">Close</button>
                     <button onclick="copyShareUrl()">Copy URL</button>
                 </div>
@@ -423,9 +423,9 @@
 
         <!-- Settings Modal -->
         <div class="modal-overlay" id="settings-modal" onclick="closeSettingsModal(event)">
-            <div class="modal settings-modal" onclick="event.stopPropagation()">
+            <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" onclick="event.stopPropagation()">
                 <div class="settings-header">
-                    <h3>Settings</h3>
+                    <h3 id="settings-modal-title">Settings</h3>
                     <div class="settings-unit-toggle" id="validation-unit-toggle">
                         <button id="cfg-btn-inches" class="active" onclick="switchSettingsUnit('inches')">in</button>
                         <button id="cfg-btn-mm" onclick="switchSettingsUnit('mm')">mm</button>
@@ -445,17 +445,17 @@
                     <!-- Structural Tab -->
                     <div class="settings-panel active" id="panel-structural">
                         <div class="settings-group">
-                            <label>Minimum Lip Width (after rabbet)</label>
+                            <label for="cfg-min-lip-width">Minimum Lip Width (after rabbet)</label>
                             <input type="number" id="cfg-min-lip-width" step="0.0625" min="0">
                             <small>Prevents weak frame edges</small>
                         </div>
                         <div class="settings-group">
-                            <label>Minimum Face Depth (after rabbet)</label>
+                            <label for="cfg-min-face-depth">Minimum Face Depth (after rabbet)</label>
                             <input type="number" id="cfg-min-face-depth" step="0.0625" min="0">
                             <small>Ensures structural integrity</small>
                         </div>
                         <div class="settings-group">
-                            <label>Minimum Visible Opening (per side)</label>
+                            <label for="cfg-min-visible-opening">Minimum Visible Opening (per side)</label>
                             <input type="number" id="cfg-min-visible-opening" step="0.0625" min="0">
                             <small>Artwork left showing past the mat overlap; limits the overlap</small>
                         </div>
@@ -465,41 +465,41 @@
                     <div class="settings-panel" id="panel-dimensions">
                         <div class="settings-row">
                             <div class="settings-group">
-                                <label>Min Frame Width</label>
+                                <label for="cfg-min-frame-width">Min Frame Width</label>
                                 <input type="number" id="cfg-min-frame-width" step="0.25" min="0">
                             </div>
                             <div class="settings-group">
-                                <label>Max Frame Width</label>
+                                <label for="cfg-max-frame-width">Max Frame Width</label>
                                 <input type="number" id="cfg-max-frame-width" step="0.25" min="0">
                             </div>
                         </div>
                         <div class="settings-row">
                             <div class="settings-group">
-                                <label>Min Frame Depth</label>
+                                <label for="cfg-min-frame-depth">Min Frame Depth</label>
                                 <input type="number" id="cfg-min-frame-depth" step="0.25" min="0">
                             </div>
                             <div class="settings-group">
-                                <label>Max Frame Depth</label>
+                                <label for="cfg-max-frame-depth">Max Frame Depth</label>
                                 <input type="number" id="cfg-max-frame-depth" step="0.25" min="0">
                             </div>
                         </div>
                         <div class="settings-row">
                             <div class="settings-group">
-                                <label>Min Opening</label>
+                                <label for="cfg-min-opening">Min Opening</label>
                                 <input type="number" id="cfg-min-opening" step="0.25" min="0">
                             </div>
                             <div class="settings-group">
-                                <label>Max Opening</label>
+                                <label for="cfg-max-opening">Max Opening</label>
                                 <input type="number" id="cfg-max-opening" step="1" min="0">
                             </div>
                         </div>
                         <div class="settings-row">
                             <div class="settings-group">
-                                <label>Min Rabbet</label>
+                                <label for="cfg-min-rabbet">Min Rabbet</label>
                                 <input type="number" id="cfg-min-rabbet" step="0.0625" min="0">
                             </div>
                             <div class="settings-group">
-                                <label>Max Rabbet</label>
+                                <label for="cfg-max-rabbet">Max Rabbet</label>
                                 <input type="number" id="cfg-max-rabbet" step="0.25" min="0">
                             </div>
                         </div>
@@ -509,51 +509,51 @@
                     <div class="settings-panel" id="panel-materials">
                         <div class="settings-row">
                             <div class="settings-group">
-                                <label>Min Glazing</label>
+                                <label for="cfg-min-glazing">Min Glazing</label>
                                 <input type="number" id="cfg-min-glazing" step="0.001" min="0">
                             </div>
                             <div class="settings-group">
-                                <label>Max Glazing</label>
+                                <label for="cfg-max-glazing">Max Glazing</label>
                                 <input type="number" id="cfg-max-glazing" step="0.001" min="0">
                             </div>
                         </div>
                         <div class="settings-row">
                             <div class="settings-group">
-                                <label>Min Matboard</label>
+                                <label for="cfg-min-matboard">Min Matboard</label>
                                 <input type="number" id="cfg-min-matboard" step="0.001" min="0">
                             </div>
                             <div class="settings-group">
-                                <label>Max Matboard</label>
+                                <label for="cfg-max-matboard">Max Matboard</label>
                                 <input type="number" id="cfg-max-matboard" step="0.001" min="0">
                             </div>
                         </div>
                         <div class="settings-row">
                             <div class="settings-group">
-                                <label>Min Artwork</label>
+                                <label for="cfg-min-artwork">Min Artwork</label>
                                 <input type="number" id="cfg-min-artwork" step="0.001" min="0">
                             </div>
                             <div class="settings-group">
-                                <label>Max Artwork</label>
+                                <label for="cfg-max-artwork">Max Artwork</label>
                                 <input type="number" id="cfg-max-artwork" step="0.001" min="0">
                             </div>
                         </div>
                         <div class="settings-row">
                             <div class="settings-group">
-                                <label>Min Backing</label>
+                                <label for="cfg-min-backing">Min Backing</label>
                                 <input type="number" id="cfg-min-backing" step="0.001" min="0">
                             </div>
                             <div class="settings-group">
-                                <label>Max Backing</label>
+                                <label for="cfg-max-backing">Max Backing</label>
                                 <input type="number" id="cfg-max-backing" step="0.001" min="0">
                             </div>
                         </div>
                         <div class="settings-row">
                             <div class="settings-group">
-                                <label>Min Assembly Margin</label>
+                                <label for="cfg-min-margin">Min Assembly Margin</label>
                                 <input type="number" id="cfg-min-margin" step="0.001" min="0">
                             </div>
                             <div class="settings-group">
-                                <label>Max Assembly Margin</label>
+                                <label for="cfg-max-margin">Max Assembly Margin</label>
                                 <input type="number" id="cfg-max-margin" step="0.001" min="0">
                             </div>
                         </div>
@@ -562,12 +562,12 @@
                     <!-- Warnings Tab -->
                     <div class="settings-panel" id="panel-warnings">
                         <div class="settings-group">
-                            <label>Artwork-Opening Overlap Warning</label>
+                            <label for="cfg-warn-overlap">Artwork-Opening Overlap Warning</label>
                             <input type="number" id="cfg-warn-overlap" step="0.0625" min="0">
                             <small>Warn if artwork extends less than this past opening</small>
                         </div>
                         <div class="settings-group">
-                            <label>Extreme Aspect Ratio Warning</label>
+                            <label for="cfg-warn-aspect">Extreme Aspect Ratio Warning</label>
                             <input type="number" id="cfg-warn-aspect" step="0.5" min="1">
                             <small>Warn if ratio exceeds this (e.g., 10:1)</small>
                         </div>
@@ -577,8 +577,8 @@
                     <div class="settings-panel" id="panel-appearance">
                         <!-- Theme Selection -->
                         <div class="settings-group">
-                            <label>Theme</label>
-                            <div class="theme-selector">
+                            <label id="label-theme">Theme</label>
+                            <div class="theme-selector" role="group" aria-labelledby="label-theme">
                                 <button class="theme-option" data-theme="system" onclick="setThemeFromSettings('system')">
                                     <span class="theme-icon">🔄</span>
                                     <span>System</span>
@@ -596,8 +596,8 @@
 
                         <!-- Display Format -->
                         <div class="settings-group">
-                            <label>Display Format</label>
-                            <div class="format-selector">
+                            <label id="label-display-format">Display Format</label>
+                            <div class="format-selector" role="group" aria-labelledby="label-display-format">
                                 <button class="format-option" data-format="fractions" onclick="setDisplayFormat('fractions')">
                                     <span>4 3/4"</span>
                                     <small>Fractions</small>
@@ -615,9 +615,9 @@
 
                         <!-- Color Customization -->
                         <div class="settings-group">
-                            <label>Color Customization</label>
+                            <label id="label-color-customization">Color Customization</label>
                             <small>Click a color swatch to customize</small>
-                            <div class="color-categories" id="color-categories">
+                            <div class="color-categories" id="color-categories" role="group" aria-labelledby="label-color-customization">
                                 <!-- Generated by JavaScript -->
                             </div>
                             <button class="secondary reset-colors-btn" onclick="resetAllColors()">Reset All Colors</button>
@@ -1217,14 +1217,31 @@
             });
         }
 
-        // Collapsible Advanced Options
-        document.getElementById('advanced-header').addEventListener('click', () => {
-            const header = document.getElementById('advanced-header');
-            const content = document.getElementById('advanced-content');
-            header.classList.toggle('expanded');
-            content.classList.toggle('expanded');
-            header.setAttribute('aria-expanded', header.classList.contains('expanded'));
-        });
+        // Collapsible sections (Advanced Options, Saved Configurations, Design
+        // History). The header is a focusable role="button": Enter/Space toggle
+        // it like a click. Collapsed content is inert so Tab skips its fields.
+        function wireCollapsible(headerId, contentId) {
+            const header = document.getElementById(headerId);
+            const content = document.getElementById(contentId);
+            if (!header || !content) return;
+            const setExpanded = (expanded) => {
+                header.classList.toggle('expanded', expanded);
+                content.classList.toggle('expanded', expanded);
+                header.setAttribute('aria-expanded', String(expanded));
+                content.inert = !expanded;
+            };
+            setExpanded(header.classList.contains('expanded'));
+            header.addEventListener('click', () => setExpanded(!header.classList.contains('expanded')));
+            header.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();  // Space would otherwise scroll the page
+                    header.click();
+                }
+            });
+        }
+        wireCollapsible('advanced-header', 'advanced-content');
+        wireCollapsible('configs-header', 'configs-content');
+        wireCollapsible('history-header', 'history-content');
 
         // Aspect-ratio label, from core (same as iOS): height:width, with
         // common ratios named (e.g. 8 × 12 → "2:3", 16 × 20 → "4:5") and other
@@ -2250,6 +2267,83 @@
             calculate();
         };
 
+        // ------------------------------------------------------------------
+        // Modal dialogs (Share, Settings)
+        // ------------------------------------------------------------------
+        // Opening moves focus into the dialog and makes the rest of the page
+        // inert; Escape closes it (an open color picker first); Tab and
+        // Shift+Tab wrap within it; closing restores focus to the element
+        // that opened it.
+        let openDialogId = null;
+        let dialogReturnFocus = null;
+        const FOCUSABLE_SELECTOR = 'button:not([disabled]), input:not([disabled]):not([type="hidden"]), '
+            + 'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+        // Visible focusable elements of the open dialog (plus the color
+        // picker popup, which lives outside it)
+        function dialogFocusables(overlay) {
+            const scopes = [overlay, document.querySelector('.color-picker-popup')].filter(Boolean);
+            return scopes.flatMap(scope => [...scope.querySelectorAll(FOCUSABLE_SELECTOR)])
+                .filter(el => el.getClientRects().length > 0);
+        }
+
+        function openDialog(overlayId) {
+            const overlay = document.getElementById(overlayId);
+            if (!overlay) return;
+            if (openDialogId !== overlayId) dialogReturnFocus = document.activeElement;
+            openDialogId = overlayId;
+            overlay.classList.add('visible');
+            for (const el of overlay.parentElement.children) {
+                if (el !== overlay) el.inert = true;
+            }
+            const first = dialogFocusables(overlay)[0];
+            if (first) first.focus();
+        }
+
+        function closeDialog(overlayId) {
+            const overlay = document.getElementById(overlayId);
+            if (!overlay || !overlay.classList.contains('visible')) return;
+            overlay.classList.remove('visible');
+            for (const el of overlay.parentElement.children) {
+                el.inert = false;
+            }
+            if (openDialogId === overlayId) {
+                openDialogId = null;
+                const returnTo = dialogReturnFocus;
+                dialogReturnFocus = null;
+                if (returnTo && returnTo.isConnected && typeof returnTo.focus === 'function') {
+                    returnTo.focus();
+                }
+            }
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (!openDialogId) return;
+            const overlay = document.getElementById(openDialogId);
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                const picker = document.querySelector('.color-picker-popup');
+                if (picker) {
+                    closeColorPicker();
+                } else {
+                    closeDialog(openDialogId);
+                }
+            } else if (event.key === 'Tab') {
+                const items = dialogFocusables(overlay);
+                if (!items.length) return;
+                const first = items[0];
+                const last = items[items.length - 1];
+                const inside = items.includes(document.activeElement);
+                if (event.shiftKey && (document.activeElement === first || !inside)) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && (document.activeElement === last || !inside)) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+        });
+
         // Share functionality
         window.shareDesign = function() {
             try {
@@ -2262,8 +2356,8 @@
                 // Build full URL with origin and path
                 const fullUrl = `${window.location.origin}${window.location.pathname}?d=${encoded}`;
                 document.getElementById('share-url').textContent = fullUrl;
-                document.getElementById('share-modal').classList.add('visible');
                 document.getElementById('copy-success').style.display = 'none';
+                openDialog('share-modal');
             } catch (e) {
                 console.error('Share error:', e);
                 alert('Error: ' + e.message);
@@ -2272,7 +2366,7 @@
 
         window.closeShareModal = function(event) {
             if (!event || event.target.id === 'share-modal') {
-                document.getElementById('share-modal').classList.remove('visible');
+                closeDialog('share-modal');
             }
         };
 
@@ -2292,7 +2386,7 @@
         window.openSettingsModal = function() {
             updateSettingsUnitButtons();
             populateSettingsModal();
-            document.getElementById('settings-modal').classList.add('visible');
+            openDialog('settings-modal');
         };
         
         window.switchSettingsUnit = function(unit) {
@@ -2310,7 +2404,7 @@
 
         window.closeSettingsModal = function(event) {
             if (!event || event.target.id === 'settings-modal') {
-                document.getElementById('settings-modal').classList.remove('visible');
+                closeDialog('settings-modal');
             }
         };
 
@@ -2378,7 +2472,7 @@
                             <div class="color-category-name">${cat.name}</div>
                             <div class="color-category-desc">${cat.desc}</div>
                         </div>
-                        <button class="color-swatch-btn ${isCustomized ? 'customized' : ''}"
+                        <button class="color-swatch-btn ${isCustomized ? 'customized' : ''}" data-category="${cat.key}"
                                 style="background: ${colorInfo.hex}"
                                 onclick="openColorPicker('${cat.key}', this)"
                                 title="${colorInfo.display}"
@@ -2463,12 +2557,22 @@
             popup.style.left = `${Math.max(8, rect.left - 80)}px`;
 
             document.body.appendChild(popup);
+            popup.querySelector('.color-picker-swatch.selected')?.focus();
 
             // Close on outside click
             setTimeout(() => {
                 document.addEventListener('click', closeColorPickerOnOutsideClick);
             }, 10);
         };
+
+        // Close the color picker and return focus to its category's swatch
+        function closeColorPicker() {
+            document.querySelector('.color-picker-popup')?.remove();
+            document.removeEventListener('click', closeColorPickerOnOutsideClick);
+            if (colorPickerTarget) {
+                document.querySelector(`.color-swatch-btn[data-category="${colorPickerTarget}"]`)?.focus();
+            }
+        }
 
         function closeColorPickerOnOutsideClick(e) {
             const popup = document.querySelector('.color-picker-popup');
@@ -2494,9 +2598,7 @@
             populateColorCategories();
 
             // Close picker
-            const popup = document.querySelector('.color-picker-popup');
-            if (popup) popup.remove();
-            document.removeEventListener('click', closeColorPickerOnOutsideClick);
+            closeColorPicker();
         };
 
         window.resetColor = function(category) {
@@ -4460,23 +4562,8 @@
                 console.error('import-file input not found!');
             }
 
-            // Make configs section collapsible (matches existing pattern for Advanced Options)
-            const configsHeader = document.getElementById('configs-header');
-            const configsContent = document.getElementById('configs-content');
-            if (configsHeader && configsContent) {
-                configsHeader.addEventListener('click', () => {
-                    configsHeader.classList.toggle('expanded');
-                    configsContent.classList.toggle('expanded');
-                    configsHeader.setAttribute('aria-expanded', configsHeader.classList.contains('expanded'));
-                    console.log('Configs section toggled, expanded:', configsHeader.classList.contains('expanded'));
-                });
-                console.log('Configs header click listener attached');
-            } else {
-                console.error('configs-header or configs-content not found!', {
-                    header: configsHeader,
-                    content: configsContent
-                });
-            }
+            // (The configs and history sections are made collapsible by
+            // wireCollapsible() in the module body.)
 
             // Render design history
             renderHistory();
@@ -4497,23 +4584,6 @@
                 console.log('Clear history button wired up');
             } else {
                 console.error('clear-history button not found!');
-            }
-
-            // Make history section collapsible (matches configs section pattern)
-            const historyHeader = document.getElementById('history-header');
-            const historyContent = document.getElementById('history-content');
-            if (historyHeader && historyContent) {
-                historyHeader.addEventListener('click', () => {
-                    historyHeader.classList.toggle('expanded');
-                    historyContent.classList.toggle('expanded');
-                    historyHeader.setAttribute('aria-expanded', historyHeader.classList.contains('expanded'));
-                });
-                console.log('History header click listener attached');
-            } else {
-                console.error('history-header or history-content not found!', {
-                    header: historyHeader,
-                    content: historyContent
-                });
             }
 
             // (Last settings and the unit preference are restored synchronously

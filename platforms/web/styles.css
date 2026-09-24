@@ -1376,8 +1376,10 @@ button:hover {
     box-shadow: var(--md-elevation-1);
 }
 
-button:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--rf-primary) 50%, transparent);
+/* Keyboard focus ring: buttons and the role="button" section headers */
+button:focus-visible,
+[role="button"]:focus-visible {
+    outline: 2px solid var(--rf-primary);
     outline-offset: 2px;
 }
 
