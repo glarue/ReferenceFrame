@@ -690,3 +690,29 @@ pub(crate) fn escape_text(s: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
 }
+
+/// Replace characters outside Latin-1 with Latin-1 look-alikes (`’` → `'`,
+/// `“”` → `"`, `–—` → `-`, `…` → `...`, `≤` → `<=`), and anything else
+/// with `?`. Used for PDF output (`DiagramStyle::latin1_text`), whose fonts
+/// cannot encode other characters. Only affects text: SVG markup is ASCII.
+pub(crate) fn to_latin1_text(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        if (ch as u32) <= 0xFF {
+            out.push(ch);
+            continue;
+        }
+        match ch {
+            '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}' | '\u{2032}' => out.push('\''),
+            '\u{201C}' | '\u{201D}' | '\u{201E}' | '\u{201F}' | '\u{2033}' => out.push('"'),
+            '\u{2010}'..='\u{2015}' | '\u{2212}' => out.push('-'),
+            '\u{2026}' => out.push_str("..."),
+            '\u{2264}' => out.push_str("&lt;="),
+            '\u{2265}' => out.push_str("&gt;="),
+            '\u{2022}' => out.push('\u{00B7}'),
+            '\u{00A0}' | '\u{2000}'..='\u{200A}' | '\u{202F}' => out.push(' '),
+            _ => out.push('?'),
+        }
+    }
+    out
+}

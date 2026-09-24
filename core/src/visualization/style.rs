@@ -119,6 +119,12 @@ pub struct DiagramStyle {
     /// Spline label drawn inside the accent-filled slot band
     pub spline_text_color: String,
 
+    /// Restrict all text to Latin-1 (set by `for_pdf`). The PDF renderers
+    /// (the iOS `pdf` package's built-in Helvetica, jsPDF's standard fonts) can
+    /// only encode Latin-1, so e.g. a smart apostrophe in a custom title made
+    /// iOS PDF export fail. See `svg_util::to_latin1_text`.
+    pub latin1_text: bool,
+
     // Line weights (in SVG units)
     /// Frame outline stroke width
     pub frame_stroke_width: f64,
@@ -206,6 +212,7 @@ impl Default for DiagramStyle {
             mat_overlap_color: "#888888".to_string(),       // Neutral gray - mat overlap
             spline_stroke_color: "#2e7a63".to_string(),     // Deep seaweed - slot outline
             spline_text_color: "#0d3d30".to_string(),       // Darkest seaweed - slot label
+            latin1_text: false,
 
             // Line weights
             frame_stroke_width: 2.5,
@@ -258,6 +265,7 @@ impl DiagramStyle {
         style.extension_line_overshoot = 5.0; // Was 4.0, scaled ~1.25×
 
         style.margin = 4.0; // Keep tight margins to maximize diagram space
+        style.latin1_text = true; // PDF fonts can only encode Latin-1
         style
     }
 

@@ -117,7 +117,7 @@ pub(crate) fn render_section_splines(
 /// Label for one section-view spline slot.
 fn section_spline_label(fmt: &dyn Fn(f64) -> String, params: &SplineParams, slot: &SplineSlot) -> String {
     format!(
-        "Spline {} · ≤ {} deep{}",
+        "Spline {} · max {} deep{}",
         fmt(params.slot_thickness),
         fmt(slot.max_penetration),
         if slot.over_rabbet { " (limited by rabbet)" } else { "" },

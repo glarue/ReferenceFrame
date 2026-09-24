@@ -33,11 +33,15 @@ pub fn generate_diagram_with_style(
     options: &DiagramOptions,
     style: &DiagramStyle,
 ) -> DiagramResult {
-    match options.view {
+    let mut result = match options.view {
         ViewOption::PlanOnly => generate_plan_view(design, options, style),
         ViewOption::SectionOnly => generate_section_view(design, options, style),
         ViewOption::Both => generate_combined_view(design, options, style),
+    };
+    if style.latin1_text {
+        result.svg = to_latin1_text(&result.svg);
     }
+    result
 }
 
 /// Generate plan view SVG
@@ -751,6 +755,38 @@ mod tests {
         // Text nodes: escape &, <, > but leave inch-mark quotes untouched
         assert_eq!(escape_text("Glazing: 3/32\""), "Glazing: 3/32\"");
         assert_eq!(escape_text("A & B <x>"), "A &amp; B &lt;x&gt;");
+    }
+
+    #[test]
+    fn test_to_latin1_text() {
+        assert_eq!(to_latin1_text("Mom\u{2019}s \u{201C}Frame\u{201D}"), "Mom's \"Frame\"");
+        assert_eq!(to_latin1_text("8\u{2013}10 \u{2014} wait\u{2026}"), "8-10 - wait...");
+        assert_eq!(to_latin1_text("\u{2264} 1/2\""), "&lt;= 1/2\"");
+        assert_eq!(to_latin1_text("16\" \u{00D7} 20\" \u{00B7} caf\u{00E9}"), "16\" \u{00D7} 20\" \u{00B7} caf\u{00E9}");
+        assert_eq!(to_latin1_text("frame \u{1F5BC}"), "frame ?");
+    }
+
+    /// PDF output must stay within Latin-1: the iOS `pdf` package's Helvetica
+    /// throws on anything else, which made PDF export fail (spline "≤" label,
+    /// smart-quote titles).
+    #[test]
+    fn test_pdf_svg_text_is_latin1() {
+        let mut design = FrameDesign::new(8.0, 10.0);
+        design.frame_material_width = 0.75;
+        let options = DiagramOptions {
+            view: ViewOption::Both,
+            include_title_block: true,
+            title_text: Some("Mom\u{2019}s \u{201C}Den\u{201D} \u{2014} 8\u{00D7}10 \u{2264}".to_string()),
+            show_spline: true,
+            show_hanging: true,
+            ..DiagramOptions::default()
+        };
+        let pdf = generate_diagram_with_style(&design, &options, &DiagramStyle::for_pdf()).svg;
+        assert!(pdf.chars().all(|c| (c as u32) <= 0xFF), "non-Latin-1 text in PDF SVG");
+        assert!(pdf.contains("Mom's \"Den\" - 8\u{00D7}10 &lt;="));
+        // On-screen output keeps the original characters
+        let screen = generate_diagram_with_style(&design, &options, &DiagramStyle::default()).svg;
+        assert!(screen.contains("Mom\u{2019}s"));
     }
 
     #[test]
