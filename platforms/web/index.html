@@ -3950,10 +3950,11 @@
                 if (h) console.warn('Stored design history is unreadable; starting a new history');
                 h = createHistory();
             }
-            // timestamp is an i64 (bigint) parameter — pass a BigInt.
-            // An empty title lets core auto-generate one in the current unit
-            // (e.g. `215.9 mm × 279.4 mm Frame`)
-            const result = addToHistory(h, currentDesign.toJson(), BigInt(Date.now()), title.trim(), false, unitMm);
+            // timestamp: Unix SECONDS (history v2, same as iOS) as an i64
+            // (bigint) parameter. An empty title lets core auto-generate one in
+            // the current unit (e.g. `215.9 mm × 279.4 mm Frame`)
+            const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+            const result = addToHistory(h, currentDesign.toJson(), nowSeconds, title.trim(), false, unitMm);
             h = unwrapAddToHistory(result, h);
             if (!commitHistoryUpdate(h)) return;
             renderHistory();
@@ -3983,11 +3984,16 @@
                 return;
             }
 
+            // Timestamps are Unix seconds (history v2). Entries saved by older
+            // web builds are milliseconds until core rewrites the history on
+            // its next change (DesignHistory::from_json), so read anything
+            // above 1e11 (1973 in ms, year 5138 in s) as milliseconds.
+            const toMillis = (ts) => (ts > 1e11 ? ts : ts * 1000);
             listEl.innerHTML = entries.map((entry, index) => {
                 const title = entry.title || 'Untitled';
-                const timestamps = Array.isArray(entry.timestamps) ? entry.timestamps : [];
-                const latestTs = timestamps.length ? Math.max(...timestamps) : Date.now();
-                const dateStr = new Date(latestTs).toLocaleString();
+                const timestamps = Array.isArray(entry.timestamps) ? entry.timestamps.map(toMillis) : [];
+                const latestMs = timestamps.length ? Math.max(...timestamps) : Date.now();
+                const dateStr = new Date(latestMs).toLocaleString();
                 const savedHint = timestamps.length > 1
                     ? ` &middot; saved ${timestamps.length} times`
                     : '';

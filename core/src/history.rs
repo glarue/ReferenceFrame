@@ -10,13 +10,22 @@ use crate::frame::FrameDesign;
 /// Default maximum number of history entries
 pub const DEFAULT_MAX_ENTRIES: usize = 50;
 
-/// Current history schema version (see `DesignHistory::version`)
-pub const HISTORY_VERSION: u32 = 1;
+/// Current history schema version (see `DesignHistory::version`).
+///
+/// - v1: timestamps were meant to be Unix seconds, but the web app stored
+///   milliseconds (`Date.now()`).
+/// - v2: timestamps are Unix seconds on every platform; `from_json` converts
+///   millisecond timestamps found in older payloads.
+pub const HISTORY_VERSION: u32 = 2;
+
+/// Timestamps above this are milliseconds, not seconds: 1e11 seconds is the
+/// year 5138, while 1e11 milliseconds is March 1973.
+const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 100_000_000_000;
 
 /// Serde default for `DesignHistory::version` — JSON stored before the field
-/// existed deserializes as version 1
+/// existed is version 1
 fn default_history_version() -> u32 {
-    HISTORY_VERSION
+    1
 }
 
 /// A single history entry containing a design snapshot
@@ -193,9 +202,28 @@ impl DesignHistory {
         serde_json::to_string(self).map_err(|e| e.to_string())
     }
 
-    /// Deserialize from JSON
+    /// Deserialize from JSON, upgrading older payloads to `HISTORY_VERSION`
+    /// (millisecond timestamps become seconds)
     pub fn from_json(json: &str) -> Result<Self, String> {
-        serde_json::from_str(json).map_err(|e| e.to_string())
+        let mut history: Self = serde_json::from_str(json).map_err(|e| e.to_string())?;
+        history.normalize_timestamps();
+        if history.version < HISTORY_VERSION {
+            history.version = HISTORY_VERSION;
+        }
+        Ok(history)
+    }
+
+    /// Convert any millisecond timestamp to seconds (see
+    /// `MILLISECOND_TIMESTAMP_THRESHOLD`). Applied to every entry regardless
+    /// of the stored version, so a mix of old and new saves is fixed too.
+    fn normalize_timestamps(&mut self) {
+        for entry in &mut self.entries {
+            for ts in &mut entry.timestamps {
+                if *ts > MILLISECOND_TIMESTAMP_THRESHOLD {
+                    *ts /= 1000;
+                }
+            }
+        }
     }
 
     /// Enforce max entries limit by removing oldest entries
@@ -405,11 +433,68 @@ mod tests {
 
     #[test]
     fn test_version_defaults_for_legacy_json() {
-        // History saved before the version field existed must load as version 1
+        // History saved before the version field existed is version 1 and is
+        // upgraded to the current version on load
         let json = r#"{"entries": [], "max_entries": 50}"#;
         let history = DesignHistory::from_json(json).unwrap();
         assert_eq!(history.version, HISTORY_VERSION);
         assert_eq!(history.max_entries, 50);
+    }
+
+    fn history_json_with_timestamps(version: Option<u32>, timestamps: &[i64]) -> String {
+        let mut history = DesignHistory::new();
+        history.add_entry(create_test_design(), 0, "Test".to_string(), false);
+        history.entries[0].timestamps = timestamps.to_vec();
+        let mut value: serde_json::Value = serde_json::from_str(&history.to_json().unwrap()).unwrap();
+        match version {
+            Some(v) => value["version"] = serde_json::json!(v),
+            None => { value.as_object_mut().unwrap().remove("version"); }
+        }
+        value.to_string()
+    }
+
+    #[test]
+    fn test_v1_millisecond_timestamps_become_seconds() {
+        // The web app stored Date.now() (ms) in v1 histories
+        let json = history_json_with_timestamps(Some(1), &[1_758_700_000_123, 1_758_600_000_999]);
+        let history = DesignHistory::from_json(&json).unwrap();
+        assert_eq!(history.version, 2);
+        assert_eq!(history.entries[0].timestamps, vec![1_758_700_000, 1_758_600_000]);
+    }
+
+    #[test]
+    fn test_second_timestamps_are_unchanged() {
+        let json = history_json_with_timestamps(Some(1), &[1_758_700_000, 1_000]);
+        let history = DesignHistory::from_json(&json).unwrap();
+        assert_eq!(history.entries[0].timestamps, vec![1_758_700_000, 1_000]);
+    }
+
+    #[test]
+    fn test_mixed_and_versionless_timestamps_normalize() {
+        // A legacy (no version key) payload mixing ms and s entries
+        let json = history_json_with_timestamps(None, &[1_758_800_000, 1_758_700_000_500]);
+        let history = DesignHistory::from_json(&json).unwrap();
+        assert_eq!(history.version, HISTORY_VERSION);
+        assert_eq!(history.entries[0].timestamps, vec![1_758_800_000, 1_758_700_000]);
+    }
+
+    #[test]
+    fn test_threshold_boundary() {
+        let json = history_json_with_timestamps(Some(1), &[MILLISECOND_TIMESTAMP_THRESHOLD, MILLISECOND_TIMESTAMP_THRESHOLD + 1]);
+        let history = DesignHistory::from_json(&json).unwrap();
+        assert_eq!(history.entries[0].timestamps, vec![MILLISECOND_TIMESTAMP_THRESHOLD, (MILLISECOND_TIMESTAMP_THRESHOLD + 1) / 1000]);
+    }
+
+    #[test]
+    fn test_upgraded_history_round_trips_as_v2() {
+        let json = history_json_with_timestamps(Some(1), &[1_758_700_000_123]);
+        let upgraded = DesignHistory::from_json(&json).unwrap().to_json().unwrap();
+        let value: serde_json::Value = serde_json::from_str(&upgraded).unwrap();
+        assert_eq!(value["version"], 2);
+        assert_eq!(value["entries"][0]["timestamps"][0], 1_758_700_000);
+        // Loading again is a no-op
+        let again = DesignHistory::from_json(&upgraded).unwrap();
+        assert_eq!(again.entries[0].timestamps, vec![1_758_700_000]);
     }
 
     #[test]
