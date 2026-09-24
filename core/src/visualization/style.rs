@@ -7,38 +7,38 @@
 use serde::{Deserialize, Serialize};
 
 /// Minimum gap between label text and dimension line
-pub const LABEL_BUFFER: f64 = 2.0;
+pub(crate) const LABEL_BUFFER: f64 = 2.0;
 /// Multiplier for font size to account for text height/baseline
-pub const LABEL_FONT_OFFSET: f64 = 0.4;
+pub(crate) const LABEL_FONT_OFFSET: f64 = 0.4;
 
 /// Gap between dimension font size and label arrow tip (px).
-pub const LABEL_ARROW_GAP: f64 = 4.0;
+pub(crate) const LABEL_ARROW_GAP: f64 = 4.0;
 
 /// Horizontal padding around label text in SVG mask (along text direction).
-pub const LABEL_MASK_PADDING_X: f64 = 2.0;
+pub(crate) const LABEL_MASK_PADDING_X: f64 = 2.0;
 /// Vertical padding around label text in SVG mask (perpendicular to text).
-pub const LABEL_MASK_PADDING_Y: f64 = 1.0;
+pub(crate) const LABEL_MASK_PADDING_Y: f64 = 1.0;
 
 /// Thumbnail baseline font size (used to compute scale factor).
-pub const THUMBNAIL_BASELINE_FONT_SIZE: f64 = 13.0;
+pub(crate) const THUMBNAIL_BASELINE_FONT_SIZE: f64 = 13.0;
 /// Thumbnail gap from frame edge, scaled by thumb_sf.
-pub const THUMBNAIL_GAP_BASE: f64 = 24.0;
+pub(crate) const THUMBNAIL_GAP_BASE: f64 = 24.0;
 /// Minimum thumbnail dimension in pixels.
-pub const THUMBNAIL_MIN_PX: f64 = 5.0;
+pub(crate) const THUMBNAIL_MIN_PX: f64 = 5.0;
 /// Maximum width for mini thumbnail (CD+MC present).
-pub const THUMBNAIL_MINI_MAX_WIDTH: f64 = 90.0;
+pub(crate) const THUMBNAIL_MINI_MAX_WIDTH: f64 = 90.0;
 /// Long dimension of standard thumbnail (px, before scaling).
-pub const THUMBNAIL_LONG_DIM: f64 = 95.0;
+pub(crate) const THUMBNAIL_LONG_DIM: f64 = 95.0;
 /// Short dimension of standard thumbnail (px, before scaling).
-pub const THUMBNAIL_SHORT_DIM: f64 = 60.0;
+pub(crate) const THUMBNAIL_SHORT_DIM: f64 = 60.0;
 /// Thumbnail label line height base (px, before scaling).
-pub const THUMBNAIL_LINE_HEIGHT_BASE: f64 = 10.0;
+pub(crate) const THUMBNAIL_LINE_HEIGHT_BASE: f64 = 10.0;
 /// Thumbnail label font size base (px, before scaling).
-pub const THUMBNAIL_FONT_SIZE_BASE: f64 = 8.0;
+pub(crate) const THUMBNAIL_FONT_SIZE_BASE: f64 = 8.0;
 /// Thumbnail label gap base (px, before scaling).
-pub const THUMBNAIL_LABEL_GAP_BASE: f64 = 8.0;
+pub(crate) const THUMBNAIL_LABEL_GAP_BASE: f64 = 8.0;
 /// Thumbnail stroke width base (px, before scaling).
-pub const THUMBNAIL_STROKE_BASE: f64 = 0.75;
+pub(crate) const THUMBNAIL_STROKE_BASE: f64 = 0.75;
 
 /// Fill patterns for materials in section view
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -274,58 +274,58 @@ impl DiagramStyle {
     }
 
     /// Get the offset for a given dimension level
-    pub fn get_dimension_offset(&self, level: u8) -> f64 {
+    pub(crate) fn get_dimension_offset(&self, level: u8) -> f64 {
         self.dimension_offset_base + (level as f64 * self.dimension_offset_step)
     }
 
     /// Label offset from dimension line (gap + buffer + font baseline adjustment)
-    pub fn label_offset(&self) -> f64 {
+    pub(crate) fn label_offset(&self) -> f64 {
         LABEL_BUFFER + self.label_font_size * LABEL_FONT_OFFSET + self.extension_line_gap
     }
 
     /// Single line height for labels
-    pub fn single_line_height(&self) -> f64 {
+    pub(crate) fn single_line_height(&self) -> f64 {
         self.label_font_size * 1.2
     }
 
     /// Two line height for labels
-    pub fn two_line_height(&self) -> f64 {
+    pub(crate) fn two_line_height(&self) -> f64 {
         self.label_font_size * 2.4
     }
 
     /// Material label font size (subordinate to primary labels)
-    pub fn material_label_font_size(&self) -> f64 {
+    pub(crate) fn material_label_font_size(&self) -> f64 {
         self.label_font_size * 0.85
     }
 
     /// Offset from dimension line to mat cut label center.
     /// Used by geometry (mat cut placement) and SVG rendering/viewBox; NOT by
     /// layout.rs label_bounds (layout/renderer mismatch — audit C6).
-    pub fn mat_cut_label_offset(&self) -> f64 {
+    pub(crate) fn mat_cut_label_offset(&self) -> f64 {
         self.extension_line_overshoot + self.label_font_size / 2.0
             + self.dimension_offset_base
     }
 
     /// Extension from frame edge needed for label arrow tips.
     /// Returns `dimension_font_size + LABEL_ARROW_GAP`.
-    pub fn label_extension(&self) -> f64 {
+    pub(crate) fn label_extension(&self) -> f64 {
         self.dimension_font_size + LABEL_ARROW_GAP
     }
 
     /// Total reserve from frame edge for the outermost callout level.
     /// margin + dimension_offset_base + dimension_offset_step + label_extension.
-    pub fn total_callout_reserve(&self) -> f64 {
+    pub(crate) fn total_callout_reserve(&self) -> f64 {
         self.margin + self.dimension_offset_base + self.dimension_offset_step + self.label_extension()
     }
 
     /// Estimated height of a two-line label bounding box (for collision/bounds).
     /// Distinct from `two_line_height()` (× 2.4) which is for rendering.
-    pub fn two_line_label_bounds_height(&self) -> f64 {
+    pub(crate) fn two_line_label_bounds_height(&self) -> f64 {
         self.label_font_size * 2.5
     }
 
     /// Compute thumbnail metrics scaled from `label_font_size`.
-    pub fn thumbnail_metrics(&self) -> ThumbnailMetrics {
+    pub(crate) fn thumbnail_metrics(&self) -> ThumbnailMetrics {
         let scale_factor = self.label_font_size / THUMBNAIL_BASELINE_FONT_SIZE;
         let line_height = THUMBNAIL_LINE_HEIGHT_BASE * scale_factor;
         let font_size = THUMBNAIL_FONT_SIZE_BASE * scale_factor;
@@ -346,7 +346,7 @@ impl DiagramStyle {
 
 /// Pre-computed thumbnail display metrics, all in pixels.
 #[derive(Debug, Clone, Copy)]
-pub struct ThumbnailMetrics {
+pub(crate) struct ThumbnailMetrics {
     /// label_font_size / THUMBNAIL_BASELINE_FONT_SIZE
     pub scale_factor: f64,
     /// Gap from frame edge (px)

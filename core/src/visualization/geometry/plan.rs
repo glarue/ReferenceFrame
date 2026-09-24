@@ -28,7 +28,6 @@ impl PlanViewGeometry {
             (frame_outer_width, frame_outer_height, fi_w, fi_h)
         };
 
-        let origin = Point::new(origin_x, origin_y);
         let frame_outer = Rect::new(origin_x, origin_y, outer_w * scale, outer_h * scale);
 
         let frame_width_scaled = design.frame_material_width * scale;
@@ -40,7 +39,7 @@ impl PlanViewGeometry {
         );
 
         // Mat geometry (if mat is present)
-        let (mat_visible, mat_opening) = if design.has_mat() {
+        let mat_opening = if design.has_mat() {
             let (mat_opening_height, mat_opening_width) = design.get_mat_opening_dimensions();
 
             // When display overrides are active, compress mat opening by the same
@@ -55,14 +54,11 @@ impl PlanViewGeometry {
             let mat_opening_scaled_w = mat_open_w * scale;
             let mat_opening_scaled_h = mat_open_h * scale;
 
-            let mat_vis = Some(frame_inner);
             let opening_x = frame_inner.x + (frame_inner.width - mat_opening_scaled_w) / 2.0;
             let opening_y = frame_inner.y + (frame_inner.height - mat_opening_scaled_h) / 2.0;
-            let mat_open = Some(Rect::new(opening_x, opening_y, mat_opening_scaled_w, mat_opening_scaled_h));
-
-            (mat_vis, mat_open)
+            Some(Rect::new(opening_x, opening_y, mat_opening_scaled_w, mat_opening_scaled_h))
         } else {
-            (None, None)
+            None
         };
 
         // Content area (extends under the frame lip by lip_over_art — zero for
@@ -97,12 +93,10 @@ impl PlanViewGeometry {
         Self {
             frame_outer,
             frame_inner,
-            mat_visible,
             mat_opening,
             artwork,
             content_area,
             scale,
-            origin,
             use_axis_break_x: false,
             use_axis_break_y: false,
             break_x_start: 0.0,
@@ -118,7 +112,9 @@ impl PlanViewGeometry {
         }
     }
 
-    /// Calculate geometry from a frame design
+    /// Calculate geometry from a frame design (default Auto detail mode, inches).
+    /// Test convenience; production goes through `from_design_with_mode`.
+    #[cfg(test)]
     pub fn from_design(
         design: &FrameDesign,
         canvas_width: f64,
@@ -681,11 +677,6 @@ impl PlanViewGeometry {
         Rect::new(label_x, label_center_y - label_height / 2.0, label_width, label_height)
     }
 
-    /// Convert a dimension value (inches) to canvas units
-    pub fn scale_dimension(&self, value: f64) -> f64 {
-        value * self.scale
-    }
-
     /// Calculate geometry for preview mode (no callouts)
     ///
     /// Scales to maximize use of available canvas space while maintaining
@@ -713,14 +704,5 @@ impl PlanViewGeometry {
         let origin_y = (canvas_height - scaled_height) / 2.0;
 
         Self::build_rects(design, scale, origin_x, origin_y, None)
-    }
-
-    /// Get a point on the frame outer boundary
-    pub fn frame_outer_point(&self, t: f64, vertical: bool) -> Point {
-        if vertical {
-            Point::new(self.frame_outer.left(), self.frame_outer.top() + t * self.frame_outer.height)
-        } else {
-            Point::new(self.frame_outer.left() + t * self.frame_outer.width, self.frame_outer.top())
-        }
     }
 }

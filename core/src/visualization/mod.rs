@@ -6,29 +6,27 @@
 // - Plan view (front-on) and section view (cross-section)
 // - Consistent output for both in-app display and PDF export
 
-pub mod types;
-pub mod style;
-pub mod geometry;
-pub mod callouts;
-pub mod layout;
+// Internal modules. The public API is only the re-exports below (used by the
+// WASM/mobile bindings, core/tests, and core/examples); everything else is
+// crate-private so dead-code analysis covers it.
+mod types;
+mod style;
+mod geometry;
+mod callouts;
+mod layout;
 mod overlays;
-pub mod collision;
+mod collision;
 mod svg_util;
 mod section_svg;
 mod plan_svg;
-pub mod svg;
-pub mod snapshot;
+mod svg;
+// Layout snapshot harness (file I/O against core/tests/snapshots) — unit-test only.
+#[cfg(test)]
+mod snapshot;
 
-// Re-export commonly used types
-pub use types::{
-    Point, Rect, Side, DimensionType, DimensionCallout,
-    PositionedCallout, ViewType, ViewOption, DetailMode, DiagramOptions, DiagramResult,
-    TextAnchor, AnnotationBounds, ThumbnailLabelPosition,
-};
-pub use style::{DiagramStyle, MaterialPatterns, FillPattern, ThumbnailMetrics};
-pub use geometry::{PlanViewGeometry, SectionViewGeometry, estimate_text_width, effective_label_width};
-pub use callouts::{generate_plan_callouts, generate_section_callouts};
-pub use layout::{layout_plan_callouts, LayoutResult};
+// Public API
+pub use types::{ViewOption, DetailMode, DiagramOptions, DiagramResult};
+pub use style::{DiagramStyle, MaterialPatterns, FillPattern};
 pub use svg::{generate_diagram, generate_diagram_with_style};
 
 /// Shared test utilities for visualization tests.

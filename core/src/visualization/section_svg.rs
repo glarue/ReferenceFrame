@@ -1110,7 +1110,7 @@ fn render_h_break_profile(
 }
 
 /// Both horizontal and vertical breaks active
-/// OVERLAY APPROACH: Draw full L-shape, then overlay white zigzag-shaped gap bands
+/// OVERLAY APPROACH: Draw full L-shape, then overlay background-colored zigzag-shaped gap bands
 fn render_dual_break_profile(
     svg: &mut String,
     style: &DiagramStyle,
@@ -1123,10 +1123,10 @@ fn render_dual_break_profile(
     // STEP 1: Draw full L-shape frame fill (same as no-break case)
     push_frame_fill_path(svg, style, &profile.l_shape_points());
 
-    // STEP 2: Draw horizontal gap band (white zigzag-shaped ribbon)
+    // STEP 2: Draw horizontal gap band (background-colored zigzag-shaped ribbon)
     push_gap_band(svg, style, &v_zz.top, &v_zz.bottom);
 
-    // STEP 3: Draw vertical gap band (white zigzag-shaped ribbon)
+    // STEP 3: Draw vertical gap band (background-colored zigzag-shaped ribbon)
     push_gap_band(svg, style, &h_zz.left, &h_zz.right);
 
     // STEP 4: Draw frame strokes for the 4 visible corner portions

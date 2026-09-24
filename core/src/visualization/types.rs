@@ -16,13 +16,6 @@ impl Point {
     pub fn new(x: f64, y: f64) -> Self {
         Self { x, y }
     }
-
-    /// Calculate distance to another point
-    pub fn distance_to(&self, other: &Point) -> f64 {
-        let dx = self.x - other.x;
-        let dy = self.y - other.y;
-        (dx * dx + dy * dy).sqrt()
-    }
 }
 
 /// A rectangle defined by its bounds
@@ -37,16 +30,6 @@ pub struct Rect {
 impl Rect {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
         Self { x, y, width, height }
-    }
-
-    /// Create from center point and size
-    pub fn from_center(center: Point, width: f64, height: f64) -> Self {
-        Self {
-            x: center.x - width / 2.0,
-            y: center.y - height / 2.0,
-            width,
-            height,
-        }
     }
 
     pub fn center(&self) -> Point {
@@ -90,22 +73,6 @@ impl Rect {
     /// Check if this rect overlaps with another, using an extra margin around both
     pub fn overlaps_with_margin(&self, other: &Rect, margin: f64) -> bool {
         self.expand(margin).overlaps(&other.expand(margin))
-    }
-
-    /// Compute the area of overlap between this rect and another
-    pub fn overlap_area(&self, other: &Rect) -> f64 {
-        let x_overlap = (self.right().min(other.right()) - self.left().max(other.left())).max(0.0);
-        let y_overlap = (self.bottom().min(other.bottom()) - self.top().max(other.top())).max(0.0);
-        x_overlap * y_overlap
-    }
-
-    /// Union this rect with another, returning the bounding rect that contains both
-    pub fn union(&self, other: &Rect) -> Self {
-        let min_x = self.left().min(other.left());
-        let min_y = self.top().min(other.top());
-        let max_x = self.right().max(other.right());
-        let max_y = self.bottom().max(other.bottom());
-        Self::new(min_x, min_y, max_x - min_x, max_y - min_y)
     }
 }
 
@@ -183,21 +150,6 @@ impl Side {
     /// Check if this is a horizontal side (top/bottom)
     pub fn is_horizontal(&self) -> bool {
         matches!(self, Side::Top | Side::Bottom)
-    }
-
-    /// Check if this is a vertical side (left/right)
-    pub fn is_vertical(&self) -> bool {
-        matches!(self, Side::Left | Side::Right)
-    }
-
-    /// Get the opposite side
-    pub fn opposite(&self) -> Self {
-        match self {
-            Side::Top => Side::Bottom,
-            Side::Bottom => Side::Top,
-            Side::Left => Side::Right,
-            Side::Right => Side::Left,
-        }
     }
 }
 
@@ -301,11 +253,6 @@ impl DimensionCallout {
             extent_end,
         }
     }
-
-    /// Get the length of the dimension line
-    pub fn length(&self) -> f64 {
-        self.extent_start.distance_to(&self.extent_end)
-    }
 }
 
 /// Text anchor for label positioning
@@ -338,15 +285,6 @@ pub struct PositionedCallout {
 
     /// Bounding box of the label (for collision detection)
     pub label_bounds: Rect,
-}
-
-/// View type for diagram generation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ViewType {
-    /// Front-on plan view showing nested rectangles
-    Plan,
-    /// Cross-section showing material stack
-    Section,
 }
 
 /// Options for diagram generation
@@ -474,13 +412,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_point_distance() {
-        let p1 = Point::new(0.0, 0.0);
-        let p2 = Point::new(3.0, 4.0);
-        assert!((p1.distance_to(&p2) - 5.0).abs() < 0.001);
-    }
-
-    #[test]
     fn test_rect_overlap() {
         let r1 = Rect::new(0.0, 0.0, 10.0, 10.0);
         let r2 = Rect::new(5.0, 5.0, 10.0, 10.0);
@@ -499,43 +430,11 @@ mod tests {
     }
 
     #[test]
-    fn test_side_opposite() {
-        assert_eq!(Side::Top.opposite(), Side::Bottom);
-        assert_eq!(Side::Left.opposite(), Side::Right);
-    }
-
-    #[test]
     fn test_dimension_priority() {
         // Inside dimensions have priority 1 (closest to frame)
         assert_eq!(DimensionType::FrameInsideWidthInterior.priority(), 1);
         // Outside dimensions have priority 2 (further from frame)
         assert_eq!(DimensionType::FrameOutsideWidth.priority(), 2);
-    }
-
-    #[test]
-    fn test_callout_length() {
-        let callout = DimensionCallout::new(
-            10.0,
-            "10\"".to_string(),
-            DimensionType::FrameOutsideWidth,
-            Point::new(0.0, 0.0),
-            Point::new(10.0, 0.0),
-        );
-        assert!((callout.length() - 10.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_rect_from_center() {
-        let center = Point::new(50.0, 30.0);
-        let r = Rect::from_center(center, 20.0, 10.0);
-        assert!((r.x - 40.0).abs() < 0.001);
-        assert!((r.y - 25.0).abs() < 0.001);
-        assert!((r.width - 20.0).abs() < 0.001);
-        assert!((r.height - 10.0).abs() < 0.001);
-        // Center should round-trip
-        let c = r.center();
-        assert!((c.x - 50.0).abs() < 0.001);
-        assert!((c.y - 30.0).abs() < 0.001);
     }
 
     #[test]
@@ -568,30 +467,6 @@ mod tests {
     }
 
     #[test]
-    fn test_rect_overlap_area() {
-        // Two overlapping rects
-        let r1 = Rect::new(0.0, 0.0, 10.0, 10.0);
-        let r2 = Rect::new(5.0, 5.0, 10.0, 10.0);
-        let area = r1.overlap_area(&r2);
-        assert!((area - 25.0).abs() < 0.001); // 5x5 overlap
-
-        // Two non-overlapping rects
-        let r3 = Rect::new(20.0, 20.0, 10.0, 10.0);
-        assert!((r1.overlap_area(&r3) - 0.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_rect_union() {
-        let r1 = Rect::new(0.0, 0.0, 10.0, 10.0);
-        let r2 = Rect::new(5.0, 5.0, 20.0, 20.0);
-        let u = r1.union(&r2);
-        assert!((u.left() - 0.0).abs() < 0.001);
-        assert!((u.top() - 0.0).abs() < 0.001);
-        assert!((u.right() - 25.0).abs() < 0.001);
-        assert!((u.bottom() - 25.0).abs() < 0.001);
-    }
-
-    #[test]
     fn test_dimension_type_preferred_side() {
         assert_eq!(DimensionType::FrameOutsideWidth.preferred_side(), Side::Top);
         assert_eq!(DimensionType::FrameOutsideHeight.preferred_side(), Side::Right);
@@ -600,15 +475,10 @@ mod tests {
     }
 
     #[test]
-    fn test_side_is_horizontal_is_vertical() {
+    fn test_side_is_horizontal() {
         assert!(Side::Top.is_horizontal());
         assert!(Side::Bottom.is_horizontal());
         assert!(!Side::Left.is_horizontal());
         assert!(!Side::Right.is_horizontal());
-
-        assert!(Side::Left.is_vertical());
-        assert!(Side::Right.is_vertical());
-        assert!(!Side::Top.is_vertical());
-        assert!(!Side::Bottom.is_vertical());
     }
 }

@@ -427,8 +427,9 @@ fn shrink_portrait_thumbnail(geometry: &mut PlanViewGeometry, style: &DiagramSty
     }
 }
 
-/// Public re-export of the collision pass for snapshot testing.
-pub fn run_collision_pass_for_snapshot(
+/// Collision pass entry point for the layout snapshot harness (`snapshot.rs`, test-only).
+#[cfg(test)]
+pub(crate) fn run_collision_pass_for_snapshot(
     geometry: &mut PlanViewGeometry,
     layout: &mut LayoutResult,
     style: &DiagramStyle,

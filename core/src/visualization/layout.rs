@@ -204,7 +204,9 @@ fn layout_side(
 }
 
 
-/// Calculate the bounding box of all dimension lines and labels
+/// Calculate the bounding box of all dimension lines and labels.
+/// Test-only for now; kept for the layout/renderer unification (audit C6).
+#[cfg(test)]
 pub fn calculate_callout_bounds(callouts: &[PositionedCallout]) -> Option<Rect> {
     if callouts.is_empty() {
         return None;

@@ -504,7 +504,7 @@ pub fn effective_label_width(label: &str, font_size: f64) -> f64 {
 /// Geometry for the corner detail inset overlay
 #[derive(Debug, Clone)]
 pub struct CornerDetailGeometry {
-    /// White background box position/size in SVG coords
+    /// Inset box (filled with the style background color) position/size in SVG coords
     pub box_rect: Rect,
     /// Where the outside corner of the zoomed L-shape sits in SVG coords
     pub corner_origin: Point,
@@ -519,8 +519,6 @@ pub struct PlanViewGeometry {
     pub frame_outer: Rect,
     /// Frame inner rectangle (visible opening)
     pub frame_inner: Rect,
-    /// Mat visible area (if mat present)
-    pub mat_visible: Option<Rect>,
     /// Mat opening (artwork window)
     pub mat_opening: Option<Rect>,
     /// Artwork rectangle (content area)
@@ -529,8 +527,6 @@ pub struct PlanViewGeometry {
     pub content_area: Rect,
     /// Scale factor from inches to canvas units
     pub scale: f64,
-    /// Origin offset (for centering)
-    pub origin: Point,
     /// Whether to use axis break on X axis (horizontal compression)
     pub use_axis_break_x: bool,
     /// Whether to use axis break on Y axis (vertical compression)
@@ -575,28 +571,16 @@ pub struct SectionViewGeometry {
     pub assembly_margin: Rect,
     /// Rabbet area indicator
     pub rabbet_area: Rect,
-    /// Total stack height
-    pub stack_height: f64,
-    /// Assembly margin value (inches)
-    pub assembly_margin_value: f64,
-    /// Rabbet width (horizontal lip overlap)
-    pub rabbet_width: f64,
-    /// Rabbet depth (vertical z-axis depth)
-    pub rabbet_depth: f64,
     /// Clearance (positive = OK, negative = interference)
     pub clearance: f64,
     /// Scale factor
     pub scale: f64,
-    /// Origin offset
-    pub origin: Point,
     /// Whether to use axis break for wide frames
     pub use_axis_break: bool,
     /// X position where the break starts (right edge of outer portion)
     pub axis_break_start_x: f64,
     /// X position where the break ends (left edge of inner portion)
     pub axis_break_end_x: f64,
-    /// Width of the outer edge portion shown after the break
-    pub outer_edge_width: f64,
     /// Actual frame width in inches (for dimension label)
     pub actual_frame_width: f64,
     /// Whether to use vertical axis break for deep frames
@@ -605,8 +589,6 @@ pub struct SectionViewGeometry {
     pub axis_break_start_y: f64,
     /// Y position where the vertical break ends (top edge of bottom portion)
     pub axis_break_end_y: f64,
-    /// Height of the top edge portion shown after the break
-    pub outer_edge_depth: f64,
     /// Actual frame depth in inches (for dimension label)
     pub actual_frame_depth: f64,
     /// Gap between content bottom and legend (computed once, used by SVG renderer)
@@ -641,7 +623,6 @@ mod tests {
         let style = DiagramStyle::default();
         let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
 
-        assert!(geo.mat_visible.is_none());
         assert!(geo.mat_opening.is_none());
     }
 
@@ -650,9 +631,6 @@ mod tests {
         let design = test_design();
         let style = DiagramStyle::default();
         let geo = SectionViewGeometry::from_design(&design, 800.0, 600.0, &style);
-
-        // Stack height should be positive
-        assert!(geo.stack_height > 0.0);
 
         // Scale should be positive
         assert!(geo.scale > 0.0);
@@ -693,16 +671,6 @@ mod tests {
 
         // With 0.25" depth and thick materials, should have interference
         assert!(geo.has_interference());
-    }
-
-    #[test]
-    fn test_scale_dimension() {
-        let design = test_design();
-        let style = DiagramStyle::default();
-        let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
-
-        let scaled = geo.scale_dimension(1.0);
-        assert!((scaled - geo.scale).abs() < 0.001);
     }
 
     #[test]

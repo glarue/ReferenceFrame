@@ -232,7 +232,7 @@ pub(crate) fn render_corner_detail(
         label_center_x, ci_y, label_center_x, label_y + cl_font * 0.15,
         content_color
     ));
-    // White background rect centered on the label text
+    // Background-colored rect centered on the label text
     let cl_bg_h = cl_font * 1.2;
     let cl_bg_x = label_center_x - cl_text_w / 2.0 - cl_bg_pad;
     let cl_bg_y = label_y - cl_font * 0.75 - cl_bg_pad / 2.0;
@@ -626,7 +626,7 @@ pub(crate) fn build_plan_svg(
             svg.push('\n');
         }
 
-        // STEP 2: Zigzag ribbon masks (white-filled closed paths that hide break zones)
+        // STEP 2: Zigzag ribbon masks (background-filled closed paths that hide break zones)
         if let Some((ref left_zz, ref right_zz)) = x_zigzags {
             let ribbon = format!(
                 "M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z",
@@ -908,7 +908,7 @@ pub(crate) fn build_plan_svg(
     }
 
     // Mat cut geometry — rendered BEFORE the corner detail box so the corner detail's
-    // white background cleanly covers extension lines that pass through the frame corner.
+    // opaque background cleanly covers extension lines that pass through the frame corner.
     // Extension lines start at mat_opening.bottom() which is inside the frame interior;
     // for narrow portrait frames they inevitably enter the corner detail box x/y range.
     if !mat_cut_geom.is_empty() {
@@ -917,7 +917,7 @@ pub(crate) fn build_plan_svg(
         svg.push_str("  </g>\n");
     }
 
-    // Corner detail inset overlay — renders after mat cut geometry so the white box
+    // Corner detail inset overlay — renders after mat cut geometry so the opaque box
     // cleanly covers any overlapping extension lines inside the frame corner.
     if let Some(cd) = &geometry.corner_detail {
         svg.push_str(&render_corner_detail(design, cd, options, style));
@@ -1046,7 +1046,7 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
 
     // Special case for MatCutWidth: both extension lines start at the mat opening's bottom edge
     let (ext_across_start, ext_across_end) = if is_horizontal
-        && callout.callout.dimension_type == crate::visualization::DimensionType::MatCutWidth
+        && callout.callout.dimension_type == super::types::DimensionType::MatCutWidth
     {
         if let Some(mat_opening) = &geometry.mat_opening {
             let target = mat_opening.bottom() + 3.0; // Small offset below mat opening bottom
@@ -1158,7 +1158,7 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
     // Outermost labels shift one line outward; non-outermost center both lines on the dim line.
     let label = &callout.callout.label;
     let is_mat_cut = matches!(callout.callout.dimension_type,
-        crate::visualization::DimensionType::MatCutWidth | super::types::DimensionType::MatCutHeight);
+        super::types::DimensionType::MatCutWidth | super::types::DimensionType::MatCutHeight);
     let two_line: Option<(&str, &str)> = label.find(": ").map(|pos| {
         (&label[..pos + 1], label[pos + 2..].trim_start())
     });
@@ -1184,7 +1184,7 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
     // Mat cut labels are positioned BELOW (or outside) the dim line.
     let mat_cut_offset = style.mat_cut_label_offset();
 
-    let is_mat_cut_width = callout.callout.dimension_type == crate::visualization::DimensionType::MatCutWidth;
+    let is_mat_cut_width = callout.callout.dimension_type == super::types::DimensionType::MatCutWidth;
     // For mat cut width: left-align at the left edge of the callout span so the label
     // reads naturally outward from where the arrow starts. Both lines share the same
     // left anchor, matching the visual convention for dimension callouts.

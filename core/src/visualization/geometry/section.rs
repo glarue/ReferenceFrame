@@ -204,8 +204,6 @@ impl SectionViewGeometry {
         let centered_y = style.margin + width_dim_space + (canvas_height - total_height - 2.0 * style.margin) / 2.0;
         let origin_y = centered_y.max(min_origin_y).min(max_origin_y).max(min_origin_y);
 
-        let origin = Point::new(origin_x, origin_y);
-
         // For compatibility with existing code
         let frame_depth_s = frame_depth_scaled;
 
@@ -363,22 +361,15 @@ impl SectionViewGeometry {
             backing,
             assembly_margin: assembly_margin_rect,
             rabbet_area,
-            stack_height: total_stack,
-            assembly_margin_value: design.assembly_margin,
-            rabbet_width: design.rabbet_width,
-            rabbet_depth,
             clearance,
             scale,
-            origin,
             use_axis_break,
             axis_break_start_x,
             axis_break_end_x,
-            outer_edge_width,
             actual_frame_width,
             use_axis_break_y,
             axis_break_start_y,
             axis_break_end_y,
-            outer_edge_depth,
             actual_frame_depth,
             legend_gap,
         }
@@ -387,10 +378,5 @@ impl SectionViewGeometry {
     /// Check if there's clearance interference
     pub fn has_interference(&self) -> bool {
         self.clearance < 0.0
-    }
-
-    /// Convert a dimension value (inches) to canvas units
-    pub fn scale_dimension(&self, value: f64) -> f64 {
-        value * self.scale
     }
 }
