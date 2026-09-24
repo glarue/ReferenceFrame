@@ -197,25 +197,25 @@
   },
 
   "typical_ranges": {
-    "_comment": "Typical value ranges shown as input hints (TypicalRanges / getTypicalRangeHint). All dimensions in inches.",
-    "frame_width_min": 0.75,
+    "_comment": "Typical value ranges shown as input hints (TypicalRanges / getTypicalRangeHint). All dimensions in inches. Kept consistent with the presets guidance above (e.g. 1/4\" standard rabbet width, 1/2\" preferred rabbet depth, 1/8\" standard clearance).",
+    "frame_width_min": 0.5,
     "frame_width_max": 4.0,
     "frame_depth_min": 0.5,
     "frame_depth_max": 2.0,
-    "rabbet_width_min": 0.375,
+    "rabbet_width_min": 0.25,
     "rabbet_width_max": 0.5,
     "rabbet_depth_min": 0.3125,
-    "rabbet_depth_max": 0.375,
+    "rabbet_depth_max": 0.5,
     "glazing_min": 0.0625,
     "glazing_max": 0.25,
-    "matboard_min": 0.0625,
+    "matboard_min": 0.03125,
     "matboard_max": 0.1875,
-    "artwork_min": 0.01,
+    "artwork_min": 0.0,
     "artwork_max": 0.25,
     "backing_min": 0.0625,
     "backing_max": 0.25,
     "margin_min": 0.0,
-    "margin_max": 0.0625
+    "margin_max": 0.125
   },
 
   "presets": {
