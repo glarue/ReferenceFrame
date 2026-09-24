@@ -645,10 +645,7 @@
             mmToInches,
             getDefaults,
             getPresetsJson,
-            generatePlanViewSvg,
-            generateSectionViewSvg,
-            generateCombinedViewSvg,
-            generateCombinedViewSvgForPdf,
+            generateDiagramSvg,
             getSplineEnvelope,
             getHangingLayout,
             getWeightEstimate,
@@ -2186,13 +2183,23 @@
             try {
                 const showSpline = document.getElementById('show-spline')?.checked || false;
                 const showHanging = document.getElementById('show-hanging')?.checked || false;
-                if (currentView === 'plan') {
-                    svg = generatePlanViewSvg(design, canvasWidth, canvasHeight, unitMm, useTape, useDecimal, true, true, isDark, showSpline, showHanging);
-                } else if (currentView === 'section') {
-                    svg = generateSectionViewSvg(design, canvasWidth, canvasHeight, unitMm, useTape, useDecimal, isDark, showSpline, showHanging);
-                } else {
-                    svg = generateCombinedViewSvg(design, canvasWidth, canvasHeight, unitMm, false, useTape, useDecimal, isDark, showSpline, showHanging);
-                }
+                const views = { plan: 'PlanOnly', section: 'SectionOnly', both: 'Both' };
+                svg = generateDiagramSvg(design, JSON.stringify({
+                    view: views[currentView] || 'Both',
+                    canvas_width: canvasWidth,
+                    canvas_height: canvasHeight,
+                    include_title_block: false,
+                    title_text: null,
+                    unit_mm: unitMm,
+                    use_tape_segments: useTape,
+                    use_decimal_display: useDecimal,
+                    show_callouts: true,
+                    corner_detail_enabled: true,
+                    axis_breaks_enabled: true,
+                    show_spline: showSpline,
+                    show_hanging: showHanging,
+                    theme: isDark ? 'dark' : 'light'
+                }));
             } catch (e) {
                 console.error('SVG error:', e);
                 container.innerHTML = `<span class="text-warning">SVG Error: ${e.message}</span>`;
@@ -2984,20 +2991,22 @@
                 // Generate SVG diagram with PDF-optimized styling (larger fonts),
                 // with the same display options as the on-screen combined view.
                 // Use square canvas (1:1) to maximize use of portrait PDF page.
-                let svgString = generateCombinedViewSvgForPdf(
-                    snapshot.design, 1200, 1200, snapshot.unitMm,
-                    true,                 // include_title
-                    true,                 // for_pdf: light print style
-                    snapshot.title,       // null = default "Frame Design"
-                    snapshot.useTape,
-                    snapshot.useDecimal,
-                    true,                 // corner_detail_enabled (as on screen)
-                    true,                 // axis_breaks_enabled (as on screen)
-                    false,                // dark_mode: never for PDF
-                    snapshot.showSpline,
-                    snapshot.showHanging,
-                    null                  // overlay params: defaults (as on screen)
-                );
+                let svgString = generateDiagramSvg(snapshot.design, JSON.stringify({
+                    view: 'Both',
+                    canvas_width: 1200,
+                    canvas_height: 1200,
+                    include_title_block: true,
+                    title_text: snapshot.title,       // null = default "Frame Design"
+                    unit_mm: snapshot.unitMm,
+                    use_tape_segments: snapshot.useTape,
+                    use_decimal_display: snapshot.useDecimal,
+                    show_callouts: true,
+                    corner_detail_enabled: true,      // as on screen
+                    axis_breaks_enabled: true,        // as on screen
+                    show_spline: snapshot.showSpline,
+                    show_hanging: snapshot.showHanging,
+                    theme: 'pdf'                      // light print style, whatever the app theme
+                }));
 
                 // Fix font issues for PDF rendering - svg2pdf.js has trouble with custom fonts
                 // Replace font-family with just "Helvetica" (standard PDF font, no fallbacks)

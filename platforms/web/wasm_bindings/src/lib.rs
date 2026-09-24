@@ -383,187 +383,24 @@ pub fn decode_share_payload(payload: &str) -> Result<String, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("JSON error: {}", e)))
 }
 
-// Visualization functions
+// Visualization
 
-/// Pick the on-screen diagram style: dark mode or default (light).
-/// PDF/print export uses `DiagramStyle::for_pdf()` instead and must stay light.
-fn screen_style(dark_mode: bool) -> referenceframe_core::visualization::DiagramStyle {
-    use referenceframe_core::visualization::DiagramStyle;
-    if dark_mode {
-        DiagramStyle::for_dark()
-    } else {
-        DiagramStyle::default()
-    }
-}
-
-/// Generate a plan view SVG diagram
-#[wasm_bindgen(js_name = "generatePlanViewSvg")]
-pub fn generate_plan_view_svg(
-    design: &WasmFrameDesign,
-    canvas_width: f64,
-    canvas_height: f64,
-    unit_mm: bool,
-    use_tape_segments: bool,
-    use_decimal_display: bool,
-    corner_detail_enabled: bool,
-    axis_breaks_enabled: bool,
-    dark_mode: bool,
-    show_spline: bool,
-    show_hanging: bool,
-    overlay_params_json: Option<String>,
-) -> String {
-    use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
-
-    let overlays = OverlayParams::from_json(overlay_params_json.as_deref());
-    let options = DiagramOptions {
-        view: ViewOption::PlanOnly,
-        canvas_width,
-        canvas_height,
-        include_title_block: false,
-        title_text: None,
-        unit_mm,
-        use_tape_segments,
-        use_decimal_display,
-        show_callouts: true,
-        corner_detail_enabled,
-        axis_breaks_enabled,
-        show_spline,
-        show_hanging,
-        spline_params: overlays.spline,
-        hanging_params: overlays.hanging,
-        ..Default::default()
-    };
-
-    let style = screen_style(dark_mode);
-    let result = generate_diagram_with_style(&design.inner, &options, &style);
-    result.svg
-}
-
-/// Generate a section view SVG diagram
-#[wasm_bindgen(js_name = "generateSectionViewSvg")]
-pub fn generate_section_view_svg(
-    design: &WasmFrameDesign,
-    canvas_width: f64,
-    canvas_height: f64,
-    unit_mm: bool,
-    use_tape_segments: bool,
-    use_decimal_display: bool,
-    dark_mode: bool,
-    show_spline: bool,
-    show_hanging: bool,
-    overlay_params_json: Option<String>,
-) -> String {
-    use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
-
-    let overlays = OverlayParams::from_json(overlay_params_json.as_deref());
-    let options = DiagramOptions {
-        view: ViewOption::SectionOnly,
-        canvas_width,
-        canvas_height,
-        include_title_block: false,
-        title_text: None,
-        unit_mm,
-        use_tape_segments,
-        use_decimal_display,
-        show_callouts: true,
-        show_spline,
-        show_hanging,
-        spline_params: overlays.spline,
-        hanging_params: overlays.hanging,
-        ..Default::default()
-    };
-
-    let style = screen_style(dark_mode);
-    let result = generate_diagram_with_style(&design.inner, &options, &style);
-    result.svg
-}
-
-/// Generate combined view SVG for on-screen display.
+/// Diagram SVG (plan, section, or both) for `design`.
 ///
-/// Honors the user's display format (tape/decimal); corner detail and axis
-/// breaks are auto-enabled (they only render when geometry warrants).
-#[wasm_bindgen(js_name = "generateCombinedViewSvg")]
-pub fn generate_combined_view_svg(
-    design: &WasmFrameDesign,
-    canvas_width: f64,
-    canvas_height: f64,
-    unit_mm: bool,
-    include_title: bool,
-    use_tape_segments: bool,
-    use_decimal_display: bool,
-    dark_mode: bool,
-    show_spline: bool,
-    show_hanging: bool,
-    overlay_params_json: Option<String>,
-) -> String {
-    generate_combined_view_svg_with_title(
-        design, canvas_width, canvas_height, unit_mm, include_title,
-        false, None, use_tape_segments, use_decimal_display, true, true, dark_mode,
-        show_spline, show_hanging, overlay_params_json,
-    )
-}
-
-/// Generate combined view SVG with full control over styling and detail.
-///
-/// Exported to JS as `generateCombinedViewSvgForPdf`, but not PDF-only: it also
-/// backs the on-screen `generateCombinedViewSvg`. `for_pdf` selects the light
-/// print style (overriding `dark_mode`); otherwise `dark_mode` picks dark/light.
-/// Parameters are positional: trailing args omitted from JS arrive as
-/// `false`/`None`, which disables the corresponding display option.
-///
-/// title_text: Optional custom title for the diagram (e.g., "Living Room Landscape")
-///             If None or empty, defaults to "Frame Design"
-#[wasm_bindgen(js_name = "generateCombinedViewSvgForPdf")]
-pub fn generate_combined_view_svg_with_title(
-    design: &WasmFrameDesign,
-    canvas_width: f64,
-    canvas_height: f64,
-    unit_mm: bool,
-    include_title: bool,
-    for_pdf: bool,
-    title_text: Option<String>,
-    use_tape_segments: bool,
-    use_decimal_display: bool,
-    corner_detail_enabled: bool,
-    axis_breaks_enabled: bool,
-    dark_mode: bool,
-    show_spline: bool,
-    show_hanging: bool,
-    overlay_params_json: Option<String>,
-) -> String {
-    use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, DiagramStyle, ViewOption};
-
-    let overlays = OverlayParams::from_json(overlay_params_json.as_deref());
-    let options = DiagramOptions {
-        view: ViewOption::Both,
-        canvas_width,
-        canvas_height,
-        include_title_block: include_title,
-        title_text,
-        unit_mm,
-        use_tape_segments,
-        use_decimal_display,
-        show_callouts: true,
-        corner_detail_enabled,
-        axis_breaks_enabled,
-        show_spline,
-        show_hanging,
-        spline_params: overlays.spline,
-        hanging_params: overlays.hanging,
-        ..Default::default()
-    };
-
-    // PDF/print stays light regardless of theme (printing dark wastes ink).
-    let style = if for_pdf {
-        DiagramStyle::for_pdf()
-    } else if dark_mode {
-        DiagramStyle::for_dark()
-    } else {
-        DiagramStyle::default()
-    };
-
-    let result = generate_diagram_with_style(&design.inner, &options, &style);
-    result.svg
+/// `optionsJson` is a `DiagramRequest` (core `diagram_request`): the
+/// `DiagramOptions` fields in snake_case — `view` ("PlanOnly" /
+/// "SectionOnly" / "Both"), `canvas_width`, `canvas_height`,
+/// `include_title_block`, `title_text`, `unit_mm`, `use_tape_segments`,
+/// `use_decimal_display`, `show_callouts`, and optionally `detail_mode`,
+/// `corner_detail_enabled`, `axis_breaks_enabled`, `show_spline`,
+/// `show_hanging`, `spline_params`, `hanging_params` — plus `theme`:
+/// "light" (default), "dark", or "pdf" (light print style for PDF/print).
+/// Throws if the options don't parse (e.g. a required field is missing).
+#[wasm_bindgen(js_name = "generateDiagramSvg")]
+pub fn generate_diagram_svg(design: &WasmFrameDesign, options_json: &str) -> Result<String, JsValue> {
+    let request = referenceframe_core::diagram_request::DiagramRequest::from_json(options_json)
+        .map_err(|e| JsValue::from_str(&format!("Diagram options error: {}", e)))?;
+    Ok(request.render(&design.inner))
 }
 
 /// Spline slot planning data as JSON (params + envelope), or "null" when the
