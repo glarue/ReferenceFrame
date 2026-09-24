@@ -352,16 +352,31 @@ pub fn get_aspect_ratio_display(height: f64, width: f64) -> String {
     referenceframe_core::aspect_ratio::get_aspect_ratio_display(height, width)
 }
 
-#[wasm_bindgen(js_name = "generateShareableUrl")]
-pub fn generate_shareable_url(params_json: &str) -> Result<String, JsValue> {
-    let params: ShareableParams = serde_json::from_str(params_json)
-        .map_err(|e| JsValue::from_str(&format!("JSON parse error: {}", e)))?;
-    Ok(shareable_url::generate_shareable_url(&params))
+/// Shareable-link payload (the `?d=` value) for a design.
+///
+/// `bladeWidth` is the saw kerf setting (inches); `unitMm` the unit the link
+/// opens in. `includeMat` is the "Include mat" switch: `false` sends no mat
+/// (borders and overlap zeroed); `undefined` derives the flag from the
+/// design (`ShareableParams::from_design`).
+#[wasm_bindgen(js_name = "generateSharePayload")]
+pub fn generate_share_payload(
+    design: &WasmFrameDesign,
+    blade_width: f64,
+    unit_mm: bool,
+    include_mat: Option<bool>,
+) -> String {
+    let mut params = ShareableParams::from_design(&design.inner, blade_width, unit_mm);
+    if let Some(include) = include_mat {
+        params = params.with_include_mat(include);
+    }
+    shareable_url::generate_shareable_url(&params)
 }
 
-#[wasm_bindgen(js_name = "decodeShareableUrl")]
-pub fn decode_shareable_url(url: &str) -> Result<String, JsValue> {
-    let params = shareable_url::decode_shareable_url(url)
+/// Decode a shareable-link payload (the `?d=` value) to `ShareableParams`
+/// JSON (snake_case keys, inches). Throws on a malformed payload.
+#[wasm_bindgen(js_name = "decodeSharePayload")]
+pub fn decode_share_payload(payload: &str) -> Result<String, JsValue> {
+    let params = shareable_url::decode_payload(payload)
         .map_err(|e| JsValue::from_str(&format!("Decode error: {}", e)))?;
     serde_json::to_string(&params)
         .map_err(|e| JsValue::from_str(&format!("JSON error: {}", e)))

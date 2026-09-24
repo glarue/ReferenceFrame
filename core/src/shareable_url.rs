@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use crate::frame::FrameStyle;
+use crate::frame::{FrameDesign, FrameStyle};
 
 /// Parameters for shareable URL encoding
 ///
@@ -45,6 +45,91 @@ pub struct ShareableParams {
     pub frame_style: FrameStyle, // format v2 (packed into reserved flag bits 3-2)
     #[serde(default)]
     pub float_reveal: f64, // format v2 (appended uint16)
+}
+
+impl ShareableParams {
+    /// Share parameters for a design — the one design → link mapping both
+    /// platforms use.
+    ///
+    /// Every carried value is copied from the design as-is (mat borders and
+    /// overlap included), and `include_mat` is [`FrameDesign::has_mat`]
+    /// (false for sight-size/float and for zero borders). `blade_width` (the
+    /// saw kerf, a setting rather than a design field) and `unit_mm` (the
+    /// display unit the link opens in) come from the caller. Use
+    /// [`with_include_mat`](Self::with_include_mat) when the flag comes from
+    /// a UI switch instead.
+    pub fn from_design(design: &FrameDesign, blade_width: f64, unit_mm: bool) -> Self {
+        Self {
+            artwork_height: design.artwork_height,
+            artwork_width: design.artwork_width,
+            mat_width: design.mat_width_top_bottom,
+            mat_width_sides: design.mat_width_sides,
+            mat_overlap: design.mat_overlap,
+            frame_width: design.frame_material_width,
+            frame_depth: design.frame_material_depth,
+            glazing_thickness: design.glazing_thickness,
+            matboard_thickness: design.matboard_thickness,
+            artwork_thickness: design.artwork_thickness,
+            backing_thickness: design.backing_thickness,
+            assembly_margin: design.assembly_margin,
+            rabbet_width: design.rabbet_width,
+            rabbet_depth: design.rabbet_depth,
+            blade_width,
+            include_mat: design.has_mat(),
+            unit_mm,
+            frame_style: design.frame_style,
+            float_reveal: design.float_reveal,
+        }
+    }
+
+    /// Set the include-mat flag explicitly (e.g. from the web's "Include
+    /// mat" checkbox). `false` also zeroes the mat borders and overlap, so
+    /// the link carries no mat at all.
+    pub fn with_include_mat(mut self, include_mat: bool) -> Self {
+        self.include_mat = include_mat;
+        if !include_mat {
+            self.mat_width = 0.0;
+            self.mat_width_sides = 0.0;
+            self.mat_overlap = 0.0;
+        }
+        self
+    }
+
+    /// The design a link describes (inverse of [`from_design`](Self::from_design)).
+    ///
+    /// Mat borders and overlap are kept only when `include_mat` is set (the
+    /// web renders an unchecked "Include mat" as zero mat).
+    /// `symmetrical_mat` is inferred (borders within 0.001" count as
+    /// symmetric, as the web's link loader decides), and `no_artwork_margin`,
+    /// which links don't carry, stays false. `blade_width` and `unit_mm` are
+    /// settings, not design fields — read them from `self`.
+    pub fn to_design(&self) -> FrameDesign {
+        let (mat_tb, mat_sides, mat_overlap) = if self.include_mat {
+            (self.mat_width, self.mat_width_sides, self.mat_overlap)
+        } else {
+            (0.0, 0.0, 0.0)
+        };
+        FrameDesign {
+            artwork_height: self.artwork_height,
+            artwork_width: self.artwork_width,
+            mat_width_top_bottom: mat_tb,
+            mat_width_sides: mat_sides,
+            mat_overlap,
+            rabbet_width: self.rabbet_width,
+            rabbet_depth: self.rabbet_depth,
+            frame_material_width: self.frame_width,
+            frame_material_depth: self.frame_depth,
+            glazing_thickness: self.glazing_thickness,
+            matboard_thickness: self.matboard_thickness,
+            artwork_thickness: self.artwork_thickness,
+            backing_thickness: self.backing_thickness,
+            assembly_margin: self.assembly_margin,
+            symmetrical_mat: (mat_tb - mat_sides).abs() <= 0.001,
+            no_artwork_margin: false,
+            frame_style: self.frame_style,
+            float_reveal: self.float_reveal,
+        }
+    }
 }
 
 /// Defaults applied to the format-v1 fields when decoding an older (v0) URL
@@ -225,15 +310,20 @@ pub fn generate_shareable_url(params: &ShareableParams) -> String {
     URL_SAFE_NO_PAD.encode(&packed)
 }
 
-/// Decode a shareable URL back to parameters
+/// Decode a shareable URL back to parameters.
+///
+/// Everything after `?d=` is the payload (see [`decode_payload`]).
 pub fn decode_shareable_url(url: &str) -> Result<ShareableParams, DecodeError> {
-    // Extract base64 parameter
     let b64 = url
         .split("?d=")
         .nth(1)
         .ok_or(DecodeError::InvalidUrl)?;
+    decode_payload(b64)
+}
 
-    // Decode base64
+/// Decode a bare payload — the `d` query value, as produced by
+/// [`generate_shareable_url`] — back to parameters.
+pub fn decode_payload(b64: &str) -> Result<ShareableParams, DecodeError> {
     let bytes = URL_SAFE_NO_PAD
         .decode(b64)
         .map_err(|_| DecodeError::InvalidBase64)?;
@@ -1132,5 +1222,100 @@ mod tests {
         assert_params(&d, &expected);
         // The current encoder must reproduce the frozen v2 payload byte-for-byte
         assert_eq!(generate_shareable_url(&expected), V2_39);
+        // A bare payload decodes the same as a full URL
+        assert_params(&decode_payload(V2_39).unwrap(), &expected);
+    }
+
+    // --- Design ↔ params mapping ---
+
+    fn asymmetric_design() -> FrameDesign {
+        FrameDesign {
+            artwork_height: 16.0,
+            artwork_width: 20.0,
+            mat_width_top_bottom: 3.0,
+            mat_width_sides: 2.25,
+            mat_overlap: 0.25,
+            rabbet_width: 0.3125,
+            rabbet_depth: 0.5,
+            frame_material_width: 1.5,
+            frame_material_depth: 1.25,
+            glazing_thickness: 0.093,
+            matboard_thickness: 0.055,
+            artwork_thickness: 0.008,
+            backing_thickness: 0.125,
+            assembly_margin: 0.0625,
+            symmetrical_mat: false,
+            no_artwork_margin: false,
+            frame_style: FrameStyle::Rabbet,
+            float_reveal: 0.0,
+        }
+    }
+
+    #[test]
+    fn test_from_design_copies_fields_and_derives_include_mat() {
+        let design = asymmetric_design();
+        let p = ShareableParams::from_design(&design, 0.09375, true);
+        assert_params(&p, &ShareableParams {
+            artwork_height: 16.0, artwork_width: 20.0,
+            mat_width: 3.0, mat_width_sides: 2.25, mat_overlap: 0.25,
+            frame_width: 1.5, frame_depth: 1.25,
+            glazing_thickness: 0.093, matboard_thickness: 0.055,
+            artwork_thickness: 0.008, backing_thickness: 0.125,
+            assembly_margin: 0.0625,
+            rabbet_width: 0.3125, rabbet_depth: 0.5, blade_width: 0.09375,
+            include_mat: true, unit_mm: true,
+            frame_style: FrameStyle::Rabbet, float_reveal: 0.0,
+        });
+
+        // Sight-size never uses a mat: the flag is off but the (inert)
+        // borders are still carried as-is
+        let mut sight = design.clone();
+        sight.frame_style = FrameStyle::SightSize;
+        sight.float_reveal = 0.25;
+        let p = ShareableParams::from_design(&sight, 0.125, false);
+        assert!(!p.include_mat);
+        assert_eq!((p.mat_width, p.mat_width_sides, p.mat_overlap), (3.0, 2.25, 0.25));
+        assert_eq!((p.frame_style, p.float_reveal), (FrameStyle::SightSize, 0.25));
+    }
+
+    #[test]
+    fn test_with_include_mat_overrides_flag() {
+        let design = asymmetric_design();
+        let off = ShareableParams::from_design(&design, 0.125, false).with_include_mat(false);
+        assert!(!off.include_mat);
+        assert_eq!((off.mat_width, off.mat_width_sides, off.mat_overlap), (0.0, 0.0, 0.0));
+
+        // `true` only sets the flag (e.g. a checked box on a sight-size design)
+        let mut sight = design.clone();
+        sight.frame_style = FrameStyle::SightSize;
+        let on = ShareableParams::from_design(&sight, 0.125, false).with_include_mat(true);
+        assert!(on.include_mat);
+        assert_eq!((on.mat_width, on.mat_width_sides, on.mat_overlap), (3.0, 2.25, 0.25));
+    }
+
+    #[test]
+    fn test_to_design_round_trips_through_a_link() {
+        let design = asymmetric_design();
+        let payload = generate_shareable_url(&ShareableParams::from_design(&design, 0.125, false));
+        let back = decode_payload(&payload).unwrap().to_design();
+        assert_eq!(back, design);
+
+        // Symmetric borders come back symmetric; a link without a mat
+        // yields a design without one
+        let mut symmetric = design.clone();
+        symmetric.mat_width_sides = 3.0;
+        symmetric.symmetrical_mat = true;
+        assert_eq!(ShareableParams::from_design(&symmetric, 0.125, false).to_design(), symmetric);
+        let no_mat = ShareableParams::from_design(&design, 0.125, false)
+            .with_include_mat(false)
+            .to_design();
+        assert!(!no_mat.has_mat());
+        assert_eq!(no_mat.mat_overlap, 0.0);
+    }
+
+    #[test]
+    fn test_decode_payload_errors() {
+        assert!(matches!(decode_payload("not-base64!!!"), Err(DecodeError::InvalidBase64)));
+        assert!(matches!(decode_payload(""), Err(DecodeError::TruncatedData)));
     }
 }

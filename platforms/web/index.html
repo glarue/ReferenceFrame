@@ -653,8 +653,8 @@
             getHangingLayout,
             getWeightEstimate,
             getMaterialsJson,
-            generateShareableUrl,
-            decodeShareableUrl,
+            generateSharePayload,
+            decodeSharePayload,
             getWasmVersion,
             getCoreVersion,
             ValidationConfig,
@@ -704,6 +704,7 @@
         let loadTime = 0;
         let currentView = 'both';  // Default to combined view
         let currentDesign = null;  // Store current design for PDF export
+        let invalidDesign = null;  // Last design that failed validation (Share still links it)
         let currentUnit = 'inches';
         let aspectLocked = false;
         let lockedRatio = null;
@@ -1550,6 +1551,10 @@
                     currentDesign.free();
                     currentDesign = null;
                 }
+                if (invalidDesign) {
+                    invalidDesign.free();
+                    invalidDesign = null;
+                }
 
                 // Create design
                 const design = new WasmFrameDesign(artworkHeight, artworkWidth);
@@ -1610,8 +1615,8 @@
                     document.getElementById('results').innerHTML =
                         '<span class="text-warning">Cannot calculate - fix validation errors above</span>';
                     validationResult.free();
-                    design.free();
                     currentDesign = null;  // Clear since validation failed
+                    invalidDesign = design;
                     return;
                 }
                 
@@ -2230,35 +2235,13 @@
 
         // Share functionality
         window.shareDesign = function() {
-            const unitMm = currentUnit === 'mm';
-            const includeMat = document.getElementById('include-mat').checked;
-
-            // Get all values in inches using getDimensionValue
-            const params = {
-                artwork_height: getDimensionValue('artwork-height'),
-                artwork_width: getDimensionValue('artwork-width'),
-                // Separate top/bottom and left/right mat borders (format v1)
-                mat_width: includeMat ? (getDimensionValue('mat-width-top') + getDimensionValue('mat-width-bottom')) / 2 : 0,
-                mat_width_sides: includeMat ? (getDimensionValue('mat-width-left') + getDimensionValue('mat-width-right')) / 2 : 0,
-                mat_overlap: includeMat ? getDimensionValue('mat-overlap') : 0,
-                frame_width: getDimensionValue('frame-width'),
-                frame_depth: getDimensionValue('frame-depth'),
-                glazing_thickness: getDimensionValue('glazing-thickness'),
-                matboard_thickness: getDimensionValue('matboard-thickness'),
-                artwork_thickness: getDimensionValue('artwork-thickness'),
-                backing_thickness: getDimensionValue('backing-thickness'),
-                assembly_margin: getDimensionValue('assembly-margin'),
-                rabbet_width: getDimensionValue('rabbet-width'),
-                rabbet_depth: getDimensionValue('rabbet-depth'),
-                blade_width: getDimensionValue('blade-width'),
-                frame_style: document.getElementById('frame-style')?.value || 'rabbet',
-                float_reveal: 0,
-                include_mat: includeMat,
-                unit_mm: unitMm
-            };
-
             try {
-                const encoded = generateShareableUrl(JSON.stringify(params));
+                // The last calculated design (it holds the form's values, after
+                // the constraint policy); if validation rejected it, share it anyway.
+                const design = currentDesign || invalidDesign;
+                if (!design) throw new Error('No design calculated yet');
+                const encoded = generateSharePayload(design, getDimensionValue('blade-width'),
+                    currentUnit === 'mm', document.getElementById('include-mat').checked);
                 // Build full URL with origin and path
                 const fullUrl = `${window.location.origin}${window.location.pathname}?d=${encoded}`;
                 document.getElementById('share-url').textContent = fullUrl;
@@ -2715,8 +2698,7 @@
             if (!dataParam) return false;
 
             try {
-                const fullUrl = `https://glarue.github.io/ReferenceFrame/?d=${dataParam}`;
-                const paramsJson = decodeShareableUrl(fullUrl);
+                const paramsJson = decodeSharePayload(dataParam);
                 const params = JSON.parse(paramsJson);
 
                 // Show the link's unit (the saved unit preference is left alone).
@@ -3545,40 +3527,12 @@
         // Add QR code to PDF (from the export snapshot, not the live form)
         async function addQrCode(pdf, snap) {
             try {
-                // Build ShareableParams JSON from the snapshot design
-                // The generateShareableUrl WASM function expects a JSON string, not a FrameDesign object
-                const design = snap.design;
-                const includeMat = snap.includeMat;
-                const shareableParams = {
-                    artwork_height: design.artworkHeight,
-                    artwork_width: design.artworkWidth,
-                    // Separate top/bottom and left/right mat borders (format v1)
-                    mat_width: includeMat ? design.matWidthTopBottom : 0,
-                    mat_width_sides: includeMat ? design.matWidthSides : 0,
-                    mat_overlap: includeMat ? design.matOverlap : 0,
-                    frame_width: design.frameWidth,
-                    frame_depth: design.frameDepth,
-                    glazing_thickness: design.glazingThickness,
-                    matboard_thickness: design.matboardThickness,
-                    artwork_thickness: design.artworkThickness,
-                    backing_thickness: design.backingThickness,
-                    assembly_margin: design.assemblyMargin,
-                    rabbet_width: design.rabbetWidth,
-                    rabbet_depth: design.rabbetDepth,
-                    blade_width: snap.bladeWidth,
-                    frame_style: design.frameStyle,
-                    float_reveal: design.floatReveal,
-                    include_mat: includeMat,
-                    unit_mm: snap.unitMm
-                };
-
-                // Generate shareable URL with JSON string
+                // Same link as the Share button, from the snapshot design
                 let encoded;
                 try {
-                    encoded = generateShareableUrl(JSON.stringify(shareableParams));
+                    encoded = generateSharePayload(snap.design, snap.bladeWidth, snap.unitMm, snap.includeMat);
                 } catch (wasmError) {
                     console.warn('WASM error generating shareable URL:', wasmError);
-                    console.warn('ShareableParams:', shareableParams);
                     // Skip QR code if URL generation fails
                     return;
                 }
