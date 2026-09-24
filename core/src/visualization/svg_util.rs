@@ -128,6 +128,7 @@ pub(crate) const SECTION_DIM_OFFSET_SCALE: f64 = 0.9;  // Section dimension offs
 
 // === Text Rendering ===
 pub(crate) const BASELINE_SHIFT_RATIO: f64 = 0.35;     // Vertical centering shift for SVG text
+pub(crate) const CAP_HEIGHT_RATIO: f64 = 0.70;         // Cap height as a fraction of font size (2 × the centering shift)
 
 // === Tight-Space Dimension Arrows ===
 /// Arrows flip outside when span < this many arrow-tip lengths (tip_extension =

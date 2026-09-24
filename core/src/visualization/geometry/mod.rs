@@ -80,8 +80,16 @@ const SECTION_LAYER_WIDTH_MULTIPLIER: f64 = 2.5;
 const SECTION_MIN_SCALE: f64 = 20.0;
 const SECTION_MAX_SCALE: f64 = 300.0;
 
-/// Rabbet label: leader line height (px).
-const RABBET_LABEL_LEADER: f64 = 18.0;
+/// Rabbet caption leader (section view), drawn by section_svg: gap below the
+/// rabbet, dashed leader length, and gap above the caption's cap height. The
+/// caption is centred on the leader, so the leader must stop above the text.
+pub(crate) const RABBET_LEADER_START_GAP: f64 = 2.0;
+pub(crate) const RABBET_LEADER_LEN: f64 = 8.0;
+pub(crate) const RABBET_LEADER_TEXT_GAP: f64 = 3.0;
+
+/// Rabbet label: space from the frame bottom to the caption's first baseline
+/// (px) — the leader gaps above plus the cap height of a 13px label.
+const RABBET_LABEL_LEADER: f64 = 22.0;
 
 /// Rabbet label: text height as multiplier of font_size.
 const RABBET_LABEL_FONT_MULTIPLIER: f64 = 2.2;

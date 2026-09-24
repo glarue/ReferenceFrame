@@ -8,7 +8,10 @@ use crate::frame::{FrameDesign, FrameStyle};
 use crate::conversions::{format_dimension, Unit};
 use super::types::{DiagramOptions, DimensionCallout, DimensionType};
 use super::style::{DiagramStyle, FillPattern};
-use super::geometry::{SectionViewGeometry, estimate_text_width};
+use super::geometry::{
+    SectionViewGeometry, estimate_text_width,
+    RABBET_LEADER_LEN, RABBET_LEADER_START_GAP, RABBET_LEADER_TEXT_GAP,
+};
 use super::svg_util::*;
 
 /// Build SVG string for section view
@@ -576,12 +579,16 @@ pub(crate) fn build_section_svg(
         svg.push('\n');
     }
 
-    // Rabbet label - below the frame with leader from rabbet area
-    let rabbet_label_y = frame_y + frame_h + 18.0;
+    // Rabbet caption - below the frame, reached by a short dashed leader from the
+    // rabbet area. The caption is centred on the leader, so the leader ends a
+    // small gap above the caption's cap height instead of running into the text.
+    let leader_top = geometry.rabbet_area.y + rabbet_h + RABBET_LEADER_START_GAP;
+    let leader_bottom = leader_top + RABBET_LEADER_LEN;
+    let rabbet_label_y = leader_bottom + RABBET_LEADER_TEXT_GAP + style.label_font_size * CAP_HEIGHT_RATIO;
     svg.push_str(&format!(
         r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}" stroke-dasharray="{}"/>"#,
-        rabbet_center_x, geometry.rabbet_area.y + rabbet_h + 2.0,
-        rabbet_center_x, rabbet_label_y - 6.0,
+        rabbet_center_x, leader_top,
+        rabbet_center_x, leader_bottom,
         dim_color, style.extension_stroke_width, DASH_CLEARANCE
     ));
     svg.push('\n');
@@ -1264,4 +1271,38 @@ pub(crate) fn generate_title_block(
 
     svg.push_str("  </g>\n");
     svg
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::frame::{FrameDesign, FrameStyle};
+    use crate::visualization::{generate_diagram, DiagramOptions, ViewOption};
+
+    /// The rabbet caption is centred on its dashed leader; the leader must end
+    /// above the caption's cap height instead of running into the text.
+    #[test]
+    fn rabbet_leader_stops_above_caption() {
+        let mut d = FrameDesign::new(11.0, 14.0);
+        d.frame_style = FrameStyle::SightSize;
+        d.mat_width_top_bottom = 0.0;
+        d.mat_width_sides = 0.0;
+        for (mm, w) in [(false, 800.0), (true, 800.0), (true, 390.0)] {
+            let o = DiagramOptions {
+                view: ViewOption::SectionOnly,
+                canvas_width: w,
+                canvas_height: 600.0,
+                unit_mm: mm,
+                ..Default::default()
+            };
+            let svg = generate_diagram(&d, &o).svg;
+            let leader = svg.lines().find(|l| l.contains("<line") && l.contains(r#"stroke-dasharray="3,2""#))
+                .expect("rabbet leader");
+            let y2: f64 = leader.split(r#"y2=""#).nth(1).unwrap().split('"').next().unwrap().parse().unwrap();
+            let caption = svg.lines().find(|l| l.contains("Sight-size")).expect("caption");
+            let ty: f64 = caption.split("translate(").nth(1).unwrap().split(')').next().unwrap()
+                .split(',').nth(1).unwrap().trim().parse().unwrap();
+            let fs: f64 = caption.split(r#"font-size=""#).nth(1).unwrap().split("px").next().unwrap().parse().unwrap();
+            assert!(y2 < ty - fs * 0.7, "leader ends at {y2}, caption cap top at {}", ty - fs * 0.7);
+        }
+    }
 }
