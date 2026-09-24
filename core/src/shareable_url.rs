@@ -51,20 +51,25 @@ impl ShareableParams {
     /// Share parameters for a design — the one design → link mapping both
     /// platforms use.
     ///
-    /// Every carried value is copied from the design as-is (mat borders and
-    /// overlap included), and `include_mat` is [`FrameDesign::has_mat`]
-    /// (false for sight-size/float and for zero borders). `blade_width` (the
-    /// saw kerf, a setting rather than a design field) and `unit_mm` (the
-    /// display unit the link opens in) come from the caller. Use
-    /// [`with_include_mat`](Self::with_include_mat) when the flag comes from
-    /// a UI switch instead.
+    /// `include_mat` is [`FrameDesign::has_mat`] (false for sight-size/float
+    /// and for zero borders). Without a mat, the mat borders and overlap are
+    /// sent as zero, so a link never carries an inactive mat; everything
+    /// else, `float_reveal` included, is copied from the design as-is.
+    /// `blade_width` (the saw kerf, a setting rather than a design field) and
+    /// `unit_mm` (the display unit the link opens in) come from the caller.
     pub fn from_design(design: &FrameDesign, blade_width: f64, unit_mm: bool) -> Self {
+        let include_mat = design.has_mat();
+        let (mat_width, mat_width_sides, mat_overlap) = if include_mat {
+            (design.mat_width_top_bottom, design.mat_width_sides, design.mat_overlap)
+        } else {
+            (0.0, 0.0, 0.0)
+        };
         Self {
             artwork_height: design.artwork_height,
             artwork_width: design.artwork_width,
-            mat_width: design.mat_width_top_bottom,
-            mat_width_sides: design.mat_width_sides,
-            mat_overlap: design.mat_overlap,
+            mat_width,
+            mat_width_sides,
+            mat_overlap,
             frame_width: design.frame_material_width,
             frame_depth: design.frame_material_depth,
             glazing_thickness: design.glazing_thickness,
@@ -75,30 +80,18 @@ impl ShareableParams {
             rabbet_width: design.rabbet_width,
             rabbet_depth: design.rabbet_depth,
             blade_width,
-            include_mat: design.has_mat(),
+            include_mat,
             unit_mm,
             frame_style: design.frame_style,
             float_reveal: design.float_reveal,
         }
     }
 
-    /// Set the include-mat flag explicitly (e.g. from the web's "Include
-    /// mat" checkbox). `false` also zeroes the mat borders and overlap, so
-    /// the link carries no mat at all.
-    pub fn with_include_mat(mut self, include_mat: bool) -> Self {
-        self.include_mat = include_mat;
-        if !include_mat {
-            self.mat_width = 0.0;
-            self.mat_width_sides = 0.0;
-            self.mat_overlap = 0.0;
-        }
-        self
-    }
-
     /// The design a link describes (inverse of [`from_design`](Self::from_design)).
     ///
-    /// Mat borders and overlap are kept only when `include_mat` is set (the
-    /// web renders an unchecked "Include mat" as zero mat).
+    /// Mat borders and overlap are kept only when `include_mat` is set (as
+    /// [`from_design`](Self::from_design) writes them; also how the web
+    /// renders an unchecked "Include mat").
     /// `symmetrical_mat` is inferred (borders within 0.001" count as
     /// symmetric, as the web's link loader decides), and `no_artwork_margin`,
     /// which links don't carry, stays false. `blade_width` and `unit_mm` are
@@ -1267,30 +1260,33 @@ mod tests {
             frame_style: FrameStyle::Rabbet, float_reveal: 0.0,
         });
 
-        // Sight-size never uses a mat: the flag is off but the (inert)
-        // borders are still carried as-is
+        // Sight-size never uses a mat: the flag is off and the inactive
+        // borders/overlap are zeroed; the float reveal is still carried
         let mut sight = design.clone();
         sight.frame_style = FrameStyle::SightSize;
         sight.float_reveal = 0.25;
         let p = ShareableParams::from_design(&sight, 0.125, false);
         assert!(!p.include_mat);
-        assert_eq!((p.mat_width, p.mat_width_sides, p.mat_overlap), (3.0, 2.25, 0.25));
+        assert_eq!((p.mat_width, p.mat_width_sides, p.mat_overlap), (0.0, 0.0, 0.0));
         assert_eq!((p.frame_style, p.float_reveal), (FrameStyle::SightSize, 0.25));
     }
 
     #[test]
-    fn test_with_include_mat_overrides_flag() {
-        let design = asymmetric_design();
-        let off = ShareableParams::from_design(&design, 0.125, false).with_include_mat(false);
-        assert!(!off.include_mat);
-        assert_eq!((off.mat_width, off.mat_width_sides, off.mat_overlap), (0.0, 0.0, 0.0));
-
-        // `true` only sets the flag (e.g. a checked box on a sight-size design)
-        let mut sight = design.clone();
-        sight.frame_style = FrameStyle::SightSize;
-        let on = ShareableParams::from_design(&sight, 0.125, false).with_include_mat(true);
-        assert!(on.include_mat);
-        assert_eq!((on.mat_width, on.mat_width_sides, on.mat_overlap), (3.0, 2.25, 0.25));
+    fn test_from_design_without_mat_zeroes_overlap() {
+        // Mat switched off (zero borders) but a remembered overlap, as the
+        // iOS "Include mat" switch leaves it: the link carries no mat at all
+        let mut design = asymmetric_design();
+        design.mat_width_top_bottom = 0.0;
+        design.mat_width_sides = 0.0;
+        let p = ShareableParams::from_design(&design, 0.125, false);
+        assert!(!p.include_mat);
+        assert_eq!((p.mat_width, p.mat_width_sides, p.mat_overlap), (0.0, 0.0, 0.0));
+        // ...which encodes byte-identically to a design whose overlap is 0
+        design.mat_overlap = 0.0;
+        assert_eq!(
+            generate_shareable_url(&p),
+            generate_shareable_url(&ShareableParams::from_design(&design, 0.125, false)),
+        );
     }
 
     #[test]
@@ -1306,9 +1302,9 @@ mod tests {
         symmetric.mat_width_sides = 3.0;
         symmetric.symmetrical_mat = true;
         assert_eq!(ShareableParams::from_design(&symmetric, 0.125, false).to_design(), symmetric);
-        let no_mat = ShareableParams::from_design(&design, 0.125, false)
-            .with_include_mat(false)
-            .to_design();
+        let mut without = design.clone();
+        without.frame_style = FrameStyle::SightSize;
+        let no_mat = ShareableParams::from_design(&without, 0.125, false).to_design();
         assert!(!no_mat.has_mat());
         assert_eq!(no_mat.mat_overlap, 0.0);
     }

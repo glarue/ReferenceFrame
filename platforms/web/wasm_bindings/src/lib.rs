@@ -353,23 +353,15 @@ pub fn get_aspect_ratio_display(height: f64, width: f64) -> String {
     referenceframe_core::aspect_ratio::get_aspect_ratio_display(height, width)
 }
 
-/// Shareable-link payload (the `?d=` value) for a design.
+/// Shareable-link payload (the `?d=` value) for a design
+/// (`ShareableParams::from_design`: the mat flag is whether the design has a
+/// mat; without one, borders and overlap are sent as zero).
 ///
 /// `bladeWidth` is the saw kerf setting (inches); `unitMm` the unit the link
-/// opens in. `includeMat` is the "Include mat" switch: `false` sends no mat
-/// (borders and overlap zeroed); `undefined` derives the flag from the
-/// design (`ShareableParams::from_design`).
+/// opens in.
 #[wasm_bindgen(js_name = "generateSharePayload")]
-pub fn generate_share_payload(
-    design: &WasmFrameDesign,
-    blade_width: f64,
-    unit_mm: bool,
-    include_mat: Option<bool>,
-) -> String {
-    let mut params = ShareableParams::from_design(&design.inner, blade_width, unit_mm);
-    if let Some(include) = include_mat {
-        params = params.with_include_mat(include);
-    }
+pub fn generate_share_payload(design: &WasmFrameDesign, blade_width: f64, unit_mm: bool) -> String {
+    let params = ShareableParams::from_design(&design.inner, blade_width, unit_mm);
     shareable_url::generate_shareable_url(&params)
 }
 

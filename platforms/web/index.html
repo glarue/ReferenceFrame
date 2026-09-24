@@ -2248,7 +2248,7 @@
                 const design = currentDesign || invalidDesign;
                 if (!design) throw new Error('No design calculated yet');
                 const encoded = generateSharePayload(design, getDimensionValue('blade-width'),
-                    currentUnit === 'mm', document.getElementById('include-mat').checked);
+                    currentUnit === 'mm');
                 // Build full URL with origin and path
                 const fullUrl = `${window.location.origin}${window.location.pathname}?d=${encoded}`;
                 document.getElementById('share-url').textContent = fullUrl;
@@ -3539,7 +3539,7 @@
                 // Same link as the Share button, from the snapshot design
                 let encoded;
                 try {
-                    encoded = generateSharePayload(snap.design, snap.bladeWidth, snap.unitMm, snap.includeMat);
+                    encoded = generateSharePayload(snap.design, snap.bladeWidth, snap.unitMm);
                 } catch (wasmError) {
                     console.warn('WASM error generating shareable URL:', wasmError);
                     // Skip QR code if URL generation fails
