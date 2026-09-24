@@ -601,16 +601,20 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig, use_mm: 
     // The mat opening is artwork_size - 2*mat_overlap, so by definition artwork > mat_opening
     // Thus we only need to check artwork vs frame opening when NO mat is present
     if !design.has_mat() {
-        // No mat - artwork must cover the frame opening
+        // No mat - artwork must cover the frame opening (except Float, whose
+        // opening exceeds the art on purpose; see `warns_on_artwork_gap`)
+        let warn_gap = warns_on_artwork_gap(design.frame_style);
         if design.artwork_width < opening_width {
-            let gap = opening_width - design.artwork_width;
-            result.add(ValidationIssue::warning(
-                "artwork_width",
-                "Artwork narrower than frame opening - will show gap",
-            ).with_details(
-                format!("Artwork: {}, Opening: {}, Gap: {}",
-                    fmt_dec(design.artwork_width), fmt_dec(opening_width), fmt_dec(gap)),
-            ));
+            if warn_gap {
+                let gap = opening_width - design.artwork_width;
+                result.add(ValidationIssue::warning(
+                    "artwork_width",
+                    "Artwork narrower than frame opening - will show gap",
+                ).with_details(
+                    format!("Artwork: {}, Opening: {}, Gap: {}",
+                        fmt_dec(design.artwork_width), fmt_dec(opening_width), fmt_dec(gap)),
+                ));
+            }
         } else {
             let overlap_per_side = (design.artwork_width - opening_width) / 2.0;
             if overlap_per_side < config.warn_artwork_opening_overlap && overlap_per_side > 0.0 {
@@ -622,14 +626,16 @@ pub fn validate_design(design: &FrameDesign, config: &ValidationConfig, use_mm: 
         }
 
         if design.artwork_height < opening_height {
-            let gap = opening_height - design.artwork_height;
-            result.add(ValidationIssue::warning(
-                "artwork_height",
-                "Artwork shorter than frame opening - will show gap",
-            ).with_details(
-                format!("Artwork: {}, Opening: {}, Gap: {}",
-                    fmt_dec(design.artwork_height), fmt_dec(opening_height), fmt_dec(gap)),
-            ));
+            if warn_gap {
+                let gap = opening_height - design.artwork_height;
+                result.add(ValidationIssue::warning(
+                    "artwork_height",
+                    "Artwork shorter than frame opening - will show gap",
+                ).with_details(
+                    format!("Artwork: {}, Opening: {}, Gap: {}",
+                        fmt_dec(design.artwork_height), fmt_dec(opening_height), fmt_dec(gap)),
+                ));
+            }
         } else {
             let overlap_per_side = (design.artwork_height - opening_height) / 2.0;
             if overlap_per_side < config.warn_artwork_opening_overlap && overlap_per_side > 0.0 {
@@ -1146,6 +1152,22 @@ mod tests {
             .expect("overlap error");
         assert_eq!(err.details.as_deref(),
             Some("Maximum overlap: 0\" (artwork is smaller than the 0.25\" minimum opening)"));
+    }
+
+    #[test]
+    fn test_artwork_gap_warning_gated_for_float() {
+        // Float's opening exceeds the art on purpose (Float Phase 2 reveal),
+        // so "will show gap" must never fire for it; other styles keep it.
+        assert!(!warns_on_artwork_gap(FrameStyle::Float));
+        assert!(warns_on_artwork_gap(FrameStyle::Rabbet));
+        assert!(warns_on_artwork_gap(FrameStyle::SightSize));
+
+        let mut design = FrameDesign::new(11.0, 14.0);
+        design.frame_style = FrameStyle::Float;
+        design.float_reveal = 0.5;
+        let result = validate_design(&design, &ValidationConfig::default(), false);
+        assert!(!result.issues.iter().any(|i| i.message.contains("will show gap")),
+            "{:?}", result.issues);
     }
 
     #[test]
