@@ -788,8 +788,15 @@
             }
         });
 
-        // Map of input IDs to DimensionInput instances
+        // Map of input IDs to DimensionInput instances. Each one's `value` is
+        // the canonical value in INCHES; the input's text is only a display of
+        // it (rounded: 4 decimals in inches, 0.01 mm in mm) plus whatever the
+        // user types.
         const dimensions = {};
+        // The text we last wrote to (or parsed from) each input. Text that
+        // still matches it is our own formatting and is never parsed back, so
+        // redisplaying (e.g. a unit toggle) can't round the canonical value.
+        const displayedText = {};
         
         // All dimension input field IDs
         const dimensionInputIds = [
@@ -903,77 +910,77 @@
         }
 
         // Initialize DimensionInput instances for all dimension fields
+        // (the fields hold inch values at this point: the unit starts as inches)
         function initDimensionInputs() {
             for (const id of dimensionInputIds) {
                 const el = document.getElementById(id);
                 if (el) {
                     // Create DimensionInput from current value
                     dimensions[id] = new DimensionInput(el.value);
+                    displayedText[id] = el.value;
                 }
             }
         }
 
-        // Get value from a dimension field (in inches, for calculations)
+        // Get the canonical value of a dimension field (in inches, for
+        // calculations). Text the user changed since it was last displayed
+        // or parsed is parsed first.
         function getDimensionValue(id) {
             const dim = dimensions[id];
             if (!dim) return 0;
-            
-            // Sync from input element first
             const el = document.getElementById(id);
-            if (el) {
-                dim.parse(el.value);
+            if (el && el.value !== displayedText[id]) {
+                syncDimension(id);
             }
-            
-            // Convert to inches if in mm mode
-            return currentUnit === 'mm' ? mmToInches(dim.value) : dim.value;
+            return dim.value;
         }
 
-        // Set a dimension field value (from inches)
+        // Format an inch value for display in the current unit
+        function formatDimensionText(valueInInches) {
+            return currentUnit === 'mm'
+                ? inchesToMm(valueInInches).toFixed(2)
+                // Decimal, removing unnecessary trailing zeros
+                : String(parseFloat(valueInInches.toFixed(4)));
+        }
+
+        // Set a dimension field value (from inches): store it exactly and
+        // display it in the current unit
         function setDimensionValue(id, valueInInches) {
             const dim = dimensions[id];
             const el = document.getElementById(id);
             if (!dim || !el) return;
 
-            // Store the inch value
             dim.value = valueInInches;
-
-            // Display in current unit
-            if (currentUnit === 'mm') {
-                el.value = inchesToMm(valueInInches).toFixed(2);
-            } else {
-                // Display as decimal, removing unnecessary trailing zeros
-                el.value = parseFloat(valueInInches.toFixed(4));
-            }
+            el.value = formatDimensionText(valueInInches);
+            displayedText[id] = el.value;
         }
 
-        // Update display for all dimension fields based on current unit
+        // Redisplay every dimension field in the current unit (the canonical
+        // inch values are unchanged)
         function updateDimensionDisplays() {
             for (const id of dimensionInputIds) {
                 const dim = dimensions[id];
                 const el = document.getElementById(id);
                 if (!dim || !el) continue;
-
-                if (currentUnit === 'mm') {
-                    el.value = inchesToMm(dim.value).toFixed(2);
-                } else {
-                    // Display as decimal, removing unnecessary trailing zeros
-                    el.value = parseFloat(dim.value.toFixed(4));
-                }
+                el.value = formatDimensionText(dim.value);
+                displayedText[id] = el.value;
             }
         }
 
-        // Sync dimension from input element (call on input/blur)
+        // Parse a field's text (in the current unit) into its canonical inch
+        // value. Call on input/blur; getDimensionValue calls it for edited text.
         function syncDimension(id) {
             const dim = dimensions[id];
             const el = document.getElementById(id);
             if (!dim || !el) return;
-            
+
+            displayedText[id] = el.value;
             const rawValue = el.value.trim();
             if (!rawValue) {
                 dim.value = 0;
                 return;
             }
-            
+
             if (currentUnit === 'mm') {
                 // In mm mode, parse as decimal then convert to inches for storage
                 const mmValue = parseFloat(rawValue) || 0;
@@ -998,6 +1005,7 @@
             // Otherwise preserve decimal format
             if (currentUnit === 'inches' && dim.isValid && dim.wasFractional) {
                 el.value = dim.asFraction(64);
+                syncDimension(id);  // the tidied fraction is now the typed value
             }
             // If decimal was entered, leave it as-is (already in el.value)
         }
@@ -2115,8 +2123,10 @@
         // the size dropdowns, or recalculating: re-parse every field in the
         // old unit, then redisplay it in the new one.
         function applyUnit(unit) {
+            // Pick up any typed-but-unparsed text in the OLD unit; displayed
+            // text is not re-parsed, so the canonical inch values don't drift
             for (const id of dimensionInputIds) {
-                syncDimension(id);
+                getDimensionValue(id);
             }
             currentUnit = unit;
             updateDimensionDisplays();
