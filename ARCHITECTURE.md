@@ -46,6 +46,8 @@ bridge crates' `Cargo.lock` files are tracked; the core library's is not.
 | `hanging.rs` | D-ring placement and picture-wire sizing |
 | `weight.rs` | Weight estimate from sourced material densities (with error bounds) and wire tension |
 | `shareable_url.rs` | Compact binary share-link format (see below) |
+| `overlay_params.rs` | Spline/hanging/weight overlay parameters and the JSON helpers both bindings call (one parse per request) |
+| `diagram_request.rs` | `DiagramRequest` = `DiagramOptions` + theme (light/dark/pdf): the single options-object entry point for diagram SVGs on both platforms |
 | `history.rs` | Design-history entries (versioned, capped list) |
 | `presets.rs` | Loads `core/data/presets.json` (compiled in with `include_str!`) |
 | `version.rs` | Version info from Cargo.toml |
