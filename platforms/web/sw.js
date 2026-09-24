@@ -4,8 +4,10 @@
 // ============================================================================
 // CACHE-INVALIDATION STRATEGY
 // ============================================================================
-// The project's documented cache-busting mechanism is `?v=YYYYMMDD-description`
-// query params on CSS and WASM/JS imports in index.html (see CLAUDE.md).
+// The project's cache-busting mechanism is one shared version token, passed as
+// the `v` query parameter on every app asset URL in index.html (CSS, storage.js,
+// the WASM JS glue and the .wasm binary) and in PRECACHE_URLS below; the deploy
+// step stamps the token into both files.
 // Those params bust the HTTP cache for browsers without service worker
 // support, and produce distinct cache keys here.
 //
@@ -21,22 +23,24 @@
 //     served cache-first from CACHE_NAME.
 //
 // IMPORTANT: bump CACHE_NAME and RUNTIME_CACHE on every deploy. The version
-// bump drops stale precached entries (including old ?v= variants) via the
+// bump drops stale precached entries (including old token variants) via the
 // activate handler below.
 // ============================================================================
 
-const CACHE_NAME = 'referenceframe-wasm-v17';
-const RUNTIME_CACHE = 'referenceframe-runtime-v17';
+const CACHE_NAME = 'referenceframe-wasm-v18';
+const RUNTIME_CACHE = 'referenceframe-runtime-v18';
 
 // Resources to cache immediately on install
+// The version tokens must match index.html exactly (the page requests these
+// URLs); the deploy step stamps both files with the same token.
 const PRECACHE_URLS = [
     './',
     './index.html',
-    './styles.css',
-    './storage.js',
+    './styles.css?v=20260923-phase5',
+    './storage.js?v=20260923-phase5',
     './manifest.json',
-    './pkg/referenceframe_wasm.js',
-    './pkg/referenceframe_wasm_bg.wasm',
+    './pkg/referenceframe_wasm.js?v=20260923-phase5',
+    './pkg/referenceframe_wasm_bg.wasm?v=20260923-phase5',
 ];
 
 // Install event - precache essential resources
@@ -82,9 +86,9 @@ self.addEventListener('fetch', event => {
     if (url.origin === self.location.origin && (
         isDocument ||
         url.pathname.endsWith('.html') ||
-        url.pathname.endsWith('.css') ||  // Network-first; styles.css is cache-busted via ?v= in index.html
+        url.pathname.endsWith('.css') ||
         url.pathname.endsWith('.js') ||
-        url.pathname.endsWith('.wasm') ||  // Network-first; the glue resolves the .wasm URL relative to import.meta.url, so it is fetched WITHOUT the ?v= param
+        url.pathname.endsWith('.wasm') ||
         url.pathname === '/' ||
         url.pathname.endsWith('/'))) {
         event.respondWith(
