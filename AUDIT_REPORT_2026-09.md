@@ -84,18 +84,26 @@ IDs: **A** = user-visible bug (iOS), **W** = user-visible bug (web), **C** = cor
 - [x] T9 — not asked; gitignoring CLAUDE.md/.claude looks intentional (private) — left as is
 
 ### Phase 5 — Larger refactors (each its own mini-plan when started)
+
+**Mini-plan (2026-09-23).** Three batches, lowest risk first; each ends with the verification gate + a user checkpoint.
+- **5a — cleanup, no visual change.** Round 1 (parallel, disjoint files): *mobile* Q2 prune unused bridge fns (incl. Phase-4 superseded siblings, `getColor`) + FRB regen, unused pubspec deps (+ pod install + sim build), dead calculator error banner, `simple.rs` doc leftovers + dedupe the dark-preview override (same values), cache decoded defaults; *web* Q2 prune unused WASM exports, W16 core aspect label, T4 versioned `.wasm` URL in `init()`; *tooling/docs* T4 deploy.yml SHA stamping, release.sh updates only the core entry of the mobile Cargo.lock, fastlane docs + `upload_metadata` skip_screenshots, D4 docs archive/consolidation. Round 2 (after bindings are pruned): *core* delete newly-unreferenced core APIs (C11, deprecated `ParsedDimension` if unused), C12, C14, C16; *viz* Q8 `pub(crate)` modules + `#[cfg(test)]` snapshot I/O, leftover wording.
+- 5a notes: `TypicalRanges` moved to presets.json unchanged, but they contradict presets guidance comments (rabbet_depth typical 5/16–3/8 vs "1/2 preferred"; rabbet_width typical 3/8–1/2 vs "1/4 standard"; margin typical 0–1/16 vs "1/8 standard"; default matboard 0.055/artwork 0.008 and the 0.5" frame preset fall below their typical mins) — **needs a user decision**. Aspect-ratio group names in presets ("3:2 · Standard Photos") read width:height while the label now reads height:width on both platforms. `pod` isn't on PATH (CocoaPods at /opt/homebrew/lib/ruby/gems/4.0.0/bin) — flutter builds after plugin changes need it. `DesignState.invertAspectRatio()` wrapper now unused.
+- **5b — refactors with byte-identical output.** Q4 boundary dedupe (`ShareableParams::from_design`, one camelCase defaults serializer, overlay/spline/hanging/weight helpers into core, `#[serde(default)]` on param structs, `DiagramOptions` options object); Q5 Dart parsers/formatters → Rust-backed utils (+ `saved_sizes_sheet` display format); Q6 viz duplication helpers; iOS SVG caching (Q8).
+- **5c — visible changes, need sign-off.** C6 + C18 callout layout/baseline (goldens change; iOS screenshots for review); C7 dark diagram colors into `DiagramStyle` (dark output changes); Q6 hatch `<pattern>` removal (goldens); W12/Q9 accessibility (Dynamic Type check first); W15 history timestamps → seconds (data migration).
+
 - [ ] C6 callout layout ↔ renderer unification (golden churn; iOS visual check) — include C18: replace `dominant-baseline="central"` with an explicit `BASELINE_SHIFT_RATIO` y shift so iOS/PDF match web
 - [ ] C7 dark-mode diagram colors into `DiagramStyle` (+ inset-box helper)
 - [ ] Q4 boundary: `ShareableParams::from_design`, one camelCase `getDefaults`, overlay/spline/hanging/weight helpers into core, `#[serde(default)]` on param structs, `DiagramOptions` options object
 - [ ] Q5 Dart parsers/formatters → Rust-backed shared utils; `saved_sizes_sheet` display format
 - [ ] Q6 viz duplication helpers; hatch `<pattern>` removal
-- [ ] Q8 `pub(crate)` viz modules; SVG caching on iOS; cached defaults
-- [ ] Q2 prune unused bridge exports (FRB regen) + unused pubspec deps (pod install + device build)
-- [ ] T4 deploy.yml stamps SHA into `?v=`/sw caches; versioned wasm URL
+- [ ] Q8 `pub(crate)` viz modules; SVG caching on iOS; cached defaults — 5a did `pub(crate)` + `#[cfg(test)]` snapshot + cached defaults; **iOS SVG caching remains (5b)**
+- [x] Q2 prune unused bridge exports (FRB regen) + unused pubspec deps (pod install + device build) — 5a: mobile −26 bridge fns (FRB hash −1767989795), web −~25 WASM exports; `url_launcher`/`cupertino_icons`/`ffi` dropped
+- [x] T4 deploy.yml stamps SHA into `?v=`/sw caches; versioned wasm URL (4 tokens each in index.html + sw.js PRECACHE_URLS; deploy fails on mismatch)
 - [ ] W12/Q9 accessibility passes (web keyboard/labels; iOS semantics/tap targets — Dynamic Type check before layout changes)
-- [ ] W15 history timestamps → seconds (HISTORY_VERSION 2); W16 core aspect label on web
-- [ ] C11, C12, C14, C16 small core cleanups (C15 fixed in Phase 4)
-- [ ] D4 archive/consolidate stale docs (root + mobile `RELEASING.md`); refresh README/ARCHITECTURE
+- [ ] W15 history timestamps → seconds (HISTORY_VERSION 2) — W16 done in 5a (web label now height:width like iOS, e.g. 8×12 → "2:3")
+- [x] C11, C12, C14, C16 small core cleanups (C15 fixed in Phase 4) — plus deleted deprecated `ParsedDimension`, `enforce_constraints`, unused presets/history/validation helpers
+- [x] Phase 3/4 leftovers: dead calculator error banner (A12); release.sh full `cargo update` on mobile lock; fastlane docs mention removed lanes; `upload_metadata` skip_screenshots
+- [x] D4 archive/consolidate stale docs (root + mobile `RELEASING.md`); refresh README/ARCHITECTURE
 
 ---
 
