@@ -146,7 +146,7 @@ impl Default for ValidationConfig {
     }
 }
 
-/// Typical value ranges for UI hints
+/// Typical value ranges for UI hints (inches), from presets.json `typical_ranges`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypicalRanges {
     pub frame_width_min: f64,
@@ -200,26 +200,8 @@ impl TypicalRanges {
 
 impl Default for TypicalRanges {
     fn default() -> Self {
-        Self {
-            frame_width_min: 0.75,
-            frame_width_max: 4.0,
-            frame_depth_min: 0.5,
-            frame_depth_max: 2.0,
-            rabbet_width_min: 0.375,   // 3/8"
-            rabbet_width_max: 0.5,     // 1/2"
-            rabbet_depth_min: 0.3125,  // 5/16"
-            rabbet_depth_max: 0.375,   // 3/8"
-            glazing_min: 0.0625,       // 1/16"
-            glazing_max: 0.25,         // 1/4"
-            matboard_min: 0.0625,      // 1/16"
-            matboard_max: 0.1875,      // 3/16"
-            artwork_min: 0.01,
-            artwork_max: 0.25,
-            backing_min: 0.0625,       // 1/16"
-            backing_max: 0.25,         // 1/4"
-            margin_min: 0.0,
-            margin_max: 0.0625,        // 1/16"
-        }
+        // Load from presets.json (single source of truth)
+        presets::get_typical_ranges().clone()
     }
 }
 
@@ -1200,6 +1182,34 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_typical_ranges_match_presets_json() {
+        // Moved from Rust literals to presets.json unchanged: these are the
+        // values the web shows as "Typical: …" hints.
+        let r = TypicalRanges::default();
+        let expected = [
+            (r.frame_width_min, 0.75), (r.frame_width_max, 4.0),
+            (r.frame_depth_min, 0.5), (r.frame_depth_max, 2.0),
+            (r.rabbet_width_min, 0.375), (r.rabbet_width_max, 0.5),
+            (r.rabbet_depth_min, 0.3125), (r.rabbet_depth_max, 0.375),
+            (r.glazing_min, 0.0625), (r.glazing_max, 0.25),
+            (r.matboard_min, 0.0625), (r.matboard_max, 0.1875),
+            (r.artwork_min, 0.01), (r.artwork_max, 0.25),
+            (r.backing_min, 0.0625), (r.backing_max, 0.25),
+            (r.margin_min, 0.0), (r.margin_max, 0.0625),
+        ];
+        for (i, (got, want)) in expected.iter().enumerate() {
+            assert_eq!(got, want, "typical range #{i}");
+        }
+        // Hint text unchanged (matches the web's static placeholders)
+        assert_eq!(r.get_range_hint("frame_width", false), "Typical: 3/4\" - 4\"");
+        assert_eq!(r.get_range_hint("rabbet_width", false), "Typical: 3/8\" - 1/2\"");
+        assert_eq!(r.get_range_hint("rabbet_depth", false), "Typical: 5/16\" - 3/8\"");
+        assert_eq!(r.get_range_hint("artwork_thickness", false), "Typical: 0.01\" - 1/4\"");
+        assert_eq!(r.get_range_hint("margin", false), "Typical: 0\" - 1/16\"");
+        assert_eq!(r.get_range_hint("unknown", false), "");
     }
 
     #[test]

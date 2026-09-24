@@ -196,6 +196,28 @@
     "max_mat_overlap": 6.0
   },
 
+  "typical_ranges": {
+    "_comment": "Typical value ranges shown as input hints (TypicalRanges / getTypicalRangeHint). All dimensions in inches.",
+    "frame_width_min": 0.75,
+    "frame_width_max": 4.0,
+    "frame_depth_min": 0.5,
+    "frame_depth_max": 2.0,
+    "rabbet_width_min": 0.375,
+    "rabbet_width_max": 0.5,
+    "rabbet_depth_min": 0.3125,
+    "rabbet_depth_max": 0.375,
+    "glazing_min": 0.0625,
+    "glazing_max": 0.25,
+    "matboard_min": 0.0625,
+    "matboard_max": 0.1875,
+    "artwork_min": 0.01,
+    "artwork_max": 0.25,
+    "backing_min": 0.0625,
+    "backing_max": 0.25,
+    "margin_min": 0.0,
+    "margin_max": 0.0625
+  },
+
   "presets": {
     "frame_face_width": {
       "_comment": "3/4\"-1.25\" small, 1.5\"-2.25\" medium, 2.5\"+ large frames",

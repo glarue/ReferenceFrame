@@ -17,6 +17,8 @@ pub struct PresetsData {
     pub defaults: Defaults,
     pub materials: Materials,
     pub validation_limits: ValidationLimits,
+    /// Input hint ranges; deserialized straight into `validation::TypicalRanges`
+    pub typical_ranges: crate::validation::TypicalRanges,
     pub presets: Presets,
 }
 
@@ -178,6 +180,11 @@ pub fn get_materials() -> &'static Materials {
 /// Get the default validation limits
 pub fn get_validation_limits() -> &'static ValidationLimits {
     &get_presets_data().validation_limits
+}
+
+/// Get the typical value ranges used for input hints
+pub fn get_typical_ranges() -> &'static crate::validation::TypicalRanges {
+    &get_presets_data().typical_ranges
 }
 
 /// Get raw JSON string (for passing to FFI/WASM)
