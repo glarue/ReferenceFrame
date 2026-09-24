@@ -487,13 +487,21 @@ pub fn estimate_text_width(text: &str, font_size: f64) -> f64 {
     width * SAFETY_MARGIN
 }
 
+/// Split a callout label into its two rendered lines at the first ": ".
+///
+/// Returns `(prefix, value)` with the colon kept on the prefix, e.g.
+/// `"Mat Cut: 2 3/8\""` → `("Mat Cut:", "2 3/8\"")`. `None` means the label
+/// renders on a single line. This is the single definition of the two-line
+/// rule used by layout, viewBox bounds, and the plan-view renderer.
+pub(crate) fn split_two_line(label: &str) -> Option<(&str, &str)> {
+    label.find(": ").map(|pos| (&label[..pos + 1], label[pos + 2..].trim_start()))
+}
+
 /// Estimate the effective display width of a label, accounting for two-line split.
 /// Labels containing ": " are rendered as two lines; the display width is the max
 /// of the two parts rather than the full single-line width.
 pub fn effective_label_width(label: &str, font_size: f64) -> f64 {
-    if let Some(pos) = label.find(": ") {
-        let prefix = &label[..pos + 1];
-        let value = label[pos + 2..].trim_start();
+    if let Some((prefix, value)) = split_two_line(label) {
         estimate_text_width(prefix, font_size)
             .max(estimate_text_width(value, font_size))
     } else {

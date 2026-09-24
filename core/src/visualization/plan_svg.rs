@@ -10,7 +10,7 @@ use super::types::{
     Rect, Side, ThumbnailLabelPosition,
 };
 use super::style::{DiagramStyle, LABEL_MASK_PADDING_X, LABEL_MASK_PADDING_Y};
-use super::geometry::{CornerDetailGeometry, PlanViewGeometry, estimate_text_width, effective_label_width};
+use super::geometry::{CornerDetailGeometry, PlanViewGeometry, estimate_text_width, effective_label_width, split_two_line};
 use super::svg_util::*;
 use super::layout::LayoutResult;
 
@@ -371,7 +371,7 @@ pub(crate) fn compute_plan_viewbox(
     // Include callout label bounds (post-collision positions)
     for callout in &layout.positioned_callouts {
         let lb = callout.label_bounds;
-        let is_two_line = callout.callout.label.contains(": ");
+        let is_two_line = split_two_line(&callout.callout.label).is_some();
         let is_vertical = callout.actual_side == Side::Right || callout.actual_side == Side::Left;
 
         // Vertical label_bounds are centered on dim_line_x, and svg_dimension also
@@ -1227,9 +1227,7 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
     let label = &callout.callout.label;
     let is_mat_cut = matches!(callout.callout.dimension_type,
         super::types::DimensionType::MatCutWidth | super::types::DimensionType::MatCutHeight);
-    let two_line: Option<(&str, &str)> = label.find(": ").map(|pos| {
-        (&label[..pos + 1], label[pos + 2..].trim_start())
-    });
+    let two_line: Option<(&str, &str)> = split_two_line(label);
 
     // Estimate label dimensions for masking
     // Mask is always single-line sized — for two-line labels the outward line

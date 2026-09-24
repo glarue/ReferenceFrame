@@ -7,7 +7,7 @@ use super::types::{
     DimensionCallout, DimensionType, PositionedCallout, Point, Rect, Side, TextAnchor,
 };
 use super::style::DiagramStyle;
-use super::geometry::{PlanViewGeometry, estimate_text_width, effective_label_width};
+use super::geometry::{PlanViewGeometry, estimate_text_width, effective_label_width, split_two_line};
 
 /// Result of layout calculation
 #[derive(Debug, Clone)]
@@ -20,11 +20,6 @@ pub struct LayoutResult {
 
 /// Padding between label text center and dimension line.
 const LABEL_POSITION_PAD: f64 = 2.0;
-
-/// Whether a label will be rendered as two lines (contains ": ").
-fn is_two_line_label(label: &str) -> bool {
-    label.contains(": ")
-}
 
 /// Layout callouts for a plan view
 pub fn layout_plan_callouts(
@@ -124,9 +119,9 @@ fn layout_side(
         // Horizontal: only when alone on the side (more space available)
         // Vertical: always (rotated labels have more room along their axis)
         let is_two_line = if horizontal {
-            sorted.len() == 1 && is_two_line_label(&callout.label)
+            sorted.len() == 1 && split_two_line(&callout.label).is_some()
         } else {
-            is_two_line_label(&callout.label)
+            split_two_line(&callout.label).is_some()
         };
 
         let text_width = if is_two_line {
@@ -160,9 +155,7 @@ fn layout_side(
             // the dimension line it annotates. This also keeps the downward extent
             // compact, avoiding overlap with the thumbnail below.
             let bottom_align_shift = if is_two_line && callout.dimension_type == DimensionType::MatCutHeight {
-                if let Some(pos) = callout.label.find(": ") {
-                    let prefix_part = &callout.label[..pos + 1];
-                    let value_part = callout.label[pos + 2..].trim_start();
+                if let Some((prefix_part, value_part)) = split_two_line(&callout.label) {
                     let w_v = estimate_text_width(value_part, style.label_font_size);
                     let w_p = estimate_text_width(prefix_part, style.label_font_size);
                     (w_v - w_p).max(0.0) / 2.0
