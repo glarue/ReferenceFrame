@@ -1,7 +1,4 @@
 <svg viewBox="-81.71 196.06 553.43 191.88" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
-  </defs>
     <g id="section-content" transform="translate(-81.71, 0)">
 <g id="section-geometry">
     <rect x="163.32" y="286.80" width="67.85" height="6.73" stroke="#333333" stroke-width="0.5" fill="#B8D4E3"/>

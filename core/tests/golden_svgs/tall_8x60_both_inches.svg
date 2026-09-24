@@ -1,8 +1,5 @@
 <svg viewBox="0 0 800.00 600.00" xmlns="http://www.w3.org/2000/svg">
   <g id="plan-view" transform="translate(149.34, 4.49) scale(0.7368)">
-  <defs>
-    <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
-  </defs>
   <g id="rabbet-overlap">
     <path d="M332.55,77.63 h84.90 v217.73 h-84.90 Z M336.53,81.61 v209.78 h76.94 v-209.78 Z" fill="#90be6d" fill-opacity="0.15" fill-rule="evenodd" stroke="none"/>
   </g>
@@ -116,9 +113,6 @@
   </g>
 </g>
   <g id="section-view" transform="translate(-9.69, 310.15) scale(1.0242)">
-  <defs>
-    <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
-  </defs>
     <g id="section-content" transform="translate(2.50, 0)">
 <g id="section-geometry">
     <rect x="319.43" y="133.30" width="205.75" height="20.41" stroke="#333333" stroke-width="0.5" fill="#B8D4E3"/>

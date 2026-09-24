@@ -83,9 +83,6 @@ pub(crate) fn build_section_svg(
     ));
     svg.push('\n');
 
-    // Defs
-    svg.push_str(&generate_defs(style));
-
     // Section geometry
     svg.push_str("  <g id=\"section-geometry\">\n");
 

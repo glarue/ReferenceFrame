@@ -610,23 +610,6 @@ impl DimensionArrow {
 // SVG ELEMENT BUILDERS
 // ============================================================================
 
-/// Generate SVG defs (patterns, markers, etc.)
-pub(crate) fn generate_defs(_style: &DiagramStyle) -> String {
-    let mut defs = String::new();
-    defs.push_str("  <defs>\n");
-
-    // Hatching pattern for artwork (single diagonal)
-    defs.push_str("    <pattern id=\"hatch\" patternUnits=\"userSpaceOnUse\" width=\"4\" height=\"4\">");
-    defs.push_str("<path d=\"M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2\" stroke=\"#CCCCCC\" stroke-width=\"0.5\"/>");
-    defs.push_str("</pattern>\n");
-
-    // Note: Arrow markers removed - now using inline polygon elements for arrowheads
-    // This ensures compatibility with svg2pdf.js which doesn't support SVG markers.
-    // See generate_arrow_polygon() and generate_line_with_arrows() functions above.
-
-    defs.push_str("  </defs>\n");
-    defs
-}
 /// Generate SVG for a rectangle
 pub(crate) fn svg_rect(rect: &Rect, stroke: &str, stroke_width: f64, fill: Option<&str>) -> String {
     let fill_str = fill.unwrap_or("none");
@@ -688,25 +671,12 @@ pub(crate) fn extract_viewbox(svg: &str) -> Option<(f64, f64, f64, f64)> {
     None
 }
 
-/// Extract content from SVG (between opening and closing tags), preserving defs
+/// Extract the inner content of an SVG document (everything between the
+/// opening `<svg ...>` tag and `</svg>`), for nesting inside the combined view.
 pub(crate) fn extract_svg_content(svg: &str) -> String {
     if let Some(start) = svg.find('>') {
         if let Some(end) = svg.rfind("</svg>") {
-            let content = &svg[start + 1..end];
-            // Remove background rectangle to avoid overlay issues in combined view
-            // Background rect pattern: <rect fill="..." width="100%" height="100%"/>
-            // NOTE: plan/section views currently emit no such rect, so this never matches;
-            // it would strip ANY element starting with `<rect fill=` (audit: dead code).
-            // Preserve the <defs> section (patterns; arrows are inline polygons, not markers)
-            if let Some(bg_start) = content.find("<rect fill=") {
-                if let Some(bg_end) = content[bg_start..].find("/>") {
-                    // Extract parts: before rect (includes defs), and after rect
-                    let before_rect = &content[..bg_start];
-                    let after_rect = &content[bg_start + bg_end + 2..].trim_start();
-                    return format!("{}{}", before_rect, after_rect);
-                }
-            }
-            return content.to_string();
+            return svg[start + 1..end].to_string();
         }
     }
     svg.to_string()

@@ -1,7 +1,4 @@
 <svg viewBox="148.00 -6.10 394.77 641.88" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
-  </defs>
   <g id="rabbet-overlap">
     <path d="M299.18,85.85 h151.64 v502.31 h-151.64 Z M306.29,92.95 v488.09 h137.42 v-488.09 Z" fill="#90be6d" fill-opacity="0.15" fill-rule="evenodd" stroke="none"/>
   </g>

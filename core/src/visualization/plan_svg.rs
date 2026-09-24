@@ -443,9 +443,6 @@ pub(crate) fn build_plan_svg(
     ));
     svg.push('\n');
 
-    // Defs for patterns
-    svg.push_str(&generate_defs(style));
-
     let has_breaks = geometry.use_axis_break_x || geometry.use_axis_break_y;
 
     // Conditional color: what sits in the rabbet determines the content edge color

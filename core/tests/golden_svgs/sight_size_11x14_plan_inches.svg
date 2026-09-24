@@ -1,7 +1,4 @@
 <svg viewBox="67.06 -6.10 736.73 615.35" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
-  </defs>
   <g id="geometry">
     <rect x="76.31" y="74.00" width="647.38" height="526.00" stroke="#333333" stroke-width="2.5" fill="none"/>
     <rect x="116.77" y="114.46" width="566.46" height="445.08" stroke="#333333" stroke-width="2.5" fill="none"/>

@@ -1,8 +1,5 @@
 <svg viewBox="0 0 800.00 600.00" xmlns="http://www.w3.org/2000/svg">
   <g id="plan-view" transform="translate(76.29, 4.96) scale(0.8125)">
-  <defs>
-    <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
-  </defs>
   <g id="geometry">
     <rect x="284.50" y="71.00" width="231.00" height="231.00" stroke="#333333" stroke-width="2.5" fill="none"/>
     <rect x="287.34" y="73.84" width="225.31" height="225.31" stroke="#333333" stroke-width="2.5" fill="none"/>
@@ -109,9 +106,6 @@
   </g>
 </g>
   <g id="section-view" transform="translate(-9.69, 310.15) scale(1.0242)">
-  <defs>
-    <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
-  </defs>
     <g id="section-content" transform="translate(2.50, 0)">
 <g id="section-geometry">
     <rect x="319.43" y="133.30" width="205.75" height="20.41" stroke="#333333" stroke-width="0.5" fill="#B8D4E3"/>
