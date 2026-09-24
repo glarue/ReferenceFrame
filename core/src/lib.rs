@@ -28,16 +28,10 @@ pub mod weight;
 pub use frame::{FrameDesign, FrameStyle};
 pub use conversions::{Unit, format_value, inches_to_mm, mm_to_inches};
 pub use aspect_ratio::{
-    AspectLockState, get_aspect_ratio_display, get_aspect_ratio_display_from_ratio,
-    calculate_dimension_from_ratio, invert_ratio
+    AspectLockState, get_aspect_ratio_display, get_aspect_ratio_display_from_ratio, invert_ratio
 };
 pub use shareable_url::{ShareableParams, generate_shareable_url, decode_shareable_url, DecodeError};
 pub use validation::{ValidationConfig, ValidationResult, TypicalRanges, validate_design};
 pub use constraints::{apply_input_constraints, ConstraintAdjustment, ConstraintOutcome};
-pub use input_parser::{
-    DimensionInput,
-    // Legacy API (kept for backwards compatibility)
-    ParsedDimension, parse_dimension, decimal_to_fraction,
-    is_valid_dimension_input, get_common_fractions
-};
+pub use input_parser::{DimensionInput, decimal_to_fraction};
 pub use history::{HistoryEntry, DesignHistory, DEFAULT_MAX_ENTRIES};

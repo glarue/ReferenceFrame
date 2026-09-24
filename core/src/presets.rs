@@ -34,51 +34,6 @@ pub struct ColorPalette {
     pub semantic: HashMap<String, String>,
 }
 
-impl ColorPalette {
-    /// Get a color hex value by name (e.g., "teal", "primary", "gray_dark")
-    /// Returns the hex string without # prefix
-    pub fn get(&self, name: &str) -> Option<String> {
-        // Check semantic colors first. Values are palette keys ("blue"),
-        // variant references ("palette_dark.blue"), or direct hex.
-        if let Some(value) = self.semantic.get(name) {
-            let resolved = match value.split_once('.') {
-                Some(("palette_light", key)) => self.palette_light.get(key),
-                Some(("palette_dark", key)) => self.palette_dark.get(key),
-                Some(("palette", key)) => self.palette.get(key),
-                _ => self.palette.get(value),
-            };
-            return Some(resolved.unwrap_or(value).clone());
-        }
-
-        // Check main palette
-        if let Some(hex) = self.palette.get(name) {
-            return Some(hex.clone());
-        }
-
-        // Check light palette
-        if let Some(hex) = self.palette_light.get(name) {
-            return Some(hex.clone());
-        }
-
-        // Check dark palette
-        if let Some(hex) = self.palette_dark.get(name) {
-            return Some(hex.clone());
-        }
-
-        // Check neutrals
-        if let Some(hex) = self.neutrals.get(name) {
-            return Some(hex.clone());
-        }
-
-        None
-    }
-
-    /// Get color with # prefix for CSS/Flutter
-    pub fn get_hex(&self, name: &str) -> Option<String> {
-        self.get(name).map(|h| format!("#{}", h))
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Defaults {
     pub artwork_height: f64,
@@ -230,76 +185,6 @@ pub fn get_presets_json() -> &'static str {
     PRESETS_JSON
 }
 
-/// Short field names (left) mapped to canonical `FrameDesign` field names (right).
-///
-/// The short names are the PyScript-era category keys under `presets` in
-/// `data/presets.json`, and some platform UI code (web JS, Flutter) still uses
-/// them. New code should prefer the canonical (right-hand) field names.
-const FIELD_ALIASES: &[(&str, &str)] = &[
-    ("frame_face_width", "frame_material_width"),
-    ("frame_depth", "frame_material_depth"),
-    ("mat_width", "mat_width_top_bottom"), // also covers mat_width_sides
-    ("glazing", "glazing_thickness"),
-    ("matboard", "matboard_thickness"),
-    ("artwork", "artwork_thickness"),
-    ("backing", "backing_thickness"),
-];
-
-/// Resolve a field name through legacy aliases.
-/// Returns the canonical name if an alias matches, otherwise the input unchanged.
-fn resolve_field_alias(field: &str) -> &str {
-    for &(alias, canonical) in FIELD_ALIASES {
-        if field == alias {
-            return canonical;
-        }
-    }
-    field
-}
-
-/// Get preset values for a specific field
-pub fn get_preset_values(field: &str) -> &'static [f64] {
-    let presets = get_presets();
-    // Accept both legacy aliases and canonical names
-    match resolve_field_alias(field) {
-        "frame_material_width" => &presets.frame_face_width.values,
-        "frame_material_depth" => &presets.frame_depth.values,
-        "rabbet_width" => &presets.rabbet_width.values,
-        "rabbet_depth" => &presets.rabbet_depth.values,
-        "mat_width_top_bottom" | "mat_width_sides" => &presets.mat_width.values,
-        "mat_overlap" => &presets.mat_overlap.values,
-        "glazing_thickness" => &presets.glazing.values,
-        "matboard_thickness" => &presets.matboard.values,
-        "artwork_thickness" => &presets.artwork.values,
-        "backing_thickness" => &presets.backing.values,
-        "assembly_margin" => &presets.assembly_margin.values,
-        _ => &[],
-    }
-}
-
-/// Get default value for a specific field
-pub fn get_default_value(field: &str) -> Option<f64> {
-    let defaults = get_defaults();
-    // Accept both legacy aliases and canonical names
-    match resolve_field_alias(field) {
-        "artwork_height" => Some(defaults.artwork_height),
-        "artwork_width" => Some(defaults.artwork_width),
-        "frame_material_width" => Some(defaults.frame_material_width),
-        "frame_material_depth" => Some(defaults.frame_material_depth),
-        "rabbet_width" => Some(defaults.rabbet_width),
-        "rabbet_depth" => Some(defaults.rabbet_depth),
-        "mat_width_top_bottom" | "mat_width_sides" => Some(defaults.mat_width),
-        "mat_overlap" => Some(defaults.mat_overlap),
-        "glazing_thickness" => Some(defaults.glazing_thickness),
-        "matboard_thickness" => Some(defaults.matboard_thickness),
-        "artwork_thickness" => Some(defaults.artwork_thickness),
-        "backing_thickness" => Some(defaults.backing_thickness),
-        "assembly_margin" => Some(defaults.assembly_margin),
-        "blade_width" => Some(defaults.blade_width),
-        "wood_error_margin" => Some(defaults.wood_error_margin),
-        _ => None,
-    }
-}
-
 // ============================================================================
 // Color Access Functions
 // ============================================================================
@@ -307,22 +192,6 @@ pub fn get_default_value(field: &str) -> Option<f64> {
 /// Get the full color palette
 pub fn get_colors() -> &'static ColorPalette {
     &get_presets_data().colors
-}
-
-/// Get a color hex value by name (without # prefix)
-pub fn get_color(name: &str) -> Option<String> {
-    get_colors().get(name)
-}
-
-/// Get a color hex value with # prefix
-pub fn get_color_hex(name: &str) -> Option<String> {
-    get_colors().get_hex(name)
-}
-
-/// Get colors as JSON string for FFI
-pub fn get_colors_json() -> String {
-    let colors = get_colors();
-    serde_json::to_string(&colors).unwrap_or_else(|_| "{}".to_string())
 }
 
 #[cfg(test)]
@@ -343,13 +212,11 @@ mod tests {
         assert_eq!(defaults.frame_material_width, 0.75);
         // Total Wood margin: 1/16" per piece, shared by web and iOS
         assert_eq!(defaults.wood_error_margin, 0.0625);
-        assert_eq!(get_default_value("wood_error_margin"), Some(0.0625));
     }
 
     #[test]
-    fn test_get_preset_values() {
-        let backing = get_preset_values("backing_thickness");
-        assert!(backing.contains(&0.125));
+    fn test_preset_values_load() {
+        assert!(get_presets().backing.values.contains(&0.125));
     }
 
     #[test]
@@ -373,9 +240,9 @@ mod tests {
             assert!(colors.palette_dark.contains_key(name), "palette_dark missing {}", name);
         }
         // Spot-check hex values match the shipped platform palettes
-        assert_eq!(get_color("flag_red"), Some("D52023".to_string()));
-        assert_eq!(get_color("dark_cyan"), Some("478583".to_string()));
-        assert_eq!(get_color("air_force_blue"), Some("7890A5".to_string()));
+        assert_eq!(colors.palette["flag_red"], "D52023");
+        assert_eq!(colors.palette["dark_cyan"], "478583");
+        assert_eq!(colors.palette["air_force_blue"], "7890A5");
     }
 
     #[test]
@@ -385,21 +252,6 @@ mod tests {
         assert_eq!(limits.max_frame_width, 12.0);
         assert_eq!(limits.min_rabbet, 0.125);
         assert_eq!(limits.max_mat_overlap, 6.0);
-    }
-
-    #[test]
-    fn test_color_get() {
-        // Direct palette color
-        assert_eq!(get_color("teal"), Some("46AF8F".to_string()));
-        // Semantic color resolves to palette
-        assert_eq!(get_color("primary"), Some("577590".to_string()));
-        // Neutral color
-        assert_eq!(get_color("gray_dark"), Some("404040".to_string()));
-    }
-
-    #[test]
-    fn test_color_hex() {
-        assert_eq!(get_color_hex("teal"), Some("#46AF8F".to_string()));
     }
 
     #[test]
@@ -421,17 +273,23 @@ mod tests {
         for (category, palette_key) in expected {
             assert_eq!(colors.semantic.get(category).map(String::as_str), Some(palette_key),
                 "semantic.{category}");
-            // Every semantic entry resolves to a palette hex
-            assert_eq!(get_color(category), colors.palette.get(palette_key).cloned(), "{category}");
+            assert!(colors.palette.contains_key(palette_key), "{category} → unknown palette key");
         }
     }
 
     #[test]
-    fn test_semantic_variant_references_resolve() {
-        // Regression: "palette_dark.blue" used to come back verbatim
-        assert_eq!(get_color_hex("primary_dark"), Some("#3D5265".to_string()));
-        assert_eq!(get_color("secondary_dark"), Some("325D5C".to_string()));
-        // Long palette keys resolve too (the old resolver skipped keys > 12 chars)
-        assert_eq!(get_color("material_property"), Some("7890A5".to_string()));
+    fn test_semantic_variant_references_exist() {
+        // "palette_dark.x" / "palette_light.x" entries must name a real variant
+        let colors = get_colors();
+        for (category, value) in colors.semantic.iter().filter(|(k, _)| !k.starts_with('_')) {
+            if let Some((variant, key)) = value.split_once('.') {
+                let map = match variant {
+                    "palette_dark" => &colors.palette_dark,
+                    "palette_light" => &colors.palette_light,
+                    other => panic!("semantic.{category}: unknown variant {other}"),
+                };
+                assert!(map.contains_key(key), "semantic.{category} → {value}");
+            }
+        }
     }
 }

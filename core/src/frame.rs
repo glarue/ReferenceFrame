@@ -115,17 +115,6 @@ impl FrameDesign {
         }
     }
 
-    /// Apply the input-constraint policy in place with the default limits
-    /// (`ValidationConfig::default()`), discarding the adjustment notices.
-    ///
-    /// Callers that honor user-configured limits or show notices should use
-    /// `constraints::apply_input_constraints` directly. This is NOT validation
-    /// -- for errors/warnings use `validation::validate_design()`.
-    pub fn enforce_constraints(&mut self) {
-        let config = crate::validation::ValidationConfig::default();
-        *self = crate::constraints::apply_input_constraints(self, &config, false).design;
-    }
-
     /// Check if this design includes matting
     ///
     /// Only traditional rabbet frames use a mat; sight-size and float styles
@@ -249,15 +238,6 @@ impl FrameDesign {
         }
     }
 
-    /// Calculate mat border cut width
-    ///
-    /// Visual mat width + rabbet width (portion hidden under frame lip)
-    pub fn get_matboard_cut_dimensions(&self) -> (f64, f64) {
-        let top_bottom_cut = self.mat_width_top_bottom + self.rabbet_width;
-        let side_cut = self.mat_width_sides + self.rabbet_width;
-        (top_bottom_cut, side_cut)
-    }
-
     /// Calculate required rabbet z-axis depth based on material thicknesses
     pub fn get_rabbet_z_depth_required(&self) -> f64 {
         self.glazing_thickness
@@ -378,6 +358,12 @@ mod tests {
         );
     }
 
+    /// Apply the shared input-constraint policy with the default limits
+    fn constrain(d: &mut FrameDesign) {
+        let config = crate::validation::ValidationConfig::default();
+        *d = crate::constraints::apply_input_constraints(d, &config, false).design;
+    }
+
     fn assert_pair(actual: (f64, f64), expected: (f64, f64), label: &str) {
         assert_close(actual.0, expected.0, &format!("{label} height"));
         assert_close(actual.1, expected.1, &format!("{label} width"));
@@ -460,7 +446,6 @@ mod tests {
     // frame_inside     = visible                               = (11.75, 15.75)
     // frame_outside    = (11.75 + 2×0.75, 15.75 + 2×0.75)     = (13.25, 17.25)
     // matboard_size    = (11.75 + 2×0.375, 15.75 + 2×0.375)   = (12.5, 16.5)
-    // matboard_cut     = (2.0 + 0.375, 2.0 + 0.375)           = (2.375, 2.375)
 
     #[test]
     fn test_mat_opening_default() {
@@ -495,21 +480,6 @@ mod tests {
         let design = FrameDesign::default();
         assert_pair(design.get_matboard_dimensions(), (12.5, 16.5), "matboard_size");
     }
-
-    #[test]
-    fn test_matboard_cut_dimensions_default() {
-        let design = FrameDesign::default();
-        assert_pair(design.get_matboard_cut_dimensions(), (2.375, 2.375), "matboard_cut");
-    }
-
-    // ========================================================================
-    // Dimension calculations — no mat
-    // ========================================================================
-    //
-    // 8×12 artwork, no mat, 3/4" frame, 3/8" rabbet
-    //
-    // visible          = (8 - 2×0.375, 12 - 2×0.375) = (7.25, 11.25)
-    // frame_outside    = (7.25 + 2×0.75, 11.25 + 2×0.75) = (8.75, 12.75)
 
     #[test]
     fn test_visible_dimensions_no_mat() {
@@ -555,7 +525,6 @@ mod tests {
     // mat_opening  = (8 - 2×0.125, 12 - 2×0.125)        = (7.75, 11.75)
     // visible      = (7.75 + 2×3, 11.75 + 2×2)           = (13.75, 15.75)
     // frame_outside = (13.75 + 2×0.75, 15.75 + 2×0.75)   = (15.25, 17.25)
-    // matboard_cut = (3 + 0.375, 2 + 0.375)               = (3.375, 2.375)
 
     #[test]
     fn test_asymmetrical_mat_dimensions() {
@@ -566,7 +535,6 @@ mod tests {
 
         assert_pair(design.get_visible_dimensions(), (13.75, 15.75), "asym_visible");
         assert_pair(design.get_frame_outside_dimensions(), (15.25, 17.25), "asym_outside");
-        assert_pair(design.get_matboard_cut_dimensions(), (3.375, 2.375), "asym_cut");
     }
 
     // ========================================================================
@@ -701,7 +669,7 @@ mod tests {
     }
 
     // ========================================================================
-    // enforce_constraints()
+    // Input constraints (constraints::apply_input_constraints, default limits)
     // ========================================================================
 
     #[test]
@@ -710,7 +678,7 @@ mod tests {
         design.symmetrical_mat = true;
         design.mat_width_top_bottom = 3.0;
         design.mat_width_sides = 2.0; // different — should be overwritten
-        design.enforce_constraints();
+        constrain(&mut design);
         assert_close(design.mat_width_sides, 3.0, "symmetrical_enforced");
     }
 
@@ -719,7 +687,7 @@ mod tests {
         let mut design = FrameDesign::default();
         design.no_artwork_margin = true;
         design.mat_overlap = 0.5;
-        design.enforce_constraints();
+        constrain(&mut design);
         assert_close(design.mat_overlap, 0.0, "no_margin_clears_overlap");
     }
 
@@ -730,7 +698,7 @@ mod tests {
         design.rabbet_width = 1.5; // exceeds frame width
         design.frame_material_depth = 0.75;
         design.rabbet_depth = 1.5; // exceeds frame depth
-        design.enforce_constraints();
+        constrain(&mut design);
         // Default policy leaves a 1/8" lip and a 1/8" face (min_lip_width /
         // min_face_depth), not just "fits in the frame"
         assert_close(design.rabbet_width, 0.625, "rabbet_width_clamped");
@@ -744,7 +712,7 @@ mod tests {
         design.frame_material_depth = 0.0;
         design.rabbet_width = 0.0;
         design.rabbet_depth = 0.0;
-        design.enforce_constraints();
+        constrain(&mut design);
         // All should be clamped to 1/16"
         assert_close(design.frame_material_width, 0.0625, "min_frame_width");
         assert_close(design.frame_material_depth, 0.0625, "min_frame_depth");
@@ -756,7 +724,7 @@ mod tests {
     fn test_validate_mat_overlap_clamped() {
         let mut design = FrameDesign::new(4.0, 6.0);
         design.mat_overlap = 5.0; // way too big for 4×6 artwork
-        design.enforce_constraints();
+        constrain(&mut design);
         // max_overlap = min(4/2 - 0.125, 6/2 - 0.125) = min(1.875, 2.875) = 1.875
         assert_close(design.mat_overlap, 1.875, "overlap_clamped");
     }
@@ -770,7 +738,7 @@ mod tests {
         use crate::validation::{validate_design, ValidationConfig};
         let mut design = FrameDesign::default();
         design.frame_material_depth = 0.1; // way too shallow for the stack
-        design.enforce_constraints(); // clamps rabbet_depth ≤ frame_material_depth
+        constrain(&mut design); // clamps rabbet_depth ≤ frame_material_depth
         let result = validate_design(&design, &ValidationConfig::default(), false);
         let warnings = result.warnings();
         assert!(
@@ -836,13 +804,12 @@ mod tests {
     //
     // 8×12 artwork, no_artwork_margin=true, asymmetric mat (top/bottom 3", sides 2")
     //
-    // enforce_constraints: sets mat_overlap → 0
+    // input constraints: set mat_overlap → 0
     // mat_opening   = (8, 12)                     (equals artwork, no overlap)
     // visible       = (8 + 2×3, 12 + 2×2)        = (14, 16)
     // frame_inside  = visible                     = (14, 16)
     // frame_outside = (14 + 2×0.75, 16 + 2×0.75) = (15.5, 17.5)
     // matboard_size = (14 + 2×0.375, 16 + 2×0.375) = (14.75, 16.75)
-    // matboard_cut  = (3 + 0.375, 2 + 0.375)     = (3.375, 2.375)
 
     #[test]
     fn test_no_artwork_margin_with_asymmetric_mat() {
@@ -851,13 +818,12 @@ mod tests {
         design.symmetrical_mat = false;
         design.mat_width_top_bottom = 3.0;
         design.mat_width_sides = 2.0;
-        design.enforce_constraints();
+        constrain(&mut design);
 
         assert_pair(design.get_mat_opening_dimensions(), (8.0, 12.0), "no_margin_asym_opening");
         assert_pair(design.get_visible_dimensions(), (14.0, 16.0), "no_margin_asym_visible");
         assert_pair(design.get_frame_outside_dimensions(), (15.5, 17.5), "no_margin_asym_outside");
         assert_pair(design.get_matboard_dimensions(), (14.75, 16.75), "no_margin_asym_matboard");
-        assert_pair(design.get_matboard_cut_dimensions(), (3.375, 2.375), "no_margin_asym_cut");
     }
 
     #[test]
@@ -865,7 +831,7 @@ mod tests {
         // Verify the full chain: opening → visible → inside → outside stays consistent
         let mut design = FrameDesign::default();
         design.no_artwork_margin = true;
-        design.enforce_constraints();
+        constrain(&mut design);
 
         let (oh, ow) = design.get_mat_opening_dimensions();
         let (vh, vw) = design.get_visible_dimensions();
@@ -889,20 +855,6 @@ mod tests {
     // ========================================================================
     // Zero-value boundary conditions
     // ========================================================================
-
-    #[test]
-    fn test_zero_mat_width_with_nonzero_rabbet() {
-        // Mat width = 0 but rabbet exists: matboard_cut = 0 + rabbet
-        let mut design = FrameDesign::default();
-        design.mat_width_top_bottom = 0.0;
-        design.mat_width_sides = 0.0;
-        // has_mat() is false, but matboard_cut still uses the fields
-        assert_pair(
-            design.get_matboard_cut_dimensions(),
-            (design.rabbet_width, design.rabbet_width),
-            "zero_mat_cut",
-        );
-    }
 
     #[test]
     fn test_all_zero_material_thicknesses() {
@@ -930,12 +882,12 @@ mod tests {
     }
 
     #[test]
-    fn test_enforce_constraints_floors_at_minimum() {
-        // After enforce_constraints, zero inputs become MIN_DIMENSION
+    fn test_input_constraints_floor_at_minimum() {
+        // After the input constraints, zero inputs become the 1/16" minimum
         let mut design = FrameDesign::default();
         design.frame_material_width = 0.0;
         design.rabbet_width = 0.0;
-        design.enforce_constraints();
+        constrain(&mut design);
         // Calculations should still produce finite, positive results
         let (vh, vw) = design.get_visible_dimensions();
         assert!(vh > 0.0, "visible height should be positive after clamp");
@@ -1161,10 +1113,10 @@ mod tests {
     }
 
     #[test]
-    fn test_enforce_constraints_clamps_negative_float_reveal() {
+    fn test_input_constraints_clamp_negative_float_reveal() {
         let mut d = FrameDesign::default();
         d.float_reveal = -1.0;
-        d.enforce_constraints();
+        constrain(&mut d);
         assert_close(d.float_reveal, 0.0, "negative reveal clamped");
     }
 

@@ -45,16 +45,6 @@ impl DimensionInput {
         parse_input(input)
     }
 
-    /// Create from a decimal value
-    pub fn from_decimal(value: f64) -> DimensionInput {
-        DimensionInput {
-            value,
-            original: format_decimal(value),
-            was_fractional: false,
-            error: None,
-        }
-    }
-
     /// Get the decimal value
     pub fn value(&self) -> f64 {
         self.value
@@ -107,82 +97,6 @@ impl DimensionInput {
         format_decimal(self.value)
     }
 
-    /// Format based on unit system (fraction for inches, decimal for mm)
-    pub fn format(&self, use_fractions: bool, max_denominator: u32) -> String {
-        if use_fractions {
-            self.as_fraction(max_denominator)
-        } else {
-            self.as_decimal()
-        }
-    }
-
-    /// Add another dimension
-    pub fn add(&self, other: &DimensionInput) -> DimensionInput {
-        DimensionInput::from_decimal(self.value + other.value)
-    }
-
-    /// Subtract another dimension
-    pub fn subtract(&self, other: &DimensionInput) -> DimensionInput {
-        DimensionInput::from_decimal(self.value - other.value)
-    }
-
-    /// Multiply by a scalar
-    pub fn multiply(&self, scalar: f64) -> DimensionInput {
-        DimensionInput::from_decimal(self.value * scalar)
-    }
-
-    /// Divide by a scalar
-    ///
-    /// Dividing by zero is a no-op returning the value unchanged
-    pub fn divide(&self, scalar: f64) -> DimensionInput {
-        if scalar == 0.0 {
-            return self.clone();
-        }
-        DimensionInput::from_decimal(self.value / scalar)
-    }
-}
-
-// ============================================================================
-// Legacy API (for backwards compatibility)
-// ============================================================================
-
-/// Result of parsing a dimension input.
-/// Legacy API -- prefer `DimensionInput` for all new code. Retained because the
-/// mobile bridge (`parse_dimension` in `platforms/mobile/rust/src/api/simple.rs`)
-/// still calls it; the web UI uses `DimensionInput` directly.
-#[deprecated(since = "1.5.0", note = "Use DimensionInput instead")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ParsedDimension {
-    /// The decimal value
-    decimal: f64,
-    /// Normalized display string
-    display: String,
-    /// Whether the input contained a fraction
-    was_fractional: bool,
-    /// Error message if parsing failed
-    error: Option<String>,
-}
-
-impl ParsedDimension {
-    pub fn decimal(&self) -> f64 {
-        self.decimal
-    }
-
-    pub fn display(&self) -> &str {
-        &self.display
-    }
-
-    pub fn was_fractional(&self) -> bool {
-        self.was_fractional
-    }
-
-    pub fn error(&self) -> Option<&str> {
-        self.error.as_deref()
-    }
-
-    pub fn is_valid(&self) -> bool {
-        self.error.is_none()
-    }
 }
 
 /// Common fractions lookup table (denominator up to 64)
@@ -466,21 +380,6 @@ fn parse_input(input: &str) -> DimensionInput {
     }
 }
 
-/// Parse a dimension input string (legacy API)
-pub fn parse_dimension(input: &str) -> ParsedDimension {
-    let dim = parse_input(input);
-    ParsedDimension {
-        decimal: dim.value,
-        display: if dim.was_fractional {
-            format_mixed(dim.value)
-        } else {
-            format_decimal(dim.value)
-        },
-        was_fractional: dim.was_fractional,
-        error: dim.error,
-    }
-}
-
 /// Format a decimal value as a simple decimal string
 fn format_decimal(val: f64) -> String {
     if val == val.floor() {
@@ -490,11 +389,6 @@ fn format_decimal(val: f64) -> String {
         let s = format!("{:.6}", val);
         s.trim_end_matches('0').trim_end_matches('.').to_string()
     }
-}
-
-/// Format a decimal as a mixed fraction if possible
-fn format_mixed(val: f64) -> String {
-    decimal_to_fraction_impl(val, 64)
 }
 
 /// Internal implementation of decimal to fraction conversion
@@ -538,33 +432,10 @@ fn decimal_to_fraction_impl(val: f64, max_denominator: u32) -> String {
     }
 }
 
-/// Convert a decimal to the nearest common fraction (legacy API)
+/// Convert a decimal to the nearest common fraction (up to `max_denominator`),
+/// e.g. `1.75` → `"1 3/4"`; falls back to a trimmed decimal.
 pub fn decimal_to_fraction(val: f64, max_denominator: u32) -> String {
     decimal_to_fraction_impl(val, max_denominator)
-}
-
-/// Check if input is a valid dimension string
-pub fn is_valid_dimension_input(input: &str) -> bool {
-    let result = parse_dimension(input);
-    result.is_valid()
-}
-
-/// Get common fractions for a picker UI (returns JSON array)
-pub fn get_common_fractions(max_denominator: u32) -> String {
-    let fractions: Vec<serde_json::Value> = COMMON_FRACTIONS
-        .iter()
-        .filter(|(_, _, den)| *den <= max_denominator)
-        .map(|(decimal, num, den)| {
-            serde_json::json!({
-                "decimal": decimal,
-                "display": format!("{}/{}", num, den),
-                "numerator": num,
-                "denominator": den
-            })
-        })
-        .collect();
-    
-    serde_json::to_string(&fractions).unwrap_or_else(|_| "[]".to_string())
 }
 
 #[cfg(test)]
@@ -573,101 +444,101 @@ mod tests {
 
     #[test]
     fn test_integer() {
-        let r = parse_dimension("12");
+        let r = DimensionInput::new("12");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 12.0);
-        assert!(!r.was_fractional);
+        assert_eq!(r.value(), 12.0);
+        assert!(!r.was_fractional());
     }
 
     #[test]
     fn test_decimal() {
-        let r = parse_dimension("12.5");
+        let r = DimensionInput::new("12.5");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 12.5);
-        assert!(!r.was_fractional);
+        assert_eq!(r.value(), 12.5);
+        assert!(!r.was_fractional());
     }
 
     #[test]
     fn test_fraction_only() {
-        let r = parse_dimension("3/4");
+        let r = DimensionInput::new("3/4");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 0.75);
-        assert!(r.was_fractional);
+        assert_eq!(r.value(), 0.75);
+        assert!(r.was_fractional());
     }
 
     #[test]
     fn test_mixed_space() {
-        let r = parse_dimension("1 3/4");
+        let r = DimensionInput::new("1 3/4");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 1.75);
-        assert!(r.was_fractional);
+        assert_eq!(r.value(), 1.75);
+        assert!(r.was_fractional());
     }
 
     #[test]
     fn test_mixed_hyphen() {
-        let r = parse_dimension("1-3/4");
+        let r = DimensionInput::new("1-3/4");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 1.75);
-        assert!(r.was_fractional);
+        assert_eq!(r.value(), 1.75);
+        assert!(r.was_fractional());
     }
 
     #[test]
     fn test_mixed_plus() {
-        let r = parse_dimension("1+3/4");
+        let r = DimensionInput::new("1+3/4");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 1.75);
-        assert!(r.was_fractional);
+        assert_eq!(r.value(), 1.75);
+        assert!(r.was_fractional());
     }
 
     #[test]
     fn test_unicode_half() {
-        let r = parse_dimension("½");
+        let r = DimensionInput::new("½");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 0.5);
-        assert!(r.was_fractional);
+        assert_eq!(r.value(), 0.5);
+        assert!(r.was_fractional());
     }
 
     #[test]
     fn test_unicode_mixed() {
-        let r = parse_dimension("2½");
+        let r = DimensionInput::new("2½");
         assert!(r.is_valid());
-        assert!((r.decimal - 2.5).abs() < 0.001);
-        assert!(r.was_fractional);
+        assert!((r.value() - 2.5).abs() < 0.001);
+        assert!(r.was_fractional());
     }
 
     #[test]
     fn test_negative_mixed() {
-        let r = parse_dimension("-1 3/4");
+        let r = DimensionInput::new("-1 3/4");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, -1.75);
+        assert_eq!(r.value(), -1.75);
     }
 
     #[test]
     fn test_whitespace() {
-        let r = parse_dimension("  1   3/4  ");
+        let r = DimensionInput::new("  1   3/4  ");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 1.75);
+        assert_eq!(r.value(), 1.75);
     }
 
     #[test]
     fn test_reduce_fraction() {
-        let r = parse_dimension("2/4");
+        let r = DimensionInput::new("2/4");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 0.5);
-        assert_eq!(r.display, "1/2");
+        assert_eq!(r.value(), 0.5);
+        assert_eq!(r.as_fraction(64), "1/2");
     }
 
     #[test]
     fn test_division_by_zero() {
-        let r = parse_dimension("1/0");
+        let r = DimensionInput::new("1/0");
         assert!(!r.is_valid());
     }
 
     #[test]
     fn test_empty() {
-        let r = parse_dimension("");
+        let r = DimensionInput::new("");
         assert!(r.is_valid());
-        assert_eq!(r.decimal, 0.0);
+        assert_eq!(r.value(), 0.0);
     }
 
     #[test]
@@ -678,11 +549,11 @@ mod tests {
     }
 
     #[test]
-    fn test_format_mixed() {
-        assert_eq!(format_mixed(1.75), "1 3/4");
-        assert_eq!(format_mixed(0.5), "1/2");
-        assert_eq!(format_mixed(2.0), "2");
-        assert_eq!(format_mixed(-1.25), "-1 1/4");
+    fn test_decimal_to_fraction_64ths() {
+        assert_eq!(decimal_to_fraction(1.75, 64), "1 3/4");
+        assert_eq!(decimal_to_fraction(0.5, 64), "1/2");
+        assert_eq!(decimal_to_fraction(2.0, 64), "2");
+        assert_eq!(decimal_to_fraction(-1.25, 64), "-1 1/4");
     }
 
     // ==========================================
@@ -698,14 +569,6 @@ mod tests {
     }
 
     #[test]
-    fn test_dimension_input_from_decimal() {
-        let dim = DimensionInput::from_decimal(2.5);
-        assert!(dim.is_valid());
-        assert_eq!(dim.value(), 2.5);
-        assert!(!dim.was_fractional());
-    }
-
-    #[test]
     fn test_dimension_input_as_fraction() {
         let dim = DimensionInput::new("1.75");
         assert_eq!(dim.as_fraction(16), "1 3/4");
@@ -718,45 +581,11 @@ mod tests {
     }
 
     #[test]
-    fn test_dimension_input_format() {
-        let dim = DimensionInput::new("1 3/4");
-        assert_eq!(dim.format(true, 16), "1 3/4");
-        assert_eq!(dim.format(false, 16), "1.75");
-    }
-
-    #[test]
     fn test_dimension_input_parse() {
         let mut dim = DimensionInput::new("1");
         assert_eq!(dim.value(), 1.0);
         dim.parse("2 1/2");
         assert_eq!(dim.value(), 2.5);
-    }
-
-    #[test]
-    fn test_dimension_input_arithmetic() {
-        let a = DimensionInput::new("1 1/2");
-        let b = DimensionInput::new("3/4");
-        
-        let sum = a.add(&b);
-        assert_eq!(sum.value(), 2.25);
-        
-        let diff = a.subtract(&b);
-        assert_eq!(diff.value(), 0.75);
-        
-        let product = a.multiply(2.0);
-        assert_eq!(product.value(), 3.0);
-        
-        let quotient = a.divide(2.0);
-        assert_eq!(quotient.value(), 0.75);
-    }
-
-    #[test]
-    fn test_dimension_input_divide_by_zero_is_noop() {
-        let a = DimensionInput::new("1 1/2");
-        let result = a.divide(0.0);
-        assert!(result.is_valid());
-        assert_eq!(result.value(), 1.5); // Unchanged, not infinity/NaN
-        assert_eq!(result.original(), a.original());
     }
 
     #[test]
@@ -891,7 +720,6 @@ mod tests {
             let dim = DimensionInput::new(s);
             assert!(!dim.is_valid(), "{s:?} must be rejected");
             assert!(dim.value().is_finite(), "{s:?} must not leak a non-finite value");
-            assert!(!is_valid_dimension_input(s), "{s:?} rejected by the legacy API too");
         }
         // Large but finite values still parse
         assert!(DimensionInput::new("1e3").is_valid());

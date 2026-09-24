@@ -324,40 +324,19 @@ impl WasmValidationResult {
         self.inner.has_warnings()
     }
 
-    /// Check if design is valid (no hard errors)
-    pub fn is_valid(&self) -> bool {
-        self.inner.is_valid()
-    }
-
-    /// Get error count
-    pub fn error_count(&self) -> usize {
-        self.inner.errors().len()
-    }
-
-    /// Get warning count
-    pub fn warning_count(&self) -> usize {
-        self.inner.warnings().len()
-    }
-
     /// Get all issues as JSON string
     pub fn to_json(&self) -> Result<String, String> {
         serde_json::to_string(&self.inner)
             .map_err(|e| format!("Serialization error: {}", e))
     }
+}
 
-    /// Get errors only as JSON string
-    pub fn errors_json(&self) -> Result<String, String> {
-        let errors: Vec<_> = self.inner.errors().into_iter().cloned().collect();
-        serde_json::to_string(&errors)
-            .map_err(|e| format!("Serialization error: {}", e))
-    }
-
-    /// Get warnings only as JSON string
-    pub fn warnings_json(&self) -> Result<String, String> {
-        let warnings: Vec<_> = self.inner.warnings().into_iter().cloned().collect();
-        serde_json::to_string(&warnings)
-            .map_err(|e| format!("Serialization error: {}", e))
-    }
+/// Whether an opening larger than the artwork deserves a "will show gap"
+/// warning. Float frames reveal a deliberate gap around the art (opening =
+/// art + 2·float_reveal once Float Phase 2 lands), so the gap is the design,
+/// not a mistake.
+fn warns_on_artwork_gap(style: FrameStyle) -> bool {
+    style != FrameStyle::Float
 }
 
 /// Validate a frame design against the given configuration

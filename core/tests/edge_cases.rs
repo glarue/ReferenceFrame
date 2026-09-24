@@ -11,7 +11,9 @@
 //! in core/src/validation.rs and core/src/frame.rs and are NOT duplicated here.
 
 use referenceframe_core::conversions::{convert_to_tape_measure, Fraction, DEFAULT_DENOMS};
-use referenceframe_core::{inches_to_mm, mm_to_inches, validate_design, FrameDesign, ValidationConfig};
+use referenceframe_core::{
+    apply_input_constraints, inches_to_mm, mm_to_inches, validate_design, FrameDesign, ValidationConfig,
+};
 
 // ============================================================================
 // 1. mm <-> inches toggle misinterpretation
@@ -131,9 +133,9 @@ fn tape_measure_rounds_half_up_at_finest_denominator() {
 /// rejection tests below are meaningful (not just "everything is invalid").
 #[test]
 fn baseline_default_design_is_valid() {
-    let mut design = FrameDesign::new(11.0, 14.0);
-    design.enforce_constraints();
-    let result = validate_design(&design, &ValidationConfig::default(), false);
+    let config = ValidationConfig::default();
+    let design = apply_input_constraints(&FrameDesign::new(11.0, 14.0), &config, false).design;
+    let result = validate_design(&design, &config, false);
     assert!(result.is_valid(), "default 11x14 should be valid: {:?}", result.issues);
 }
 

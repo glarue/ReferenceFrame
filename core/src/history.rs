@@ -43,12 +43,6 @@ impl HistoryEntry {
         }
     }
 
-    /// Create entry with auto-generated title based on artwork dimensions
-    pub fn with_auto_title(design: FrameDesign, timestamp: i64, use_mm: bool) -> Self {
-        let title = Self::generate_title(&design, use_mm);
-        Self::new(design, timestamp, title)
-    }
-
     /// Generate a default title from the artwork dimensions (height × width)
     /// in the user's unit, using the shared formatter: `8 1/2" × 11" Frame`
     /// or `215.9 mm × 279.4 mm Frame`. (Titles used to be one-decimal inches,
@@ -118,15 +112,6 @@ impl DesignHistory {
         }
     }
 
-    /// Create empty history with custom max entries
-    pub fn with_max_entries(max_entries: usize) -> Self {
-        Self {
-            version: HISTORY_VERSION,
-            entries: Vec::new(),
-            max_entries: max_entries.max(1), // At least 1 entry
-        }
-    }
-
     /// Add a new entry to the history
     ///
     /// If an identical design already exists and `force_new` is false, adds the
@@ -193,11 +178,6 @@ impl DesignHistory {
         }
     }
 
-    /// Clear all entries
-    pub fn clear(&mut self) {
-        self.entries.clear();
-    }
-
     /// Get number of entries
     pub fn len(&self) -> usize {
         self.entries.len()
@@ -225,11 +205,6 @@ impl DesignHistory {
         }
     }
 
-    /// Set new max entries limit (enforces immediately if over limit)
-    pub fn set_max_entries(&mut self, max: usize) {
-        self.max_entries = max.max(1);
-        self.enforce_limit();
-    }
 }
 
 #[cfg(test)]
@@ -349,7 +324,6 @@ mod tests {
     fn test_auto_title_uses_fractions() {
         let design = FrameDesign::new(8.5, 11.75);
         assert_eq!(HistoryEntry::generate_title(&design, false), "8 1/2\" × 11 3/4\" Frame");
-        assert_eq!(HistoryEntry::with_auto_title(design, 1, false).title, "8 1/2\" × 11 3/4\" Frame");
     }
 
     #[test]
@@ -375,7 +349,8 @@ mod tests {
 
     #[test]
     fn test_max_entries_enforcement() {
-        let mut history = DesignHistory::with_max_entries(3);
+        // The cap comes from max_entries (DEFAULT_MAX_ENTRIES, or stored JSON)
+        let mut history = DesignHistory { max_entries: 3, ..DesignHistory::new() };
 
         for i in 0..5 {
             let mut design = create_test_design();
@@ -429,22 +404,6 @@ mod tests {
     }
 
     #[test]
-    fn test_clear() {
-        let mut history = DesignHistory::new();
-
-        let mut design1 = create_test_design();
-        let mut design2 = create_test_design();
-        design1.artwork_height = 10.0;
-        design2.artwork_height = 11.0;
-
-        history.add_entry(design1, 1000, "Test".to_string(), false);
-        history.add_entry(design2, 2000, "Test 2".to_string(), false);
-
-        history.clear();
-        assert!(history.is_empty());
-    }
-
-    #[test]
     fn test_version_defaults_for_legacy_json() {
         // History saved before the version field existed must load as version 1
         let json = r#"{"entries": [], "max_entries": 50}"#;
@@ -456,7 +415,6 @@ mod tests {
     #[test]
     fn test_new_history_carries_current_version() {
         assert_eq!(DesignHistory::new().version, HISTORY_VERSION);
-        assert_eq!(DesignHistory::with_max_entries(5).version, HISTORY_VERSION);
     }
 
     #[test]
@@ -474,21 +432,6 @@ mod tests {
         assert_eq!(restored.len(), 1);
         assert_eq!(restored.get(0).unwrap().title, "Test Design");
         assert_eq!(restored.get(0).unwrap().save_count(), 2);
-    }
-
-    #[test]
-    fn test_set_max_entries() {
-        let mut history = DesignHistory::new();
-
-        for i in 0..10 {
-            let mut design = create_test_design();
-            design.artwork_height = i as f64;
-            history.add_entry(design, i as i64, format!("Design {}", i), false);
-        }
-
-        history.set_max_entries(5);
-        assert_eq!(history.len(), 5);
-        assert_eq!(history.max_entries, 5);
     }
 
     #[test]

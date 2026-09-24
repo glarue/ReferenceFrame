@@ -64,32 +64,6 @@ pub fn get_aspect_ratio_display(height: f64, width: f64) -> String {
     get_aspect_ratio_display_from_ratio(ratio)
 }
 
-/// Calculate the unknown dimension given one dimension and the aspect ratio
-///
-/// Returns 0.0 for a zero ratio (consistent with `invert_ratio` and the
-/// multiplication branch, which yields 0.0 naturally).
-///
-/// # Arguments
-/// * `known_value` - The known dimension value
-/// * `ratio` - The aspect ratio (height/width)
-/// * `known_is_height` - True if known_value is the height, False if width
-pub fn calculate_dimension_from_ratio(
-    known_value: f64,
-    ratio: f64,
-    known_is_height: bool,
-) -> f64 {
-    if ratio == 0.0 {
-        return 0.0;
-    }
-    if known_is_height {
-        // height = ratio * width, so width = height / ratio
-        known_value / ratio
-    } else {
-        // height = ratio * width
-        known_value * ratio
-    }
-}
-
 /// Invert an aspect ratio (for when orientation is swapped)
 pub fn invert_ratio(ratio: f64) -> f64 {
     if ratio == 0.0 {
@@ -244,24 +218,6 @@ mod tests {
         assert_eq!(get_aspect_ratio_display_from_ratio(0.4), "1:2.50");
         // 0.25 → 1:4
         assert_eq!(get_aspect_ratio_display_from_ratio(0.25), "1:4");
-    }
-
-    #[test]
-    fn test_calculate_dimension_from_ratio() {
-        // Known height, find width: width = height / ratio
-        let width = calculate_dimension_from_ratio(12.0, 1.5, true);
-        assert!((width - 8.0).abs() < 0.001);
-
-        // Known width, find height: height = width * ratio
-        let height = calculate_dimension_from_ratio(8.0, 1.5, false);
-        assert!((height - 12.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_calculate_dimension_from_ratio_zero_returns_zero() {
-        // Zero ratio is guarded — returns 0.0 instead of dividing by zero
-        assert_eq!(calculate_dimension_from_ratio(10.0, 0.0, true), 0.0);
-        assert_eq!(calculate_dimension_from_ratio(10.0, 0.0, false), 0.0);
     }
 
     #[test]

@@ -34,16 +34,6 @@ impl VersionInfo {
         }
     }
 
-    /// Get just the core version
-    pub fn core_only() -> Self {
-        Self {
-            core: CORE_VERSION.to_string(),
-            platform: String::new(),
-            platform_name: String::new(),
-            build: None,
-        }
-    }
-
     /// Format as display string (e.g., "Core 1.0.0 | iOS 1.2.0 (build 15)")
     pub fn display(&self) -> String {
         let mut parts = vec![format!("Core {}", self.core)];
@@ -58,11 +48,6 @@ impl VersionInfo {
         }
 
         parts.join(" | ")
-    }
-
-    /// Convert to JSON string
-    pub fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
     }
 }
 
