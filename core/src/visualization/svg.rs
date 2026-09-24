@@ -135,14 +135,14 @@ fn collect_arrow_stub_elements(
     style: &DiagramStyle,
 ) {
     let arrow_tip_size = arrow_geometry::tip_extension(style.dimension_stroke_width);
-    let stub_len = arrow_tip_size * 2.5;
+    let stub_len = arrow_stub_len(style.dimension_stroke_width);
 
     for (i, pc) in layout.positioned_callouts.iter().enumerate() {
         if pc.actual_side != Side::Bottom {
             continue;
         }
         let extent_span = (pc.callout.extent_end.x - pc.callout.extent_start.x).abs();
-        let tight_space = extent_span < arrow_tip_size * TIGHT_SPACE_MULTIPLIER;
+        let tight_space = is_tight_space(extent_span, style.dimension_stroke_width, TIGHT_SPACE_MULTIPLIER);
         if !tight_space {
             continue;
         }

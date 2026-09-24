@@ -131,8 +131,25 @@ pub(crate) const BASELINE_SHIFT_RATIO: f64 = 0.35;     // Vertical centering shi
 
 // === Tight-Space Dimension Arrows ===
 // Arrows flip outside when span < multiplier * arrow-tip length (tip_extension =
-// MARKER_WIDTH * stroke). Used by plan callouts + collision stubs; DimensionArrow uses 2.5.
+// MARKER_WIDTH * stroke) — see `is_tight_space`. The two thresholds differ
+// historically; unifying them would change rendered output.
+/// Plan-view callouts (`svg_dimension`) and their collision-pass stubs.
 pub(crate) const TIGHT_SPACE_MULTIPLIER: f64 = 3.0;
+/// `DimensionArrow` (corner-detail inset dimensions).
+pub(crate) const DIMENSION_ARROW_TIGHT_MULTIPLIER: f64 = 2.5;
+/// Outward arrow stub length, in arrow-tip lengths (all tight-space sites).
+pub(crate) const ARROW_STUB_LEN_MULTIPLIER: f64 = 2.5;
+
+/// Whether a dimension span is too narrow for inward-pointing arrows, so the
+/// renderer should draw outward stubs instead.
+pub(crate) fn is_tight_space(span: f64, stroke_width: f64, multiplier: f64) -> bool {
+    span < arrow_geometry::tip_extension(stroke_width) * multiplier
+}
+
+/// Length of an outward arrow stub drawn in tight-space mode.
+pub(crate) fn arrow_stub_len(stroke_width: f64) -> f64 {
+    arrow_geometry::tip_extension(stroke_width) * ARROW_STUB_LEN_MULTIPLIER
+}
 
 // ============================================================================
 // AXIS BREAK HELPERS
@@ -485,10 +502,9 @@ impl DimensionArrow {
         }
 
         // ---- Dimension line with arrows ----
-        let tip_ext = arrow_geometry::tip_extension(self.arrow_stroke_width);
         let gap = (t_end - t_start).abs();
 
-        if gap > tip_ext * 2.5 {
+        if !is_tight_space(gap, self.arrow_stroke_width, DIMENSION_ARROW_TIGHT_MULTIPLIER) {
             // Normal arrows
             if self.horizontal {
                 let x1 = arrow_line_endpoint_for_target(t_start, self.arrow_stroke_width, true);
@@ -509,7 +525,7 @@ impl DimensionArrow {
             }
         } else {
             // Gap too small for inward arrows — use outward-pointing arrows
-            let stub_len = tip_ext * 2.5;
+            let stub_len = arrow_stub_len(self.arrow_stroke_width);
             if self.horizontal {
                 // Left arrow: stub pointing inward (right) from outside-left
                 let left_start = t_start - stub_len;

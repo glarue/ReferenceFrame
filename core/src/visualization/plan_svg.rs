@@ -1146,8 +1146,7 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
     // --- Dimension line with arrows ---
     // When space is too tight for inward-pointing arrows, flip to outward-pointing
     let extent_span = (along_end - along_start).abs();
-    let arrow_tip_size = arrow_geometry::tip_extension(style.dimension_stroke_width);
-    let tight_space = extent_span < arrow_tip_size * TIGHT_SPACE_MULTIPLIER;
+    let tight_space = is_tight_space(extent_span, style.dimension_stroke_width, TIGHT_SPACE_MULTIPLIER);
 
     // arrow_line_endpoint_for_target and _y do identical math; use the x variant generically
     let line_along1 = arrow_line_endpoint_for_target(along_start, style.dimension_stroke_width, true);
@@ -1155,7 +1154,7 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
 
     if tight_space {
         // Outward-pointing arrows: short stubs extending outward from extension lines
-        let stub_len = arrow_tip_size * 2.5;
+        let stub_len = arrow_stub_len(style.dimension_stroke_width);
         // Start-side arrow: points inward from outside
         let start_stub_start = along_start - stub_len;
         let start_stub_end = arrow_line_endpoint_for_target(along_start, style.dimension_stroke_width, false);
