@@ -356,12 +356,11 @@ fn apply_collision_adjustments(
             }
             ElementId::Callout(idx) => {
                 if let Some(pc) = layout.positioned_callouts.get_mut(idx) {
+                    // Moves label, mask, bounds, and (along the side's normal)
+                    // the dimension line — dy for top/bottom, dx for left/right.
                     let dx = adj.new_bounds.x - pc.label_bounds.x;
                     let dy = adj.new_bounds.y - pc.label_bounds.y;
-                    pc.label_bounds = adj.new_bounds;
-                    pc.label_position.x += dx;
-                    pc.label_position.y += dy;
-                    pc.dimension_line_position += dy;
+                    pc.translate(dx, dy);
                 }
             }
             ElementId::ArrowStub { .. } => {}

@@ -288,11 +288,6 @@ impl DiagramStyle {
         self.label_font_size * 1.2
     }
 
-    /// Two line height for labels
-    pub(crate) fn two_line_height(&self) -> f64 {
-        self.label_font_size * 2.4
-    }
-
     /// Material label font size (subordinate to primary labels)
     pub(crate) fn material_label_font_size(&self) -> f64 {
         self.label_font_size * 0.85
@@ -319,7 +314,7 @@ impl DiagramStyle {
     }
 
     /// Estimated height of a two-line label bounding box (for collision/bounds).
-    /// Distinct from `two_line_height()` (× 2.4) which is for rendering.
+    /// Used by geometry's pre-layout estimates (mat cut label reservation).
     pub(crate) fn two_line_label_bounds_height(&self) -> f64 {
         self.label_font_size * 2.5
     }
@@ -463,13 +458,5 @@ mod tests {
         let style = DiagramStyle::default();
         assert!(style.label_offset() > 0.0,
             "label_offset should be positive, got {}", style.label_offset());
-    }
-
-    #[test]
-    fn test_two_line_height_greater_than_single() {
-        let style = DiagramStyle::default();
-        assert!(style.two_line_height() > style.single_line_height(),
-            "two_line_height ({}) should exceed single_line_height ({})",
-            style.two_line_height(), style.single_line_height());
     }
 }

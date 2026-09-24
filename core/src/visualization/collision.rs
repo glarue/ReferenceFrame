@@ -152,6 +152,11 @@ pub fn resolve(
 }
 
 /// Compute how far to shift the flex element along its axis to clear the fixed element.
+///
+/// Each candidate is clamped to its own direction (a "move left" never moves
+/// right, and vice versa). Without that, a pair that is within `margin` but
+/// not actually overlapping yields a candidate pointing *toward* the fixed
+/// element, which the resolver would happily apply.
 fn compute_shift(
     fixed: &Rect,
     flex: &Rect,
@@ -159,34 +164,25 @@ fn compute_shift(
     range: (f64, f64),
     margin: f64,
 ) -> f64 {
-    match axis {
-        Axis::X => {
-            // Determine which direction clears faster
-            let shift_left = fixed.left() - margin - flex.right(); // negative
-            let shift_right = fixed.right() + margin - flex.left(); // positive
+    let (to_negative, to_positive) = match axis {
+        Axis::X => (
+            (fixed.left() - margin - flex.right()).min(0.0),
+            (fixed.right() + margin - flex.left()).max(0.0),
+        ),
+        Axis::Y => (
+            (fixed.top() - margin - flex.bottom()).min(0.0),
+            (fixed.bottom() + margin - flex.top()).max(0.0),
+        ),
+    };
 
-            // Pick the smaller absolute shift
-            let shift = if shift_left.abs() < shift_right.abs() {
-                shift_left
-            } else {
-                shift_right
-            };
+    // Pick the smaller absolute shift
+    let shift = if to_negative.abs() < to_positive.abs() {
+        to_negative
+    } else {
+        to_positive
+    };
 
-            shift.clamp(range.0, range.1)
-        }
-        Axis::Y => {
-            let shift_up = fixed.top() - margin - flex.bottom(); // negative
-            let shift_down = fixed.bottom() + margin - flex.top(); // positive
-
-            let shift = if shift_up.abs() < shift_down.abs() {
-                shift_up
-            } else {
-                shift_down
-            };
-
-            shift.clamp(range.0, range.1)
-        }
-    }
+    shift.clamp(range.0, range.1)
 }
 
 /// Apply a shift to a flex element's bounds.

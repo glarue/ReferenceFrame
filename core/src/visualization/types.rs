@@ -52,6 +52,20 @@ impl Rect {
         self.x + self.width
     }
 
+    /// Smallest rect containing both this rect and `other`
+    pub fn union(&self, other: &Rect) -> Self {
+        let min_x = self.left().min(other.left());
+        let min_y = self.top().min(other.top());
+        let max_x = self.right().max(other.right());
+        let max_y = self.bottom().max(other.bottom());
+        Self::new(min_x, min_y, max_x - min_x, max_y - min_y)
+    }
+
+    /// This rect moved by (dx, dy)
+    pub fn translated(&self, dx: f64, dy: f64) -> Self {
+        Self::new(self.x + dx, self.y + dy, self.width, self.height)
+    }
+
     /// Check if this rect overlaps with another
     pub fn overlaps(&self, other: &Rect) -> bool {
         self.left() < other.right()
@@ -263,6 +277,31 @@ pub enum TextAnchor {
     End,
 }
 
+/// One rendered line of a callout label.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LabelLine {
+    pub text: String,
+    /// Horizontal labels: (anchor x, visual center y).
+    /// Rotated (vertical-side) labels: (visual center x, anchor y), with the
+    /// text reading top-to-bottom along +y after `rotate(90)`.
+    pub pos: Point,
+}
+
+/// Where a callout's label is drawn — computed once by layout and consumed
+/// as-is by the renderer (`plan_svg::svg_dimension`), so collision
+/// resolution, viewBox bounds, and the SVG all use the same geometry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LabelPlacement {
+    /// 1 line, or 2 for "Prefix: value" labels (prefix first)
+    pub lines: Vec<LabelLine>,
+    /// Text anchor along the reading direction
+    pub anchor: TextAnchor,
+    /// Vertical-side labels are rotated 90° (read top-to-bottom)
+    pub rotated: bool,
+    /// Background mask that breaks the dimension line under the label
+    pub mask: Rect,
+}
+
 /// A positioned callout with computed layout
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionedCallout {
@@ -277,14 +316,27 @@ pub struct PositionedCallout {
     /// Position of the dimension line
     pub dimension_line_position: f64,
 
-    /// Label center position
-    pub label_position: Point,
+    /// Exactly where the label text and its mask are drawn
+    pub label: LabelPlacement,
 
-    /// Text anchor for the label
-    pub label_anchor: TextAnchor,
-
-    /// Bounding box of the label (for collision detection)
+    /// Visual bounds of the label (text lines ∪ mask), used for collision
+    /// detection and viewBox fitting
     pub label_bounds: Rect,
+}
+
+impl PositionedCallout {
+    /// Move the label (and, along the side's normal, the dimension line) by
+    /// (dx, dy). Used to apply collision-pass shifts: horizontal sides move in
+    /// Y, vertical sides in X.
+    pub fn translate(&mut self, dx: f64, dy: f64) {
+        self.dimension_line_position += if self.actual_side.is_horizontal() { dy } else { dx };
+        for line in &mut self.label.lines {
+            line.pos.x += dx;
+            line.pos.y += dy;
+        }
+        self.label.mask = self.label.mask.translated(dx, dy);
+        self.label_bounds = self.label_bounds.translated(dx, dy);
+    }
 }
 
 /// Options for diagram generation

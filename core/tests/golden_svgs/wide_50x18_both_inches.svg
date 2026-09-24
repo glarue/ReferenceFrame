@@ -1,5 +1,5 @@
 <svg viewBox="0 0 800.00 600.00" xmlns="http://www.w3.org/2000/svg">
-  <g id="plan-view" transform="translate(78.62, 6.13) scale(0.7574)">
+  <g id="plan-view" transform="translate(80.21, 4.64) scale(0.7613)">
   <defs>
     <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
   </defs>
@@ -55,14 +55,14 @@
           <polygon points="757.50,69.75 755.62,75.75 759.38,75.75" fill="#577590" data-arrow="true"/>
           <polygon points="757.50,303.25 759.38,297.25 755.62,297.25" fill="#577590" data-arrow="true"/>
     </g>
-      <text transform="translate(400.00, 41.20)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Inside:</text>
-      <text transform="translate(400.00, 56.80)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">49 1/4&quot;</text>
-      <text transform="translate(400.00, 5.40)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Outside:</text>
-      <text transform="translate(400.00, 21.00)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">51 1/4&quot;</text>
-      <text transform="rotate(90 737.30 186.50)" x="737.30" y="186.50" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Inside:</text>
-      <text transform="rotate(90 721.70 186.50)" x="721.70" y="186.50" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">17 1/4&quot;</text>
-      <text transform="rotate(90 773.10 186.50)" x="773.10" y="186.50" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Outside:</text>
-      <text transform="rotate(90 757.50 186.50)" x="757.50" y="186.50" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">19 1/4&quot;</text>
+      <text transform="translate(400.00, 45.75)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
+      <text transform="translate(400.00, 61.35)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">49 1/4&quot;</text>
+      <text transform="translate(400.00, 9.95)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
+      <text transform="translate(400.00, 25.55)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">51 1/4&quot;</text>
+      <text transform="rotate(90 737.30 186.50)" x="737.30" y="191.05" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
+      <text transform="rotate(90 721.70 186.50)" x="721.70" y="191.05" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">17 1/4&quot;</text>
+      <text transform="rotate(90 773.10 186.50)" x="773.10" y="191.05" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
+      <text transform="rotate(90 757.50 186.50)" x="757.50" y="191.05" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">19 1/4&quot;</text>
   </g>
   <g id="artwork-indicator">
     <polygon points="100.20,186.50 104.40,187.81 104.40,185.19" fill="#90be6d" data-arrow="true"/>

@@ -1,5 +1,5 @@
 <svg viewBox="0 0 800.00 600.00" xmlns="http://www.w3.org/2000/svg">
-  <g id="plan-view" transform="translate(-57.32, 6.79) scale(0.8381)">
+  <g id="plan-view" transform="translate(-82.08, 5.36) scale(0.8786)">
   <defs>
     <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4"><path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#CCCCCC" stroke-width="0.5"/></pattern>
   </defs>
@@ -74,14 +74,14 @@
           <polygon points="559.35,69.75 557.48,75.75 561.23,75.75" fill="#577590" data-arrow="true"/>
           <polygon points="559.35,258.25 561.23,252.25 557.48,252.25" fill="#577590" data-arrow="true"/>
     </g>
-      <text transform="translate(400.00, 41.20)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Inside:</text>
-      <text transform="translate(400.00, 56.80)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">23 3/4&quot;</text>
-      <text transform="translate(400.00, 5.40)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Outside:</text>
-      <text transform="translate(400.00, 21.00)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">26 3/4&quot;</text>
-      <text transform="rotate(90 539.15 164.00)" x="539.15" y="164.00" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Inside:</text>
-      <text transform="rotate(90 523.55 164.00)" x="523.55" y="164.00" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">19 3/4&quot;</text>
-      <text transform="rotate(90 574.95 164.00)" x="574.95" y="164.00" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">Outside:</text>
-      <text transform="rotate(90 559.35 164.00)" x="559.35" y="164.00" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" dominant-baseline="central">22 3/4&quot;</text>
+      <text transform="translate(400.00, 45.75)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
+      <text transform="translate(400.00, 61.35)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">23 3/4&quot;</text>
+      <text transform="translate(400.00, 9.95)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
+      <text transform="translate(400.00, 25.55)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">26 3/4&quot;</text>
+      <text transform="rotate(90 539.15 164.00)" x="539.15" y="168.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
+      <text transform="rotate(90 523.55 164.00)" x="523.55" y="168.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">19 3/4&quot;</text>
+      <text transform="rotate(90 574.95 164.00)" x="574.95" y="168.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
+      <text transform="rotate(90 559.35 164.00)" x="559.35" y="168.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">22 3/4&quot;</text>
   </g>
   <g id="artwork-indicator">
     <polygon points="318.44,164.00 322.64,165.31 322.64,162.69" fill="#90be6d" data-arrow="true"/>
@@ -141,20 +141,20 @@
     </g>
   </g>
   <g id="mat-cut-labels">
-      <text transform="translate(479.99, 303.70)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="start" dominant-baseline="central">Mat Cut:</text>
-      <text transform="translate(479.99, 319.30)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="start" dominant-baseline="central">2 3/8&quot; (2&quot; visible)</text>
+      <text transform="translate(479.99, 308.25)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="start">Mat Cut:</text>
+      <text transform="translate(479.99, 323.85)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="start">2 3/8&quot; (2&quot; visible)</text>
   </g>
   <g id="overlay-card">
-    <rect x="616.28" y="71.00" width="247.06" height="106.00" fill="#FFFFFF" stroke="#999" stroke-width="0.75" rx="4"/>
-    <text transform="translate(739.81, 85.00)" fill="#555" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="10.8" font-weight="bold" text-anchor="middle">Joinery &amp; Hanging</text>
-    <rect x="626.28" y="97.00" width="7" height="7" rx="1.5" fill="#f3722c"/>
-    <text transform="translate(638.28, 104.70)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">hook 1.80" below top</text>
-    <rect x="626.28" y="116.00" width="7" height="7" rx="1.5" fill="#577590"/>
-    <text transform="translate(638.28, 123.70)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">hangers 7.58" from top</text>
-    <rect x="626.28" y="135.00" width="7" height="7" rx="1.5" fill="#577590"/>
-    <text transform="translate(638.28, 142.70)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">wire cut 33.78"</text>
-    <rect x="626.28" y="154.00" width="7" height="7" rx="1.5" fill="#46af8f"/>
-    <text transform="translate(638.28, 161.70)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">spline slots (dashed) · max 1" deep</text>
+    <rect x="622.28" y="71.00" width="247.06" height="106.00" fill="#FFFFFF" stroke="#999" stroke-width="0.75" rx="4"/>
+    <text transform="translate(745.81, 85.00)" fill="#555" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="10.8" font-weight="bold" text-anchor="middle">Joinery &amp; Hanging</text>
+    <rect x="632.28" y="97.00" width="7" height="7" rx="1.5" fill="#f3722c"/>
+    <text transform="translate(644.28, 104.70)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">hook 1.80" below top</text>
+    <rect x="632.28" y="116.00" width="7" height="7" rx="1.5" fill="#577590"/>
+    <text transform="translate(644.28, 123.70)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">hangers 7.58" from top</text>
+    <rect x="632.28" y="135.00" width="7" height="7" rx="1.5" fill="#577590"/>
+    <text transform="translate(644.28, 142.70)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">wire cut 33.78"</text>
+    <rect x="632.28" y="154.00" width="7" height="7" rx="1.5" fill="#46af8f"/>
+    <text transform="translate(644.28, 161.70)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12px" text-anchor="start">spline slots (dashed) · max 1" deep</text>
   </g>
 </g>
   <g id="section-view" transform="translate(-9.68, 310.15) scale(1.0242)">
