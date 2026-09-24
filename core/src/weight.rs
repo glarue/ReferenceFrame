@@ -100,6 +100,26 @@ impl Default for WeightParams {
     }
 }
 
+impl WeightParams {
+    /// The defaults with the named materials-index entries swapped in:
+    /// `wood` from `woods`, `glazing`/`backing` from `sheet`. A missing or
+    /// unknown key keeps that component's default.
+    pub fn from_material_keys(wood: Option<&str>, glazing: Option<&str>, backing: Option<&str>) -> Self {
+        let m = crate::presets::get_materials();
+        let mut params = Self::default();
+        if let Some(spec) = wood.and_then(|k| m.woods.get(k)) {
+            params.wood = spec.into();
+        }
+        if let Some(spec) = glazing.and_then(|k| m.sheet.get(k)) {
+            params.glazing = spec.into();
+        }
+        if let Some(spec) = backing.and_then(|k| m.sheet.get(k)) {
+            params.backing = spec.into();
+        }
+        params
+    }
+}
+
 /// Wire tension for the estimated weight at the current hanging geometry.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TensionEstimate {

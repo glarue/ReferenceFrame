@@ -23,6 +23,7 @@ pub mod history;
 pub mod joinery;
 pub mod hanging;
 pub mod weight;
+pub mod overlay_params;
 
 // Re-export key types for convenience
 pub use frame::{FrameDesign, FrameStyle};

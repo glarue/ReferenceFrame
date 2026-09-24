@@ -24,7 +24,11 @@ use crate::frame::FrameDesign;
 const TWO_SLOT_MIN_DEPTH: f64 = 1.25;
 
 /// Tunable inputs for spline slot planning.
+///
+/// `#[serde(default)]`: fields missing from JSON take the presets.json
+/// defaults, so a partial override keeps the fields it does set.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SplineParams {
     /// Slot (blade kerf) thickness
     pub slot_thickness: f64,

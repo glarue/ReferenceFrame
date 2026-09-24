@@ -8,6 +8,7 @@ use referenceframe_core::{
     conversions::{self, Unit},
     frame::{FrameDesign, FrameStyle},
     shareable_url::{self, ShareableParams},
+    overlay_params::{self, OverlayParams},
     presets,
     version,
     history,
@@ -413,6 +414,7 @@ pub fn generate_plan_view_svg(
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
 
+    let overlays = OverlayParams::from_json(overlay_params_json.as_deref());
     let options = DiagramOptions {
         view: ViewOption::PlanOnly,
         canvas_width,
@@ -427,8 +429,8 @@ pub fn generate_plan_view_svg(
         axis_breaks_enabled,
         show_spline,
         show_hanging,
-        spline_params: parse_overlay_params(&overlay_params_json).spline,
-        hanging_params: parse_overlay_params(&overlay_params_json).hanging,
+        spline_params: overlays.spline,
+        hanging_params: overlays.hanging,
         ..Default::default()
     };
 
@@ -453,6 +455,7 @@ pub fn generate_section_view_svg(
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, ViewOption};
 
+    let overlays = OverlayParams::from_json(overlay_params_json.as_deref());
     let options = DiagramOptions {
         view: ViewOption::SectionOnly,
         canvas_width,
@@ -465,8 +468,8 @@ pub fn generate_section_view_svg(
         show_callouts: true,
         show_spline,
         show_hanging,
-        spline_params: parse_overlay_params(&overlay_params_json).spline,
-        hanging_params: parse_overlay_params(&overlay_params_json).hanging,
+        spline_params: overlays.spline,
+        hanging_params: overlays.hanging,
         ..Default::default()
     };
 
@@ -530,6 +533,7 @@ pub fn generate_combined_view_svg_with_title(
 ) -> String {
     use referenceframe_core::visualization::{generate_diagram_with_style, DiagramOptions, DiagramStyle, ViewOption};
 
+    let overlays = OverlayParams::from_json(overlay_params_json.as_deref());
     let options = DiagramOptions {
         view: ViewOption::Both,
         canvas_width,
@@ -544,8 +548,8 @@ pub fn generate_combined_view_svg_with_title(
         axis_breaks_enabled,
         show_spline,
         show_hanging,
-        spline_params: parse_overlay_params(&overlay_params_json).spline,
-        hanging_params: parse_overlay_params(&overlay_params_json).hanging,
+        spline_params: overlays.spline,
+        hanging_params: overlays.hanging,
         ..Default::default()
     };
 
@@ -562,43 +566,22 @@ pub fn generate_combined_view_svg_with_title(
     result.svg
 }
 
-/// Optional user overrides for overlay parameters, as JSON:
-/// {"spline": {...}, "hanging": {...}} — missing pieces fall back to presets.
-#[derive(serde::Deserialize, Default)]
-struct OverlayParams {
-    spline: Option<referenceframe_core::joinery::SplineParams>,
-    hanging: Option<referenceframe_core::hanging::HangingParams>,
-}
-
-fn parse_overlay_params(json: &Option<String>) -> OverlayParams {
-    json.as_deref()
-        .and_then(|s| serde_json::from_str(s).ok())
-        .unwrap_or_default()
-}
-
 /// Spline slot planning data as JSON (params + envelope), or "null" when the
-/// moulding can't hold a slot.
+/// moulding can't hold a slot. `overlay_params_json` is
+/// `{"spline": {...}, "hanging": {...}}` overrides (core `OverlayParams`;
+/// missing parts use the presets).
 #[wasm_bindgen(js_name = "getSplineEnvelope")]
 pub fn get_spline_envelope(design: &WasmFrameDesign, overlay_params_json: Option<String>) -> String {
-    use referenceframe_core::joinery::spline_envelope;
-    let params = parse_overlay_params(&overlay_params_json).spline.unwrap_or_default();
-    match spline_envelope(&design.inner, &params) {
-        Some(env) => serde_json::json!({ "params": params, "envelope": env }).to_string(),
-        None => "null".to_string(),
-    }
+    let overlays = OverlayParams::from_json(overlay_params_json.as_deref());
+    overlay_params::spline_envelope_json(&design.inner, &overlays)
 }
 
 /// Hanging hardware layout as JSON, or "null" when the frame is too narrow.
 #[wasm_bindgen(js_name = "getHangingLayout")]
 pub fn get_hanging_layout(design: &WasmFrameDesign, overlay_params_json: Option<String>) -> String {
-    use referenceframe_core::hanging::hanging_layout;
-    let params = parse_overlay_params(&overlay_params_json).hanging.unwrap_or_default();
-    match hanging_layout(&design.inner, &params) {
-        Some(layout) => serde_json::to_string(&layout).unwrap_or_else(|_| "null".to_string()),
-        None => "null".to_string(),
-    }
+    let overlays = OverlayParams::from_json(overlay_params_json.as_deref());
+    overlay_params::hanging_layout_json(&design.inner, &overlays)
 }
-
 
 /// Sourced material-density index (for species/material pickers)
 #[wasm_bindgen(js_name = "getMaterialsJson")]
@@ -618,23 +601,14 @@ pub fn get_weight_estimate(
     backing_key: Option<String>,
     overlay_params_json: Option<String>,
 ) -> String {
-    use referenceframe_core::weight::{estimate_weight, WeightParams};
-    let m = referenceframe_core::presets::get_materials();
-    let mut params = WeightParams::default();
-    if let Some(spec) = wood_key.as_deref().and_then(|k| m.woods.get(k)) {
-        params.wood = spec.into();
-    }
-    if let Some(spec) = glazing_key.as_deref().and_then(|k| m.sheet.get(k)) {
-        params.glazing = spec.into();
-    }
-    if let Some(spec) = backing_key.as_deref().and_then(|k| m.sheet.get(k)) {
-        params.backing = spec.into();
-    }
-    let hanging = parse_overlay_params(&overlay_params_json)
-        .hanging
-        .unwrap_or_default();
-    let est = estimate_weight(&design.inner, &params, &hanging);
-    serde_json::to_string(&est).unwrap_or_else(|_| "null".to_string())
+    let overlays = OverlayParams::from_json(overlay_params_json.as_deref());
+    overlay_params::weight_estimate_json(
+        &design.inner,
+        wood_key.as_deref(),
+        glazing_key.as_deref(),
+        backing_key.as_deref(),
+        &overlays,
+    )
 }
 
 // Default constants

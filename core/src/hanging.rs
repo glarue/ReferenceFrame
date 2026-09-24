@@ -11,7 +11,11 @@ use serde::{Deserialize, Serialize};
 use crate::frame::FrameDesign;
 
 /// Tunable inputs for hanging layout.
+///
+/// `#[serde(default)]`: fields missing from JSON take the presets.json
+/// defaults, so a partial override keeps the fields it does set.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct HangingParams {
     /// Ring drop from the frame top, as a fraction of outside height
     pub drop_fraction: f64,
