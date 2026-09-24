@@ -6,7 +6,7 @@ Future improvements worth doing but not yet prioritized.
 
 ## Client-side text width calibration
 
-**File:** `core/src/visualization/geometry.rs` + `style.rs`
+**File:** `core/src/visualization/geometry/mod.rs` (`estimate_text_width`) + `plan_svg.rs` (`compute_plan_viewbox`) + `style.rs`
 
 **Problem:** `estimate_text_width` uses a character-class heuristic (average char width × count). This is systematically off for the actual font rendered on device/browser. Text width errors flow into:
 - Mat cut label extent in `compute_plan_viewbox` → affects horizontal centering

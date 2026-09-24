@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** layout analysis for the parked cut-pieces view (see `docs/plans/`); the combined-view constants and file locations it cites have since changed.
+
 # Whitespace Analysis for Cut Pieces Integration
 
 ## Current Layout Budget (Combined View)

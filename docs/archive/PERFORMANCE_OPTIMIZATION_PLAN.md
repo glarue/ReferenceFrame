@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** Pyodide/matplotlib load-time plan for the retired PyScript app.
+
 # PyScript/Pyodide Performance Optimization Plan
 
 ## Current Problem

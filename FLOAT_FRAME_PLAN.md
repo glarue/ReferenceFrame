@@ -1,7 +1,8 @@
 # Float & Sight-Size Frame Support — Implementation Plan
 
-Status: **Phase 1 (sight-size) shipped & deployed to web (2026-07-07)**; XY
-assembly-clearance shipped; iOS port + Phase 2 (float) pending. Live status:
+Status (2026-09-23): **Phase 1 (sight-size) shipped on web (2026-07-07) and
+iOS (app 1.7.0+, 2026-07-08)**, along with XY assembly clearance. **Phase 2
+(float) is next and not started.** Live checklist:
 [`FLOAT_FRAME_TODO.md`](./FLOAT_FRAME_TODO.md). Original spec (2026-07-06) below.
 
 ## 1. Goal
@@ -90,7 +91,7 @@ the reveal magnitude.
 | `src/frame.rs:33-61` | Add `frame_style`, `float_reveal` fields (+ `#[serde(default)]` already on struct). |
 | `src/frame.rs:63-86` | `Default`: `frame_style: Rabbet`, `float_reveal: 0.0` from presets. |
 | `src/frame.rs:153-165` | `get_visible_dimensions()` — `match frame_style` for the opening (see §3). With-mat path stays Rabbet-only. |
-| `src/frame.rs:102-137` | `enforce_constraints()` — **exempt** the `rabbet_width`/`min_rabbet` floors when style ≠ Rabbet; clamp `float_reveal ≥ 0` and to a sane max (e.g. ≤ ½ min-artwork-dim). Keep forcing mat off for non-Rabbet. |
+| `src/constraints.rs` (was `frame.rs` `enforce_constraints()`, now `apply_input_constraints`) | **exempt** the `rabbet_width`/`min_rabbet` floors when style ≠ Rabbet; clamp `float_reveal ≥ 0` and to a sane max (e.g. ≤ ½ min-artwork-dim). Keep forcing mat off for non-Rabbet. |
 | `src/frame.rs:285-309` | `interpolate()` (animation) — lerp `float_reveal`; `frame_style` uses destination (like other enums/bools). |
 | `data/presets.json` | Add defaults `frame_style: "rabbet"`, `float_reveal: 0.0`; optional `float_reveal` preset list (e.g. `[0.125, 0.1875, 0.25, 0.375]`); consider a `min_reveal`/`max_reveal` limit pair. A ready-made "Canvas float" preset (deep rabbet, no glass/mat) would be a nice touch. |
 | `src/presets.rs:83-164` | Mirror new default/limit fields in `Defaults` / `ValidationLimits` structs. |
@@ -192,7 +193,7 @@ float + a sight-size case to the matrix.
 
 ## 9. Tests
 
-- **Core unit** (`frame.rs`): opening for each style; `enforce_constraints`
+- **Core unit** (`frame.rs`, `constraints.rs`): opening for each style; `apply_input_constraints`
   exemptions; interpolation of `float_reveal`; mat-forced-off for non-Rabbet.
 - **Validation**: min-lip skipped for Float/Sight; canvas-depth warning fires.
 - **Serialization**: v2 roundtrip; v0/v1 → Rabbet/reveal-0 back-compat.

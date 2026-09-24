@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** PyScript proof-of-concept setup notes (December 2025); the paths it cites no longer exist.
+
 # PyScript PoC Setup Notes
 
 ## Files Modified for PoC

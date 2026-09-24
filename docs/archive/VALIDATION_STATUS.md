@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** PyScript proof-of-concept feature checklist (December 2025).
+
 # PyScript PoC - Validation Status
 
 **Last Updated**: 2025-12-05

@@ -1,7 +1,7 @@
 # Float & Sight-Size Frames — Implementation TODO / Status
 
 Living checklist for the sight-size + float feature. Design spec:
-[`FLOAT_FRAME_PLAN.md`](./FLOAT_FRAME_PLAN.md). Last updated: 2026-07-07.
+[`FLOAT_FRAME_PLAN.md`](./FLOAT_FRAME_PLAN.md). Last updated: 2026-09-23.
 
 **Phasing:** Phase 1 = sight-size (zero overlap) end-to-end + forward-compatible
 data model. Phase 2 = float (gap/reveal + tray rendering). Phase 3 = Z-reveal
@@ -9,7 +9,7 @@ data model. Phase 2 = float (gap/reveal + tray rendering). Phase 3 = Z-reveal
 
 ---
 
-## Phase 1 — Sight-size  ·  status: **core + web SHIPPED & DEPLOYED (live); mobile TODO**
+## Phase 1 — Sight-size  ·  status: **SHIPPED on web and iOS** (web live 2026-07-07; iOS from app 1.7.0, 2026-07-08)
 
 ### ✅ Core (`core/`) — done, tested
 - [x] `FrameStyle` enum `{ Rabbet, SightSize, Float }` (serde `snake_case`), re-exported from crate root — `frame.rs`, `lib.rs`
@@ -17,7 +17,7 @@ data model. Phase 2 = float (gap/reveal + tray rendering). Phase 3 = Z-reveal
 - [x] `lip_over_art()` helper — the signed reveal: Rabbet→`rabbet_width`, Sight/Float→0 (Float's negative reveal is Phase 2)
 - [x] `has_mat()` is style-aware (non-Rabbet ⇒ no mat, so opening=art and depth stack excludes matboard)
 - [x] `get_visible_dimensions()` no-mat branch uses `lip_over_art()`
-- [x] `enforce_constraints()` clamps `float_reveal ≥ 0`; `interpolate()` lerps reveal, style uses destination
+- [x] input-constraint policy (now `constraints::apply_input_constraints`, formerly `enforce_constraints()`) clamps `float_reveal ≥ 0`; `interpolate()` lerps reveal, style uses destination
 - [x] +10 unit tests (opening per style, serde snake_case, old-JSON default, interpolation)
 
 ### ✅ Validation (`core/src/validation.rs`) — done
@@ -54,12 +54,12 @@ data model. Phase 2 = float (gap/reveal + tray rendering). Phase 3 = Z-reveal
 - [x] ~~Grey out "Rabbet Width" under Sight-size~~ — **superseded**: `rabbet_width` IS meaningful for sight-size (it's how far the lip grabs the oversized glazing). Keep it; maybe add a per-style hint clarifying its role.
 - [x] **Root repo** committed + **deployed to live web** (2026-07-07): core + web + wasm + goldens. Service worker → v12, cache-bust `20260707-sightlip`.
 - [x] **Mobile repo** committed 2026-07-07 (`fbbfefd` bridge, `71a66f6` app).
-- [ ] iOS build: mobile changes ship on the next `fastlane beta`/`release`.
-- [ ] `release.sh` version bump (`feat:` → core minor) — when cutting the mobile build / a core release; not needed for the (already-live) web.
+- [x] iOS build: shipped in app 1.7.0 (2026-07-08) and every build since (TestFlight → App Store).
+- [x] `release.sh` version bump: core v1.8.0 (2026-07-07), app v1.7.0 / bridge v1.5.0 (2026-07-08).
 
 ---
 
-## Phase 2 — Float frame (future)
+## Phase 2 — Float frame (next; not started)
 - [ ] Wire `lip_over_art()` for `Float` to `-float_reveal` (opening = art + 2·reveal); add `float_reveal` UI (input + presets in presets.json) and expose **Float** in the style pickers.
 - [ ] Section rendering: draw the perimeter **gap** and canvas standing in a deeper channel (all 4 axis-break variants); plan: show the reveal gap around the art.
 - [ ] Canvas defaults / a "Canvas float" preset (deep rabbet, no glass/mat, thick artwork = canvas depth); depth warning when the channel can't swallow the canvas.

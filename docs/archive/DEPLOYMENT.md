@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** PyScript-era GitHub Pages deploy guide. Current deploy: `.github/workflows/deploy.yml` (Pages source: GitHub Actions); see `ARCHITECTURE.md`.
+
 # Deployment Guide
 
 This guide covers deploying the ReferenceFrame app to GitHub Pages and other platforms.

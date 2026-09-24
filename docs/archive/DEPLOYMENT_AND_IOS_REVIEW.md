@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** January 2026 pre-launch review (PyScript deploy options, Flutter vs Swift). The WASM web app and the Flutter iOS app have both shipped since; see `ARCHITECTURE.md`.
+
 # Deployment & iOS Implementation Review
 
 ## 1. GitHub Pages Hosting (WASM Web Version)

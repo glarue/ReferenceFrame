@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** January 2026 strategy snapshot (lists mobile as "planned"); superseded by `README.md` and `ARCHITECTURE.md`.
+
 # ReferenceFrame Project Strategy
 
 ## Overview

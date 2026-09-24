@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** hybrid Python/JS PDF plan from the PyScript era; web PDF export is now pure JS (jsPDF + svg2pdf.js).
+
 # Vector PDF Export Implementation Plan
 
 ## Current State

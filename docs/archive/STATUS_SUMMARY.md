@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** PyScript proof-of-concept status (December 2025).
+
 # PyScript Migration - Status Summary
 
 **Last Updated**: 2025-12-05

@@ -1,3 +1,5 @@
+> **Archived 2026-09-23:** plan for modularizing the PyScript-era `main.py`; that code now lives in `legacy/pyscript/`.
+
 # ReferenceFrame Code Refactoring Plan
 
 ## Overview

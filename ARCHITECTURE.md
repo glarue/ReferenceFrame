@@ -1,226 +1,132 @@
 # ReferenceFrame Architecture
 
-**Last Updated**: 2026-02-06
-
-## Directory Structure (OFFICIAL)
-
-This document defines the **canonical** directory structure. Any deviations from this structure should be treated as errors.
-
-```
-ReferenceFrame/
-├── core/                       # ✅ OFFICIAL: Pure Rust business logic
-│   ├── src/
-│   │   ├── lib.rs
-│   │   ├── frame.rs            # Frame calculation engine
-│   │   ├── conversions.rs      # Unit conversions
-│   │   ├── defaults.rs         # Default values
-│   │   ├── aspect_ratio.rs     # Aspect ratio locking
-│   │   ├── shareable_url.rs    # URL encoding/decoding
-│   │   └── visualization/
-│   │       ├── mod.rs
-│   │       ├── svg.rs          # ⚠️ CRITICAL: SVG generation (inline arrow polygons)
-│   │       ├── types.rs
-│   │       ├── style.rs
-│   │       ├── geometry.rs
-│   │       ├── callouts.rs
-│   │       └── layout.rs
-│   ├── Cargo.toml              # Pure rlib (no platform dependencies)
-│   └── tests/
-│
-├── platforms/                  # ✅ OFFICIAL: Platform-specific implementations
-│   ├── web/                    # Web platform (WASM)
-│   │   ├── wasm_bindings/      # Thin WASM wrapper
-│   │   │   ├── src/lib.rs      # wasm-bindgen annotations
-│   │   │   └── Cargo.toml      # Depends on: path = "../../../core"
-│   │   ├── pkg/                # Generated WASM output (gitignored)
-│   │   ├── index.html          # Web UI
-│   │   ├── styles.css
-│   │   ├── serve.py
-│   │   └── build.sh            # ⚠️ CRITICAL: Use this to build!
-│   │
-│   └── mobile/                 # ✅ PRODUCTION: Flutter iOS app (separate git repo)
-│       ├── lib/                # Dart source
-│       ├── rust/               # FFI bridge to core (Cargo.toml)
-│       ├── ios/                # Xcode project + Fastlane
-│       └── pubspec.yaml        # App version (semver+build)
-│
-├── legacy/                     # 📦 ARCHIVED: Old implementations
-│   └── pyscript/               # Original PyScript version
-│
-├── src/                        # 📦 TRACKED: Current PyScript version (pre-migration)
-│   └── *.py                    # Will be moved to legacy/ after WASM migration
-│
-├── docs/                       # Documentation
-├── tests/                      # Integration tests
-├── .github/                    # CI/CD workflows
-├── README.md
-├── CLAUDE.md
-└── ARCHITECTURE.md             # ⬅️ This file
+A picture-frame design calculator: one pure-Rust core, two thin platform
+shells. All calculation, validation, formatting, and diagram (SVG) generation
+lives in the core, so the web app and the iOS app compute identical numbers
+and draw identical diagrams.
 
 ```
-
-## ❌ WRONG DIRECTORIES (Do Not Use)
-
-These directories exist due to exploratory work but should NOT be edited:
-
-- `rust-flutter/` - Experimental, wrong architecture (has wasm-bindgen in core)
-- `web-wasm/` - Old experimental web implementation
-- Any other untracked Rust directories
-
-**Action**: Move to `legacy/experiments/` to avoid confusion.
-
-## Critical Build Paths
-
-### WASM Build (Web Platform)
-
-**Location**: `/home/glarue/code/ReferenceFrame/platforms/web/`
-
-**Build Script**: `./build.sh`
-
-**Manual Build**:
-```bash
-cd platforms/web/wasm_bindings
-wasm-pack build --target web --out-dir ../pkg
+core/  (Rust, pure lib)
+ ├── WASM   ──> platforms/web/wasm_bindings  ──> platforms/web       (GitHub Pages)
+ └── FFI    ──> platforms/mobile/rust        ──> platforms/mobile    (Flutter, iOS App Store)
 ```
 
-**Output**: `platforms/web/pkg/` (this is what index.html loads)
+## Repositories
 
-**Core Library Path**: `../../../core` (relative from wasm_bindings/Cargo.toml)
+| Repo | Location | Contents | Remote |
+|---|---|---|---|
+| Root | `/` | core, web, build/release tooling, shared git hooks, docs | GitHub (public) |
+| Mobile | `platforms/mobile/` | Flutter app, FRB bridge crate, Fastlane | none (local only) |
 
-### Core Library Testing
+The root repo gitignores `platforms/mobile/`, so root CI never sees the mobile
+code. Both repos use the shared `hooks/commit-msg` (conventional commits) via
+`git config core.hooksPath`; see README.md for setup.
 
-**Location**: `/home/glarue/code/ReferenceFrame/core/`
+## Crates
 
-**Commands**:
-```bash
-cd core
-cargo test
-cargo build
-```
+| Crate | Path | Type | Role |
+|---|---|---|---|
+| `referenceframe_core` | `core/` | rlib | All business logic; no platform dependencies |
+| `referenceframe_wasm` | `platforms/web/wasm_bindings/` | cdylib | `wasm-bindgen` wrapper; JS-facing names are camelCase |
+| `rust_lib_referenceframe` | `platforms/mobile/rust/` | cdylib + staticlib | `flutter_rust_bridge` API (`src/api/simple.rs`); Dart bindings generated into `lib/src/rust/` |
 
-## Guardrails
+Both wrappers depend on the core by path (`../../../core`). Only the WASM and
+bridge crates' `Cargo.lock` files are tracked; the core library's is not.
 
-### 1. Build Script Validation
+## Core modules (`core/src/`)
 
-The `platforms/web/build.sh` script includes path validation:
-```bash
-# Verify we're building from the correct core
-if [ ! -f "../../../core/Cargo.toml" ]; then
-    echo "ERROR: Core library not found at expected path!"
-    echo "Expected: /home/glarue/code/ReferenceFrame/core/"
-    exit 1
-fi
-```
+| Module | Responsibility |
+|---|---|
+| `frame.rs` | `FrameDesign` (every input, in inches) and derived dimensions: opening, rabbet, matboard, fitted component sizes, depth stack, cut list, total wood |
+| `constraints.rs` | Input-constraint policy (`apply_input_constraints`): the one place both platforms clamp input; each clamp returns a user-facing, unit-aware notice |
+| `validation.rs` | `validate_design`: errors/warnings for whatever is still out of range, against a user-editable `ValidationConfig` |
+| `conversions.rs`, `input_parser.rs` | inches/mm conversion; fraction, decimal, and mm formatting; parsing input like `12 3/4` |
+| `aspect_ratio.rs` | Ratio display names and aspect-lock math |
+| `joinery.rs` | Spline (corner key) slot planning for mitered corners |
+| `hanging.rs` | D-ring placement and picture-wire sizing |
+| `weight.rs` | Weight estimate from sourced material densities (with error bounds) and wire tension |
+| `shareable_url.rs` | Compact binary share-link format (see below) |
+| `history.rs` | Design-history entries (versioned, capped list) |
+| `presets.rs` | Loads `core/data/presets.json` (compiled in with `include_str!`) |
+| `version.rs` | Version info from Cargo.toml |
+| `visualization/` | SVG generation: plan view (`plan_svg.rs`), section view (`section_svg.rs`), combined/entry points (`svg.rs`), geometry (`geometry/{mod,plan,section}.rs`), callouts/layout/collision, overlays (spline/hanging), `style.rs` (`DiagramStyle`, incl. `for_dark()`/`for_pdf()`) |
 
-### 2. Git Ignore Rules
+### Key concepts
 
-`.gitignore` prevents committing build artifacts and experimental directories:
-```
-# Build outputs
-/platforms/web/pkg/
-/target/
-/*/target/
+- **Units.** Everything is inches internally. mm is converted on input and
+  formatted on display.
+- **Single source of truth.** `core/data/presets.json` holds defaults, presets,
+  validation limits, aspect ratios, and the 10-color palette with light/dark
+  variants. Values that platform code must duplicate (CSS variables, Dart
+  constants, inline JS) are checked by `scripts/check_presets_drift.py` in CI.
+  The Dart checks run only where the mobile repo is checked out.
+- **Frame styles.** `FrameStyle { Rabbet, SightSize, Float }` sits behind one
+  signed quantity, `lip_over_art()`:
+  - `> 0` for Rabbet: the lip overlaps the art.
+  - `= 0` for SightSize: the opening equals the art, and the lip holds the
+    oversized glazing and backing.
+  - Float (a negative reveal) is groundwork only. It is carried in the data
+    model and share links but behaves like sight-size and isn't offered in
+    the UI. See `FLOAT_FRAME_PLAN.md`.
+- **Constrain, then validate.** Input first passes through the constraint
+  policy, which fixes what can be fixed and reports each change. Validation
+  then reports whatever is still out of range. Neither platform clamps on its
+  own.
+- **Assembly clearance.** `assembly_margin` undersizes the parts that drop into
+  the rabbet (glazing, backing, mat outer edge) to a "cut to fit" size. The
+  exact rabbet opening is still what the diagrams draw.
+- **Shareable URLs.** A design is packed into a fixed-point binary payload,
+  base64url-encoded, and carried in `?d=`.
+  - The current format is **v2** (39 bytes; adds frame style and float reveal).
+  - Links in formats v0 and v1 still decode.
+  - New fields are appended and the version bumped.
+  - Both platforms encode links: web share links, and the QR code in the
+    PDFs. Only the web app opens them.
 
-# Experimental directories (do not commit)
-/rust-flutter/
-/web-wasm/
-```
+## Platforms
 
-### 3. Cargo.toml Dependency Check
+**Web (`platforms/web/`).**
+- The UI is `index.html`: a single file of inline JS importing `pkg/referenceframe_wasm.js`, plus `styles.css`.
+- `storage.js` handles localStorage (saved configs, history, settings) and has Node tests in `storage.test.mjs`.
+- `sw.js` is the service worker (network-first for app files).
+- PDF export uses jsPDF and svg2pdf.js from a CDN.
 
-`platforms/web/wasm_bindings/Cargo.toml` MUST have:
-```toml
-[dependencies]
-referenceframe_core = { path = "../../../core" }  # ⚠️ MUST point to core/
-```
+**iOS (`platforms/mobile/`).**
+- Flutter, with the `lib/` layout:
+  - `state/design_state.dart`: the app state, which wraps the bridge
+  - `screens/`, `widgets/`, `services/`: export, colors, haptics
+  - `lib/src/rust/`: the generated bindings (don't edit)
+- `frame_preview.dart` draws the live animated preview natively. Every other diagram comes from the core SVG.
 
-If this path is wrong, the build will compile the wrong code!
+## Build, test, release
 
-## Common Mistakes
+| Task | Command |
+|---|---|
+| Core tests (unit + edge + golden SVG + doctests) | `cd core && cargo test` |
+| Palette/preset drift check | `python3 scripts/check_presets_drift.py` |
+| Web storage tests | `node --test platforms/web/storage.test.mjs` |
+| Build WASM (always from the repo root; output only to `platforms/web/pkg/`) | `./build_wasm.sh` |
+| Local web server (`:8887`, WASM MIME + no-cache) | `cd platforms/web && python3 serve.py` |
+| iOS dev run (rebuilds Rust when core/bridge sources or `presets.json` change) | `cd platforms/mobile && ./rebuild.sh run` |
+| Regenerate Dart bindings after bridge API changes | `cd platforms/mobile && flutter_rust_bridge_codegen generate` |
+| Mobile tests | `cd platforms/mobile && flutter test` and `cd rust && cargo test` |
 
-### ❌ WRONG: Editing rust-flutter/rust_core/src/
-```bash
-# This edits the WRONG directory!
-vim /home/glarue/code/ReferenceFrame/rust-flutter/rust_core/src/visualization/svg.rs
-```
+**CI (root repo, GitHub Actions).**
+- `test.yml` runs on every push and PR: core tests, the drift check, and the storage tests.
+- `deploy.yml` runs on push to `main`:
+  1. It reuses `test.yml` and deploys only if the tests pass.
+  2. It builds the WASM with a pinned wasm-pack.
+  3. It stamps the commit SHA into the deployed copy of `index.html` (every `?v=`) and `sw.js` (cache names).
+  4. It publishes to GitHub Pages. The Pages source must stay set to **GitHub Actions**.
 
-### ✅ CORRECT: Editing core/src/
-```bash
-# This edits the OFFICIAL core library
-vim /home/glarue/code/ReferenceFrame/core/src/visualization/svg.rs
-```
-
-### ❌ WRONG: Building with wrong output path
-```bash
-cd platforms/web
-wasm-pack build --target web --out-dir pkg wasm_bindings  # Wrong! Outputs to wasm_bindings/pkg/
-```
-
-### ✅ CORRECT: Building with correct output path
-```bash
-cd platforms/web
-./build.sh  # Uses --out-dir ../pkg from wasm_bindings/
-```
-
-## Verification Commands
-
-### Check which core is being compiled:
-```bash
-cd platforms/web/wasm_bindings
-cargo metadata --format-version 1 | grep -o '"core[^"]*"' | head -1
-```
-
-### Check WASM output location:
-```bash
-ls -la platforms/web/pkg/referenceframe_wasm.js  # Should exist
-ls -la platforms/web/wasm_bindings/pkg/          # Should NOT exist
-```
-
-### Verify HTML loads correct WASM:
-```bash
-grep "from.*pkg/" platforms/web/index.html
-# Should show: './pkg/referenceframe_wasm.js'
-```
-
-## Release & Versioning
-
-Three independently versioned scopes, managed by `./release.sh`:
-
-| Scope | Version file | Tag format | Repo |
-|-------|-------------|------------|------|
-| core | `core/Cargo.toml` | `core-v1.1.0` | root |
-| app | `platforms/mobile/pubspec.yaml` | `app-v1.1.0` | mobile |
-| bridge | `platforms/mobile/rust/Cargo.toml` | `bridge-v1.0.0` | mobile |
-
-**Conventional commits** enforced by `hooks/commit-msg` (shared via `core.hooksPath`):
-- `feat:` → minor, `fix:/perf:` → patch, `feat!:` → major
-- `docs: style: refactor: test: build: ci: chore: revert:` → no version bump
-- Build numbers (`pubspec.yaml +N`) managed by Fastlane, not release.sh
-
-**Workflow**: `./release.sh` (dry run) → `./release.sh --apply` → `git push --follow-tags`
-
-## Platform Status
-
-- **WASM Web**: Production at https://glarue.github.io/ReferenceFrame
-- **iOS Mobile**: Production on App Store (Fastlane deployment)
-- **PyScript**: Archived in `legacy/pyscript/`
-
-## Key Files for PDF Export Feature
-
-The current PDF export work involves these files:
-
-1. **`core/src/visualization/svg.rs`** ⚠️ PRIMARY FILE
-   - Line 102-135: `generate_arrow_polygon()` - Creates inline polygon arrows
-   - Line 153-184: `generate_line_with_arrows()` - Generates lines with arrows
-   - Line 1772: `generate_defs()` - No longer includes marker definitions
-
-2. **`platforms/web/index.html`**
-   - Line 395: WASM import with cache-busting parameter
-   - Line 1583-1780: PDF export JavaScript code
-
-3. **`platforms/web/wasm_bindings/src/lib.rs`**
-   - Line 17: Version string for debugging
-
-## Remember
-
-**ALWAYS** edit files in `core/` for business logic changes, **NEVER** in experimental directories!
+**Versioning.**
+- `./release.sh` (dry run) and `./release.sh --apply` read conventional commits and bump three scopes independently:
+  - `core`: `core/Cargo.toml`, tag `core-v*`
+  - `app`: `pubspec.yaml`, tag `app-v*`
+  - `bridge`: `rust/Cargo.toml`, tag `bridge-v*`
+- Bump rules:
+  - `feat` → minor
+  - other shipping types → patch
+  - `docs`/`test` and build-number-only commits → no bump
+- iOS build numbers belong to Fastlane.
+- The iOS release flow (`bump_build` → `beta` → `submit`) is documented in `platforms/mobile/RELEASING.md`.

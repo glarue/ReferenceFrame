@@ -1,3 +1,5 @@
+> **Status (2026-09-23): Parked — not implemented.** The cut-pieces view is deprioritized (see `ENHANCEMENT_PLAN.md`, Tier 4). File and line references predate the `visualization/geometry/` split and later refactors, so treat code pointers as stale. The corner-detail section below **has shipped** (`core/src/visualization/plan_svg.rs`).
+
 # Cut Pieces View - Implementation Guide
 
 **Status:** Planning document - DO NOT implement yet
@@ -678,8 +680,8 @@ pub use callouts::{generate_plan_callouts, generate_section_callouts, generate_c
 ## Reference Examples
 
 **Standalone HTML Visualizations:**
-- `docs/cut-pieces-example.html` - Rectangular frame (8×12) showing both pieces
-- `docs/cut-pieces-example-square.html` - Square frame (12×12) showing single piece with x4
+- `docs/plans/mockups/cut-pieces-example.html` - Rectangular frame (8×12) showing both pieces
+- `docs/plans/mockups/cut-pieces-example-square.html` - Square frame (12×12) showing single piece with x4
 
 These files demonstrate:
 - Correct trapezoid geometry with 45° miters
@@ -850,7 +852,7 @@ Verify existing views not affected:
 
 **Purpose:** For large frames where nested rectangle lines merge together at normal zoom, provide a zoomed-in corner detail showing frame edge construction clearly.
 
-**Mockup:** `docs/corner-detail-integrated-mockup.html`
+**Mockup:** `docs/archive/mockups/corner-detail-integrated-mockup.html`
 
 ### Scope
 

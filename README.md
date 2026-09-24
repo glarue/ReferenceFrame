@@ -1,6 +1,6 @@
 # ReferenceFrame
 
-A cross-platform picture frame design calculator built with a shared Rust core.
+A picture-frame design calculator for woodworkers, built on a shared Rust core.
 
 [![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/referenceframe/id6758589669)
 
@@ -8,73 +8,87 @@ A cross-platform picture frame design calculator built with a shared Rust core.
 
 ![ReferenceFrame Web Interface](docs/images/main_interface.png)
 
-## Architecture
-
-ReferenceFrame uses a **shared Rust core** for maximum code reuse across platforms:
-
-```
-ReferenceFrame/
-├── core/                      # Pure Rust business logic (platform-agnostic)
-│   ├── src/                   # Frame calculations, validation, SVG generation
-│   ├── data/presets.json      # Single source of truth: presets, defaults, colors
-│   └── Cargo.toml
-│
-├── platforms/
-│   ├── web/                   # Web app (WASM)
-│   │   ├── wasm_bindings/     # Thin WASM wrapper
-│   │   ├── index.html         # Web UI
-│   │   ├── styles.css
-│   │   └── pkg/               # Generated WASM output
-│   │
-│   └── mobile/                # Flutter app (iOS; Android planned)
-│       ├── lib/               # Dart/Flutter UI
-│       ├── rust/              # flutter_rust_bridge FFI layer
-│       └── ios/               # Xcode project + Fastlane
-│
-├── hooks/                     # Shared git hooks (conventional commits)
-├── release.sh                 # Conventional-commit version bumping
-├── build_wasm.sh              # WASM build script
-└── legacy/pyscript/           # Archived original PyScript version
-```
-
 ## Features
 
-- Full frame design calculations (dimensions, cut list, depth analysis)
-- Interactive SVG visualizations (plan view + section view)
-- Professional PDF export with embedded vector diagrams
-- Unit conversion (inches with fractions, decimal, mm)
-- Customizable color-coded dimension categories
-- Saved configurations and design history
-- Configurable defaults and material presets
+- **Frame math:**
+  - opening, rabbet, and matboard sizes
+  - cut list (inside and outside lengths of the mitered pieces) and total wood
+  - depth stack (glazing, mat, art, backing) against rabbet depth
+- **Frame styles:**
+  - traditional **rabbet**, where the lip overlaps the art
+  - **sight-size**, where the opening equals the art and the lip holds oversized glazing and backing
+  - float frames are planned (`FLOAT_FRAME_PLAN.md`)
+- **Mats:** symmetric or separate top/bottom and side widths, with configurable overlap.
+- **Assembly clearance:** "cut to fit" sizes for glazing, backing, and the mat's outer edge.
+- **Joinery and hanging:**
+  - spline (corner key) slot planning
+  - D-ring placement and picture-wire length
+  - both are optional diagram layers
+- **Weight estimate** from sourced material densities, with wire tension.
+- **Constraint notices:** input the design can't physically hold (for example, a rabbet wider than the moulding allows) is clamped by one shared core policy. You get a short explanation of each clamp. User-editable validation limits catch the rest.
+- **Diagrams:** vector plan and section views generated in Rust, with light and dark themes.
+- **Units:** inches (fractions or decimal) or mm. All math is done in inches.
+- **Output:**
+  - PDF export with the diagrams and a QR code linking to the design
+  - a plain-text cut list (web)
+- **Saving:** saved configurations, design history, customizable dimension colors, and presets from a single `core/data/presets.json`.
 
-**Web-only:** Shareable URLs (28-byte encoded designs), QR codes in PDFs
-**iOS-only:** Native share sheet, color customization UI, dark mode
+### Platform differences
+
+| | Web | iOS |
+|---|---|---|
+| Share links (`?d=…`) | create and open | create (in the PDF QR code and share sheet) |
+| Print stylesheet, copy cut list to clipboard | yes | — |
+| Live animated preview, pinch-zoom/pan, diagram detail levels | — | yes |
+| Haptics, native share sheet, custom defaults at launch | — | yes |
+
+Share links use a compact binary format: currently **v2**, 39 bytes, base64url
+in the `?d=` parameter. Links in the older v0 and v1 formats still decode.
+
+## Architecture
+
+```
+core/                   Pure Rust business logic + SVG generation (all platforms)
+  data/presets.json     Single source of truth: defaults, presets, limits, palette
+platforms/web/          Web app: index.html + styles.css + wasm_bindings/ (WASM wrapper)
+platforms/mobile/       Flutter iOS app (separate git repo): lib/, rust/ (FFI bridge), ios/ (Fastlane)
+hooks/                  Shared commit-msg hook (conventional commits)
+scripts/                check_presets_drift.py (cross-platform SSOT check, runs in CI)
+release.sh              Conventional-commit version bumping (core / app / bridge)
+build_wasm.sh           WASM build → platforms/web/pkg/
+legacy/pyscript/        Archived original PyScript version
+docs/                   Plans (docs/plans/) and archived docs (docs/archive/)
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the module layout, key concepts,
+and the build and release flow.
 
 ## Development
 
-**One-time setup** (after cloning): enable the shared commit-msg hook that enforces conventional commits:
+**One-time setup** (after cloning): turn on the shared commit-msg hook. It enforces conventional commits.
 ```bash
 git config core.hooksPath hooks/
+# The mobile repo points its own core.hooksPath at this same hooks/ directory
 ```
-The mobile repo (`platforms/mobile/`, separate git repo) shares the same hooks via its own `core.hooksPath` pointing at this directory.
 
-**Core library** (all platforms):
+**Core** (all platforms):
 ```bash
-cd core
-cargo test --lib       # 146 unit tests
+cd core && cargo test          # unit + edge-case + golden SVG + doctests
+python3 scripts/check_presets_drift.py
 ```
 
 **Web:**
 ```bash
-./build_wasm.sh        # Build WASM bindings to platforms/web/pkg/
-cd platforms/web
-python3 serve.py       # Local server at http://localhost:8887
+./build_wasm.sh                              # always from the repo root → platforms/web/pkg/
+node --test platforms/web/storage.test.mjs   # storage.js tests
+cd platforms/web && python3 serve.py         # http://localhost:8887
 ```
 
 **iOS:**
 ```bash
 cd platforms/mobile
-./rebuild.sh run       # Detects Rust changes, rebuilds, launches on device/sim
+./rebuild.sh run      # rebuilds Rust when core/bridge sources change, then flutter run
+flutter test          # Dart tests; `cd rust && cargo test` for the bridge
 ```
 
 ## Tech Stack
@@ -84,15 +98,15 @@ cd platforms/mobile
 | Core | Rust (pure, no platform dependencies) |
 | Web | Rust → WASM via wasm-bindgen |
 | iOS | Rust → FFI via flutter_rust_bridge → Flutter |
-| Visualization | SVG generation in Rust (vector, crisp at any zoom) |
+| Visualization | SVG generated in Rust |
 | PDF (web) | jsPDF + svg2pdf.js |
 | PDF (iOS) | Dart `pdf` package with embedded SVG |
 
 ## Deployment
 
-**Web:** Automatically deployed to GitHub Pages on push to `main`. Workflow in `.github/workflows/deploy.yml` builds WASM and deploys static files (~45s).
+**Web:** every push to `main` deploys to GitHub Pages through `.github/workflows/deploy.yml`, if the tests pass. The workflow builds the WASM and stamps the commit SHA into the cache-busting URLs and service-worker caches of the deployed copy.
 
-**iOS:** Built and uploaded via Fastlane from `platforms/mobile/ios/`. Version bumping handled by `release.sh` using conventional commit prefixes.
+**iOS:** built and uploaded with Fastlane from `platforms/mobile/ios/`. See `platforms/mobile/RELEASING.md` in the mobile repo.
 
 ## Versioning
 
@@ -106,7 +120,7 @@ cd platforms/mobile
 
 ```bash
 ./release.sh           # Dry run
-./release.sh --apply   # Bump, commit, and tag
+./release.sh --apply   # Bump, commit, and tag (refuses on a dirty tree)
 ```
 
 ## License
