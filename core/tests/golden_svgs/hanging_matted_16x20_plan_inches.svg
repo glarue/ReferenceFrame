@@ -10,7 +10,6 @@
   </g>
   <g id="rabbet-overlap">
     <path d="M139.38,97.93 h521.23 v436.13 h-521.23 Z M147.36,105.91 v420.18 h505.27 v-420.18 Z" fill="#f8961e" fill-opacity="0.15" fill-rule="evenodd" stroke="none"/>
-    <rect x="139.38" y="97.93" width="521.23" height="436.13" fill="none" stroke="#f8961e" stroke-width="0.40" stroke-dasharray="4,2" stroke-opacity="0.5"/>
   </g>
   <g id="content-boundary">
     <rect x="139.38" y="97.93" width="521.23" height="436.13" stroke="#f8961e" stroke-width="0.5" stroke-dasharray="6,3" fill="none" opacity="0.5"/>
@@ -68,13 +67,13 @@
           <polygon points="734.55,559.25 736.42,553.25 732.67,553.25" fill="#577590" data-arrow="true"/>
     </g>
       <text transform="translate(400.00, 48.75)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
-      <text transform="translate(400.00, 64.35)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">23 3/4&quot;</text>
+      <text transform="translate(400.00, 64.35)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">23 3/4"</text>
       <text transform="translate(400.00, 12.95)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
-      <text transform="translate(400.00, 28.55)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">26 3/4&quot;</text>
+      <text transform="translate(400.00, 28.55)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">26 3/4"</text>
       <text transform="rotate(90 714.35 316.00)" x="714.35" y="320.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
-      <text transform="rotate(90 698.75 316.00)" x="698.75" y="320.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">19 3/4&quot;</text>
+      <text transform="rotate(90 698.75 316.00)" x="698.75" y="320.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">19 3/4"</text>
       <text transform="rotate(90 750.15 316.00)" x="750.15" y="320.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
-      <text transform="rotate(90 734.55 316.00)" x="734.55" y="320.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">22 3/4&quot;</text>
+      <text transform="rotate(90 734.55 316.00)" x="734.55" y="320.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">22 3/4"</text>
   </g>
   <g id="artwork-indicator">
     <polygon points="187.45,316.00 191.65,317.31 191.65,314.69" fill="#90be6d" data-arrow="true"/>
@@ -86,7 +85,7 @@
     <line x1="400.00" y1="326.45" x2="400.00" y2="481.80" stroke="#90be6d" stroke-width="0.5249999999999999"/>
     <polygon points="400.00,486.00 401.31,481.80 398.69,481.80" fill="#90be6d" data-arrow="true"/>
     <rect x="369.48" y="305.55" width="61.04" height="20.90" fill="#FFFFFF" fill-opacity="0.75" stroke="none" rx="2"/>
-    <text transform="translate(400.00, 320.55)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13.00px" text-anchor="middle">16&quot; × 20&quot;</text>
+    <text transform="translate(400.00, 320.55)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13.00px" text-anchor="middle">16" × 20"</text>
   </g>
   <g id="mat-cut-geom">
     <g class="dimension">
@@ -102,7 +101,7 @@
   </g>
   <g id="mat-cut-labels">
       <text transform="translate(139.38, 609.25)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="start">Mat Cut:</text>
-      <text transform="translate(139.38, 624.85)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="start">2 3/8&quot; (2&quot; visible)</text>
+      <text transform="translate(139.38, 624.85)" fill="#f3722c" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="start">2 3/8" (2" visible)</text>
   </g>
   <g id="overlay-card">
     <rect x="778.65" y="74.00" width="173.03" height="87.00" fill="#FFFFFF" stroke="#999" stroke-width="0.75" rx="4"/>

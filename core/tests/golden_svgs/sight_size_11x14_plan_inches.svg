@@ -51,13 +51,13 @@
           <polygon points="773.69,601.25 775.57,595.25 771.82,595.25" fill="#577590" data-arrow="true"/>
     </g>
       <text transform="translate(400.00, 48.75)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
-      <text transform="translate(400.00, 64.35)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">14&quot;</text>
+      <text transform="translate(400.00, 64.35)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">14"</text>
       <text transform="translate(400.00, 12.95)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
-      <text transform="translate(400.00, 28.55)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">16&quot;</text>
+      <text transform="translate(400.00, 28.55)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">16"</text>
       <text transform="rotate(90 753.49 337.00)" x="753.49" y="341.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
-      <text transform="rotate(90 737.89 337.00)" x="737.89" y="341.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">11&quot;</text>
+      <text transform="rotate(90 737.89 337.00)" x="737.89" y="341.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">11"</text>
       <text transform="rotate(90 789.29 337.00)" x="789.29" y="341.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
-      <text transform="rotate(90 773.69 337.00)" x="773.69" y="341.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">13&quot;</text>
+      <text transform="rotate(90 773.69 337.00)" x="773.69" y="341.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">13"</text>
   </g>
   <g id="artwork-indicator">
     <polygon points="116.97,337.00 121.17,338.31 121.17,335.69" fill="#90be6d" data-arrow="true"/>
@@ -69,6 +69,6 @@
     <line x1="400.00" y1="347.45" x2="400.00" y2="555.14" stroke="#90be6d" stroke-width="0.5249999999999999"/>
     <polygon points="400.00,559.34 401.31,555.14 398.69,555.14" fill="#90be6d" data-arrow="true"/>
     <rect x="372.16" y="326.55" width="55.69" height="20.90" fill="#FFFFFF" fill-opacity="0.75" stroke="none" rx="2"/>
-    <text transform="translate(400.00, 341.55)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13.00px" text-anchor="middle">11&quot; × 14&quot;</text>
+    <text transform="translate(400.00, 341.55)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13.00px" text-anchor="middle">11" × 14"</text>
   </g>
 </svg>

@@ -81,9 +81,11 @@ impl SectionViewGeometry {
         let depth_dim_space = style.section_depth_dim_offset + style.extension_line_overshoot.max(label_offset_left + style.label_font_size / 2.0);
 
         // RIGHT SIDE: Material labels + stack dimension
-        // Components (from section_svg.rs; spline leader labels that join this
-        // column are not reserved here — reserving them changes the scale and
-        // thus the spline goldens, so it is deferred to audit 5c):
+        // Components (from section_svg.rs). Spline slot labels that fall back to
+        // this column are deliberately NOT reserved: they can be wider than a
+        // phone canvas, and reserving them shrinks the drawing to the minimum
+        // scale while the text stays full size. The dynamic viewBox already
+        // absorbs the overflow by zooming the whole diagram out uniformly.
         //   base_offset = style.section_material_label_offset.min(scale * 0.4 + 12.0)
         //   material labels at label_base_x = material_right + base_offset
         //   max_label_width = estimated from text like "Glazing: 3/32""

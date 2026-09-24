@@ -512,11 +512,8 @@ pub(crate) fn build_section_svg(
         // Label text — slightly smaller than primary labels (secondary/contextual role)
         // Position text so baseline is slightly below label_y (visual center)
         // This makes dog-leg line hit visual center regardless of baseline rendering
-        // NOTE: renders at 11/13 (≈0.846) × label_font_size, while width estimates
-        // (below and in geometry/section.rs) use material_label_font_size() (0.85×).
-        // Switching to material_label_font_size() changes the emitted font-size
-        // (e.g. 11.0 → 11.1px), so it is deferred to the output-changing batch (audit 5c).
-        let stack_label_font = style.label_font_size * (11.0 / 13.0);
+        // Same size the width estimates (below and in geometry/section.rs) assume.
+        let stack_label_font = style.material_label_font_size();
         let text_y = label_y + stack_label_font * BASELINE_SHIFT_RATIO;
         svg.push_str(&format!(
             r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px">{}</text>"#,
@@ -1243,7 +1240,7 @@ pub(crate) fn generate_title_block(
     let title = options.title_text
         .as_ref()
         .filter(|t| !t.trim().is_empty())
-        .map(|t| html_escape(t.trim()))
+        .map(|t| escape_text(t.trim()))
         .unwrap_or_else(|| "Frame Design".to_string());
 
     svg.push_str(&format!(

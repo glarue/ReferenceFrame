@@ -10,7 +10,6 @@
   </g>
   <g id="rabbet-overlap">
     <path d="M139.38,97.93 h521.23 v436.13 h-521.23 Z M147.36,105.91 v420.18 h505.27 v-420.18 Z" fill="#f8961e" fill-opacity="0.15" fill-rule="evenodd" stroke="none"/>
-    <rect x="139.38" y="97.93" width="521.23" height="436.13" fill="none" stroke="#f8961e" stroke-width="0.40" stroke-dasharray="4,2" stroke-opacity="0.5"/>
   </g>
   <g id="content-boundary">
     <rect x="139.38" y="97.93" width="521.23" height="436.13" stroke="#f8961e" stroke-width="0.5" stroke-dasharray="6,3" fill="none" opacity="0.5"/>

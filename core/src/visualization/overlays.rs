@@ -19,7 +19,7 @@
 
 use crate::frame::FrameDesign;
 use crate::hanging::{hanging_layout, HangingParams};
-use crate::joinery::{spline_envelope, SplineParams};
+use crate::joinery::{spline_envelope, SplineParams, SplineSlot};
 
 use super::geometry::{estimate_text_width, PlanViewGeometry, SectionViewGeometry};
 use super::style::DiagramStyle;
@@ -82,19 +82,14 @@ pub(crate) fn render_section_splines(
             style.spline_stroke_color
         ));
         svg.push('\n');
-        let label = format!(
-            "Spline {} · ≤ {} deep{}",
-            fmt(params.slot_thickness),
-            fmt(slot.max_penetration),
-            if slot.over_rabbet { " (limited by rabbet)" } else { "" },
-        );
+        let label = section_spline_label(fmt, &params, slot);
         // Label sits inside the slot band when it fits; otherwise (small
         // mouldings / compact canvases) it is returned as a leader label and
         // drawn in the section's dog-leg label column instead of straddling
         // the profile edge. Sized like the neighboring material labels
         // (scaled down in the combined panel).
         let label_fs = style.material_label_font_size();
-        if estimate_text_width(&label, label_fs) + 20.0 <= w {
+        if spline_label_fits_band(&label, label_fs, w) {
             svg.push_str(&format!(
                 r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="start">{}</text>"#,
                 fp.x + 10.0,
@@ -117,6 +112,22 @@ pub(crate) fn render_section_splines(
     }
     svg.push_str("  </g>\n");
     leader_labels
+}
+
+/// Label for one section-view spline slot.
+fn section_spline_label(fmt: &dyn Fn(f64) -> String, params: &SplineParams, slot: &SplineSlot) -> String {
+    format!(
+        "Spline {} · ≤ {} deep{}",
+        fmt(params.slot_thickness),
+        fmt(slot.max_penetration),
+        if slot.over_rabbet { " (limited by rabbet)" } else { "" },
+    )
+}
+
+/// Whether a slot label fits inside its band (`band_w` px wide); if not, the
+/// section renderer moves it to the dog-leg label column.
+fn spline_label_fits_band(label: &str, label_fs: f64, band_w: f64) -> bool {
+    estimate_text_width(label, label_fs) + 20.0 <= band_w
 }
 
 /// Spline slot chords across each corner of the plan view, drawn dashed
@@ -287,9 +298,9 @@ pub(crate) fn plan_overlay_card(
         return None;
     }
 
-    // Titles are emitted raw into XML — keep them entity-free or pre-escaped
+    // Plain text; render_inset_box escapes it
     let title = match (has_spline, has_hanging) {
-        (true, true) => "Joinery &amp; Hanging",
+        (true, true) => "Joinery & Hanging",
         (true, false) => "Joinery",
         _ => "Hanging",
     };

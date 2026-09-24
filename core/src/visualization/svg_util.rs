@@ -130,20 +130,18 @@ pub(crate) const SECTION_DIM_OFFSET_SCALE: f64 = 0.9;  // Section dimension offs
 pub(crate) const BASELINE_SHIFT_RATIO: f64 = 0.35;     // Vertical centering shift for SVG text
 
 // === Tight-Space Dimension Arrows ===
-// Arrows flip outside when span < multiplier * arrow-tip length (tip_extension =
-// MARKER_WIDTH * stroke) — see `is_tight_space`. The two thresholds differ
-// historically; unifying them would change rendered output.
-/// Plan-view callouts (`svg_dimension`) and their collision-pass stubs.
+/// Arrows flip outside when span < this many arrow-tip lengths (tip_extension =
+/// MARKER_WIDTH * stroke). 3.0 = two inward heads plus at least one head-length
+/// of visible shaft between them; below that the heads crowd into a blob.
+/// Shared by plan callouts, their collision-pass stubs, and `DimensionArrow`.
 pub(crate) const TIGHT_SPACE_MULTIPLIER: f64 = 3.0;
-/// `DimensionArrow` (corner-detail inset dimensions).
-pub(crate) const DIMENSION_ARROW_TIGHT_MULTIPLIER: f64 = 2.5;
 /// Outward arrow stub length, in arrow-tip lengths (all tight-space sites).
 pub(crate) const ARROW_STUB_LEN_MULTIPLIER: f64 = 2.5;
 
 /// Whether a dimension span is too narrow for inward-pointing arrows, so the
 /// renderer should draw outward stubs instead.
-pub(crate) fn is_tight_space(span: f64, stroke_width: f64, multiplier: f64) -> bool {
-    span < arrow_geometry::tip_extension(stroke_width) * multiplier
+pub(crate) fn is_tight_space(span: f64, stroke_width: f64) -> bool {
+    span < arrow_geometry::tip_extension(stroke_width) * TIGHT_SPACE_MULTIPLIER
 }
 
 /// Length of an outward arrow stub drawn in tight-space mode.
@@ -374,7 +372,6 @@ pub(crate) enum DimensionLabel {
     /// Single line, centered
     Single { text: String, bold: bool },
     /// Two lines (e.g. "Rabbet" + value), right-aligned for vertical dims
-    #[allow(dead_code)] // Used in tests
     TwoLines { line1: String, line2: String },
 }
 
@@ -438,7 +435,6 @@ impl DimensionArrow {
         self
     }
 
-    #[allow(dead_code)] // Used in tests
     pub(crate) fn label_two_lines(mut self, line1: &str, line2: &str, font_family: &str, font_size: f64) -> Self {
         self.label = Some(DimensionLabel::TwoLines {
             line1: line1.to_string(),
@@ -504,7 +500,7 @@ impl DimensionArrow {
         // ---- Dimension line with arrows ----
         let gap = (t_end - t_start).abs();
 
-        if !is_tight_space(gap, self.arrow_stroke_width, DIMENSION_ARROW_TIGHT_MULTIPLIER) {
+        if !is_tight_space(gap, self.arrow_stroke_width) {
             // Normal arrows
             if self.horizontal {
                 let x1 = arrow_line_endpoint_for_target(t_start, self.arrow_stroke_width, true);
@@ -573,14 +569,14 @@ impl DimensionArrow {
                             r#"    <text transform="translate({:.2}, {:.2})" font-family="{}" font-size="{:.1}px" fill="{}"{} text-anchor="middle">{}</text>"#,
                             mid, self.dim_line_pos + self.label_offset,
                             self.font_family, self.font_size, color, weight,
-                            html_escape(text)
+                            escape_text(text)
                         ));
                     } else {
                         svg.push_str(&format!(
                             r#"    <text transform="translate({:.2}, {:.2})" font-family="{}" font-size="{:.1}px" fill="{}"{} text-anchor="end">{}</text>"#,
                             self.dim_line_pos - self.label_offset, mid,
                             self.font_family, self.font_size, color, weight,
-                            html_escape(text)
+                            escape_text(text)
                         ));
                     }
                     svg.push('\n');
@@ -592,14 +588,14 @@ impl DimensionArrow {
                         r#"    <text transform="translate({:.2}, {:.2})" font-family="{}" font-size="{:.1}px" fill="{}" text-anchor="end" font-weight="bold">{}</text>"#,
                         label_x, mid - 1.0,
                         self.font_family, self.font_size, color,
-                        html_escape(line1)
+                        escape_text(line1)
                     ));
                     svg.push('\n');
                     svg.push_str(&format!(
                         r#"    <text transform="translate({:.2}, {:.2})" font-family="{}" font-size="{:.1}px" fill="{}" text-anchor="end" font-weight="bold">{}</text>"#,
                         label_x, mid + self.font_size + 1.0,
                         self.font_family, self.font_size, color,
-                        html_escape(line2)
+                        escape_text(line2)
                     ));
                     svg.push('\n');
                 }
@@ -641,8 +637,7 @@ pub(crate) fn svg_rect(rect: &Rect, stroke: &str, stroke_width: f64, fill: Optio
 }
 
 /// Bordered inset box with a centered bold title — the shared visual language
-/// of the Corner Detail inset and the overlay annotation card. `title` must be
-/// XML-safe text.
+/// of the Corner Detail inset and the overlay annotation card.
 pub(crate) fn render_inset_box(
     svg: &mut String,
     rect: &Rect,
@@ -657,7 +652,8 @@ pub(crate) fn render_inset_box(
     ));
     svg.push_str(&format!(
         "    <text transform=\"translate({:.2}, {:.2})\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}\" font-weight=\"bold\" text-anchor=\"middle\">{}</text>\n",
-        rect.x + rect.width / 2.0, title_baseline_y, style.annotation_title_color, style.font_family, title_font, title
+        rect.x + rect.width / 2.0, title_baseline_y, style.annotation_title_color, style.font_family, title_font,
+        escape_text(title)
     ));
 }
 
@@ -716,20 +712,11 @@ pub(crate) fn extract_svg_content(svg: &str) -> String {
     svg.to_string()
 }
 
-/// Escape XML text-node content (`&`, `<`, `>`). Quotes are left as-is — they
-/// only matter inside attributes. Used for section-view and overlay text.
-/// (Plan callouts use `html_escape`, which also encodes `"` as `&quot;`;
-/// unifying the two would change rendered bytes — audit 5c.)
+/// Escape XML text-node content (`&`, `<`, `>`) — the one escaping helper for
+/// all SVG text. Quotes (inch marks) are left as-is: they only need escaping
+/// inside attribute values, and no user/label text is emitted into attributes.
 pub(crate) fn escape_text(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
-}
-
-/// HTML-escape special characters
-pub(crate) fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }

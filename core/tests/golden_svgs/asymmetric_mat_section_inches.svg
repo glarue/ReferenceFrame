@@ -34,23 +34,23 @@
     <polygon points="578.71,300.75 580.81,301.45 580.81,300.05" fill="#333333" data-arrow="true"/>
     <line x1="580.81" y1="300.75" x2="587.81" y2="300.75" stroke="#333333" stroke-width="0.35"/>
     <line x1="587.81" y1="300.75" x2="590.81" y2="296.72" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(595.81, 300.57)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Glazing: 3/32"</text>
+    <text transform="translate(595.81, 300.59)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Glazing: 3/32"</text>
     <polygon points="578.71,322.95 580.81,323.65 580.81,322.25" fill="#333333" data-arrow="true"/>
     <line x1="580.81" y1="322.95" x2="587.81" y2="322.95" stroke="#333333" stroke-width="0.35"/>
     <line x1="587.81" y1="322.95" x2="590.81" y2="317.52" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(595.81, 321.38)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Mat: 0.06"</text>
+    <text transform="translate(595.81, 321.39)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Mat: 0.06"</text>
     <polygon points="578.71,332.40 580.81,333.10 580.81,331.70" fill="#333333" data-arrow="true"/>
     <line x1="580.81" y1="332.40" x2="587.81" y2="332.40" stroke="#333333" stroke-width="0.35"/>
     <line x1="587.81" y1="332.40" x2="590.81" y2="338.32" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(595.81, 342.18)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Artwork: 0.01"</text>
+    <text transform="translate(595.81, 342.19)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Artwork: 0.01"</text>
     <polygon points="578.71,352.35 580.81,353.05 580.81,351.65" fill="#333333" data-arrow="true"/>
     <line x1="580.81" y1="352.35" x2="587.81" y2="352.35" stroke="#333333" stroke-width="0.35"/>
     <line x1="587.81" y1="352.35" x2="590.81" y2="359.12" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(595.81, 362.98)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Backing: 1/8"</text>
+    <text transform="translate(595.81, 362.99)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Backing: 1/8"</text>
     <polygon points="578.71,380.47 580.81,381.17 580.81,379.77" fill="#333333" data-arrow="true"/>
     <line x1="580.81" y1="380.47" x2="587.81" y2="380.47" stroke="#333333" stroke-width="0.35"/>
     <line x1="587.81" y1="380.47" x2="590.81" y2="379.92" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(595.81, 383.77)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Margin: 1/16"</text>
+    <text transform="translate(595.81, 383.79)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Margin: 1/16"</text>
     <line x1="688.44" y1="286.80" x2="702.44" y2="286.80" stroke="#333333" stroke-width="0.5"/>
     <line x1="688.44" y1="371.10" x2="702.44" y2="371.10" stroke="#333333" stroke-width="0.5"/>
     <polygon points="698.44,286.80 696.56,292.80 700.31,292.80" fill="#333333" data-arrow="true"/>

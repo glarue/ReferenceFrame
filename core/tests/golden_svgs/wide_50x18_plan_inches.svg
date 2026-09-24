@@ -8,7 +8,6 @@
   </g>
   <g id="rabbet-overlap">
     <path d="M82.85,172.51 h708.29 v254.99 h-708.29 Z M88.17,177.82 v244.36 h697.67 v-244.36 Z" fill="#90be6d" fill-opacity="0.15" fill-rule="evenodd" stroke="none"/>
-    <rect x="82.85" y="172.51" width="708.29" height="254.99" fill="none" stroke="#90be6d" stroke-width="0.40" stroke-dasharray="4,2" stroke-opacity="0.5"/>
   </g>
   <g id="content-boundary">
     <rect x="82.85" y="172.51" width="708.29" height="254.99" stroke="#90be6d" stroke-width="0.5" stroke-dasharray="6,3" fill="none" opacity="0.5"/>
@@ -55,13 +54,13 @@
           <polygon points="850.00,437.60 851.88,431.60 848.12,431.60" fill="#577590" data-arrow="true"/>
     </g>
       <text transform="translate(437.00, 138.40)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
-      <text transform="translate(437.00, 154.00)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">49 1/4&quot;</text>
+      <text transform="translate(437.00, 154.00)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">49 1/4"</text>
       <text transform="translate(437.00, 102.60)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
-      <text transform="translate(437.00, 118.20)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">51 1/4&quot;</text>
+      <text transform="translate(437.00, 118.20)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">51 1/4"</text>
       <text transform="rotate(90 829.80 300.00)" x="829.80" y="304.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Inside:</text>
-      <text transform="rotate(90 814.20 300.00)" x="814.20" y="304.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">17 1/4&quot;</text>
+      <text transform="rotate(90 814.20 300.00)" x="814.20" y="304.55" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">17 1/4"</text>
       <text transform="rotate(90 865.60 300.00)" x="865.60" y="304.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Outside:</text>
-      <text transform="rotate(90 850.00 300.00)" x="850.00" y="304.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">19 1/4&quot;</text>
+      <text transform="rotate(90 850.00 300.00)" x="850.00" y="304.55" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">19 1/4"</text>
   </g>
   <g id="artwork-indicator">
     <polygon points="83.05,300.00 87.25,301.31 87.25,298.69" fill="#90be6d" data-arrow="true"/>
@@ -73,7 +72,7 @@
     <line x1="437.00" y1="310.45" x2="437.00" y2="423.09" stroke="#90be6d" stroke-width="0.5249999999999999"/>
     <polygon points="437.00,427.29 438.31,423.09 435.69,423.09" fill="#90be6d" data-arrow="true"/>
     <rect x="406.48" y="289.55" width="61.04" height="20.90" fill="#FFFFFF" fill-opacity="0.75" stroke="none" rx="2"/>
-    <text transform="translate(437.00, 304.55)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13.00px" text-anchor="middle">18&quot; × 50&quot;</text>
+    <text transform="translate(437.00, 304.55)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13.00px" text-anchor="middle">18" × 50"</text>
   </g>
   <g id="corner-detail">
     <defs><clipPath id="corner-detail-clip"><rect x="46.05" y="330.00" width="205.00" height="157.22"/></clipPath></defs>
@@ -93,14 +92,15 @@
     <polygon points="105.95,462.77 111.95,464.64 111.95,460.89" fill="#577590" data-arrow="true"/>
     <line x1="111.95" y1="462.77" x2="144.68" y2="462.77" stroke="#577590" stroke-width="0.75"/>
     <polygon points="150.68,462.77 144.68,460.89 144.68,464.64" fill="#577590" data-arrow="true"/>
-    <text transform="translate(128.31, 473.77)" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0px" fill="#577590" font-weight="bold" text-anchor="middle">Frame: 1&quot;</text>
+    <text transform="translate(128.31, 473.77)" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0px" fill="#577590" font-weight="bold" text-anchor="middle">Frame: 1"</text>
     <line x1="133.91" y1="402.04" x2="94.95" y2="402.04" stroke="#46af8f" stroke-width="0.5" opacity="0.5"/>
     <line x1="133.91" y1="418.81" x2="94.95" y2="418.81" stroke="#46af8f" stroke-width="0.5" opacity="0.5"/>
-    <polygon points="96.95,402.04 95.07,408.04 98.82,408.04" fill="#46af8f" data-arrow="true"/>
-    <line x1="96.95" y1="408.04" x2="96.95" y2="412.81" stroke="#46af8f" stroke-width="0.75"/>
-    <polygon points="96.95,418.81 98.82,412.81 95.07,412.81" fill="#46af8f" data-arrow="true"/>
-    <text transform="translate(92.95, 409.42)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0" text-anchor="end" font-weight="bold">Rabbet</text>
-    <text transform="translate(92.95, 419.42)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0" text-anchor="end" font-weight="bold">3/8&quot;</text>
+    <line x1="96.95" y1="387.04" x2="96.95" y2="396.04" stroke="#46af8f" stroke-width="0.75"/>
+    <polygon points="96.95,402.04 98.82,396.04 95.07,396.04" fill="#46af8f" data-arrow="true"/>
+    <line x1="96.95" y1="433.81" x2="96.95" y2="424.81" stroke="#46af8f" stroke-width="0.75"/>
+    <polygon points="96.95,418.81 95.07,424.81 98.82,424.81" fill="#46af8f" data-arrow="true"/>
+    <text transform="translate(92.95, 409.42)" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0px" fill="#46af8f" text-anchor="end" font-weight="bold">Rabbet</text>
+    <text transform="translate(92.95, 420.42)" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0px" fill="#46af8f" text-anchor="end" font-weight="bold">3/8"</text>
     <line x1="186.48" y1="418.81" x2="186.48" y2="362.06" stroke="#90be6d" stroke-width="0.5" opacity="0.5"/>
     <rect x="167.83" y="353.77" width="37.29" height="9.72" fill="#FFFFFF" stroke="none" rx="1"/>
     <text transform="translate(186.48, 360.84)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.1" text-anchor="middle" font-weight="bold" opacity="0.8">artwork</text>

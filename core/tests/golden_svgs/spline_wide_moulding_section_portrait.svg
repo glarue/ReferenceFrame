@@ -37,27 +37,27 @@
     <polygon points="155.17,286.80 157.27,287.50 157.27,286.10" fill="#46af8f" data-arrow="true"/>
     <line x1="157.27" y1="286.80" x2="164.27" y2="286.80" stroke="#46af8f" stroke-width="0.35"/>
     <line x1="164.27" y1="286.80" x2="244.17" y2="236.83" stroke="#46af8f" stroke-width="0.35"/>
-    <text transform="translate(249.17, 240.68)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Spline 1/8" · ≤ 1 1/2" deep (limited by rabbet)</text>
+    <text transform="translate(249.17, 240.70)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Spline 1/8" · ≤ 1 1/2" deep (limited by rabbet)</text>
     <polygon points="232.07,290.17 234.17,290.87 234.17,289.47" fill="#333333" data-arrow="true"/>
     <line x1="234.17" y1="290.17" x2="241.17" y2="290.17" stroke="#333333" stroke-width="0.35"/>
     <line x1="241.17" y1="290.17" x2="244.17" y2="257.63" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(249.17, 261.48)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Glazing: 3/32"</text>
+    <text transform="translate(249.17, 261.50)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Glazing: 3/32"</text>
     <polygon points="232.07,295.52 234.17,296.22 234.17,294.82" fill="#333333" data-arrow="true"/>
     <line x1="234.17" y1="295.52" x2="241.17" y2="295.52" stroke="#333333" stroke-width="0.35"/>
     <line x1="241.17" y1="295.52" x2="244.17" y2="278.43" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(249.17, 282.28)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Mat: 0.06"</text>
+    <text transform="translate(249.17, 282.30)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Mat: 0.06"</text>
     <polygon points="232.07,297.80 234.17,298.50 234.17,297.10" fill="#333333" data-arrow="true"/>
     <line x1="234.17" y1="297.80" x2="241.17" y2="297.80" stroke="#333333" stroke-width="0.35"/>
     <line x1="241.17" y1="297.80" x2="244.17" y2="299.23" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(249.17, 303.08)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Artwork: 0.01"</text>
+    <text transform="translate(249.17, 303.10)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Artwork: 0.01"</text>
     <polygon points="232.07,302.61 234.17,303.31 234.17,301.91" fill="#333333" data-arrow="true"/>
     <line x1="234.17" y1="302.61" x2="241.17" y2="302.61" stroke="#333333" stroke-width="0.35"/>
     <line x1="241.17" y1="302.61" x2="244.17" y2="320.03" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(249.17, 323.88)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Backing: 1/8"</text>
+    <text transform="translate(249.17, 323.90)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Backing: 1/8"</text>
     <polygon points="232.07,309.40 234.17,310.10 234.17,308.70" fill="#333333" data-arrow="true"/>
     <line x1="234.17" y1="309.40" x2="241.17" y2="309.40" stroke="#333333" stroke-width="0.35"/>
     <line x1="241.17" y1="309.40" x2="244.17" y2="340.83" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(249.17, 344.68)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Margin: 1/16"</text>
+    <text transform="translate(249.17, 344.70)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Margin: 1/16"</text>
     <line x1="511.73" y1="286.80" x2="525.73" y2="286.80" stroke="#333333" stroke-width="0.5"/>
     <line x1="511.73" y1="307.14" x2="525.73" y2="307.14" stroke="#333333" stroke-width="0.5"/>
     <polygon points="521.73,286.80 519.85,292.80 523.60,292.80" fill="#333333" data-arrow="true"/>

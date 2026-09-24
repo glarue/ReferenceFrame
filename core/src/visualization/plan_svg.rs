@@ -41,9 +41,6 @@ struct PlanRectStrokes<'a> {
     mat_opening: Option<RectStroke<'a>>,
     /// Present when there is a mat.
     artwork: Option<RectStroke<'a>>,
-    /// Present when the lip over the art renders wider than 0.5px.
-    /// NOTE: outlines the same rect as `content_boundary` (double stroke; audit 5c).
-    rabbet_overlap: Option<RectStroke<'a>>,
     /// Present when the mat overlaps the art by more than 0.5px.
     mat_overlap: Option<RectStroke<'a>>,
 }
@@ -54,7 +51,6 @@ impl<'a> PlanRectStrokes<'a> {
         geometry: &'a PlanViewGeometry,
         style: &'a DiagramStyle,
         content_edge_color: &'a str,
-        rabbet_scaled: f64,
     ) -> Self {
         let solid = |rect: &'a Rect, width: f64| RectStroke {
             rect, color: &style.line_color, width, dasharray: None, opacity: 1.0,
@@ -77,11 +73,6 @@ impl<'a> PlanRectStrokes<'a> {
                 width: style.extension_stroke_width, dasharray: Some(ARTWORK_OUTLINE_DASH),
                 opacity: ARTWORK_OUTLINE_OPACITY,
             }),
-            rabbet_overlap: (rabbet_scaled > 0.5).then_some(RectStroke {
-                rect: &geometry.content_area, color: content_edge_color,
-                width: style.extension_stroke_width * 0.8, dasharray: Some(DASH_ASSEMBLY_MARGIN),
-                opacity: OPACITY_CONTENT_BOUNDARY,
-            }),
             mat_overlap: mat_overlap_visible.then_some(RectStroke {
                 rect: &geometry.artwork, color: &style.mat_overlap_color,
                 width: style.extension_stroke_width * 0.8, dasharray: Some(MAT_OVERLAP_DASH),
@@ -95,7 +86,6 @@ impl<'a> PlanRectStrokes<'a> {
         let mut v = vec![&self.frame_outer, &self.frame_inner, &self.content_boundary];
         v.extend(self.mat_opening.iter());
         v.extend(self.artwork.iter());
-        v.extend(self.rabbet_overlap.iter());
         v.extend(self.mat_overlap.iter());
         v
     }
@@ -262,25 +252,14 @@ pub(crate) fn render_corner_detail(
 
     // 2. Rabbet: vertical dimension between content area and inner, left side
     let rb_dim_x = cx - (frame_w * 0.22).clamp(3.0, 9.0); // dimension line position left of corner
+    // Label: "Rabbet" + value, right-aligned just left of the dimension line
     let rb_arrow = DimensionArrow::new(ci_y, fi_y, rb_dim_x, false)
         .color(&style.inside_dimension_color)
         .extension(ci_x, -2.0) // extension lines go leftward from geometry
-        .stroke(0.75, 0.5);
+        .stroke(0.75, 0.5)
+        .label_two_lines("Rabbet", &fmt(design.rabbet_width), &style.font_family, label_font)
+        .label_offset(4.0);
     svg.push_str(&rb_arrow.render());
-    // Rabbet label: "Rabbet" + value, right-aligned just left of dimension line
-    let rabbet_mid_y = (ci_y + fi_y) / 2.0;
-    let rb_label_x = rb_dim_x - 4.0;
-    svg.push_str(&format!(
-        "    <text transform=\"translate({:.2}, {:.2})\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}\" text-anchor=\"end\" font-weight=\"bold\">Rabbet</text>\n",
-        rb_label_x, rabbet_mid_y - 1.0,
-        style.inside_dimension_color, style.font_family, label_font
-    ));
-    svg.push_str(&format!(
-        "    <text transform=\"translate({:.2}, {:.2})\" fill=\"{}\" font-family=\"{}\" font-size=\"{:.1}\" text-anchor=\"end\" font-weight=\"bold\">{}</text>\n",
-        rb_label_x, rabbet_mid_y + label_font,
-        style.inside_dimension_color, style.font_family, label_font,
-        html_escape(&fmt(design.rabbet_width))
-    ));
 
     // 3. Content label ("matboard" or "artwork") — centered inside the content interior.
     // The interior is the open area bounded by ci_x (left), right_x (frame arm end),
@@ -476,13 +455,14 @@ pub(crate) fn build_plan_svg(
         &style.artwork_color            // Willow Green #90be6d (artwork edge)
     };
 
-    // Rabbet overlap uses lip_over_art (zero for sight-size/float) so its fill and
-    // outline vanish when the frame has no lip over the artwork.
+    // Rabbet overlap uses lip_over_art (zero for sight-size/float) so its fill
+    // vanishes when the frame has no lip over the artwork. (Its edge is the
+    // content boundary, stroked once below.)
     let rabbet_scaled = design.lip_over_art() * geometry.scale;
     // Single source for every plan-view rect stroke (color/width/dash/opacity),
     // shared by the no-break path below and the axis-break path further down.
     // The two paths still serialize with their historical attribute formats.
-    let strokes = PlanRectStrokes::new(design, geometry, style, content_edge_color, rabbet_scaled);
+    let strokes = PlanRectStrokes::new(design, geometry, style, content_edge_color);
 
     // When breaks are NOT active, draw full rect strokes as before.
     // When breaks ARE active, skip rect strokes here — they'll be drawn as
@@ -525,12 +505,6 @@ pub(crate) fn build_plan_svg(
             "    <path d=\"{}\" fill=\"{}\" fill-opacity=\"0.15\" fill-rule=\"evenodd\" stroke=\"none\"/>\n",
             path_d, content_edge_color
         ));
-        if let (false, Some(rs)) = (has_breaks, &strokes.rabbet_overlap) {
-            svg.push_str(&format!(
-                "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{:.2}\" stroke-dasharray=\"{}\" stroke-opacity=\"{}\"/>\n",
-                rs.rect.x, rs.rect.y, rs.rect.width, rs.rect.height, rs.color, rs.width, rs.dasharray.unwrap_or_default(), rs.opacity
-            ));
-        }
         svg.push_str("  </g>\n");
     }
 
@@ -876,7 +850,7 @@ pub(crate) fn build_plan_svg(
             r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.2}px" text-anchor="middle">{}</text>"#,
             artwork_center.x, text_y,
             artwork_indicator_color, style.font_family, style.label_font_size,
-            html_escape(&artwork_label)
+            escape_text(&artwork_label)
         ));
         svg.push('\n');
         svg.push_str("  </g>\n");
@@ -1052,7 +1026,7 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
     // --- Dimension line with arrows ---
     // When space is too tight for inward-pointing arrows, flip to outward-pointing
     let extent_span = (along_end - along_start).abs();
-    let tight_space = is_tight_space(extent_span, style.dimension_stroke_width, TIGHT_SPACE_MULTIPLIER);
+    let tight_space = is_tight_space(extent_span, style.dimension_stroke_width);
 
     // arrow_line_endpoint_for_target and _y do identical math; use the x variant generically
     let line_along1 = arrow_line_endpoint_for_target(along_start, style.dimension_stroke_width, true);
@@ -1171,13 +1145,13 @@ pub(crate) fn svg_dimension(callout: &PositionedCallout, style: &DiagramStyle, g
             label_svg.push_str(&format!(
                 r#"      <text transform="rotate(90 {:.2} {:.2})" x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="{}">{}</text>"#,
                 x, y, x, y + shift, dim_color, style.font_family, fs, anchor,
-                html_escape(&line.text)
+                escape_text(&line.text)
             ));
         } else {
             label_svg.push_str(&format!(
                 r#"      <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px" text-anchor="{}">{}</text>"#,
                 x, y + shift, dim_color, style.font_family, fs, anchor,
-                html_escape(&line.text)
+                escape_text(&line.text)
             ));
         }
         label_svg.push('\n');

@@ -142,7 +142,7 @@ fn collect_arrow_stub_elements(
             continue;
         }
         let extent_span = (pc.callout.extent_end.x - pc.callout.extent_start.x).abs();
-        let tight_space = is_tight_space(extent_span, style.dimension_stroke_width, TIGHT_SPACE_MULTIPLIER);
+        let tight_space = is_tight_space(extent_span, style.dimension_stroke_width);
         if !tight_space {
             continue;
         }
@@ -747,12 +747,6 @@ mod tests {
     }
 
     #[test]
-    fn test_html_escape() {
-        assert_eq!(html_escape("12 3/4\""), "12 3/4&quot;");
-        assert_eq!(html_escape("<test>"), "&lt;test&gt;");
-    }
-
-    #[test]
     fn test_escape_text() {
         // Text nodes: escape &, <, > but leave inch-mark quotes untouched
         assert_eq!(escape_text("Glazing: 3/32\""), "Glazing: 3/32\"");
@@ -1015,7 +1009,7 @@ mod tests {
         // Arrow line present
         assert!(svg.contains("data-arrow=\"true\""));
         // Label present
-        assert!(svg.contains("Frame: 1&quot;"));
+        assert!(svg.contains("Frame: 1\"<"));
         assert!(svg.contains("text-anchor=\"middle\""));
     }
 
@@ -1033,7 +1027,7 @@ mod tests {
         assert!(svg.contains("y1=\"60.00\""));
         // Two-line label present
         assert!(svg.contains("Rabbet"));
-        assert!(svg.contains("3/8&quot;"));
+        assert!(svg.contains("3/8\"<"));
         assert!(svg.contains("text-anchor=\"end\""));
     }
 

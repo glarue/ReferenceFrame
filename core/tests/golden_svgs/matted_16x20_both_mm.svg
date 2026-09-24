@@ -11,7 +11,6 @@
   </g>
   <g id="rabbet-overlap">
     <path d="M299.85,80.20 h200.31 v167.60 h-200.31 Z M302.91,83.26 v161.47 h194.18 v-161.47 Z" fill="#f8961e" fill-opacity="0.15" fill-rule="evenodd" stroke="none"/>
-    <rect x="299.85" y="80.20" width="200.31" height="167.60" fill="none" stroke="#f8961e" stroke-width="0.40" stroke-dasharray="4,2" stroke-opacity="0.5"/>
   </g>
   <g id="content-boundary">
     <rect x="299.85" y="80.20" width="200.31" height="167.60" stroke="#f8961e" stroke-width="0.5" stroke-dasharray="6,3" fill="none" opacity="0.5"/>
@@ -119,8 +118,8 @@
     <polygon points="263.44,248.89 265.32,242.89 261.57,242.89" fill="#46af8f" data-arrow="true"/>
     <line x1="263.44" y1="273.07" x2="263.44" y2="264.07" stroke="#46af8f" stroke-width="0.75"/>
     <polygon points="263.44,258.07 261.57,264.07 265.32,264.07" fill="#46af8f" data-arrow="true"/>
-    <text transform="translate(259.44, 252.48)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0" text-anchor="end" font-weight="bold">Rabbet</text>
-    <text transform="translate(259.44, 262.48)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0" text-anchor="end" font-weight="bold">9.5 mm</text>
+    <text transform="translate(259.44, 252.48)" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0px" fill="#46af8f" text-anchor="end" font-weight="bold">Rabbet</text>
+    <text transform="translate(259.44, 263.48)" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="9.0px" fill="#46af8f" text-anchor="end" font-weight="bold">9.5 mm</text>
     <line x1="338.54" y1="258.07" x2="338.54" y2="218.64" stroke="#f8961e" stroke-width="0.5" opacity="0.5"/>
     <rect x="316.94" y="210.35" width="43.21" height="9.72" fill="#FFFFFF" stroke="none" rx="1"/>
     <text transform="translate(338.54, 217.42)" fill="#f8961e" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.1" text-anchor="middle" font-weight="bold" opacity="0.8">matboard</text>
@@ -167,23 +166,23 @@
     <polygon points="580.94,143.51 583.04,144.21 583.04,142.81" fill="#333333" data-arrow="true"/>
     <line x1="583.04" y1="143.51" x2="590.04" y2="143.51" stroke="#333333" stroke-width="0.35"/>
     <line x1="590.04" y1="143.51" x2="593.04" y2="138.99" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(598.04, 141.95)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Glazing: 2.4 mm</text>
+    <text transform="translate(598.04, 141.97)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Glazing: 2.4 mm</text>
     <polygon points="580.94,159.75 583.04,160.45 583.04,159.05" fill="#333333" data-arrow="true"/>
     <line x1="583.04" y1="159.75" x2="590.04" y2="159.75" stroke="#333333" stroke-width="0.35"/>
     <line x1="590.04" y1="159.75" x2="593.04" y2="154.99" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(598.04, 157.95)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Mat: 1.4 mm</text>
+    <text transform="translate(598.04, 157.97)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Mat: 1.4 mm</text>
     <polygon points="580.94,166.66 583.04,167.36 583.04,165.96" fill="#333333" data-arrow="true"/>
     <line x1="583.04" y1="166.66" x2="590.04" y2="166.66" stroke="#333333" stroke-width="0.35"/>
     <line x1="590.04" y1="166.66" x2="593.04" y2="170.99" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(598.04, 173.95)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Artwork: 0.2 mm</text>
+    <text transform="translate(598.04, 173.97)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Artwork: 0.2 mm</text>
     <polygon points="580.94,181.25 583.04,181.95 583.04,180.55" fill="#333333" data-arrow="true"/>
     <line x1="583.04" y1="181.25" x2="590.04" y2="181.25" stroke="#333333" stroke-width="0.35"/>
     <line x1="590.04" y1="181.25" x2="593.04" y2="186.99" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(598.04, 189.95)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Backing: 3.2 mm</text>
+    <text transform="translate(598.04, 189.97)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Backing: 3.2 mm</text>
     <polygon points="580.94,201.83 583.04,202.53 583.04,201.13" fill="#333333" data-arrow="true"/>
     <line x1="583.04" y1="201.83" x2="590.04" y2="201.83" stroke="#333333" stroke-width="0.35"/>
     <line x1="590.04" y1="201.83" x2="593.04" y2="202.99" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(598.04, 205.95)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Margin: 1.6 mm</text>
+    <text transform="translate(598.04, 205.97)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="8.5px">Margin: 1.6 mm</text>
     <line x1="682.37" y1="133.30" x2="696.37" y2="133.30" stroke="#333333" stroke-width="0.5"/>
     <line x1="682.37" y1="194.97" x2="696.37" y2="194.97" stroke="#333333" stroke-width="0.5"/>
     <polygon points="692.37,133.30 690.50,139.30 694.25,139.30" fill="#333333" data-arrow="true"/>
