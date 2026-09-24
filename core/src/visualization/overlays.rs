@@ -244,9 +244,37 @@ pub(crate) struct OverlayCard {
     pub height: f64,
 }
 
-const CARD_PAD: f64 = 10.0;
-const CARD_TITLE_H: f64 = 20.0;
-const CARD_LINE_H: f64 = 19.0;
+/// Card layout metrics. Defined at the 12px screen dimension font and scaled
+/// with `dimension_font_size`, so larger-type styles (PDF, 22px) keep the same
+/// proportions instead of packing big text into screen-sized rows — which made
+/// the title overlap the top border and the lines collide in the iOS PDF.
+/// Screen styles (12px) get exactly the historical values.
+struct CardMetrics {
+    pad: f64,
+    title_h: f64,
+    title_baseline: f64,
+    line_h: f64,
+    swatch: f64,
+    swatch_col: f64,
+}
+
+const CARD_REF_FONT_SIZE: f64 = 12.0;
+
+fn round2(v: f64) -> f64 {
+    (v * 100.0).round() / 100.0
+}
+
+fn card_metrics(style: &DiagramStyle) -> CardMetrics {
+    let k = style.dimension_font_size / CARD_REF_FONT_SIZE;
+    CardMetrics {
+        pad: 10.0 * k,
+        title_h: 20.0 * k,
+        title_baseline: 14.0 * k,
+        line_h: 19.0 * k,
+        swatch: 7.0 * k,
+        swatch_col: 12.0 * k,
+    }
+}
 
 /// Build the card contents for the enabled overlay layers, or `None` when
 /// nothing applies (layers off, breaks active, or no valid layout).
@@ -308,10 +336,11 @@ pub(crate) fn plan_overlay_card(
         .iter()
         .map(|(_, t)| estimate_text_width(t, style.dimension_font_size))
         .fold(estimate_text_width(title, style.dimension_font_size), f64::max);
+    let m = card_metrics(style);
     Some(OverlayCard {
         title,
-        width: text_w + 2.0 * CARD_PAD + 12.0, // 12: color-key swatch column
-        height: CARD_TITLE_H + lines.len() as f64 * CARD_LINE_H + CARD_PAD,
+        width: text_w + 2.0 * m.pad + m.swatch_col,
+        height: m.title_h + lines.len() as f64 * m.line_h + m.pad,
         lines,
     })
 }
@@ -324,26 +353,29 @@ pub(crate) fn render_overlay_card(
     y: f64,
     style: &DiagramStyle,
 ) {
+    let m = card_metrics(style);
     svg.push_str("  <g id=\"overlay-card\">\n");
     render_inset_box(
         svg,
         &Rect::new(x, y, card.width, card.height),
         card.title,
         style.dimension_font_size * 0.9,
-        y + 14.0,
+        y + m.title_baseline,
         style,
     );
     for (i, (color, text)) in card.lines.iter().enumerate() {
-        let ly = y + CARD_TITLE_H + i as f64 * CARD_LINE_H + CARD_LINE_H / 2.0;
+        let ly = y + m.title_h + i as f64 * m.line_h + m.line_h / 2.0;
         svg.push_str(&format!(
-            r#"    <rect x="{:.2}" y="{:.2}" width="7" height="7" rx="1.5" fill="{color}"/>"#,
-            x + CARD_PAD,
-            ly - 3.5,
+            r#"    <rect x="{:.2}" y="{:.2}" width="{}" height="{}" rx="{}" fill="{color}"/>"#,
+            x + m.pad,
+            ly - m.swatch / 2.0,
+            // Rounded (not {:.2}) so the 12px screen output stays "7" / "1.5"
+            round2(m.swatch), round2(m.swatch), round2(m.swatch * 1.5 / 7.0),
         ));
         svg.push('\n');
         svg.push_str(&format!(
             r#"    <text transform="translate({:.2}, {:.2})" fill="{color}" font-family="{}" font-size="{}px" text-anchor="start">{}</text>"#,
-            x + CARD_PAD + 12.0,
+            x + m.pad + m.swatch_col,
             ly + style.dimension_font_size * BASELINE_SHIFT_RATIO,
             style.font_family,
             style.dimension_font_size,
@@ -352,4 +384,25 @@ pub(crate) fn render_overlay_card(
         svg.push('\n');
     }
     svg.push_str("  </g>\n");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn card_metrics_scale_with_font_size() {
+        // Screen styles keep the historical metrics exactly (byte-identical SVG)
+        let m = card_metrics(&DiagramStyle::default());
+        assert_eq!((m.pad, m.title_h, m.title_baseline, m.line_h), (10.0, 20.0, 14.0, 19.0));
+
+        // Every style: the title's cap height clears the card's top border, and
+        // rows are comfortably taller than the text (the iOS PDF regression)
+        for style in [DiagramStyle::default(), DiagramStyle::for_dark(), DiagramStyle::for_pdf()] {
+            let m = card_metrics(&style);
+            let title_font = style.dimension_font_size * 0.9;
+            assert!(m.title_baseline - title_font * 0.75 > 2.0, "title overlaps the border");
+            assert!(m.line_h >= style.dimension_font_size * 1.5, "card rows too tight");
+        }
+    }
 }
