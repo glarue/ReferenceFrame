@@ -656,24 +656,17 @@
             generateShareableUrl,
             decodeShareableUrl,
             getWasmVersion,
+            getCoreVersion,
             ValidationConfig,
             getTypicalRangeHint,
             validateDesign,
             DimensionInput,
-            decimalToFraction,
             createHistory,
             addToHistory,
             getHistoryEntry,
             removeHistoryEntry,
-            updateHistoryTitle,
-            clearHistory,
-            getHistoryLength
+            updateHistoryTitle
         } from './pkg/referenceframe_wasm.js?v=20260923-phase4';
-
-        // Namespace import for optional exports (getCoreVersion is only
-        // present in newer WASM builds; accessing it via the namespace
-        // object avoids a hard import error on older builds)
-        import * as wasmExports from './pkg/referenceframe_wasm.js?v=20260923-phase4';
 
         console.log('WASM imports successful');
 
@@ -1068,15 +1061,10 @@
             const version = getWasmVersion();
             console.log('WASM version:', version);
 
-            // Surface app version in the footer (prefer the semver core
-            // version when the WASM build exports it; fall back to the
-            // WASM build tag otherwise)
+            // Surface the core (semver) version in the footer
             const versionEl = document.getElementById('app-version');
             if (versionEl) {
-                const coreVersion = typeof wasmExports.getCoreVersion === 'function'
-                    ? wasmExports.getCoreVersion()
-                    : null;
-                versionEl.textContent = coreVersion ? `v${coreVersion}` : version;
+                versionEl.textContent = `v${getCoreVersion()}`;
             }
         } catch (error) {
             console.error('WASM initialization failed:', error);
@@ -1665,7 +1653,6 @@
                 validationResult.free();
 
                 // Get dimensions
-                const [visH, visW] = design.getVisibleDimensions();
                 const [insideH, insideW] = design.getFrameInsideDimensions();
                 const [outsideH, outsideW] = design.getFrameOutsideDimensions();
                 const [matH, matW] = design.getMatboardDimensions();

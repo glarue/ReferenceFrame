@@ -7,10 +7,9 @@ use wasm_bindgen::prelude::*;
 use referenceframe_core::{
     conversions::{self, Unit},
     frame::{FrameDesign, FrameStyle},
-    aspect_ratio::AspectLockState,
     shareable_url::{self, ShareableParams},
     presets,
-    version::{self, VersionInfo},
+    version,
     history,
 };
 
@@ -33,14 +32,6 @@ impl WasmFrameDesign {
     pub fn new(artwork_height: f64, artwork_width: f64) -> WasmFrameDesign {
         WasmFrameDesign {
             inner: FrameDesign::new(artwork_height, artwork_width),
-        }
-    }
-
-    /// Create with default values
-    #[wasm_bindgen(js_name = "default")]
-    pub fn default_design() -> WasmFrameDesign {
-        WasmFrameDesign {
-            inner: FrameDesign::default(),
         }
     }
 
@@ -197,16 +188,6 @@ impl WasmFrameDesign {
         self.inner.symmetrical_mat = value;
     }
 
-    #[wasm_bindgen(getter, js_name = "noArtworkMargin")]
-    pub fn no_artwork_margin(&self) -> bool {
-        self.inner.no_artwork_margin
-    }
-
-    #[wasm_bindgen(setter, js_name = "noArtworkMargin")]
-    pub fn set_no_artwork_margin(&mut self, value: bool) {
-        self.inner.no_artwork_margin = value;
-    }
-
     /// Frame style as a snake_case string: "rabbet", "sight_size", or "float".
     #[wasm_bindgen(getter, js_name = "frameStyle")]
     pub fn frame_style(&self) -> String {
@@ -266,20 +247,6 @@ impl WasmFrameDesign {
         serde_json::to_string(&outcome.adjustments).unwrap_or_else(|_| "[]".to_string())
     }
 
-    /// Deprecated alias for `applyInputConstraints(undefined, false)`: applies
-    /// the policy with the default limits and discards the notices. Kept so
-    /// existing callers keep working; prefer `applyInputConstraints`.
-    pub fn validate(&mut self) {
-        self.apply_input_constraints(None, false);
-    }
-
-    /// Get visible (face) dimensions - returns [height, width]
-    #[wasm_bindgen(js_name = "getVisibleDimensions")]
-    pub fn get_visible_dimensions(&self) -> Vec<f64> {
-        let (h, w) = self.inner.get_visible_dimensions();
-        vec![h, w]
-    }
-
     /// Get frame inside dimensions - returns [height, width]
     #[wasm_bindgen(js_name = "getFrameInsideDimensions")]
     pub fn get_frame_inside_dimensions(&self) -> Vec<f64> {
@@ -316,14 +283,6 @@ impl WasmFrameDesign {
         vec![h, w]
     }
 
-    /// Get mat border cut widths (visible border + rabbet_width hidden under
-    /// the lip) - returns [top_bottom, sides]
-    #[wasm_bindgen(js_name = "getMatboardCutDimensions")]
-    pub fn get_matboard_cut_dimensions(&self) -> Vec<f64> {
-        let (tb, s) = self.inner.get_matboard_cut_dimensions();
-        vec![tb, s]
-    }
-
     /// Get required rabbet z-axis depth
     #[wasm_bindgen(js_name = "getRabbetZDepthRequired")]
     pub fn get_rabbet_z_depth_required(&self) -> f64 {
@@ -355,56 +314,6 @@ impl WasmFrameDesign {
         let design: FrameDesign = serde_json::from_str(json)
             .map_err(|e| JsValue::from_str(&format!("JSON parse error: {}", e)))?;
         Ok(WasmFrameDesign { inner: design })
-    }
-}
-
-/// WASM-friendly wrapper for AspectLockState
-#[wasm_bindgen]
-pub struct WasmAspectLock {
-    inner: AspectLockState,
-}
-
-#[wasm_bindgen]
-impl WasmAspectLock {
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> WasmAspectLock {
-        WasmAspectLock {
-            inner: AspectLockState::new(),
-        }
-    }
-
-    pub fn locked(&self) -> bool {
-        self.inner.locked()
-    }
-
-    pub fn ratio(&self) -> Option<f64> {
-        self.inner.ratio()
-    }
-
-    pub fn lock(&mut self, height: f64, width: f64) -> bool {
-        self.inner.lock(height, width)
-    }
-
-    pub fn unlock(&mut self) {
-        self.inner.unlock();
-    }
-
-    pub fn toggle(&mut self, height: f64, width: f64) -> bool {
-        self.inner.toggle(height, width)
-    }
-
-    pub fn invert(&mut self) {
-        self.inner.invert();
-    }
-
-    #[wasm_bindgen(js_name = "getWidthForHeight")]
-    pub fn get_width_for_height(&self, height: f64, step: f64) -> f64 {
-        self.inner.get_width_for_height(height, step)
-    }
-
-    #[wasm_bindgen(js_name = "getHeightForWidth")]
-    pub fn get_height_for_width(&self, width: f64, step: f64) -> f64 {
-        self.inner.get_height_for_width(width, step)
     }
 }
 
@@ -638,28 +547,6 @@ pub fn generate_combined_view_svg_with_title(
     result.svg
 }
 
-/// Generate diagram with full options (returns JSON with svg and warnings)
-#[wasm_bindgen(js_name = "generateDiagram")]
-pub fn generate_diagram(
-    design: &WasmFrameDesign,
-    options_json: &str,
-) -> Result<String, JsValue> {
-    use referenceframe_core::visualization::{generate_diagram, DiagramOptions};
-
-    let options: DiagramOptions = serde_json::from_str(options_json)
-        .map_err(|e| JsValue::from_str(&format!("Options parse error: {}", e)))?;
-
-    let result = generate_diagram(&design.inner, &options);
-
-    let response = serde_json::json!({
-        "svg": result.svg,
-        "warnings": result.warnings,
-    });
-
-    serde_json::to_string(&response)
-        .map_err(|e| JsValue::from_str(&format!("JSON error: {}", e)))
-}
-
 /// Optional user overrides for overlay parameters, as JSON:
 /// {"spline": {...}, "hanging": {...}} — missing pieces fall back to presets.
 #[derive(serde::Deserialize, Default)]
@@ -777,13 +664,6 @@ pub fn get_presets_json() -> String {
     presets::get_presets_json().to_string()
 }
 
-/// Get preset values for a specific field as JSON array
-#[wasm_bindgen(js_name = "getPresetValues")]
-pub fn get_preset_values(field: &str) -> String {
-    let values = presets::get_preset_values(field);
-    serde_json::to_string(&values).unwrap_or_else(|_| "[]".to_string())
-}
-
 // ============================================================================
 // Version Information
 // ============================================================================
@@ -792,34 +672,6 @@ pub fn get_preset_values(field: &str) -> String {
 #[wasm_bindgen(js_name = "getCoreVersion")]
 pub fn get_core_version() -> String {
     version::get_core_version().to_string()
-}
-
-/// Get full version info as JSON
-#[wasm_bindgen(js_name = "getVersionInfo")]
-pub fn get_version_info(app_version: &str, build_number: &str, platform_name: &str) -> String {
-    let build = if build_number.is_empty() {
-        None
-    } else {
-        Some(build_number)
-    };
-    let info = VersionInfo::new(app_version, platform_name, build);
-    info.to_json()
-}
-
-// ============================================================================
-// Color Palette (from data/presets.json - single source of truth)
-// ============================================================================
-
-/// Get entire color palette as JSON
-#[wasm_bindgen(js_name = "getColorsJson")]
-pub fn get_colors_json() -> String {
-    presets::get_colors_json()
-}
-
-/// Get a color by name with # prefix (e.g., "#46AF8F")
-#[wasm_bindgen(js_name = "getColorHex")]
-pub fn get_color_hex(name: &str) -> String {
-    presets::get_color_hex(name).unwrap_or_default()
 }
 
 // Initialize panic hook for better error messages
@@ -848,11 +700,6 @@ impl DimensionInput {
         DimensionInput(input_parser::DimensionInput::new(input))
     }
 
-    #[wasm_bindgen(js_name = "fromDecimal")]
-    pub fn from_decimal(value: f64) -> DimensionInput {
-        DimensionInput(input_parser::DimensionInput::from_decimal(value))
-    }
-
     #[wasm_bindgen(getter)]
     pub fn value(&self) -> f64 {
         self.0.value()
@@ -861,11 +708,6 @@ impl DimensionInput {
     #[wasm_bindgen(setter)]
     pub fn set_value(&mut self, value: f64) {
         self.0.set_value(value);
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn original(&self) -> String {
-        self.0.original().to_string()
     }
 
     #[wasm_bindgen]
@@ -878,11 +720,6 @@ impl DimensionInput {
         self.0.is_valid()
     }
 
-    #[wasm_bindgen(getter)]
-    pub fn error(&self) -> Option<String> {
-        self.0.error().map(|s| s.to_string())
-    }
-
     #[wasm_bindgen(getter, js_name = "wasFractional")]
     pub fn was_fractional(&self) -> bool {
         self.0.was_fractional()
@@ -892,92 +729,6 @@ impl DimensionInput {
     pub fn as_fraction(&self, max_denominator: u32) -> String {
         self.0.as_fraction(max_denominator)
     }
-
-    #[wasm_bindgen(js_name = "asDecimal")]
-    pub fn as_decimal(&self) -> String {
-        self.0.as_decimal()
-    }
-
-    #[wasm_bindgen(js_name = "format")]
-    pub fn format(&self, use_fractions: bool, max_denominator: u32) -> String {
-        self.0.format(use_fractions, max_denominator)
-    }
-
-    #[wasm_bindgen]
-    pub fn add(&self, other: &DimensionInput) -> DimensionInput {
-        DimensionInput(self.0.add(&other.0))
-    }
-
-    #[wasm_bindgen]
-    pub fn subtract(&self, other: &DimensionInput) -> DimensionInput {
-        DimensionInput(self.0.subtract(&other.0))
-    }
-
-    #[wasm_bindgen]
-    pub fn multiply(&self, scalar: f64) -> DimensionInput {
-        DimensionInput(self.0.multiply(scalar))
-    }
-
-    #[wasm_bindgen]
-    pub fn divide(&self, scalar: f64) -> DimensionInput {
-        DimensionInput(self.0.divide(scalar))
-    }
-}
-
-/// WASM wrapper for ParsedDimension (legacy API)
-#[wasm_bindgen]
-pub struct ParsedDimension(input_parser::ParsedDimension);
-
-#[wasm_bindgen]
-impl ParsedDimension {
-    #[wasm_bindgen(getter)]
-    pub fn decimal(&self) -> f64 {
-        self.0.decimal()
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn display(&self) -> String {
-        self.0.display().to_string()
-    }
-
-    #[wasm_bindgen(getter, js_name = "wasFractional")]
-    pub fn was_fractional(&self) -> bool {
-        self.0.was_fractional()
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn error(&self) -> Option<String> {
-        self.0.error().map(|s| s.to_string())
-    }
-
-    #[wasm_bindgen(getter, js_name = "isValid")]
-    pub fn is_valid(&self) -> bool {
-        self.0.is_valid()
-    }
-}
-
-/// Parse a dimension input string (legacy API)
-#[wasm_bindgen(js_name = "parseDimension")]
-pub fn parse_dimension(input: &str) -> ParsedDimension {
-    ParsedDimension(input_parser::parse_dimension(input))
-}
-
-/// Convert a decimal to the nearest common fraction
-#[wasm_bindgen(js_name = "decimalToFraction")]
-pub fn decimal_to_fraction(val: f64, max_denominator: u32) -> String {
-    input_parser::decimal_to_fraction(val, max_denominator)
-}
-
-/// Check if input is a valid dimension string
-#[wasm_bindgen(js_name = "isValidDimensionInput")]
-pub fn is_valid_dimension_input(input: &str) -> bool {
-    input_parser::is_valid_dimension_input(input)
-}
-
-/// Get common fractions for a picker UI (returns JSON array)
-#[wasm_bindgen(js_name = "getCommonFractions")]
-pub fn get_common_fractions(max_denominator: u32) -> String {
-    input_parser::get_common_fractions(max_denominator)
 }
 
 // ============================================================================
@@ -1148,13 +899,6 @@ impl ValidationConfig {
     pub fn set_max_mat_overlap(&mut self, val: f64) { self.0.max_mat_overlap = val; }
 }
 
-/// Get typical ranges as JSON (all fields from core TypicalRanges)
-#[wasm_bindgen(js_name = "getTypicalRangesJson")]
-pub fn get_typical_ranges_json() -> String {
-    let ranges = validation::TypicalRanges::new();
-    serde_json::to_string(&ranges).unwrap_or_else(|_| "{}".to_string())
-}
-
 /// Get a range hint string for a specific field
 #[wasm_bindgen(js_name = "getTypicalRangeHint")]
 pub fn get_typical_range_hint(field: &str, use_mm: bool) -> String {
@@ -1178,36 +922,9 @@ impl WasmValidationResult {
         self.0.has_warnings()
     }
 
-    #[wasm_bindgen(js_name = "isValid")]
-    pub fn is_valid(&self) -> bool {
-        self.0.is_valid()
-    }
-
-    #[wasm_bindgen(js_name = "errorCount")]
-    pub fn error_count(&self) -> usize {
-        self.0.error_count()
-    }
-
-    #[wasm_bindgen(js_name = "warningCount")]
-    pub fn warning_count(&self) -> usize {
-        self.0.warning_count()
-    }
-
     #[wasm_bindgen(js_name = "toJson")]
     pub fn to_json(&self) -> Result<String, JsValue> {
         self.0.to_json()
-            .map_err(|e| JsValue::from_str(&e))
-    }
-
-    #[wasm_bindgen(js_name = "errorsJson")]
-    pub fn errors_json(&self) -> Result<String, JsValue> {
-        self.0.errors_json()
-            .map_err(|e| JsValue::from_str(&e))
-    }
-
-    #[wasm_bindgen(js_name = "warningsJson")]
-    pub fn warnings_json(&self) -> Result<String, JsValue> {
-        self.0.warnings_json()
             .map_err(|e| JsValue::from_str(&e))
     }
 }
@@ -1243,13 +960,6 @@ fn history_error(msg: &str, original_json: &str) -> String {
 #[wasm_bindgen(js_name = "createHistory")]
 pub fn create_history() -> String {
     let history = history::DesignHistory::new();
-    history.to_json().unwrap_or_else(|_| "{}".to_string())
-}
-
-/// Create empty history with custom max entries
-#[wasm_bindgen(js_name = "createHistoryWithMax")]
-pub fn create_history_with_max(max_entries: usize) -> String {
-    let history = history::DesignHistory::with_max_entries(max_entries);
     history.to_json().unwrap_or_else(|_| "{}".to_string())
 }
 
@@ -1334,38 +1044,5 @@ pub fn update_history_title(history_json: &str, index: usize, title: &str) -> St
     };
 
     hist.update_title(index, title.to_string());
-    hist.to_json().unwrap_or_else(|_| history_json.to_string())
-}
-
-/// Clear all history entries
-///
-/// Returns empty history JSON
-#[wasm_bindgen(js_name = "clearHistory")]
-pub fn clear_history() -> String {
-    let history = history::DesignHistory::new();
-    history.to_json().unwrap_or_else(|_| "{}".to_string())
-}
-
-/// Get history length (returns 0 on parse failure)
-#[wasm_bindgen(js_name = "getHistoryLength")]
-pub fn get_history_length(history_json: &str) -> usize {
-    match parse_history(history_json) {
-        Ok(h) => h.len(),
-        Err(_) => 0,
-    }
-}
-
-/// Set max entries and enforce limit
-///
-/// Returns the updated history JSON. If `history_json` fails to parse, returns
-/// it unchanged (matches the mobile bridge).
-#[wasm_bindgen(js_name = "setHistoryMaxEntries")]
-pub fn set_history_max_entries(history_json: &str, max_entries: usize) -> String {
-    let mut hist = match parse_history(history_json) {
-        Ok(h) => h,
-        Err(_) => return history_json.to_string(),
-    };
-
-    hist.set_max_entries(max_entries);
     hist.to_json().unwrap_or_else(|_| history_json.to_string())
 }
