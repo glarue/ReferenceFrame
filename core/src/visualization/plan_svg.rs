@@ -14,6 +14,95 @@ use super::geometry::{CornerDetailGeometry, PlanViewGeometry, estimate_text_widt
 use super::svg_util::*;
 use super::layout::LayoutResult;
 
+/// Artwork outline (dashed, inside the mat opening).
+const ARTWORK_OUTLINE_DASH: &str = "4,2";
+const ARTWORK_OUTLINE_OPACITY: f64 = 0.6;
+/// Mat/artwork overlap fill + outline (neutral gray; not yet in DiagramStyle).
+const MAT_OVERLAP_COLOR: &str = "#888888";
+const MAT_OVERLAP_DASH: &str = "3,2";
+const MAT_OVERLAP_OPACITY: f64 = 0.4;
+
+/// Stroke spec for one plan-view rectangle outline.
+struct RectStroke<'a> {
+    rect: &'a Rect,
+    color: &'a str,
+    width: f64,
+    dasharray: Option<&'a str>,
+    opacity: f64,
+}
+
+/// Every rect outline the plan view draws, defined once. The no-break path
+/// renders these fields in place (interleaved with the overlap fills); the
+/// axis-break path draws them all up front via `in_break_order`, before the
+/// zigzag ribbons mask the break zones.
+struct PlanRectStrokes<'a> {
+    frame_outer: RectStroke<'a>,
+    frame_inner: RectStroke<'a>,
+    content_boundary: RectStroke<'a>,
+    /// Present when there is a mat.
+    mat_opening: Option<RectStroke<'a>>,
+    /// Present when there is a mat.
+    artwork: Option<RectStroke<'a>>,
+    /// Present when the lip over the art renders wider than 0.5px.
+    /// NOTE: outlines the same rect as `content_boundary` (double stroke; audit 5c).
+    rabbet_overlap: Option<RectStroke<'a>>,
+    /// Present when the mat overlaps the art by more than 0.5px.
+    mat_overlap: Option<RectStroke<'a>>,
+}
+
+impl<'a> PlanRectStrokes<'a> {
+    fn new(
+        design: &FrameDesign,
+        geometry: &'a PlanViewGeometry,
+        style: &'a DiagramStyle,
+        content_edge_color: &'a str,
+        rabbet_scaled: f64,
+    ) -> Self {
+        let solid = |rect: &'a Rect, width: f64| RectStroke {
+            rect, color: &style.line_color, width, dasharray: None, opacity: 1.0,
+        };
+        let mat_overlap_visible = geometry.mat_opening.is_some()
+            && design.mat_overlap * geometry.scale > 0.5
+            && design.has_mat();
+        Self {
+            frame_outer: solid(&geometry.frame_outer, style.frame_stroke_width),
+            frame_inner: solid(&geometry.frame_inner, style.frame_stroke_width),
+            content_boundary: RectStroke {
+                rect: &geometry.content_area, color: content_edge_color,
+                width: style.extension_stroke_width, dasharray: Some(DASH_BOUNDARY),
+                opacity: OPACITY_CONTENT_BOUNDARY,
+            },
+            mat_opening: geometry.mat_opening.as_ref()
+                .map(|mo| solid(mo, style.mat_stroke_width)),
+            artwork: geometry.mat_opening.as_ref().map(|_| RectStroke {
+                rect: &geometry.artwork, color: &style.artwork_color,
+                width: style.extension_stroke_width, dasharray: Some(ARTWORK_OUTLINE_DASH),
+                opacity: ARTWORK_OUTLINE_OPACITY,
+            }),
+            rabbet_overlap: (rabbet_scaled > 0.5).then_some(RectStroke {
+                rect: &geometry.content_area, color: content_edge_color,
+                width: style.extension_stroke_width * 0.8, dasharray: Some(DASH_ASSEMBLY_MARGIN),
+                opacity: OPACITY_CONTENT_BOUNDARY,
+            }),
+            mat_overlap: mat_overlap_visible.then_some(RectStroke {
+                rect: &geometry.artwork, color: MAT_OVERLAP_COLOR,
+                width: style.extension_stroke_width * 0.8, dasharray: Some(MAT_OVERLAP_DASH),
+                opacity: MAT_OVERLAP_OPACITY,
+            }),
+        }
+    }
+
+    /// Draw order used by the axis-break path.
+    fn in_break_order(&self) -> Vec<&RectStroke<'a>> {
+        let mut v = vec![&self.frame_outer, &self.frame_inner, &self.content_boundary];
+        v.extend(self.mat_opening.iter());
+        v.extend(self.artwork.iter());
+        v.extend(self.rabbet_overlap.iter());
+        v.extend(self.mat_overlap.iter());
+        v
+    }
+}
+
 /// Render the corner detail inset overlay for plan view.
 /// Shows a zoomed bottom-left corner with frame outer, frame inner,
 /// content area (matboard/artwork edge), and rabbet overlap zone.
@@ -460,30 +549,36 @@ pub(crate) fn build_plan_svg(
         &style.artwork_color            // Willow Green #90be6d (artwork edge)
     };
 
+    // Rabbet overlap uses lip_over_art (zero for sight-size/float) so its fill and
+    // outline vanish when the frame has no lip over the artwork.
+    let rabbet_scaled = design.lip_over_art() * geometry.scale;
+    // Single source for every plan-view rect stroke (color/width/dash/opacity),
+    // shared by the no-break path below and the axis-break path further down.
+    // The two paths still serialize with their historical attribute formats.
+    let strokes = PlanRectStrokes::new(design, geometry, style, content_edge_color, rabbet_scaled);
+
     // When breaks are NOT active, draw full rect strokes as before.
     // When breaks ARE active, skip rect strokes here — they'll be drawn as
     // corner segments after the zigzag ribbons mask the fills.
     if !has_breaks {
         // Geometry group — full rect strokes (no breaks)
         svg.push_str("  <g id=\"geometry\">\n");
-        svg.push_str(&svg_rect(&geometry.frame_outer, &style.line_color, style.frame_stroke_width, None));
-        svg.push_str(&svg_rect(&geometry.frame_inner, &style.line_color, style.frame_stroke_width, None));
-        if let Some(mat_opening) = &geometry.mat_opening {
-            svg.push_str(&svg_rect(mat_opening, &style.line_color, style.mat_stroke_width, None));
+        for rs in [&strokes.frame_outer, &strokes.frame_inner] {
+            svg.push_str(&svg_rect(rs.rect, rs.color, rs.width, None));
+        }
+        if let (Some(mo), Some(art)) = (&strokes.mat_opening, &strokes.artwork) {
+            svg.push_str(&svg_rect(mo.rect, mo.color, mo.width, None));
             svg.push_str(&format!(
-                "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"4,2\" fill=\"none\" opacity=\"0.6\"/>\n",
-                geometry.artwork.x, geometry.artwork.y,
-                geometry.artwork.width, geometry.artwork.height,
-                style.artwork_color, style.extension_stroke_width
+                "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"{}\" fill=\"none\" opacity=\"{}\"/>\n",
+                art.rect.x, art.rect.y,
+                art.rect.width, art.rect.height,
+                art.color, art.width, art.dasharray.unwrap_or_default(), art.opacity
             ));
         }
         svg.push_str("  </g>\n");
     }
 
     // Frame/mat overlap visualization - semi-transparent fill showing rabbet overlap area.
-    // Uses lip_over_art (zero for sight-size/float) so the fill vanishes when the
-    // frame has no lip over the artwork.
-    let rabbet_scaled = design.lip_over_art() * geometry.scale;
     if rabbet_scaled > 0.5 {
         svg.push_str("  <g id=\"rabbet-overlap\">\n");
         let ox = geometry.content_area.x;
@@ -503,10 +598,10 @@ pub(crate) fn build_plan_svg(
             "    <path d=\"{}\" fill=\"{}\" fill-opacity=\"0.15\" fill-rule=\"evenodd\" stroke=\"none\"/>\n",
             path_d, content_edge_color
         ));
-        if !has_breaks {
+        if let (false, Some(rs)) = (has_breaks, &strokes.rabbet_overlap) {
             svg.push_str(&format!(
                 "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{:.2}\" stroke-dasharray=\"{}\" stroke-opacity=\"{}\"/>\n",
-                ox, oy, ow, oh, content_edge_color, style.extension_stroke_width * 0.8, DASH_ASSEMBLY_MARGIN, OPACITY_CONTENT_BOUNDARY
+                rs.rect.x, rs.rect.y, rs.rect.width, rs.rect.height, rs.color, rs.width, rs.dasharray.unwrap_or_default(), rs.opacity
             ));
         }
         svg.push_str("  </g>\n");
@@ -514,12 +609,13 @@ pub(crate) fn build_plan_svg(
 
     // Content/matboard boundary
     if !has_breaks {
+        let rs = &strokes.content_boundary;
         svg.push_str("  <g id=\"content-boundary\">\n");
         svg.push_str(&format!(
             "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" stroke=\"{}\" stroke-width=\"{}\" stroke-dasharray=\"{}\" fill=\"none\" opacity=\"{}\"/>\n",
-            geometry.content_area.x, geometry.content_area.y,
-            geometry.content_area.width, geometry.content_area.height,
-            content_edge_color, style.extension_stroke_width, DASH_BOUNDARY, OPACITY_CONTENT_BOUNDARY
+            rs.rect.x, rs.rect.y,
+            rs.rect.width, rs.rect.height,
+            rs.color, rs.width, rs.dasharray.unwrap_or_default(), rs.opacity
         ));
         svg.push_str("  </g>\n");
     }
@@ -543,13 +639,13 @@ pub(crate) fn build_plan_svg(
                 ix, iy, ih, iw, -ih
             );
             svg.push_str(&format!(
-                "    <path d=\"{}\" fill=\"#888888\" fill-opacity=\"0.12\" fill-rule=\"evenodd\" stroke=\"none\"/>\n",
-                path_d
+                "    <path d=\"{}\" fill=\"{}\" fill-opacity=\"0.12\" fill-rule=\"evenodd\" stroke=\"none\"/>\n",
+                path_d, MAT_OVERLAP_COLOR
             ));
-            if !has_breaks {
+            if let (false, Some(rs)) = (has_breaks, &strokes.mat_overlap) {
                 svg.push_str(&format!(
-                    "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"none\" stroke=\"#888888\" stroke-width=\"{:.2}\" stroke-dasharray=\"3,2\" stroke-opacity=\"0.4\"/>\n",
-                    ox, oy, ow, oh, style.extension_stroke_width * 0.8
+                    "    <rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{:.2}\" stroke-dasharray=\"{}\" stroke-opacity=\"{}\"/>\n",
+                    rs.rect.x, rs.rect.y, rs.rect.width, rs.rect.height, rs.color, rs.width, rs.dasharray.unwrap_or_default(), rs.opacity
                 ));
             }
             svg.push_str("  </g>\n");
@@ -580,34 +676,7 @@ pub(crate) fn build_plan_svg(
 
         // STEP 1: Full rect strokes (ribbon masks in step 2 will clip break zones)
         // Drawing full <rect> elements gives clean mitered corners without join artifacts.
-        struct RectStroke<'a> {
-            rect: &'a Rect,
-            color: &'a str,
-            width: f64,
-            dasharray: Option<&'a str>,
-            opacity: f64,
-        }
-        let mut rect_strokes: Vec<RectStroke> = vec![
-            RectStroke { rect: &geometry.frame_outer, color: &style.line_color, width: style.frame_stroke_width, dasharray: None, opacity: 1.0 },
-            RectStroke { rect: &geometry.frame_inner, color: &style.line_color, width: style.frame_stroke_width, dasharray: None, opacity: 1.0 },
-            RectStroke { rect: &geometry.content_area, color: content_edge_color, width: style.extension_stroke_width, dasharray: Some(DASH_BOUNDARY), opacity: OPACITY_CONTENT_BOUNDARY },
-        ];
-        if let Some(ref mat_opening) = geometry.mat_opening {
-            rect_strokes.push(RectStroke { rect: mat_opening, color: &style.line_color, width: style.mat_stroke_width, dasharray: None, opacity: 1.0 });
-            rect_strokes.push(RectStroke { rect: &geometry.artwork, color: &style.artwork_color, width: style.extension_stroke_width, dasharray: Some("4,2"), opacity: 0.6 });
-        }
-        if rabbet_scaled > 0.5 {
-            rect_strokes.push(RectStroke { rect: &geometry.content_area, color: content_edge_color, width: style.extension_stroke_width * 0.8, dasharray: Some(DASH_ASSEMBLY_MARGIN), opacity: OPACITY_CONTENT_BOUNDARY });
-        }
-        if let Some(ref mat_opening) = geometry.mat_opening {
-            let mat_overlap_scaled = design.mat_overlap * geometry.scale;
-            if mat_overlap_scaled > 0.5 && design.has_mat() {
-                rect_strokes.push(RectStroke { rect: &geometry.artwork, color: "#888888", width: style.extension_stroke_width * 0.8, dasharray: Some("3,2"), opacity: 0.4 });
-                let _ = mat_opening;
-            }
-        }
-
-        for rs in &rect_strokes {
+        for rs in strokes.in_break_order() {
             let dash_attr = if let Some(da) = rs.dasharray {
                 format!(r#" stroke-dasharray="{}""#, da)
             } else {
