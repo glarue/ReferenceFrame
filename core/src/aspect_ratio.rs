@@ -18,7 +18,6 @@ const COMMON_RATIOS: &[(i32, i32, &str)] = &[
     (5, 4, "5:4"), (4, 5, "4:5"),
     (16, 9, "16:9"), (9, 16, "9:16"),
     (5, 7, "5:7"), (7, 5, "7:5"),
-    (8, 10, "4:5"), (10, 8, "5:4"),  // Same as 4:5, 5:4
     (11, 14, "11:14"), (14, 11, "14:11"),
 ];
 
@@ -142,33 +141,42 @@ impl AspectLockState {
     }
 
     /// Calculate width for a given height, rounded to step
+    ///
+    /// Returns 0.0 when unlocked or the locked ratio is zero; a step that
+    /// isn't a positive finite number means "don't round" (never NaN).
     pub fn get_width_for_height(&self, height: f64, step: f64) -> f64 {
         if !self.locked {
             return 0.0;
         }
 
         match self.ratio {
-            Some(ratio) if ratio != 0.0 => {
-                let width = height / ratio;
-                (width / step).round() * step
-            }
+            Some(ratio) if ratio != 0.0 => round_to_step(height / ratio, step),
             _ => 0.0,
         }
     }
 
     /// Calculate height for a given width, rounded to step
+    ///
+    /// Same guards as [`AspectLockState::get_width_for_height`].
     pub fn get_height_for_width(&self, width: f64, step: f64) -> f64 {
         if !self.locked {
             return 0.0;
         }
 
         match self.ratio {
-            Some(ratio) => {
-                let height = width * ratio;
-                (height / step).round() * step
-            }
-            None => 0.0,
+            Some(ratio) if ratio != 0.0 => round_to_step(width * ratio, step),
+            _ => 0.0,
         }
+    }
+}
+
+/// Round `value` to the nearest multiple of `step`; a step that isn't a
+/// positive finite number leaves the value unrounded (avoids `x / 0` → NaN).
+fn round_to_step(value: f64, step: f64) -> f64 {
+    if step > 0.0 && step.is_finite() {
+        (value / step).round() * step
+    } else {
+        value
     }
 }
 
@@ -277,5 +285,41 @@ mod tests {
         // height = 5.0 * 1.5 = 7.5, rounded to nearest 0.125 = 7.5
         let h = state.get_height_for_width(5.0, 0.125);
         assert!((h - 7.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_zero_or_invalid_step_never_nan() {
+        let mut state = AspectLockState::new();
+        state.lock(12.0, 8.0); // ratio = 1.5
+        for step in [0.0, -0.125, f64::NAN, f64::INFINITY] {
+            let w = state.get_width_for_height(10.0, step);
+            let h = state.get_height_for_width(5.0, step);
+            assert!((w - 10.0 / 1.5).abs() < 1e-9, "step {step}: width unrounded, got {w}");
+            assert!((h - 7.5).abs() < 1e-9, "step {step}: height unrounded, got {h}");
+        }
+    }
+
+    #[test]
+    fn test_zero_ratio_returns_zero() {
+        let mut state = AspectLockState::new();
+        state.lock(0.0, 8.0); // ratio = 0
+        assert_eq!(state.get_width_for_height(10.0, 0.125), 0.0);
+        assert_eq!(state.get_height_for_width(10.0, 0.125), 0.0);
+        assert_eq!(state.get_width_for_height(10.0, 0.0), 0.0);
+    }
+
+    #[test]
+    fn test_common_ratios_have_no_duplicates() {
+        // Each ratio value appears once, so every entry is reachable
+        for (i, &(h1, w1, n1)) in COMMON_RATIOS.iter().enumerate() {
+            for &(h2, w2, n2) in &COMMON_RATIOS[i + 1..] {
+                let (r1, r2) = (h1 as f64 / w1 as f64, h2 as f64 / w2 as f64);
+                assert!((r1 - r2).abs() >= ASPECT_RATIO_MATCH_TOLERANCE,
+                    "{n1} and {n2} match the same ratios");
+            }
+        }
+        // 8x10 still displays via the 4:5 entry
+        assert_eq!(get_aspect_ratio_display(8.0, 10.0), "4:5");
+        assert_eq!(get_aspect_ratio_display(10.0, 8.0), "5:4");
     }
 }
