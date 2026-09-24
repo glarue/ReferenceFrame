@@ -14,6 +14,10 @@ use super::geometry::{
 };
 use super::svg_util::*;
 
+/// Gap between the material-label column and the start of the stack
+/// dimension's extension ticks
+const STACK_TICK_LABEL_GAP: f64 = 10.0;
+
 /// Build SVG string for section view
 ///
 /// Shows frame L-shape profile with materials stacked vertically.
@@ -539,26 +543,25 @@ pub(crate) fn build_section_svg(
     // Find total stack callout
     let total_stack = callouts.iter().find(|c| c.dimension_type == DimensionType::TotalStackHeight);
     if let Some(callout) = total_stack {
-        // Extension lines - start from after label area
-        svg.push_str(&format!(
-            r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            label_base_x + max_label_width + 10.0, stack_top,
-            stack_dim_x + style.extension_line_overshoot, stack_top,
-            dim_color, style.extension_stroke_width
-        ));
-        svg.push('\n');
-        svg.push_str(&format!(
-            r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            label_base_x + max_label_width + 10.0, stack_bottom,
-            stack_dim_x + style.extension_line_overshoot, stack_bottom,
-            dim_color, style.extension_stroke_width
-        ));
-        svg.push('\n');
-        // Dimension line - arrow tips land exactly at stack boundaries
+        // Extension ticks at the stack's top and bottom - start just after the
+        // label column and overshoot the dimension line slightly
+        let tick_x1 = label_base_x + max_label_width + STACK_TICK_LABEL_GAP;
+        let tick_x2 = stack_dim_x + style.extension_line_overshoot;
+        for y in [stack_top, stack_bottom] {
+            svg.push_str(&format!(
+                r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
+                tick_x1, y, tick_x2, y,
+                dim_color, style.extension_stroke_width
+            ));
+            svg.push('\n');
+        }
+        // Dimension line - centred on the ticks; arrow tips land exactly at
+        // the stack boundaries
+        let arrow_x = (tick_x1 + tick_x2) / 2.0;
         let stack_line_y1 = arrow_line_endpoint_for_target_y(stack_top, style.dimension_stroke_width, true);
         let stack_line_y2 = arrow_line_endpoint_for_target_y(stack_bottom, style.dimension_stroke_width, false);
         svg.push_str(&generate_line_with_arrows(
-            stack_dim_x, stack_line_y1, stack_dim_x, stack_line_y2,
+            arrow_x, stack_line_y1, arrow_x, stack_line_y2,
             dim_color, style.dimension_stroke_width,
             true, true, false, // both arrows
         ));

@@ -45,9 +45,9 @@
     <text transform="translate(595.81, 363.14)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Margin: 1/16"</text>
     <line x1="688.44" y1="284.80" x2="702.44" y2="284.80" stroke="#333333" stroke-width="0.5"/>
     <line x1="688.44" y1="352.60" x2="702.44" y2="352.60" stroke="#333333" stroke-width="0.5"/>
-    <polygon points="698.44,284.80 696.56,290.80 700.31,290.80" fill="#333333" data-arrow="true"/>
-    <line x1="698.44" y1="290.80" x2="698.44" y2="346.60" stroke="#333333" stroke-width="0.75"/>
-    <polygon points="698.44,352.60 700.31,346.60 696.56,346.60" fill="#333333" data-arrow="true"/>
+    <polygon points="695.44,284.80 693.56,290.80 697.31,290.80" fill="#333333" data-arrow="true"/>
+    <line x1="695.44" y1="290.80" x2="695.44" y2="346.60" stroke="#333333" stroke-width="0.75"/>
+    <polygon points="695.44,352.60 697.31,346.60 693.56,346.60" fill="#333333" data-arrow="true"/>
     <text x="715.64" y="318.70" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" transform="rotate(-90 715.64 318.70)">0.23"</text>
     <line x1="352.81" y1="399.30" x2="352.81" y2="407.30" stroke="#333333" stroke-width="0.5" stroke-dasharray="3,2"/>
     <text transform="translate(352.81, 419.40)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Sight-size · rabbet 3/8" × 3/8" (clears art)</text>
