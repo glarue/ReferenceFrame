@@ -20,6 +20,7 @@ mod svg_util;
 mod section_svg;
 mod plan_svg;
 mod svg;
+mod wood;
 // Layout snapshot harness (file I/O against core/tests/snapshots) — unit-test only.
 #[cfg(test)]
 mod snapshot;
@@ -28,6 +29,10 @@ mod snapshot;
 pub use types::{ViewOption, DetailMode, DiagramOptions, DiagramResult};
 pub use style::{DiagramStyle, MaterialPatterns, FillPattern};
 pub use svg::{generate_diagram, generate_diagram_with_style};
+pub use wood::{
+    board_svg, frame_face_svg, wood_appearance, DepthCues, FaceDepths, Figure, FrameFace, FrameFaceSvg, GrainStats,
+    LineMode, WoodAppearance, WoodLod, WoodPalette, WoodParams, WoodStructure,
+};
 
 /// Shared test utilities for visualization tests.
 #[cfg(test)]
