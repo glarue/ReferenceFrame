@@ -111,7 +111,13 @@ This is a generated file, written by `tools/wood-fit/export_appearance.py` from 
 
 ## Payload budget
 
-- **Measured** (18×22″ frame with 1.5″ moulding at 18 px/in, `Grain` LOD): 35–53 KB per species, and 76 KB for quartersawn oak with its hundreds of ray flecks. The `Flat` LOD is 2.6 KB.
+- **Measured** (18×22″ frame with 1.5″ moulding at 18 px/in, `Grain` LOD): 35–49 KB and 60–134 elements per species, and 60 KB / 132 elements for quartersawn oak. The `Flat` LOD is 2.6 KB.
+- **Compound paths:** within each piece, same-style elements of a layer merge into one path. This cut element counts by about half (518 → 132 for quartersawn) and bytes by 5–15%; elements are what drive parse time on iOS and layout on web.
+  - Random opacity, width and dash choices are drawn from 3 levels (or 4 shared dash lists) so that elements can share a style.
+  - Each dashed run starts at a random interior point and draws outward both ways. Dash patterns restart per sub-path, so without this the merged rows would line up in columns.
+  - Filled outlines are normalized to one winding direction, so overlaps union instead of cancelling into holes.
+  - What remains is mostly fixed per-frame structure: clips, groups, shadows, seams, and 24 streak bands, which stay separate so their nested soft edges don't collapse.
+- **Tried and rejected: cubic Bézier fitting** (Schneider's algorithm on the full-density points). It came out 25–100% *larger* than the simplified polylines, even at twice the tolerance. The noise-warped grain lines wiggle every few px, so a cubic (6 numbers) rarely replaces more than about 3 polyline vertices (2 numbers each).
 - Before the scale LOD and encoding work, the same frames were 56–216 KB; a straight port of the prototype was up to 768 KB.
 - **Budget (tested):** at most **60 KB** per species and at most **80 KB** for quartersawn, at 20 px/in. The earlier 40 KB was a guess. The evidence for this budget is the flutter_svg device test, which measured about 8.5 ms to parse 100 KB of grain, and that happens once when the preview settles.
 - **Levers in use:**
@@ -120,7 +126,7 @@ This is a generated file, written by `tools/wood-fit/export_appearance.py` from 
   - RDP polylines
   - culling of off-face runs
   - ring and pore-row decimation by scale
-  - grouped shared attributes for pores and flecks
+  - compound paths per style
 
 ## Tests
 
