@@ -1,6 +1,6 @@
 # Wood-Grain Frame Rendering Plan
 
-> **Status (2026-10-06):** Active. **Phases 1–3 are done** (web committed, not yet deployed). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle. Next is Phase 4 (iOS). The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
+> **Status (2026-10-06):** Active. **Phases 1–3 are done** (web committed, not yet deployed); **Phase 4 (iOS) is built**, pending the simulator/device check and release. The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
 
 **Goal:** draw the frame face with species-specific procedural wood grain, replacing today's outline-only plan view and flat brown section fill, in the plan view and live preview on both web and iOS. The species is the one users already pick for the weight estimate (`materials.woods`). The aim is "close in spirit" rather than photoreal: deterministic, vector, and one implementation in `core/` for both platforms.
 
@@ -213,23 +213,18 @@ Root commits `dcbd945` (core: the combined view's sizing probe skips the grain; 
 - **Browser check harness:** a CDP script drove headless Edge (`/Applications/Microsoft Edge.app`) against `serve.py`; Node 25 has `WebSocket` built in, so no Playwright is needed. jsPDF's `save` lives on `jsPDF.API`; hook it there to capture the export.
 - **Not done:** history thumbnails don't render diagrams, so nothing to do there.
 
-### Phase 4: iOS
-1. **Diagrams tab:** `platforms/mobile/lib/state/design_state.dart` builds the diagram request map (around line 856, beside `'show_spline'`). Add `'wood': {'species': _woodKey, 'lod': 'grain', 'depth': 'inner'}` when the toggle is on. `_woodKey` is already the weight-estimate species pref.
-2. **Toggles:** wood must be reachable separately for the live preview, the Diagrams tab and PDF export. Start with a "Wood grain" item in the Layers & Detail sheet (`lib/widgets/layers_button.dart`, `navigation/app_shell.dart`), persisted like `_showSpline`; decide with the user whether one switch drives all three or each gets its own. Wood is additive: don't hide any other layer (the preview keeps its dashed content/mat lines).
-   - **PDF:** the PDF path uses the `pdf` theme (`DiagramTheme::Pdf`, Latin-1 text); pass `wood` through and check the iOS PDF renderer handles the clipPaths, transforms and ~50–100 KB of paths.
-3. **Live preview:**
-   - The bridge functions `generate_preview_svg` and `generate_interpolated_preview_svg` (`platforms/mobile/rust/src/api/simple.rs`, around lines 468 and 530) build fixed `DiagramOptions`.
-   - Add wood parameters, or a variant that takes an options JSON to avoid churning the flutter_rust_bridge signature. Regenerate the bridge with frb.
-   - `lib/widgets/frame_preview.dart`:
-     - `Flat` LOD while `_morphController` animates; `Grain` at rest.
-     - Depth `inner_and_wall` in both cases.
-     - The rotation animation reuses the static `svgString`, so grain is fine there.
-4. **Build:** `cd platforms/mobile && ./rebuild.sh run`. Plain `flutter run` misses Rust changes.
-5. **Device check:**
-   - Profile mode on a physical device. The simulator is debug-only, so its timings are meaningless.
-   - Use the oldest supported class (iOS 15).
-   - Measure the switch from flat to grain when the morph settles. Fallback if too slow: a binary display list over FFI drawn by a `CustomPainter` (no SVG parse).
-6. **Release:** `./release.sh` (dry run), then `--apply`; `fastlane beta`, then `submit` (see `platforms/mobile/RELEASING.md`). Draft App Store notes with `/release-notes`.
+### Phase 4: iOS (built 2026-10-06; on-device check and release pending)
+Root `62078f3` (core fix below); mobile repo `edefb7a` (bridge) and the `feat(app)` commit after it.
+- **One switch:** "Wood Grain" in Layers & Detail (`lib/widgets/layers_detail_sheet.dart`, hint "Frame in your Materials wood, here and in the preview"), persisted as `pref_show_wood`. It drives the live preview, the Diagrams tab and the PDF. The species is the existing Materials wood picker (`woodKey`). The Layers button counts wood as an active layer (dot + VoiceOver value "… and wood grain on").
+- **Diagrams tab and PDF:** `DesignState.woodOption()` adds `'wood': {species, lod: 'grain', depth: 'inner'}` to the combined-view request (screen and PDF alike). `VisualizationScreen._diagramKey` includes `showWood` and `woodKey`.
+- **Live preview:** the bridge's `generate_preview_svg` / `generate_interpolated_preview_svg` take an optional `wood_json` (core `WoodRender` JSON; bindings regenerated with `flutter_rust_bridge_codegen generate`). `FramePreview` sends `lod: 'flat'` for the interpolated morph frames and `'grain'` for the settled SVG, both with `depth: 'inner_and_wall'`; its `Selector` now watches `(designJson, showWood, woodKey)`. When wood is on it precaches the settled SVG with `SvgStringLoader(svg).loadBytes(context)` (same cache key `SvgPicture.string` uses), so parsing starts while the flat morph plays.
+- **PDF finding (fixed in core):** the Dart `pdf` package resolves `clip-path` in the parent's coordinate space, ignoring the element's own `transform`, so every frame piece was clipped away. `Piece::draw` now emits `<g transform=…><g clip-path=…>` (equivalent everywhere). The `pdf` package renders the inner-shadow gradient correctly, so the iOS PDF keeps `depth: 'inner'` (only the web's svg2pdf needed `none`).
+- **Checked off-device:** flutter_svg renders WASM-generated preview SVGs correctly (grain, clips, tone, seams, both shadows; flat and grain match in tone) in a widget test; the `pdf` package renders the PDF diagram (probe scripts in the session scratchpad, not committed). The full Flutter suite passes; analyzer shows only 3 pre-existing infos.
+- **Preview payload is higher than the Phase 1 budget assumed:** the preview canvas is 2× the container (about 30 px/in, not 20), so the settled grain SVG is up to ~104 KB (Douglas-fir, 16×20″ with mat); 41–86 KB for other sizes. Generation is 3–11 ms (WASM; native is faster). It's generated once per change and parsed in the background, so it should be fine, but **measure on device**. Levers if needed: render the preview at 1.5× instead of 2×, or tighten the LOD floors for the preview.
+- **Still to do:**
+  1. Simulator run (`./rebuild.sh run`) to see the real app.
+  2. **Device check** (profile mode, physical device, oldest supported class): the flat-to-grain hand-off when the morph settles, scrolling/tab-switch smoothness with grain on, PDF export time. Fallback if the settle swap is slow: a binary display list over FFI drawn by a `CustomPainter`.
+  3. **Release:** `./release.sh` (dry run), then `--apply`; `fastlane beta`, then `submit` (`platforms/mobile/RELEASING.md`). Draft App Store notes with `/release-notes`; don't name the photo source anywhere.
 
 ### Phase 5: later
 - A separate photo-style "preview" option: the user loads an image as the artwork placeholder, shown with the wood frame (user idea, TBD; this is where hiding technical overlays could make sense, as its own mode, not as a side effect of the wood toggle).
