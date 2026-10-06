@@ -107,6 +107,20 @@ pub(crate) fn smooth_d(pts: &[Pt]) -> String {
     w.d
 }
 
+/// Same winding for every filled outline: overlapping sub-paths of one compound path
+/// then union under the nonzero rule (opposite windings would cancel into holes).
+pub(crate) fn ccw(mut pts: Vec<Pt>) -> Vec<Pt> {
+    let n = pts.len();
+    let area2: f64 = (0..n).map(|i| {
+        let (a, b) = (pts[i], pts[(i + 1) % n]);
+        a.0 * b.1 - b.0 * a.1
+    }).sum();
+    if area2 < 0.0 {
+        pts.reverse();
+    }
+    pts
+}
+
 /// Closed variable-width outline with straight edges (for RDP-simplified centrelines,
 /// whose points already follow the curve to within a fraction of a pixel).
 pub(crate) fn ribbon_poly_d(pts: &[Pt], widths: &[f64]) -> String {
@@ -122,7 +136,7 @@ pub(crate) fn ribbon_poly_d(pts: &[Pt], widths: &[f64]) -> String {
         right.push((x - nx * h, y - ny * h));
     }
     left.extend(right.into_iter().rev());
-    poly_d(&left, true)
+    poly_d(&ccw(left), true)
 }
 
 /// Dash list `"a b c d …"` at 0.1 precision.

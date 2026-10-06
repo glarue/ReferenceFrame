@@ -56,10 +56,14 @@ fn main() {
             }
         }
         _ => {
-            println!("{:<22} {:>9} {:>9} {:>9}   (KB, Grain LOD, 18x22\" frame, 1.5\" moulding)", "species", "18 px/in", "30 px/in", "flat@30");
+            println!("{:<22} {:>9} {:>7} {:>9} {:>7} {:>8}   (KB / elements, Grain LOD, 18x22\" frame, 1.5\" moulding)",
+                "species", "18 px/in", "elems", "30 px/in", "elems", "flat@30");
             for (key, a) in species() {
-                let kb = |ppi: f64, lod| frame_doc(a, ppi, lod).len() as f64 / 1024.0;
-                println!("{key:<22} {:>9.1} {:>9.1} {:>9.1}", kb(18.0, WoodLod::Grain), kb(30.0, WoodLod::Grain), kb(30.0, WoodLod::Flat));
+                let doc = |ppi: f64, lod| frame_doc(a, ppi, lod);
+                let (d18, d30) = (doc(18.0, WoodLod::Grain), doc(30.0, WoodLod::Grain));
+                let n = |d: &str| d.matches("<path").count() + d.matches("<rect").count() + d.matches("<line").count();
+                println!("{key:<22} {:>9.1} {:>7} {:>9.1} {:>7} {:>8.1}", d18.len() as f64 / 1024.0, n(&d18),
+                    d30.len() as f64 / 1024.0, n(&d30), doc(30.0, WoodLod::Flat).len() as f64 / 1024.0);
             }
         }
     }

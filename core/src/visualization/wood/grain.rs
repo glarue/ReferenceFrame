@@ -7,7 +7,7 @@
 
 use super::appearance::{Figure, LineMode, WoodAppearance};
 use super::noise::{clamp01, fbm, substream, Rng};
-use super::path::{dash_list, op2, poly_d, ribbon_poly_d, smooth_d, Pt};
+use super::path::{ccw, dash_list, op2, poly_d, ribbon_poly_d, smooth_d, Pt};
 use std::fmt::Write;
 
 /// Thinnest stroke worth drawing at preview scale (px)
@@ -54,7 +54,9 @@ impl Run {
     }
 
     /// Simplified for compact paths: Ramer-Douglas-Peucker at a sub-pixel tolerance,
-    /// with arch apexes as fixed break points (they always survive).
+    /// with arch apexes as fixed break points (they always survive). Polylines through
+    /// these points beat fitted cubics here: the noise-warped grain lines wiggle every few
+    /// px, so a cubic (6 numbers) rarely replaces more than ~3 vertices (2 numbers each).
     fn thinned(&self) -> (Vec<Pt>, Vec<f64>) {
         let n = self.pts.len();
         if n <= 3 {
@@ -107,6 +109,60 @@ fn rdp(pts: &[Pt], a: usize, b: usize, eps: f64, keep: &mut [bool]) {
             stack.push((idx, j));
         }
     }
+}
+
+/// Merges same-style elements of one layer into compound paths: one element per
+/// style instead of one per line/pore/fleck. Flushed per layer to keep stacking order.
+#[derive(Default)]
+struct Batch(Vec<(String, String)>); // (attributes, path data)
+
+impl Batch {
+    fn add(&mut self, attrs: &str, d: &str) {
+        match self.0.iter_mut().find(|(a, _)| a == attrs) {
+            Some((_, dd)) => dd.push_str(d),
+            None => self.0.push((attrs.to_string(), d.to_string())),
+        }
+    }
+
+    fn flush(&mut self, out: &mut String) {
+        for (attrs, d) in self.0.drain(..) {
+            let _ = write!(out, r#"<path d="{d}" {attrs}/>"#);
+        }
+    }
+}
+
+/// One of three evenly spread levels in [lo, hi] (the mean of a uniform draw): random
+/// variation that still lets elements share a style and merge.
+fn level3(r: &mut Rng, lo: f64, hi: f64) -> f64 {
+    let k = (r.random() * 3.0).floor().min(2.0);
+    lo + (hi - lo) * (2.0 * k + 1.0) / 6.0
+}
+
+/// Index into a small set of shared dash lists.
+fn pick(r: &mut Rng, n: usize) -> usize {
+    ((r.random() * n as f64) as usize).min(n - 1)
+}
+
+/// Dash patterns restart at each sub-path, so a dashed run is split at a random point
+/// and drawn outward both ways: runs sharing a dash list keep independent phases
+/// (no aligned "columns") with no visible change to the line.
+fn phase_split(pts: &[Pt], r: &mut Rng) -> Vec<Vec<Pt>> {
+    let seg: Vec<f64> = pts.windows(2).map(|w| (w[1].0 - w[0].0).hypot(w[1].1 - w[0].1)).collect();
+    let total: f64 = seg.iter().sum();
+    if pts.len() < 2 || total <= 0.0 {
+        return vec![pts.to_vec()];
+    }
+    let mut s = r.random() * total;
+    let mut i = 0;
+    while i < seg.len() - 1 && s > seg[i] {
+        s -= seg[i];
+        i += 1;
+    }
+    let t = if seg[i] > 0.0 { s / seg[i] } else { 0.0 };
+    let m = (pts[i].0 + t * (pts[i + 1].0 - pts[i].0), pts[i].1 + t * (pts[i + 1].1 - pts[i].1));
+    let fwd: Vec<Pt> = std::iter::once(m).chain(pts[i + 1..].iter().copied()).collect();
+    let back: Vec<Pt> = std::iter::once(m).chain(pts[..=i].iter().rev().copied()).collect();
+    [fwd, back].into_iter().filter(|v| v.len() > 1).collect()
 }
 
 /// AR(1) tree-ring widths (phi 0.6) with an occasional narrow year, mean 1.
@@ -419,66 +475,80 @@ pub(crate) fn side_grain(a: &WoodAppearance, l: f64, fw: f64, ppi: f64, seed: u3
 
     // --- growth-zone bands ----------------------------------------------------------
     let mut rz = substream(seed, 7);
+    let zb = p.zone_break;
+    let zone_dashes: Vec<String> = if zb > 0.0 {
+        (0..4).map(|_| long_dashes(&mut rz, ppi, 0.5 + 0.9 * zb, 0.25 + 0.6 * zb)).collect()
+    } else {
+        Vec::new()
+    };
+    let mut batch = Batch::default();
     for (runs, zw) in &zones {
-        let op = clamp01(p.zone_op * boost * rz.uniform(0.6, 1.4));
+        let op = op2(clamp01(p.zone_op * boost * level3(&mut rz, 0.6, 1.4)));
+        let zwq = ((zw * 2.0).round() / 2.0).max(0.5); // 0.5 px steps so rings can share a style
         for run in runs {
             let (tp, tm) = run.thinned();
-            if p.ribbon && p.zone_break <= 0.0 && run.pts.len() > 2 {
+            if p.ribbon && zb <= 0.0 && run.pts.len() > 2 {
                 let w = widths_along(&tp, &tm, *zw, 0.5);
-                let _ = write!(out, r#"<path d="{}" fill="{}" fill-opacity="{}"/>"#, ribbon_poly_d(&tp, &w), pal.late, op2(op));
+                batch.add(&format!(r#"fill="{}" fill-opacity="{op}""#, pal.late), &ribbon_poly_d(&tp, &w));
+            } else if zb > 0.0 {
+                let attrs = format!(r#"fill="none" stroke="{}" stroke-width="{zwq}" stroke-opacity="{op}" stroke-dasharray="{}""#,
+                    pal.late, zone_dashes[pick(&mut rz, 4)]);
+                for part in phase_split(&tp, &mut rz) {
+                    batch.add(&attrs, &poly_d(&part, false));
+                }
             } else {
-                let dash = if p.zone_break > 0.0 {
-                    let zb = p.zone_break;
-                    format!(r#" stroke-dasharray="{}""#, long_dashes(&mut rz, ppi, 0.5 + 0.9 * zb, 0.25 + 0.6 * zb))
-                } else {
-                    String::new()
-                };
-                let _ = write!(out, r#"<path d="{}" fill="none" stroke="{}" stroke-width="{:.1}" stroke-opacity="{}"{dash}/>"#,
-                    poly_d(&tp, false), pal.late, zw, op2(op));
+                batch.add(&format!(r#"fill="none" stroke="{}" stroke-width="{zwq}" stroke-opacity="{op}""#, pal.late), &poly_d(&tp, false));
             }
             stats.zones += 1;
         }
     }
+    batch.flush(&mut out);
 
     // --- ring traces -----------------------------------------------------------------
     let mut rs = substream(seed, 4);
     let lw = p.line_w_in * ppi;
+    let broken_dashes: Vec<String> = (0..4).map(|_| long_dashes(&mut rs, ppi, p.line_dash_in, p.line_gap_in)).collect();
+    let thick_dashes: Vec<String> = (0..4).map(|_| long_dashes(&mut rs, ppi, 0.6, 0.7)).collect();
     if s.line_mode != LineMode::None {
         for run in &lines {
             let (tp, tm) = run.thinned();
-            let w = (lw * rs.uniform(0.6, 1.4)).max(FLOOR_LINE_PX);
-            let op = clamp01(p.line_op * boost * rs.uniform(0.7, 1.3));
+            let w = (lw * level3(&mut rs, 0.6, 1.4)).max(FLOOR_LINE_PX);
+            let op = clamp01(p.line_op * boost * level3(&mut rs, 0.7, 1.3));
             stats.lines += 1;
             if p.ribbon && s.line_mode == LineMode::Continuous && run.pts.len() > 2 && w >= RIBBON_MIN_PX {
                 let ww = widths_along(&tp, &tm, w, 1.0);
-                let _ = write!(out, r#"<path d="{}" fill="{}" fill-opacity="{}"/>"#, ribbon_poly_d(&tp, &ww), pal.late, op2(op));
+                batch.add(&format!(r#"fill="{}" fill-opacity="{}""#, pal.late, op2(op)), &ribbon_poly_d(&tp, &ww));
                 continue;
             }
-            let d = poly_d(&tp, false);
-            let dash = if s.line_mode == LineMode::Broken {
-                format!(r#" stroke-dasharray="{}""#, long_dashes(&mut rs, ppi, p.line_dash_in, p.line_gap_in))
+            let stroke = format!(r#"fill="none" stroke="{}" stroke-width="{:.2}" stroke-opacity="{}""#, pal.late, w, op2(op));
+            if s.line_mode == LineMode::Broken {
+                let attrs = format!(r#"{stroke} stroke-dasharray="{}""#, broken_dashes[pick(&mut rs, 4)]);
+                for part in phase_split(&tp, &mut rs) {
+                    batch.add(&attrs, &poly_d(&part, false));
+                }
             } else {
-                String::new()
-            };
-            let _ = write!(out, r#"<path d="{d}" fill="none" stroke="{}" stroke-width="{:.2}" stroke-opacity="{}"{dash}/>"#,
-                pal.late, w, op2(op));
+                batch.add(&stroke, &poly_d(&tp, false));
+            }
             if p.line_thick_var > 0.0 {
-                let _ = write!(out, r#"<path d="{d}" fill="none" stroke="{}" stroke-width="{:.2}" stroke-opacity="{}" stroke-linecap="round" stroke-dasharray="{}"/>"#,
-                    pal.late, w * rs.uniform(1.3, 1.9), op2(op * 0.45 * p.line_thick_var), long_dashes(&mut rs, ppi, 0.6, 0.7));
+                let attrs = format!(r#"fill="none" stroke="{}" stroke-width="{:.2}" stroke-opacity="{}" stroke-linecap="round" stroke-dasharray="{}""#,
+                    pal.late, w * level3(&mut rs, 1.3, 1.9), op2(op * 0.45 * p.line_thick_var), thick_dashes[pick(&mut rs, 4)]);
+                for part in phase_split(&tp, &mut rs) {
+                    batch.add(&attrs, &poly_d(&part, false));
+                }
             }
         }
     }
+    batch.flush(&mut out);
 
     // --- pores: aperiodic short dashes along earlywood rows --------------------------
     let mut rp = substream(seed, 6);
     let typical_band = p.pore_band_frac.map_or(p.pore_band_in * ppi, |f| f * sp_px * lod_k as f64);
     let pore_lod = (f64::from(p.pore_rows) / (typical_band / MIN_PORE_ROW_PX).floor().max(1.0)).max(1.0);
     let pore_boost = boost * pore_lod.powf(0.75);
-    let _ = write!(out, r#"<g fill="none" stroke="{}">"#, pal.late);
     let (pl, pg) = (p.pore_len_in * ppi, p.pore_gap_in * ppi);
     let pw = (p.pore_w_in * ppi).max(FLOOR_PORE_PX);
-    for run in &pore_runs {
-        let (tp, _) = run.thinned();
+    // a few shared aperiodic dash lists (lognormal-ish dashes, exponential-ish gaps)
+    let pore_dashes: Vec<String> = (0..4).map(|_| {
         let mut da = Vec::with_capacity(12);
         for _ in 0..6 {
             let t = rp.random() + rp.random() + rp.random() - 1.5;
@@ -486,16 +556,23 @@ pub(crate) fn side_grain(a: &WoodAppearance, l: f64, fw: f64, ppi: f64, seed: u3
             let u = rp.random();
             da.push((pg * (0.15 + 1.7 * u * u)).max(0.8));
         }
-        if rp.random() < 0.5 {
-            da.rotate_left(2); // random phase without stroke-dashoffset
+        dash_list(&da)
+    }).collect();
+    for run in &pore_runs {
+        let (tp, _) = run.thinned();
+        let pwi = pw * if p.pore_jitter > 0.0 { level3(&mut rp, 0.6, 1.4) } else { 1.0 };
+        let op = clamp01(p.pore_op * pore_boost * level3(&mut rp, 0.7, 1.3));
+        let attrs = format!(r#"stroke-width="{:.2}" stroke-opacity="{}" stroke-dasharray="{}""#, pwi, op2(op), pore_dashes[pick(&mut rp, 4)]);
+        for part in phase_split(&tp, &mut rp) {
+            batch.add(&attrs, &poly_d(&part, false));
         }
-        let pwi = pw * if p.pore_jitter > 0.0 { rp.uniform(0.6, 1.4) } else { 1.0 };
-        let op = clamp01(p.pore_op * pore_boost * rp.uniform(0.7, 1.3));
-        let _ = write!(out, r#"<path d="{}" stroke-width="{:.2}" stroke-opacity="{}" stroke-dasharray="{}"/>"#,
-            poly_d(&tp, false), pwi, op2(op), dash_list(&da));
         stats.pores += 1;
     }
-    out.push_str("</g>");
+    if !pore_runs.is_empty() {
+        let _ = write!(out, r#"<g fill="none" stroke="{}">"#, pal.late);
+        batch.flush(&mut out);
+        out.push_str("</g>");
+    }
 
     // --- ray flecks: tapered ribbons along stacked arcs (quartersawn) ------------------
     if s.flecks {
@@ -535,14 +612,15 @@ pub(crate) fn side_grain(a: &WoodAppearance, l: f64, fw: f64, ppi: f64, seed: u3
                     }
                     right.reverse();
                     left.extend(right);
-                    let _ = write!(out, r#"<path d="{}" fill-opacity="{}"/>"#,
-                        poly_d(&left, true), op2(clamp01(p.fleck_op * rf.uniform(0.7, 1.3))));
+                    let op = op2(clamp01(p.fleck_op * level3(&mut rf, 0.7, 1.3)));
+                    batch.add(&format!(r#"fill-opacity="{op}""#), &poly_d(&ccw(left), true));
                     stats.flecks += 1;
                 }
                 v = vv + gap / (1.0 + (2.0 * c * (vv - vc_k)).powi(2)).sqrt();
             }
             u_k += p.fleck_arc_spacing_in * ppi * (0.35 * (rf.random() + rf.random() - 1.0)).exp();
         }
+        batch.flush(&mut out);
         out.push_str("</g>");
     }
     (out, stats)
