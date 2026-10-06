@@ -196,7 +196,7 @@ This is a generated file, written by `tools/wood-fit/export_appearance.py` from 
 ## Phases
 
 ### Phase 1: core generator (DONE 2026-10-06)
-Root commits `722b10d`, `4a9b1e0` (compound paths) and docs; tools repo `d60a926`.
+Root commits `d87d943`, `0ac8f51` (compound paths) and docs; tools repo `d60a926`.
 
 ### Phase 2: wire into the core diagrams (DONE 2026-10-06)
 Root commit: `feat(core): draw wood grain in diagrams via DiagramOptions::wood`. What shipped is described under Integration, Payload budget and Tests. Notes from the build:
@@ -206,7 +206,7 @@ Root commit: `feat(core): draw wood grain in diagrams via DiagramOptions::wood`.
 - Review renders: `cargo run --release --example wood_grain -- diagrams <dir>`, rasterize with `resvg` (the wood-fit venv has `resvg_py`).
 
 ### Phase 3: web (DONE 2026-10-06)
-Root commits `71495b6` (core: the combined view's sizing probe skips the grain; halves its cost) and `3226d03` (web).
+Root commits `dcbd945` (core: the combined view's sizing probe skips the grain; halves its cost) and `585749e` (web).
 - **Toggle:** `#show-wood` "Wood grain" in the View section beside Spline slots / Hanging hardware (more reachable than the Advanced panel). Species = the existing Materials › Wood picker (subtitle now "Materials", hint "Weight estimate and the wood-grain look"). Persisted as `STORAGE_KEYS.SHOW_WOOD` (`rf_show_wood`, `"true"`/`"false"`) and carried in backups as `preferences.show_wood` (backup format stays 1.1: optional field).
 - **Requests:** `woodOption(depth)` in `index.html` builds `{species, lod: "grain", depth}` or null. The on-screen diagram uses `depth: "inner"`; browser print reuses the on-screen render; the jsPDF/svg2pdf export uses `depth: "none"`, because svg2pdf ignores gradient stop-opacity and drew the inner shadow as a flat gray band.
 - **Measured (headless Edge):** WASM render with wood about 5–8 ms (combined view, warm; 23 ms for the first render), plan view 8 ms. The toggle persists across reloads. The PDF export took 0.1–0.5 s and was about 250–340 KB.
