@@ -1,6 +1,6 @@
 # Wood-Grain Frame Rendering Plan
 
-> **Status (2026-10-05):** Active. The prototype generator and per-species parameters for 16 species are done. They live in the private `tools/wood-fit/` repo (`chosen.json`, `gen_fit.py`, README). The Rust port has not started.
+> **Status (2026-10-06):** Active. The prototype generator and parameters for 17 species plus a synthetic generic wood are done. They live in the private `tools/wood-fit/` repo (`chosen.json`, `gen_fit.py`, README). The Rust port has not started.
 
 **Goal:** draw the frame face with species-specific procedural wood grain, replacing today's outline-only plan view and flat brown section fill, in the plan view and live preview on both web and iOS. The species is the one users already pick for the weight estimate (`materials.woods`). The aim is "close in spirit" rather than photoreal: deterministic, vector, and one implementation in `core/` for both platforms.
 
@@ -67,11 +67,9 @@ Add an `appearance` block to each `materials.woods.<key>`.
 ```
 
 - An exporter script in `tools/wood-fit/` writes these blocks from `chosen.json` (`final_fixed`).
-- **Covered:** red oak, white ash, black walnut, Honduran mahogany, eastern white pine, ponderosa pine, Douglas-fir, western red cedar, yellow poplar, basswood, red alder, soft maple, hard maple, black cherry, yellow birch, and white oak (quartersawn).
-- **Gaps:**
-  - `white_oak` should default to flat-sawn, which needs a quick fit from the flat-sawn photo. Quartersawn becomes a figure variant.
-  - The `generic*` buckets map to a representative species.
-  - `mdf_moulding` and `finger_jointed_pine` are usually painted (see open questions).
+- **Covered:** red oak, white oak (plain-sawn, the default for `white_oak`), white ash, black walnut, Honduran mahogany, eastern white pine, ponderosa pine, Douglas-fir, western red cedar, yellow poplar, basswood, red alder, soft maple, hard maple, black cherry, and yellow birch. White oak (quartersawn) is a figure variant.
+- **Generic wood:** a single synthetic appearance, not a real species: a neutral medium-brown palette with hard-maple-inspired texture (fine continuous lines, no visible pores, straight grain). `generic`, `generic_hardwood` and `generic_softwood` all render with it; the hardwood and softwood entries exist only for their weight densities. It is the default look for users who never pick a species.
+- **Still open:** `mdf_moulding` and `finger_jointed_pine` are usually painted (see open questions).
 
 ## Integration
 
