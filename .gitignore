@@ -43,6 +43,9 @@ platforms/web/wasm_bindings/pkg/
 # Mobile platform (local development only, not pushed to GitHub)
 platforms/mobile/
 
+# Wood-grain fit tooling (separate private repo, local only)
+tools/wood-fit/
+
 # Mobile CI/CD workflows (private)
 .github/workflows/ios-release.yml
 .github/workflows/android-release.yml
