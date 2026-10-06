@@ -1,6 +1,6 @@
 # Wood-Grain Frame Rendering Plan
 
-> **Status (2026-10-06):** Active. **Phases 1 and 2 are done.** The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. Next is Phase 3 (web). The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
+> **Status (2026-10-06):** Active. **Phases 1–3 are done** (web committed, not yet deployed). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle. Next is Phase 4 (iOS). The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
 
 **Goal:** draw the frame face with species-specific procedural wood grain, replacing today's outline-only plan view and flat brown section fill, in the plan view and live preview on both web and iOS. The species is the one users already pick for the weight estimate (`materials.woods`). The aim is "close in spirit" rather than photoreal: deterministic, vector, and one implementation in `core/` for both platforms.
 
@@ -11,7 +11,8 @@
 **Done:**
 - **Phase 1:** the generator in core, its data file, and tests.
 - **Payload optimization:** compound paths.
-- **Phase 2:** `DiagramOptions::wood` (`WoodRender`) wired into the plan view, corner-detail inset and section view, with golden cases. Reviewed by eye with the user. No platform exposes it yet.
+- **Phase 2:** `DiagramOptions::wood` (`WoodRender`) wired into the plan view, corner-detail inset and section view, with golden cases. Reviewed by eye with the user.
+- **Phase 3 (web):** "Wood grain" toggle in the View section's layer toggles; diagram, print and PDF export. Deploys on the next push to `main`.
 
 **Where things live:**
 
@@ -38,7 +39,7 @@
 - **Review process:** species looks are approved by blind by-eye review. Metrics are guards, not judges; DISTS was tested and dropped.
 - **Budget:** at most 60 KB per preview frame (80 KB for quartersawn) at 20 px/in; at most 100 KB per full diagram (125 KB quartersawn). The `Flat` LOD is for animation frames.
 - **Wood is purely additive.** Turning it on hides no other display element (dashed content/mat boundaries, dimensions, overlays all stay, in the preview too). The one exception: the semi-transparent rabbet-overlap tint is dropped over wood (it read as a muddy stripe); the dashed content boundary still marks the overlap.
-- **Where it can be toggled:** live preview, plan view (Diagrams tab / web diagram) and PDF output, each independently reachable. Context: the user may later add a separate photo-style "preview" mode with a user-loaded image as the artwork placeholder (Phase 5); wood is still a toggle everywhere else.
+- **Where it can be toggled:** live preview, plan view (Diagrams tab / web diagram) and PDF output. **One switch drives all of them** (user decision 2026-10-06), on each platform. Context: the user may later add a separate photo-style "preview" mode with a user-loaded image as the artwork placeholder (Phase 5); wood is still a toggle everywhere else.
 - **Corner-detail inset:** gets grain too (two short boards at the inset's zoom, same per-side seeds as the full face's bottom and left pieces; they don't match the main view's corner exactly).
 - **Dark mode:** as is. Wood colours don't invert, the frame outline stays light gray, and the wall shadow is simply invisible on dark surfaces (no light edge).
 - **Rejected:** cubic Bézier fitting (bigger files), `<pattern>` tiles (flutter_svg limits, visible repeats), and SVG filters (unsupported on iOS).
@@ -204,18 +205,13 @@ Root commit: `feat(core): draw wood grain in diagrams via DiagramOptions::wood`.
 - The combined (`Both`) view renders the plan twice (probe + final), so grain is generated twice; fast enough, not optimized.
 - Review renders: `cargo run --release --example wood_grain -- diagrams <dir>`, rasterize with `resvg` (the wood-fit venv has `resvg_py`).
 
-### Phase 3: web
-1. **No WASM binding change is needed:** `generateDiagramSvg(design, optionsJson)` in `platforms/web/wasm_bindings/src/lib.rs` already parses a `DiagramRequest`.
-2. **`platforms/web/index.html`:**
-   - At the main diagram call (around line 2214), add `wood: {species: <#wood-species value>, lod: "grain", depth: "inner"}` when the new toggle is on.
-   - **Print / PDF:** the print path must honour the same toggle (wood can be on or off in printed output). Check how print renders the diagram and pass `wood` there too.
-   - The history snapshot render (around line 3106) can stay flat or omit wood, to keep thumbnails light.
-3. **UI:** add a "Wood grain" checkbox in the Advanced panel, and persist it in `storage.js`. Reuse the existing `#wood-species` picker (line 248), the same choice the weight estimate uses. Wood is additive: don't hide any other layer when it's on.
-4. **Build and check:**
-   - Build with `./build_wasm.sh` from the repo root.
-   - Serve with `cd platforms/web && python3 serve.py` (port 8887).
-   - Check light and dark mode, the print stylesheet, and DOM performance with several diagrams.
-5. Deploy is via CI (`deploy.yml` stamps the cache-busting tokens).
+### Phase 3: web (DONE 2026-10-06)
+Root commits `71495b6` (core: the combined view's sizing probe skips the grain; halves its cost) and `3226d03` (web).
+- **Toggle:** `#show-wood` "Wood grain" in the View section beside Spline slots / Hanging hardware (more reachable than the Advanced panel). Species = the existing Materials › Wood picker (subtitle now "Materials", hint "Weight estimate and the wood-grain look"). Persisted as `STORAGE_KEYS.SHOW_WOOD` (`rf_show_wood`, `"true"`/`"false"`) and carried in backups as `preferences.show_wood` (backup format stays 1.1: optional field).
+- **Requests:** `woodOption(depth)` in `index.html` builds `{species, lod: "grain", depth}` or null. The on-screen diagram uses `depth: "inner"`; browser print reuses the on-screen render; the jsPDF/svg2pdf export uses `depth: "none"`, because svg2pdf ignores gradient stop-opacity and drew the inner shadow as a flat gray band.
+- **Measured (headless Edge):** WASM render with wood about 5–8 ms (combined view, warm; 23 ms for the first render), plan view 8 ms. The toggle persists across reloads. The PDF export took 0.1–0.5 s and was about 250–340 KB.
+- **Browser check harness:** a CDP script drove headless Edge (`/Applications/Microsoft Edge.app`) against `serve.py`; Node 25 has `WebSocket` built in, so no Playwright is needed. jsPDF's `save` lives on `jsPDF.API`; hook it there to capture the export.
+- **Not done:** history thumbnails don't render diagrams, so nothing to do there.
 
 ### Phase 4: iOS
 1. **Diagrams tab:** `platforms/mobile/lib/state/design_state.dart` builds the diagram request map (around line 856, beside `'show_spline'`). Add `'wood': {'species': _woodKey, 'lod': 'grain', 'depth': 'inner'}` when the toggle is on. `_woodKey` is already the weight-estimate species pref.
