@@ -40,7 +40,12 @@ Each moulding side is drawn in local coordinates: u runs along the length, v acr
    - Rows are jittered, with occasional dropouts and per-row width variation.
    - No `stroke-dashoffset`; its flutter_svg support is unverified.
 6. **Ray flecks** (quartersawn only): tapered ribbons along stacked ∩ arcs, with blue-noise spacing.
-7. **Sheen gradient** across the width, plus **miter seam** lines.
+7. **Flat faces and miter seams.** Pieces are drawn as flat boards, with no profile shading that would imply a rounded top. The vertical pieces are about 5% darker than the horizontal ones (`grain_tone`): their grain runs at 90° to the others, so they reflect light differently.
+8. **Depth cues** (light from the upper left; no filters needed). Shadow length is K = 0.6 per inch of height, and both shadows use heights from the design:
+   - **Inner shadow:** the lip's shadow on the mat or art, along the top and left inner edges, drawn as gradient strips. Width = (`frame_material_depth` − `rabbet_depth` + `glazing_thickness`) × K; about 5 px at preview scale with the defaults.
+   - **Wall shadow:** the frame standing off the wall, along the bottom and right outer edges, drawn beneath the frame as about 6 stacked offset rectangles at low opacity for a soft edge. Width = `frame_material_depth` × K.
+   - The **live preview** uses both. The **plan view** uses the inner shadow only, because the wall shadow would sit where the dimension callouts go.
+   - Both cost about 10 elements, so they stay on during the spring animation (`Flat` LOD as well as `Grain`).
 
 **Anti-repetition rules** (from a two-agent panel review plus by-eye review):
 - Every layer draws from its own hash-derived random stream (lowbias32 or splitmix of seed + layer tag), so a count change in one layer, such as during a dimension change, never reshuffles another.
@@ -75,16 +80,16 @@ Add an `appearance` block to each `materials.woods.<key>`.
 
 - **Core:** a new `core/src/visualization/wood/` module (noise, rings, ribbon, pores, flecks, streaks, path encoding). Entry point: `side_grain(appearance, seed, length_in, width_in, scale) -> String`.
 - **Options:** `DiagramOptions` gains `wood: Option<WoodRender { species: String, lod: WoodLod /* Off | Flat | Grain */, reshuffle: u32 }>`. The default is off, so **every existing golden SVG stays unchanged**.
-- **Plan view (`plan_svg.rs`):** a new frame-face layer under the existing strokes: four clipped sides, sheen, and seams.
+- **Plan view (`plan_svg.rs`):** a new frame-face layer under the existing strokes: four clipped sides, grain-direction tone, seams, and the inner shadow.
 - **Section view:** fill `MaterialPatterns.frame` with the species' base color. This is a cheap, immediate win; end grain comes later.
 - **Seeding:** hash(species key, reshuffle counter); each side gets a sub-seed from its index.
 - **Bindings:** the WASM layer and the mobile bridge (`api/simple.rs`) pass species and LOD into the diagram and preview calls.
 - **Web:** a toggle in the Advanced panel, reusing the existing `#wood-species` picker.
 - **iOS:**
   - A "Wood grain" item in the Layers & Detail sheet, reusing `woodKey`.
-  - `FramePreview` passes `Flat` while `_morphController` animates and `Grain` at rest.
+  - `FramePreview` passes `Flat` while `_morphController` animates and `Grain` at rest. Both depth cues (inner and wall shadow) stay on throughout.
   - The Diagrams tab uses `Grain`.
-- **Dark mode:** wood colors don't invert; only sheen and seam opacity change.
+- **Dark mode:** wood colors don't invert. Only the opacity of the seams and shadows changes; the wall shadow may need to become a light edge on a dark surface.
 
 ## Payload budget
 
