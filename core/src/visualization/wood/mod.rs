@@ -240,7 +240,9 @@ impl Piece {
         let (Piece { side, len, fw, .. }, (ox, oy), (ax, ay), (bx, by)) = (self, self.origin, self.u, self.v);
         let cid = format!("{}c{side}", f.id_prefix);
         let _ = write!(out, r#"<clipPath id="{cid}"><path d="{}"/></clipPath>"#, poly_d(clip, true));
-        let _ = write!(out, r#"<g transform="matrix({ax},{ay},{bx},{by},{},{})" clip-path="url(#{cid})">"#, num(ox), num(oy));
+        // The clip goes on an inner group: some renderers (the Dart `pdf` package) resolve
+        // clip-path in the parent's space, ignoring the element's own transform
+        let _ = write!(out, r#"<g transform="matrix({ax},{ay},{bx},{by},{},{})"><g clip-path="url(#{cid})">"#, num(ox), num(oy));
         let _ = write!(out, r#"<rect x="-20" y="-5" width="{}" height="{}" fill="{}"/>"#, num(len + 40.0), num(fw + 10.0), a.palette.base);
         if f.lod == WoodLod::Grain {
             let side_seed = mix32(f.seed.wrapping_add((*side as u32).wrapping_mul(0x9E37_79B9)));
@@ -257,7 +259,7 @@ impl Piece {
             let _ = write!(out, r##"<rect x="-20" y="-5" width="{}" height="{}" fill="#000" fill-opacity="{}"/>"##,
                 num(len + 40.0), num(fw + 10.0), op2(a.params.grain_tone));
         }
-        out.push_str("</g>");
+        out.push_str("</g></g>");
     }
 }
 
