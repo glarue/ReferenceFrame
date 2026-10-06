@@ -510,9 +510,12 @@ fn generate_combined_view(
     section_style.dimension_offset_base = style.dimension_offset_base * SECTION_DIM_OFFSET_SCALE;
     section_style.dimension_offset_step = style.dimension_offset_step * SECTION_DIM_OFFSET_SCALE;
 
+    // The probe only sizes the zones; the wood face doesn't affect the viewBox,
+    // so skip generating its grain twice (the final pass draws it).
     let plan_options = DiagramOptions {
         view: ViewOption::PlanOnly,
         canvas_height: plan_height_init,
+        wood: None,
         ..options.clone()
     };
     let section_options = DiagramOptions {
@@ -572,10 +575,11 @@ fn generate_combined_view(
     // Second pass: re-generate both views at their actual zone heights so geometry
     // (axis breaks, thumbnail placement, corner detail) is computed for the real
     // available space rather than the initial probe estimate.
-    let plan_result = if (plan_zone_h - plan_height_init).abs() > 5.0 {
+    let resize_plan = (plan_zone_h - plan_height_init).abs() > 5.0;
+    let plan_result = if resize_plan || options.wood.is_some() {
         let plan_options_final = DiagramOptions {
             view: ViewOption::PlanOnly,
-            canvas_height: plan_zone_h,
+            canvas_height: if resize_plan { plan_zone_h } else { plan_height_init },
             ..options.clone()
         };
         generate_plan_view(design, &plan_options_final, &plan_style)
