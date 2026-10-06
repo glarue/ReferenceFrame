@@ -116,7 +116,7 @@
     "_comment": "Material densities (lb/ft3) for weight estimation, with low/high ranges for error propagation. Woods at ~12% MC; ranges are the FPL Wood Handbook's ~10% between-tree coefficient of variation unless the entry is a group/engineered product. Stretched canvas is deliberately absent: fabric gsm doesn't fit the density x volume model (stretcher bars dominate).",
     "_sources": "Woods: wood-database.com species pages (each cites USDA FPL Wood Handbook GTR-190 specific gravities); MDF: ANSI A208.2 / CORRIM; glass: Pilkington ATS-129 (ASTM C1036 governs thickness); acrylic: Plexiglas/Curbell datasheets; rag mat: Talas Rising Museum Board (1000 gsm / 60 pt); paper mat: SBS paperboard 0.63-0.87 g/cm3; foamcore: 32x40x3/16 sheet = 1.5 lb; hardboard: CPA EPD 800-1100 kg/m3; photo paper: Epson 260 gsm @ 10 mil",
     "woods": {
-      "generic": { "name": "Any frame wood", "lb_ft3": 32.0, "low": 22.0, "high": 48.0, "source": "pine-to-oak span, FPL Wood Handbook" },
+      "generic": { "name": "Generic wood", "lb_ft3": 32.0, "low": 22.0, "high": 48.0, "source": "pine-to-oak span, FPL Wood Handbook" },
       "generic_softwood": { "name": "Generic softwood", "lb_ft3": 28.0, "low": 21.0, "high": 36.0, "source": "cedar-to-Douglas-fir span, FPL" },
       "generic_hardwood": { "name": "Generic hardwood", "lb_ft3": 38.0, "low": 23.0, "high": 52.0, "source": "basswood-to-white-oak span, FPL" },
       "eastern_white_pine": { "name": "Eastern White Pine", "lb_ft3": 25.0, "low": 22.0, "high": 28.0, "source": "wood-database.com (FPL SG12 0.40)" },
