@@ -6,6 +6,40 @@
 
 ---
 
+## Resume here (state as of 2026-10-06)
+
+**Done:**
+- **Phase 1:** the generator in core, its data file, and tests.
+- **Payload optimization:** compound paths.
+- Nothing is wired into the diagrams yet. All tests pass.
+
+**Where things live:**
+
+| What | Where |
+|---|---|
+| Generator | `core/src/visualization/wood/`: `mod.rs` (API), `grain.rs` (layers), `path.rs` (encoding), `noise.rs`, `appearance.rs` (data types and loader) |
+| Public API | `visualization::{frame_face_svg, FrameFace, FrameFaceSvg, FaceDepths, WoodLod, DepthCues, wood_appearance, board_svg}` |
+| Data (generated, don't hand-edit) | `core/data/wood_appearance.json` |
+| Dev utility | `cargo run --release --example wood_grain -- sizes \| boards <dir> [n] \| frames <dir>` |
+| Offline tooling (private nested repo, local only) | `tools/wood-fit/`; see its README for the fit → blind review → `chosen.json` → `export_appearance.py` pipeline and `validate_rust.py` |
+| Reference photos (third-party, never committed or shipped) | `tools/wood-fit/photos/` (git-ignored; see the wood-fit README) |
+
+**Decisions (made with the user; don't re-litigate):**
+- **Look:**
+  - Flat-faced pieces, with no rounded-profile shading.
+  - Vertical pieces about 5% darker than horizontal ones.
+  - Depth cues: inner shadow in the plan view; inner plus wall shadow in the live preview.
+- **Species:**
+  - The term is "plain-sawn", not "flat-sawn".
+  - One synthetic **generic wood** (neutral medium brown, maple-like texture) covers `generic`, `generic_hardwood` and `generic_softwood`. The hardwood and softwood keys stay in the weight picker for their densities.
+  - Ring-porous woods (oak, ash) have no ring-boundary line.
+  - The user prefers finer pores with light-tone variation on oaks.
+- **Review process:** species looks are approved by blind by-eye review. Metrics are guards, not judges; DISTS was tested and dropped.
+- **Budget:** at most 60 KB per preview frame (80 KB for quartersawn) at 20 px/in. The `Flat` LOD is for animation frames.
+- **Rejected:** cubic Bézier fitting (bigger files), `<pattern>` tiles (flutter_svg limits, visible repeats), and SVG filters (unsupported on iOS).
+
+---
+
 ## Decisions (and the evidence behind them)
 
 - **Procedural vector SVG generated in `core/`.**
@@ -148,22 +182,90 @@ This is a generated file, written by `tools/wood-fit/export_appearance.py` from 
 
 ## Phases
 
-1. ~~Core generator, `appearance` data and exporter, off by default, with tests.~~ Done 2026-10-06.
-2. Plan-view face layer and section-view species color.
-3. Web toggle.
-4. iOS: Layers toggle, preview LOD, device performance check.
-5. Later:
-   - species in shareable URLs (format v3, appending one byte)
-   - per-frame variation within `per_frame_range`, plus a "reshuffle" button
-   - figured variants (curly, quartersawn)
-   - end grain in the section view
-   - more species via the pipeline
-   - cutting the four sides from one virtual board, so grain flows around the corners
-   - ragged streak tips for close zoom
+### Phase 1: core generator (DONE 2026-10-06)
+Root commits `722b10d`, `4a9b1e0` (compound paths) and docs; tools repo `d60a926`.
+
+### Phase 2: wire into the core diagrams (next)
+Goal: `DiagramOptions` gains an optional wood setting. With it unset, output is byte-identical to today.
+
+1. **Options type** (`core/src/visualization/types.rs`):
+   - Add `#[serde(default)] pub wood: Option<WoodRender>` to `DiagramOptions`, with `None` in the `Default` impl.
+   - `WoodRender` fields:
+     - `species: String` (a `materials.woods` key)
+     - `variant: Option<String>` (e.g. `"quartersawn"`)
+     - `lod: WoodLod` (default `Grain`)
+     - `depth: DepthCues` (default `Inner`)
+     - `reshuffle: u32` (default 0)
+   - Add `Serialize`/`Deserialize` with `rename_all = "snake_case"` to `WoodLod` and `DepthCues` in `wood/mod.rs`.
+   - `DiagramRequest` (`core/src/diagram_request.rs`) flattens `DiagramOptions`, so JSON callers get `"wood": {...}` for free.
+2. **Seeding:** add `wood::seed_for(species, reshuffle) -> u32`, an FNV-1a hash of the species key mixed with `reshuffle`. That gives each species a stable board per design, and a reshuffle changes it.
+3. **Plan view** (`plan_svg.rs::build_plan_svg`):
+   - When `options.wood` is set, build a `FrameFace` from `geometry`:
+     - `x, y, width, height` = `geometry.frame_outer`
+     - `frame_width` = `design.frame_material_width * geometry.scale`
+     - `px_per_in` = `geometry.scale`
+     - `depths` = `FaceDepths::from_design(design)`
+     - `id_prefix` = `"wg" + short hash(species, reshuffle, outer size) + "-"`. The prefix must be unique per inline SVG on a page, because the web history list can render several.
+   - **Drawing order:** right after the SVG header, emit `under` (wall shadow, preview only), then `face`, then `inner_shadow`. All of that comes before `<g id="geometry">` strokes, the rabbet and mat overlap fills, and dimensions.
+   - **Axis breaks:** the break "ribbon masks" (STEP 2, background-filled) are drawn later, so they mask the grain in break zones automatically. Verify on `tall_8x60` and `dual_break`.
+   - **Corner-detail inset** (`render_corner_detail`): fill its frame L-shape with the species' base color (solid), not grain.
+   - **Legibility:** check that dimension lines and labels over the frame stay readable, especially the "Frame:" width dimension at the corner (around line 243). Add background halos to labels if needed.
+   - **Dark mode** (`DiagramStyle::for_dark`): wood colors don't invert. Check the seam and shadow opacities. The wall shadow may need to become a light edge, or be dropped, on dark surfaces.
+4. **Section view** (`svg.rs`, the section and combined generators): when `options.wood` is set, clone the style and set `material_patterns.frame = FillPattern::Solid(appearance.palette.base)`. End grain comes later (Phase 5).
+5. **Tests** (`core/tests/golden_svg_matrix.rs`; existing cases must stay unchanged):
+   - Add golden cases with fixed `reshuffle`:
+     - plan view: red oak and Douglas-fir
+     - plan view with breaks: `tall_8x60` with generic wood
+     - preview (`show_callouts: false`, `depth: inner_and_wall`)
+     - section view with species color
+   - Add a diagram-level payload test.
+   - Add a test that `wood: null` and an omitted `wood` key give identical output.
+6. **Visual check:** render the golden SVGs to PNG and review with the user before moving on.
+7. Commit as `feat(core)` and update this doc.
+
+### Phase 3: web
+1. **No WASM binding change is needed:** `generateDiagramSvg(design, optionsJson)` in `platforms/web/wasm_bindings/src/lib.rs` already parses a `DiagramRequest`.
+2. **`platforms/web/index.html`:**
+   - At the main diagram call (around line 2214), add `wood: {species: <#wood-species value>, lod: "grain", depth: "inner"}` when the new toggle is on.
+   - The history snapshot render (around line 3106) can stay flat or omit wood, to keep thumbnails light.
+3. **UI:** add a "Wood grain" checkbox in the Advanced panel, and persist it in `storage.js`. Reuse the existing `#wood-species` picker (line 248), the same choice the weight estimate uses.
+4. **Build and check:**
+   - Build with `./build_wasm.sh` from the repo root.
+   - Serve with `cd platforms/web && python3 serve.py` (port 8887).
+   - Check light and dark mode, the print stylesheet, and DOM performance with several diagrams.
+5. Deploy is via CI (`deploy.yml` stamps the cache-busting tokens).
+
+### Phase 4: iOS
+1. **Diagrams tab:** `platforms/mobile/lib/state/design_state.dart` builds the diagram request map (around line 856, beside `'show_spline'`). Add `'wood': {'species': _woodKey, 'lod': 'grain', 'depth': 'inner'}` when the toggle is on. `_woodKey` is already the weight-estimate species pref.
+2. **Toggle:** add a "Wood grain" item to the Layers & Detail sheet (`lib/widgets/layers_button.dart`, `navigation/app_shell.dart`), persisted like `_showSpline`.
+3. **Live preview:**
+   - The bridge functions `generate_preview_svg` and `generate_interpolated_preview_svg` (`platforms/mobile/rust/src/api/simple.rs`, around lines 468 and 530) build fixed `DiagramOptions`.
+   - Add wood parameters, or a variant that takes an options JSON to avoid churning the flutter_rust_bridge signature. Regenerate the bridge with frb.
+   - `lib/widgets/frame_preview.dart`:
+     - `Flat` LOD while `_morphController` animates; `Grain` at rest.
+     - Depth `inner_and_wall` in both cases.
+     - The rotation animation reuses the static `svgString`, so grain is fine there.
+4. **Build:** `cd platforms/mobile && ./rebuild.sh run`. Plain `flutter run` misses Rust changes.
+5. **Device check:**
+   - Profile mode on a physical device. The simulator is debug-only, so its timings are meaningless.
+   - Use the oldest supported class (iOS 15).
+   - Measure the switch from flat to grain when the morph settles. Fallback if too slow: a binary display list over FFI drawn by a `CustomPainter` (no SVG parse).
+6. **Release:** `./release.sh` (dry run), then `--apply`; `fastlane beta`, then `submit` (see `platforms/mobile/RELEASING.md`). Draft App Store notes with `/release-notes`.
+
+### Phase 5: later
+- Species in shareable URLs (format v3, appending one byte).
+- Per-frame variation within `per_frame_range`, plus a "reshuffle" button (the `reshuffle` field already exists).
+- Figured variants (curly, quartersawn) in the UI. The quartersawn white oak data is already in `wood_appearance.json` under `variants`.
+- End grain in the section view.
+- More species via the `tools/wood-fit` pipeline.
+- Cutting the four sides from one virtual board, so grain flows around the corners.
+- Ragged streak tips for close zoom.
+- A test guard against loops from the pith landing on the face for straight-grained species.
 
 ## Open questions
 
 - Should grain be on by default in the plan view (a technical drawing, where dimension callouts must stay legible), or only in the preview by default?
-- Painted, MDF and finger-jointed stock: a paint-color picker, or a neutral finish?
+- Painted, MDF and finger-jointed stock: a paint-color picker, or a neutral finish? These currently fall back to generic wood.
+- Dark mode wall shadow: a light edge, or drop it?
 - Should per-frame variation within the reviewed range be on by default?
 - Should shareable URLs carry the species (format v3)?
