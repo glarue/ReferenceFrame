@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use referenceframe_core::{FrameDesign, FrameStyle};
 use referenceframe_core::visualization::{
-    DiagramOptions, ViewOption, generate_diagram,
+    DepthCues, DiagramOptions, ViewOption, WoodLod, WoodRender, generate_diagram,
 };
 
 // ---------------------------------------------------------------------------
@@ -260,6 +260,42 @@ fn opts_plan_decimal() -> DiagramOptions {
     }
 }
 
+fn wood(species: &str, lod: WoodLod, depth: DepthCues) -> Option<WoodRender> {
+    Some(WoodRender { species: species.into(), variant: None, lod, depth, reshuffle: 0 })
+}
+
+/// Wood grain over the plan view (one ring-porous, one softwood); the
+/// generator itself is unit-tested in `visualization::wood`.
+fn opts_plan_red_oak() -> DiagramOptions {
+    DiagramOptions { wood: wood("red_oak", WoodLod::Grain, DepthCues::Inner), ..opts_plan_inches() }
+}
+
+fn opts_plan_douglas_fir() -> DiagramOptions {
+    DiagramOptions { wood: wood("douglas_fir", WoodLod::Grain, DepthCues::Inner), ..opts_plan_inches() }
+}
+
+/// Axis-break masks over the grain, and the corner-detail inset's own grain.
+fn opts_plan_generic() -> DiagramOptions {
+    DiagramOptions { wood: wood("generic", WoodLod::Grain, DepthCues::Inner), ..opts_plan_inches() }
+}
+
+/// Flat LOD keeps these small; they pin the wiring (section colour, flat
+/// corner detail, preview wall shadow), not the grain.
+fn opts_both_cherry_flat() -> DiagramOptions {
+    DiagramOptions { wood: wood("black_cherry", WoodLod::Flat, DepthCues::Inner), ..opts_both_inches() }
+}
+
+fn opts_preview_walnut_flat() -> DiagramOptions {
+    DiagramOptions {
+        view: ViewOption::PlanOnly,
+        canvas_width: 400.0,
+        canvas_height: 500.0,
+        show_callouts: false,
+        wood: wood("black_walnut", WoodLod::Flat, DepthCues::InnerAndWall),
+        ..Default::default()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Matrix definition
 // ---------------------------------------------------------------------------
@@ -274,7 +310,7 @@ struct MatrixEntry {
 ///
 /// Every base design (7) gets PlanOnly, SectionOnly, and Both in inches.
 /// A representative subset also gets mm and decimal views, followed by
-/// sight-size, spline/hanging overlay, interference, and portrait-canvas cases.
+/// sight-size, spline/hanging overlay, interference, portrait-canvas and wood cases.
 const MATRIX: &[MatrixEntry] = &[
     // -- All designs x PlanOnly x inches (7) --
     MatrixEntry { name: "standard_8x10_plan_inches",   design_fn: standard_8x10,   options_fn: opts_plan_inches },
@@ -342,7 +378,26 @@ const MATRIX: &[MatrixEntry] = &[
 
     // -- Wide moulding on a phone canvas: slot label centers on the band --
     MatrixEntry { name: "spline_wide_moulding_section_portrait", design_fn: wide_moulding_16x20, options_fn: opts_portrait_spline_section },
+
+    // -- Wood grain (DiagramOptions::wood) --
+    MatrixEntry { name: "wood_red_oak_matted_16x20_plan_inches",     design_fn: matted_16x20,  options_fn: opts_plan_red_oak },
+    MatrixEntry { name: "wood_douglas_fir_standard_8x10_plan_inches", design_fn: standard_8x10, options_fn: opts_plan_douglas_fir },
+    MatrixEntry { name: "wood_generic_tall_8x60_plan_inches",        design_fn: tall_8x60,     options_fn: opts_plan_generic },
+    MatrixEntry { name: "wood_flat_matted_16x20_both_inches",        design_fn: matted_16x20,  options_fn: opts_both_cherry_flat },
+    MatrixEntry { name: "wood_flat_portrait_16x20_preview",          design_fn: portrait_16x20, options_fn: opts_preview_walnut_flat },
 ];
+
+/// Portrait 16x20 with a 2" mat: the live-preview shape.
+fn portrait_16x20() -> FrameDesign {
+    FrameDesign {
+        artwork_width: 16.0,
+        artwork_height: 20.0,
+        mat_width_top_bottom: 2.0,
+        mat_width_sides: 2.0,
+        frame_material_width: 1.5,
+        ..base_design()
+    }
+}
 
 /// Wide, shallow moulding (2" x 3/4") — the slot label can't fit inside the
 /// slot at phone scale and must not collide with the stack's dog-leg labels.

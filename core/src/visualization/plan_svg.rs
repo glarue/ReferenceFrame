@@ -159,6 +159,13 @@ pub(crate) fn render_corner_detail(
     let fi_y = cy - frame_w;       // frame inner y
     let top_y = cy - arm_up;       // top of visible area
     let right_x = cx + arm_right;  // right of visible area
+    // Wood: the zoomed corner's two pieces, grain at the inset's scale
+    if let Some(wood) = &options.wood {
+        svg.push_str("    ");
+        svg.push_str(&wood.corner_face(design, cx, cy, right_x - cx, cy - top_y, s));
+        svg.push('\n');
+    }
+
     // L-shaped rabbet overlap fill — traces the region between the content edge
     // (matboard/artwork) and the frame inner edge, which is the rabbet overlap zone.
     //
@@ -174,17 +181,19 @@ pub(crate) fn render_corner_detail(
     //                 right_x
     //
     // Path walks clockwise: start top-left → down → right → up → left → up → close.
-    svg.push_str(&format!(
-        "    <path d=\"M{:.2},{:.2} V{:.2} H{:.2} V{:.2} H{:.2} V{:.2} H{:.2} Z\" fill=\"{}\" fill-opacity=\"0.10\" stroke=\"none\"/>\n",
-        ci_x, top_y,     // top-left of vertical strip
-        ci_y,            // down to content corner Y
-        right_x,         // right along content line to right edge
-        fi_y,            // up to frame inner Y
-        fi_x,            // left to frame inner X
-        top_y,           // up to top
-        ci_x,            // back to start X (close)
-        content_color
-    ));
+    if options.wood.is_none() {
+        svg.push_str(&format!(
+            "    <path d=\"M{:.2},{:.2} V{:.2} H{:.2} V{:.2} H{:.2} V{:.2} H{:.2} Z\" fill=\"{}\" fill-opacity=\"0.10\" stroke=\"none\"/>\n",
+            ci_x, top_y,     // top-left of vertical strip
+            ci_y,            // down to content corner Y
+            right_x,         // right along content line to right edge
+            fi_y,            // up to frame inner Y
+            fi_x,            // left to frame inner X
+            top_y,           // up to top
+            ci_x,            // back to start X (close)
+            content_color
+        ));
+    }
 
     // Content area / matboard edge: dashed line
     // Horizontal (goes right from content_inset above outer line)
@@ -445,6 +454,18 @@ pub(crate) fn build_plan_svg(
 
     let has_breaks = geometry.use_axis_break_x || geometry.use_axis_break_y;
 
+    // Wood-grain face: beneath every stroke, overlap tint and axis-break mask,
+    // so those all draw over it unchanged.
+    if let Some(wood) = &options.wood {
+        let o = &geometry.frame_outer;
+        let f = wood.frame_face(design, o.x, o.y, o.width, o.height, geometry.scale);
+        svg.push_str("  <g id=\"wood\">");
+        for part in [&f.under, &f.face, &f.inner_shadow] {
+            svg.push_str(part);
+        }
+        svg.push_str("</g>\n");
+    }
+
     // Conditional color: what sits in the rabbet determines the content edge color
     let content_edge_color = if design.has_mat() {
         &style.artwork_dimension_color  // Carrot Orange #f8961e (matboard edge)
@@ -483,7 +504,9 @@ pub(crate) fn build_plan_svg(
     }
 
     // Frame/mat overlap visualization - semi-transparent fill showing rabbet overlap area.
-    if rabbet_scaled > 0.5 {
+    // Not over wood grain, where a tint reads as a muddy stripe; the dashed
+    // content boundary still marks the overlap.
+    if rabbet_scaled > 0.5 && options.wood.is_none() {
         svg.push_str("  <g id=\"rabbet-overlap\">\n");
         let ox = geometry.content_area.x;
         let oy = geometry.content_area.y;

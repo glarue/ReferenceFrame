@@ -399,6 +399,10 @@ pub struct DiagramOptions {
     /// Hanging hardware parameter overrides (None = presets defaults)
     #[serde(default)]
     pub hanging_params: Option<crate::hanging::HangingParams>,
+
+    /// Draw the frame face as procedural wood grain (None = outline only, as before)
+    #[serde(default)]
+    pub wood: Option<super::wood::WoodRender>,
 }
 
 fn default_true() -> bool { true }
@@ -422,6 +426,7 @@ impl Default for DiagramOptions {
             show_hanging: false,
             spline_params: None,
             hanging_params: None,
+            wood: None,
         }
     }
 }

@@ -21,6 +21,8 @@ const MIN_RING_PX: f64 = 2.5;
 const RIBBON_MIN_PX: f64 = 1.0;
 /// Scale LOD for pores: rows closer than this (px) are thinned, opacity compensates.
 const MIN_PORE_ROW_PX: f64 = 1.2;
+/// Scale LOD for colour streaks: minimum spacing (px) of their outline samples.
+const STREAK_STEP_PX: f64 = 24.0;
 
 /// Counts of emitted elements (for tests and payload tuning).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -323,8 +325,9 @@ pub(crate) fn side_grain(a: &WoodAppearance, l: f64, fw: f64, ppi: f64, seed: u3
         let hw = rng.uniform(0.15, 0.4) * fw;
         let s2 = seed.wrapping_mul(7).wrapping_add(k * 1013);
         // ~1 sample per inch, smoothed when drawn (much sparser turns a pinched,
-        // patchy streak into a crisp almond shape)
-        let n_s = ((l / ppi).ceil() as u32 + 2).max(12);
+        // patchy streak into a crisp almond shape); at least STREAK_STEP_PX apart so
+        // long sides at small scales don't pay for detail finer than the soft edges show
+        let n_s = ((l / ppi.max(STREAK_STEP_PX)).ceil() as u32 + 2).max(12);
         let (mut top, mut bot) = (Vec::with_capacity(n_s as usize + 1), Vec::with_capacity(n_s as usize + 1));
         for i in 0..=n_s {
             let u = -10.0 + (l + 20.0) * f64::from(i) / f64::from(n_s);

@@ -9,7 +9,7 @@ use super::types::{
     DiagramOptions, DiagramResult, ViewOption,
     Rect, Side,
 };
-use super::style::DiagramStyle;
+use super::style::{DiagramStyle, FillPattern};
 use super::geometry::{PlanViewGeometry, SectionViewGeometry};
 use super::callouts::{generate_plan_callouts, generate_section_callouts};
 use super::layout::{layout_plan_callouts, LayoutResult};
@@ -33,6 +33,17 @@ pub fn generate_diagram_with_style(
     options: &DiagramOptions,
     style: &DiagramStyle,
 ) -> DiagramResult {
+    // Wood: the section view's frame profile takes the species colour
+    let wood_style;
+    let style = match &options.wood {
+        Some(wood) => {
+            let mut s = style.clone();
+            s.material_patterns.frame = FillPattern::Solid(wood.appearance().palette.base.clone());
+            wood_style = s;
+            &wood_style
+        }
+        None => style,
+    };
     let mut result = match options.view {
         ViewOption::PlanOnly => generate_plan_view(design, options, style),
         ViewOption::SectionOnly => generate_section_view(design, options, style),

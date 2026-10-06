@@ -3,13 +3,16 @@
 //!   cargo run --example wood_grain -- sizes            # preview payload per species
 //!   cargo run --example wood_grain -- boards <dir> [n] # 3"x6" boards @150 px/in, n seeds (default 3)
 //!   cargo run --example wood_grain -- frames <dir>     # preview-scale frames per species
+//!   cargo run --example wood_grain -- diagrams <dir>   # full diagrams with `DiagramOptions::wood`
 //!
 //! Boards feed the private tools/wood-fit validation (statistics vs the prototype).
 
 use referenceframe_core::presets::get_materials;
 use referenceframe_core::visualization::{
-    board_svg, frame_face_svg, wood_appearance, DepthCues, FaceDepths, FrameFace, WoodAppearance, WoodLod,
+    board_svg, frame_face_svg, generate_diagram_with_style, wood_appearance, DepthCues, DiagramOptions, DiagramStyle,
+    FaceDepths, FrameFace, ViewOption, WoodAppearance, WoodLod, WoodRender,
 };
+use referenceframe_core::{FrameDesign, FrameStyle};
 use std::path::Path;
 
 const DEPTHS: FaceDepths = FaceDepths { frame_material_depth: 0.75, rabbet_depth: 0.375, glazing_thickness: 0.093 };
@@ -35,6 +38,45 @@ fn frame_doc(a: &WoodAppearance, ppi: f64, lod: WoodLod) -> String {
     )
 }
 
+fn design(art_w: f64, art_h: f64, mat: f64, fw: f64) -> FrameDesign {
+    FrameDesign {
+        artwork_width: art_w, artwork_height: art_h, mat_width_top_bottom: mat, mat_width_sides: mat,
+        mat_overlap: 0.125, rabbet_width: 0.375, rabbet_depth: 0.375, frame_material_width: fw,
+        matboard_thickness: 0.055, artwork_thickness: 0.008, backing_thickness: 0.125, glazing_thickness: 0.093,
+        frame_material_depth: 0.75, assembly_margin: 0.0625, symmetrical_mat: true, no_artwork_margin: false,
+        frame_style: FrameStyle::Rabbet, float_reveal: 0.0,
+    }
+}
+
+/// Review cases: (name, design, view, species, callouts, depth, dark)
+fn diagrams(dir: &Path) {
+    let cases = [
+        ("plan_matted_16x20_red_oak", design(20.0, 16.0, 2.0, 1.5), ViewOption::PlanOnly, "red_oak", true, DepthCues::Inner, false),
+        ("plan_8x10_douglas_fir", design(10.0, 8.0, 0.0, 1.0), ViewOption::PlanOnly, "douglas_fir", true, DepthCues::Inner, false),
+        ("plan_tall_8x60_generic", design(8.0, 60.0, 0.0, 1.0), ViewOption::PlanOnly, "generic", true, DepthCues::Inner, false),
+        ("plan_dual_break_white_ash", design(80.0, 80.0, 0.0, 1.0), ViewOption::PlanOnly, "white_ash", true, DepthCues::Inner, false),
+        ("plan_small_4x6_hard_maple", design(6.0, 4.0, 0.0, 0.75), ViewOption::PlanOnly, "hard_maple", true, DepthCues::Inner, false),
+        ("plan_matted_16x20_walnut_dark", design(20.0, 16.0, 2.0, 1.5), ViewOption::PlanOnly, "black_walnut", true, DepthCues::Inner, true),
+        ("both_matted_16x20_cherry", design(20.0, 16.0, 2.0, 1.5), ViewOption::Both, "black_cherry", true, DepthCues::Inner, false),
+        ("preview_16x20_walnut", design(16.0, 20.0, 2.0, 1.5), ViewOption::PlanOnly, "black_walnut", false, DepthCues::InnerAndWall, false),
+        ("preview_16x20_walnut_dark", design(16.0, 20.0, 2.0, 1.5), ViewOption::PlanOnly, "black_walnut", false, DepthCues::InnerAndWall, true),
+    ];
+    for (name, d, view, species, callouts, depth, dark) in cases {
+        let options = DiagramOptions {
+            view, show_callouts: callouts,
+            canvas_width: if callouts { 800.0 } else { 400.0 }, canvas_height: if callouts { 600.0 } else { 500.0 },
+            wood: Some(WoodRender { species: species.into(), variant: None, lod: WoodLod::Grain, depth, reshuffle: 0 }),
+            ..Default::default()
+        };
+        let style = if dark { DiagramStyle::for_dark() } else { DiagramStyle::default() };
+        let svg = generate_diagram_with_style(&d, &options, &style).svg;
+        // standalone files need an explicit size + background to rasterize like the apps show them
+        let svg = svg.replacen("<svg ", &format!(r#"<svg style="background:{}" "#, style.background_color), 1);
+        std::fs::write(dir.join(format!("{name}.svg")), &svg).unwrap();
+        println!("{name:<34} {:>6.1} KB", svg.len() as f64 / 1024.0);
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
@@ -47,6 +89,11 @@ fn main() {
                     std::fs::write(dir.join(format!("{key}_{seed}.svg")), board_svg(a, 3.0, 6.0, 150.0, seed)).unwrap();
                 }
             }
+        }
+        Some("diagrams") => {
+            let dir = Path::new(args.get(2).expect("output dir"));
+            std::fs::create_dir_all(dir).unwrap();
+            diagrams(dir);
         }
         Some("frames") => {
             let dir = Path::new(args.get(2).expect("output dir"));

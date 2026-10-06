@@ -13,8 +13,9 @@
 //!
 //! `view` is `"PlanOnly"`, `"SectionOnly"` or `"Both"`; `detail_mode`
 //! (`"Auto"`/`"None"`), `corner_detail_enabled`/`axis_breaks_enabled`
-//! (default true), `show_spline`/`show_hanging` (default false) and
-//! `spline_params`/`hanging_params` (default: presets) may be omitted.
+//! (default true), `show_spline`/`show_hanging` (default false),
+//! `spline_params`/`hanging_params` (default: presets) and `wood`
+//! (default null = no grain; see [`crate::visualization::WoodRender`]) may be omitted.
 
 use serde::Deserialize;
 
@@ -68,7 +69,7 @@ impl DiagramRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::visualization::{generate_diagram, DetailMode, ViewOption};
+    use crate::visualization::{generate_diagram, DepthCues, DetailMode, ViewOption, WoodLod, WoodRender};
 
     const REQUIRED: &str = r#""canvas_width": 1200, "canvas_height": 700,
         "include_title_block": false, "unit_mm": false, "use_tape_segments": false,
@@ -86,6 +87,7 @@ mod tests {
         assert!(o.corner_detail_enabled && o.axis_breaks_enabled);
         assert!(!o.show_spline && !o.show_hanging);
         assert!(o.spline_params.is_none() && o.hanging_params.is_none());
+        assert!(o.wood.is_none());
     }
 
     #[test]
@@ -107,6 +109,33 @@ mod tests {
         assert!(o.show_spline && o.show_hanging);
         assert_eq!(o.spline_params.unwrap().min_wall, 0.2);
         assert_eq!(o.hanging_params.unwrap().wrap_allowance, 2.5);
+    }
+
+    #[test]
+    fn wood_takes_documented_defaults() {
+        let r = DiagramRequest::from_json(&format!(r#"{{"view": "PlanOnly", {REQUIRED}, "wood": {{"species": "red_oak"}}}}"#))
+            .unwrap();
+        let want = WoodRender { species: "red_oak".into(), variant: None, lod: WoodLod::Grain, depth: DepthCues::Inner, reshuffle: 0 };
+        assert_eq!(r.options.wood, Some(want));
+        let r = DiagramRequest::from_json(&format!(
+            r#"{{"view": "PlanOnly", {REQUIRED}, "wood": {{"species": "white_oak", "variant": "quartersawn",
+               "lod": "flat", "depth": "inner_and_wall", "reshuffle": 3}}}}"#
+        ))
+        .unwrap();
+        let w = r.options.wood.unwrap();
+        assert_eq!((w.variant.as_deref(), w.lod, w.depth, w.reshuffle), (Some("quartersawn"), WoodLod::Flat, DepthCues::InnerAndWall, 3));
+        assert!(DiagramRequest::from_json(&format!(r#"{{"view": "PlanOnly", {REQUIRED}, "wood": {{"species": "red_oak", "lod": "fine"}}}}"#)).is_err());
+    }
+
+    #[test]
+    fn null_or_omitted_wood_renders_as_before() {
+        let design = FrameDesign::default();
+        for view in ["PlanOnly", "SectionOnly", "Both"] {
+            let omitted = DiagramRequest::from_json(&format!(r#"{{"view": "{view}", {REQUIRED}}}"#)).unwrap();
+            let null = DiagramRequest::from_json(&format!(r#"{{"view": "{view}", {REQUIRED}, "wood": null}}"#)).unwrap();
+            assert_eq!(omitted.render(&design), null.render(&design), "{view}");
+            assert!(!null.render(&design).contains(r#"id="wood""#));
+        }
     }
 
     #[test]
