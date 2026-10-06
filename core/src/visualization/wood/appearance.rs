@@ -157,9 +157,28 @@ pub fn wood_appearance(key: &str, variant: Option<&str>) -> &'static WoodAppeara
     variant.and_then(|v| base.variants.get(v)).unwrap_or(base)
 }
 
+/// The `materials.woods` keys with a look of their own (the default first, then the
+/// rest alphabetically). The others (aliases and unlisted keys) draw as the default.
+pub fn wood_looks() -> Vec<&'static str> {
+    let d = data();
+    std::iter::once(d.default.as_str())
+        .chain(d.woods.keys().map(String::as_str).filter(|k| *k != d.default))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn looks_exclude_aliases_and_fallbacks() {
+        let looks = wood_looks();
+        assert_eq!(looks[0], "generic");
+        assert!(looks.contains(&"red_oak") && looks.contains(&"douglas_fir"));
+        for key in ["generic_hardwood", "generic_softwood", "mdf_moulding", "finger_jointed_pine"] {
+            assert!(!looks.contains(&key), "{key}");
+        }
+    }
 
     #[test]
     fn every_presets_wood_resolves() {

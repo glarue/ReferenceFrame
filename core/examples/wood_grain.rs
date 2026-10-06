@@ -4,13 +4,14 @@
 //!   cargo run --example wood_grain -- boards <dir> [n] # 3"x6" boards @150 px/in, n seeds (default 3)
 //!   cargo run --example wood_grain -- frames <dir>     # preview-scale frames per species
 //!   cargo run --example wood_grain -- diagrams <dir>   # full diagrams with `DiagramOptions::wood`
+//!   cargo run --example wood_grain -- swatches <dir>   # picker swatches (192 px) per species with a look
 //!
 //! Boards feed the private tools/wood-fit validation (statistics vs the prototype).
 
 use referenceframe_core::presets::get_materials;
 use referenceframe_core::visualization::{
-    board_svg, frame_face_svg, generate_diagram_with_style, wood_appearance, DepthCues, DiagramOptions, DiagramStyle,
-    FaceDepths, FrameFace, ViewOption, WoodAppearance, WoodLod, WoodRender,
+    board_svg, frame_face_svg, generate_diagram_with_style, wood_appearance, wood_looks, wood_swatch_svg, DepthCues,
+    DiagramOptions, DiagramStyle, FaceDepths, FrameFace, ViewOption, WoodAppearance, WoodLod, WoodRender,
 };
 use referenceframe_core::{FrameDesign, FrameStyle};
 use std::path::Path;
@@ -94,6 +95,15 @@ fn main() {
             let dir = Path::new(args.get(2).expect("output dir"));
             std::fs::create_dir_all(dir).unwrap();
             diagrams(dir);
+        }
+        Some("swatches") => {
+            let dir = Path::new(args.get(2).expect("output dir"));
+            std::fs::create_dir_all(dir).unwrap();
+            for key in wood_looks() {
+                let svg = wood_swatch_svg(key, 192.0);
+                println!("{key:<22} {:>5.1} KB", svg.len() as f64 / 1024.0);
+                std::fs::write(dir.join(format!("{key}.svg")), svg).unwrap();
+            }
         }
         Some("frames") => {
             let dir = Path::new(args.get(2).expect("output dir"));

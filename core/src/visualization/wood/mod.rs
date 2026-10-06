@@ -12,7 +12,7 @@ mod grain;
 mod noise;
 mod path;
 
-pub use appearance::{wood_appearance, Figure, LineMode, WoodAppearance, WoodPalette, WoodParams, WoodStructure};
+pub use appearance::{wood_appearance, wood_looks, Figure, LineMode, WoodAppearance, WoodPalette, WoodParams, WoodStructure};
 pub use grain::GrainStats;
 
 use crate::frame::FrameDesign;
@@ -281,6 +281,19 @@ pub fn corner_face_svg(f: &FrameFace, cx: f64, cy: f64, right: f64, up: f64) -> 
     out
 }
 
+/// A square swatch of a species' board for pickers: `px` wide, showing a 2" square
+/// of plain-sawn face with the grain running horizontally, as on the top rail. Same
+/// boards as that species' frames (seed from [`seed_for`]).
+pub fn wood_swatch_svg(species: &str, px: f64) -> String {
+    const INCHES: f64 = 2.0;
+    let a = wood_appearance(species, None);
+    let (g, _) = grain::side_grain(a, px, px, px / INCHES, seed_for(species, None, 0));
+    format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{0}" height="{0}" viewBox="0 0 {0} {0}"><rect width="{0}" height="{0}" fill="{1}"/>{g}</svg>"#,
+        num(px), a.palette.base
+    )
+}
+
 /// A flat, vertical-grain board (like the reference sample photos) as a standalone
 /// SVG document -- for validating the port against the prototype's statistics.
 pub fn board_svg(a: &WoodAppearance, w_in: f64, h_in: f64, ppi: f64, seed: u32) -> String {
@@ -400,6 +413,17 @@ mod tests {
         for (i, a) in seeds.iter().enumerate() {
             assert!(seeds[i + 1..].iter().all(|b| a != b), "{seeds:?}");
         }
+    }
+
+    #[test]
+    fn swatches_are_small_and_safe() {
+        for key in wood_looks() {
+            let s = wood_swatch_svg(key, 192.0);
+            assert!(s.len() < 24 * 1024, "{key}: {} bytes", s.len());
+            assert!(!s.contains('%') && !s.contains("<filter") && !s.contains("NaN"));
+            assert_eq!(s.matches("<g ").count(), s.matches("</g>").count());
+        }
+        assert_eq!(wood_swatch_svg("red_oak", 192.0), wood_swatch_svg("red_oak", 192.0));
     }
 
     #[test]
