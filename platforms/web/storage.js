@@ -25,7 +25,8 @@ const STORAGE_KEYS = {
     SETTINGS_UNIT: 'referenceframe_settings_unit',
     WEIGHT_WOOD: 'rf_weight_wood',
     WEIGHT_GLAZING: 'rf_weight_glazing',
-    WEIGHT_BACKING: 'rf_weight_backing'
+    WEIGHT_BACKING: 'rf_weight_backing',
+    SHOW_WOOD: 'rf_show_wood'
 };
 
 // ============================================================================
@@ -510,7 +511,7 @@ function saveHistory(historyJson) {
 //   1.0: saved_configs, custom_sizes, custom_colors, custom_defaults,
 //        current_settings, unit
 //   1.1: + history, validation_config, preferences (display format, theme,
-//        settings-modal unit, weight-model material choices)
+//        settings-modal unit, weight-model material choices, wood-grain toggle)
 
 const BACKUP_FORMAT_VERSION = '1.1';
 
@@ -521,7 +522,8 @@ const BACKUP_PREFERENCE_KEYS = {
     settings_unit: 'SETTINGS_UNIT',
     weight_wood: 'WEIGHT_WOOD',
     weight_glazing: 'WEIGHT_GLAZING',
-    weight_backing: 'WEIGHT_BACKING'
+    weight_backing: 'WEIGHT_BACKING',
+    show_wood: 'SHOW_WOOD'
 };
 
 /**

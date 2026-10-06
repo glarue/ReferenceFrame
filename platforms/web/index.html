@@ -243,10 +243,11 @@
                                     <input type="text" class="input-small" id="rabbet-depth" inputmode="decimal" placeholder="e.g. 0.375 or 3/8">
                                     <small id="range-rabbet-depth">Typical: 5/16" - 1/2"</small>
                                 </div>
-                                <div class="section-subtitle">Materials (weight estimate)</div>
+                                <div class="section-subtitle">Materials</div>
                                 <div class="input-group">
                                     <label for="wood-species">Wood</label>
                                     <select class="input-small" id="wood-species"></select>
+                                    <small>Weight estimate and the wood-grain look.</small>
                                 </div>
                                 <div class="input-group">
                                     <label for="glazing-material">Glazing</label>
@@ -356,6 +357,7 @@
                     <div class="layer-toggles">
                         <label for="show-spline"><input type="checkbox" id="show-spline"> Spline slots</label>
                         <label for="show-hanging"><input type="checkbox" id="show-hanging"> Hanging hardware</label>
+                        <label for="show-wood" title="Species: Advanced Options › Materials › Wood"><input type="checkbox" id="show-wood"> Wood grain</label>
                     </div>
                 </div>
             </div>
@@ -2210,6 +2212,7 @@
             try {
                 const showSpline = document.getElementById('show-spline')?.checked || false;
                 const showHanging = document.getElementById('show-hanging')?.checked || false;
+                const wood = woodOption();
                 const views = { plan: 'PlanOnly', section: 'SectionOnly', both: 'Both' };
                 svg = generateDiagramSvg(design, JSON.stringify({
                     view: views[currentView] || 'Both',
@@ -2225,6 +2228,7 @@
                     axis_breaks_enabled: true,
                     show_spline: showSpline,
                     show_hanging: showHanging,
+                    wood,
                     theme: isDark ? 'dark' : 'light'
                 }));
             } catch (e) {
@@ -2891,6 +2895,33 @@
         document.getElementById('show-spline')?.addEventListener('change', () => calculate());
         document.getElementById('show-hanging')?.addEventListener('change', () => calculate());
 
+        // Wood-grain layer: the frame face drawn in the Materials › Wood species
+        // (diagram, print and PDF). Persisted, unlike the overlay toggles above.
+        (function initWoodToggle() {
+            const box = document.getElementById('show-wood');
+            if (!box) return;
+            try {
+                box.checked = localStorage.getItem(STORAGE_KEYS.SHOW_WOOD) === 'true';
+            } catch (e) {
+                // Storage unavailable (private mode etc.) — default off
+            }
+            box.addEventListener('change', () => {
+                try {
+                    localStorage.setItem(STORAGE_KEYS.SHOW_WOOD, String(box.checked));
+                } catch (e) {
+                    console.warn('Could not save wood-grain preference:', e);
+                }
+                calculate();
+            });
+        })();
+
+        // The diagram request's `wood` option: null when the layer is off
+        function woodOption(depth = 'inner') {
+            if (!document.getElementById('show-wood')?.checked) return null;
+            const species = document.getElementById('wood-species')?.value || 'generic';
+            return { species, lod: 'grain', depth };
+        }
+
         // Weight-material pickers: [select id, storage key, fallback option].
         // Weight-model preferences, persisted locally (not design fields).
         const MATERIAL_PICKERS = [
@@ -3117,6 +3148,7 @@
                     axis_breaks_enabled: true,        // as on screen
                     show_spline: snapshot.showSpline,
                     show_hanging: snapshot.showHanging,
+                    wood: snapshot.wood,              // as on screen, minus the shadow
                     theme: 'pdf'                      // light print style, whatever the app theme
                 }));
 
@@ -3305,6 +3337,8 @@
                 title: document.getElementById('pdf-title').value.trim() || null,
                 showSpline: document.getElementById('show-spline')?.checked || false,
                 showHanging: document.getElementById('show-hanging')?.checked || false,
+                // No inner shadow: svg2pdf draws its gradient as a flat gray band
+                wood: woodOption('none'),
                 bladeWidth: getDimensionValue('blade-width')
             };
         }

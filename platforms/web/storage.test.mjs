@@ -648,6 +648,7 @@ function populateExtras(ctx, KEYS, localStorage) {
     localStorage.setItem(KEYS.WEIGHT_WOOD, 'oak_red');
     localStorage.setItem(KEYS.WEIGHT_GLAZING, 'acrylic');
     localStorage.setItem(KEYS.WEIGHT_BACKING, 'mdf_panel');
+    localStorage.setItem(KEYS.SHOW_WOOD, 'true');
 }
 
 test('exportAllData (1.1) includes history, validation config and preferences', () => {
@@ -663,6 +664,7 @@ test('exportAllData (1.1) includes history, validation config and preferences', 
         weight_wood: 'oak_red',
         weight_glazing: 'acrylic',
         weight_backing: 'mdf_panel',
+        show_wood: 'true',
     });
 });
 
@@ -689,9 +691,10 @@ test('export then import (replace) round-trips history, validation config and pr
     assert.equal(dst.ctx.loadThemePreference(), 'dark');
     assert.equal(dst.localStorage.getItem(dst.KEYS.SETTINGS_UNIT), 'mm');
     assert.equal(dst.localStorage.getItem(dst.KEYS.WEIGHT_WOOD), 'oak_red');
+    assert.equal(dst.localStorage.getItem(dst.KEYS.SHOW_WOOD), 'true');
     assert.equal(r.restored.history, true);
     assert.equal(r.restored.validationConfig, true);
-    assert.equal(r.restored.preferences.length, 6);
+    assert.equal(r.restored.preferences.length, 7);
     assert.match(r.message, /restored design history, validation settings, preferences/);
 });
 
