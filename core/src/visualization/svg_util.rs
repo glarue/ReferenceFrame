@@ -360,6 +360,49 @@ pub(crate) fn generate_line_with_arrows(
     svg
 }
 
+/// A two-headed dimension line whose arrow tips land exactly on targets `a` and
+/// `b`. When the span is too short for two inward-facing heads plus a little
+/// line (the pulled-in line ends would cross and flip both heads), the heads go
+/// outside the targets pointing inward on short tails, as in drafting, with a
+/// plain line across the span.
+pub(crate) fn dimension_line_between(a: (f64, f64), b: (f64, f64), stroke: &str, stroke_width: f64) -> String {
+    let ext = arrow_geometry::tip_extension(stroke_width);
+    let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+    let len = dx.hypot(dy);
+    if len <= 0.0 {
+        return String::new();
+    }
+    let (ux, uy) = (dx / len, dy / len);
+    if len >= 2.0 * ext + MIN_DIMENSION_LINE {
+        return generate_line_with_arrows(
+            a.0 + ux * ext, a.1 + uy * ext,
+            b.0 - ux * ext, b.1 - uy * ext,
+            stroke, stroke_width,
+            true, true, false,
+        );
+    }
+    let tail = 2.0 * ext;
+    let mut svg = String::new();
+    // Each head: a line ending one extension short of its target, arrow at the end
+    for (t, sign) in [(a, -1.0), (b, 1.0)] {
+        svg.push_str(&generate_line_with_arrows(
+            t.0 + sign * ux * (ext + tail), t.1 + sign * uy * (ext + tail),
+            t.0 + sign * ux * ext, t.1 + sign * uy * ext,
+            stroke, stroke_width,
+            false, true, false,
+        ));
+    }
+    svg.push_str(&format!(
+        r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
+        a.0, a.1, b.0, b.1, stroke, stroke_width
+    ));
+    svg.push('\n');
+    svg
+}
+
+/// Shortest visible line between a dimension's two inward-facing heads (px)
+const MIN_DIMENSION_LINE: f64 = 2.0;
+
 // ============================================================================
 // DIMENSION ARROW PRIMITIVE
 // ============================================================================
@@ -716,4 +759,34 @@ pub(crate) fn to_latin1_text(s: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Arrow polygons' tip points (the first point of each `points` list)
+    fn tips(svg: &str) -> Vec<(f64, f64)> {
+        svg.split(r#"points=""#).skip(1).map(|p| {
+            let first = p.split(' ').next().unwrap();
+            let mut xy = first.split(',').map(|v| v.parse::<f64>().unwrap());
+            (xy.next().unwrap(), xy.next().unwrap())
+        }).collect()
+    }
+
+    #[test]
+    fn dimension_heads_land_on_targets_inside_or_outside() {
+        let ext = arrow_geometry::tip_extension(1.0);
+        // Room for both heads: the plain two-headed line, tips on the targets
+        let long = dimension_line_between((10.0, 0.0), (10.0, 40.0), "#000", 1.0);
+        assert_eq!(long, generate_line_with_arrows(10.0, ext, 10.0, 40.0 - ext, "#000", 1.0, true, true, false));
+        // Too short: heads outside pointing inward, still tipped on the targets
+        let short = dimension_line_between((10.0, 0.0), (10.0, ext), "#000", 1.0);
+        let t = tips(&short);
+        assert_eq!(t.len(), 2);
+        for (got, want) in t.iter().zip([0.0, ext]) {
+            assert!((got.1 - want).abs() < 0.02, "tip at {got:?}, want y {want}");
+        }
+        assert_eq!(short.matches("<line").count(), 3, "two tails and the span");
+    }
 }

@@ -52,6 +52,11 @@ const BREAK_IMPROVEMENT_THRESHOLD: f64 = 0.90;
 /// Axis break threshold for section view (both horizontal and vertical).
 const SECTION_AXIS_BREAK_THRESHOLD: f64 = 3.0;
 
+/// Moulding width the section view's scale is fit to (inches). Faces up to it draw
+/// at their true width; wider ones get an axis break drawn at this width, so the
+/// stack and its callouts stay the same size whatever the face width.
+const SECTION_REFERENCE_WIDTH: f64 = 1.5;
+
 /// Width of outer edge portion shown after break (inches).
 const SECTION_OUTER_EDGE_WIDTH: f64 = 0.4;
 
@@ -61,7 +66,9 @@ const SECTION_BREAK_GAP_X: f64 = 0.077;
 /// Visual gap for vertical break indicator in section view (inches).
 const SECTION_BREAK_GAP_Y: f64 = 0.11;
 
-/// Extra frame body shown beyond rabbet in section view (inches).
+/// Frame body shown beyond the rabbet after a break (inches): exactly this after a
+/// vertical break; at least this after a horizontal one (the reference width grows
+/// past `SECTION_REFERENCE_WIDTH` to keep it).
 const SECTION_INNER_PORTION_EXTRA: f64 = 0.5;
 
 /// Minimum dimension for section view calculations (inches).
@@ -609,6 +616,10 @@ pub struct SectionViewGeometry {
     pub actual_frame_depth: f64,
     /// Gap between content bottom and legend (computed once, used by SVG renderer)
     pub legend_gap: f64,
+    /// Width of the drawing and its callouts for a moulding at the reference width
+    /// (px). A narrower face draws narrower at the same scale; the dynamic viewBox
+    /// is kept at least this wide so it isn't zoomed up to fill the canvas.
+    pub reference_content_width: f64,
 }
 
 #[cfg(test)]
@@ -640,6 +651,31 @@ mod tests {
         let geo = PlanViewGeometry::from_design(&design, 800.0, 600.0, &style);
 
         assert!(geo.mat_opening.is_none());
+    }
+
+    /// Face width doesn't change the section scale (wider faces were shrinking
+    /// the stack under full-size callouts): faces up to the reference width draw
+    /// at their true width, wider ones break and draw at the reference width.
+    #[test]
+    fn section_scale_does_not_depend_on_face_width() {
+        let style = DiagramStyle::default();
+        for (w, h) in [(377.0, 300.0), (800.0, 600.0)] {
+            let geo = |fw: f64| {
+                let mut d = test_design();
+                d.frame_material_width = fw;
+                SectionViewGeometry::from_design(&d, w, h, &style)
+            };
+            let widths = [0.75, 1.0, 1.5, 2.0, 3.0, 4.0];
+            let scales: Vec<f64> = widths.iter().map(|&fw| geo(fw).scale).collect();
+            assert!(scales.windows(2).all(|p| (p[0] - p[1]).abs() < 1e-9), "{w}x{h}: {scales:?}");
+            for fw in widths {
+                let g = geo(fw);
+                assert_eq!(g.use_axis_break, fw > SECTION_REFERENCE_WIDTH, "{fw}");
+                let drawn = g.frame_profile.width / g.scale;
+                let want = fw.min(SECTION_REFERENCE_WIDTH);
+                assert!((drawn - want).abs() < 1e-6, "{fw}: drawn {drawn}");
+            }
+        }
     }
 
     #[test]

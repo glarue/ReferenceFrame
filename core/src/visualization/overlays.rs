@@ -23,7 +23,7 @@ use crate::joinery::{spline_envelope, SplineParams, SplineSlot};
 
 use super::geometry::{estimate_text_width, PlanViewGeometry, SectionViewGeometry};
 use super::style::DiagramStyle;
-use super::svg_util::{escape_text, render_inset_box, BASELINE_SHIFT_RATIO};
+use super::svg_util::{escape_text, render_inset_box, vertical_zigzag, x_at_y, ZigzagPoints, BASELINE_SHIFT_RATIO};
 use super::types::{DiagramOptions, Rect};
 
 /// A section slot whose label didn't fit inside the band — labeled through
@@ -40,7 +40,9 @@ pub(crate) struct SplineLeaderLabel {
 /// channel occupies the back-inner (bottom-right) region. Slot depth
 /// (`z_center`) is measured from the front face, so it maps straight down
 /// from the profile top. The slot is open at the outer (left) edge; the fill
-/// is inset by the frame stroke so the profile outline stays crisp.
+/// is inset by the frame stroke so the profile outline stays crisp. Across a
+/// width break the band stops at the break's zigzag and, if the slot reaches
+/// the rabbet end of the profile, resumes after it.
 pub(crate) fn render_section_splines(
     svg: &mut String,
     geometry: &SectionViewGeometry,
@@ -50,7 +52,7 @@ pub(crate) fn render_section_splines(
     params: SplineParams,
 ) -> Vec<SplineLeaderLabel> {
     let mut leader_labels = Vec::new();
-    if geometry.use_axis_break || geometry.use_axis_break_y {
+    if geometry.use_axis_break_y {
         return leader_labels;
     }
     let Some(env) = spline_envelope(design, &params) else {
@@ -68,20 +70,43 @@ pub(crate) fn render_section_splines(
         // The slot is physically open at the outer face: the band covers the
         // outer stroke at its mouth (the face line genuinely breaks where the
         // kerf exits), and the inner end sits at true penetration depth.
-        let w = slot.max_penetration * s + overhang;
         if slot.max_penetration * s <= 0.0 {
             continue;
         }
-        svg.push_str(&format!(
-            r#"    <rect x="{:.2}" y="{:.2}" width="{:.2}" height="{:.2}" fill="{}" fill-opacity="0.85" stroke="{}" stroke-width="0.8"/>"#,
-            fp.x - overhang,
-            yc - h / 2.0,
-            w,
-            h,
-            style.accent_color,
-            style.spline_stroke_color
-        ));
-        svg.push('\n');
+        let (top, bottom) = (yc - h / 2.0, yc + h / 2.0);
+        let x0 = fp.x - overhang;
+        // Bands as (left, right) edges, each a fixed x or the break zigzag
+        let bands: Vec<(Edge, Edge)> = if !geometry.use_axis_break {
+            vec![(Edge::At(x0), Edge::At(fp.x + slot.max_penetration * s))]
+        } else {
+            let outer_end = fp.x + slot.max_penetration * s;
+            // Where the inner end lands if it reaches the rabbet-side portion
+            let inner_end = fp.right() - (design.frame_material_width - slot.max_penetration) * s;
+            if outer_end <= geometry.axis_break_start_x {
+                vec![(Edge::At(x0), Edge::At(outer_end))]
+            } else {
+                let left = vertical_zigzag(geometry.axis_break_start_x, fp.y, fp.height);
+                let right = vertical_zigzag(geometry.axis_break_end_x, fp.y, fp.height);
+                let mut b = vec![(Edge::At(x0), Edge::Zigzag(left))];
+                if inner_end > geometry.axis_break_end_x {
+                    b.push((Edge::Zigzag(right), Edge::At(inner_end)));
+                }
+                b
+            }
+        };
+        for (l, r) in &bands {
+            let pts = [(l.x(top), top), (r.x(top), top), (r.x(bottom), bottom), (l.x(bottom), bottom)];
+            svg.push_str(&format!(
+                r#"    <path d="M{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} L{:.2},{:.2} Z" fill="{}" fill-opacity="0.85" stroke="{}" stroke-width="0.8"/>"#,
+                pts[0].0, pts[0].1, pts[1].0, pts[1].1, pts[2].0, pts[2].1, pts[3].0, pts[3].1,
+                style.accent_color,
+                style.spline_stroke_color
+            ));
+            svg.push('\n');
+        }
+        // The in-band label needs the band at the open (outer) end
+        let w = bands[0].1.x(yc) - x0;
+        let band_end = bands.last().map_or(x0, |(_, r)| r.x(yc));
         let label = section_spline_label(fmt, &params, slot);
         // Label sits inside the slot band when it fits; otherwise (small
         // mouldings / compact canvases) it is returned as a leader label and
@@ -106,12 +131,29 @@ pub(crate) fn render_section_splines(
             leader_labels.push(SplineLeaderLabel {
                 text: label,
                 center_y: yc,
-                right_edge: fp.x + slot.max_penetration * s,
+                right_edge: band_end,
             });
         }
     }
     svg.push_str("  </g>\n");
     leader_labels
+}
+
+/// One end of a section spline band: a fixed x, or a width-break zigzag
+enum Edge {
+    At(f64),
+    Zigzag(ZigzagPoints),
+}
+
+impl Edge {
+    fn x(&self, y: f64) -> f64 {
+        match self {
+            Edge::At(x) => *x,
+            Edge::Zigzag(z) if y <= z.p1.1 => x_at_y(z.p0, z.p1, y),
+            Edge::Zigzag(z) if y <= z.p2.1 => x_at_y(z.p1, z.p2, y),
+            Edge::Zigzag(z) => x_at_y(z.p2, z.p3, y),
+        }
+    }
 }
 
 /// Label for one section-view spline slot.

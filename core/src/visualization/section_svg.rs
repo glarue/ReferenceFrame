@@ -369,27 +369,19 @@ pub(crate) fn build_section_svg(
     // Horizontal arrow: spans the rabbet width (true geometric boundaries)
     let h_target_left = geometry.rabbet_area.x;
     let h_target_right = geometry.rabbet_area.x + geometry.rabbet_area.width;
-    let h_line_x1 = arrow_line_endpoint_for_target(h_target_left, rabbet_arrow_stroke, true);
-    let h_line_x2 = arrow_line_endpoint_for_target(h_target_right, rabbet_arrow_stroke, false);
-    
-    svg.push_str(&generate_line_with_arrows(
-        h_line_x1, rabbet_center_y,
-        h_line_x2, rabbet_center_y,
+    svg.push_str(&dimension_line_between(
+        (h_target_left, rabbet_center_y),
+        (h_target_right, rabbet_center_y),
         dim_color, rabbet_arrow_stroke,
-        true, true, false, // both arrows
     ));
 
     // Vertical arrow: spans the rabbet depth (true geometric boundaries)
     let v_target_top = geometry.rabbet_area.y;
     let v_target_bottom = geometry.rabbet_area.y + geometry.rabbet_area.height;
-    let v_line_y1 = arrow_line_endpoint_for_target_y(v_target_top, rabbet_arrow_stroke, true);
-    let v_line_y2 = arrow_line_endpoint_for_target_y(v_target_bottom, rabbet_arrow_stroke, false);
-
-    svg.push_str(&generate_line_with_arrows(
-        rabbet_center_x, v_line_y1,
-        rabbet_center_x, v_line_y2,
+    svg.push_str(&dimension_line_between(
+        (rabbet_center_x, v_target_top),
+        (rabbet_center_x, v_target_bottom),
         dim_color, rabbet_arrow_stroke,
-        true, true, false, // both arrows
     ));
 
     // Material thickness labels with dog-leg leader lines.
@@ -570,12 +562,9 @@ pub(crate) fn build_section_svg(
         // Dimension line - centred on the ticks; arrow tips land exactly at
         // the stack boundaries
         let arrow_x = (tick_x1 + tick_x2) / 2.0;
-        let stack_line_y1 = arrow_line_endpoint_for_target_y(stack_top, style.dimension_stroke_width, true);
-        let stack_line_y2 = arrow_line_endpoint_for_target_y(stack_bottom, style.dimension_stroke_width, false);
-        svg.push_str(&generate_line_with_arrows(
-            arrow_x, stack_line_y1, arrow_x, stack_line_y2,
+        svg.push_str(&dimension_line_between(
+            (arrow_x, stack_top), (arrow_x, stack_bottom),
             dim_color, style.dimension_stroke_width,
-            true, true, false, // both arrows
         ));
         // Label - rotated vertically with more offset. A long label on a short
         // stack (tape segments with a decimal, e.g. `1/4 + 1/32 (0.281")`) would
@@ -743,9 +732,15 @@ pub(crate) fn build_section_svg(
     let shifted_content_min_x = content_min_x + center_offset_x;
     let shifted_content_max_x = content_max_x + center_offset_x;
 
-    // Calculate final bounds including legend
+    // Calculate final bounds including legend, no narrower than the
+    // reference-width layout (keeps the scale constant for narrow faces)
     let mut min_x = shifted_content_min_x.min(legend_start_x);
     let mut max_x = shifted_content_max_x.max(legend_end_x);
+    let shortfall = geometry.reference_content_width - (max_x - min_x);
+    if shortfall > 0.0 {
+        min_x -= shortfall / 2.0;
+        max_x += shortfall / 2.0;
+    }
     let mut min_y = content_min_y;
     let mut max_y = content_max_y.max(legend_bottom);
 

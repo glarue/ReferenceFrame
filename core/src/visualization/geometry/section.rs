@@ -23,24 +23,25 @@ impl SectionViewGeometry {
         // Clearance is based on rabbet depth (z-axis space available for materials)
         let clearance = rabbet_depth - total_stack - design.assembly_margin;
 
-        // Axis break for wide frames - show truncated frame with break indicator
-        let use_axis_break = design.frame_material_width > SECTION_AXIS_BREAK_THRESHOLD;
+        // The drawing scale doesn't depend on the face width: it is fit to a
+        // moulding `reference_width` wide (1.5", more for a very wide rabbet).
+        // Narrower faces draw narrower at that scale; wider ones get an axis
+        // break that shows the outer edge and the rabbet end at the reference
+        // width. Fitting the scale to the true width instead shrank the stack,
+        // rabbet and arrows under full-size labels as the face got wider.
         let actual_frame_width = design.frame_material_width;
+        let outer_edge_width = SECTION_OUTER_EDGE_WIDTH;
+        let break_gap = SECTION_BREAK_GAP_X;
+        let reference_width = SECTION_REFERENCE_WIDTH
+            .max(outer_edge_width + break_gap + design.rabbet_width + SECTION_INNER_PORTION_EXTRA);
+        let use_axis_break = design.frame_material_width > reference_width;
 
         // Display width: if using break, show:
         // - Outer edge portion (left)
         // - Gap with break indicator
-        // - Rabbet area + some frame body (right)
+        // - Rabbet area + some frame body (right), filling out the reference width
         // Otherwise show full frame width
-        let outer_edge_width = SECTION_OUTER_EDGE_WIDTH;
-        let break_gap = SECTION_BREAK_GAP_X;
-        let inner_portion = design.rabbet_width + SECTION_INNER_PORTION_EXTRA;
-
-        let display_frame_width = if use_axis_break {
-            outer_edge_width + break_gap + inner_portion
-        } else {
-            design.frame_material_width
-        };
+        let display_frame_width = if use_axis_break { reference_width } else { design.frame_material_width };
 
         // Vertical axis break for deep frames - show truncated frame with break indicator
         let use_axis_break_y = design.frame_material_depth > SECTION_AXIS_BREAK_THRESHOLD;
@@ -126,8 +127,8 @@ impl SectionViewGeometry {
         // Rabbet label is now two lines (dimensions + clearance/interference)
         let rabbet_label_height = RABBET_LABEL_LEADER + font_size * RABBET_LABEL_FONT_MULTIPLIER;
 
-        // Guard against zero/invalid dimensions
-        let safe_frame_width = display_frame_width.max(SECTION_MIN_DIMENSION);
+        // Guard against zero/invalid dimensions; the scale fits the reference width
+        let safe_frame_width = reference_width;
         let safe_frame_depth = display_frame_depth.max(SECTION_MIN_DIMENSION);
         let safe_rabbet_width = design.rabbet_width.max(SECTION_MIN_RABBET_WIDTH);
 
@@ -192,6 +193,8 @@ impl SectionViewGeometry {
         // Total horizontal content block width (including asymmetric callout spaces)
         // This is what we want to center in the canvas
         let total_content_width = depth_dim_space + drawn_content_width + labels_space;
+        let reference_content_width =
+            depth_dim_space + reference_width * scale + materials_overhang + labels_space;
 
         // Horizontal centering: center the ENTIRE content block for visual balance
         // content_block_start = where the depth dimension area starts
@@ -375,6 +378,7 @@ impl SectionViewGeometry {
             axis_break_end_y,
             actual_frame_depth,
             legend_gap,
+            reference_content_width,
         }
     }
 
