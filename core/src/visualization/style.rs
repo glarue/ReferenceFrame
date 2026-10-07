@@ -169,8 +169,6 @@ pub struct DiagramStyle {
     pub section_width_dim_offset: f64,
     /// Material label base offset from glazing right edge
     pub section_material_label_offset: f64,
-    /// Gap between material labels and stack dimension line
-    pub section_stack_dim_gap: f64,
     /// Legend height (space reserved below content for material legend)
     pub legend_height: f64,
 }
@@ -242,7 +240,6 @@ impl Default for DiagramStyle {
             section_depth_dim_offset: 18.0,
             section_width_dim_offset: 32.0,
             section_material_label_offset: 18.0,
-            section_stack_dim_gap: 20.0,
             legend_height: 25.0,
         }
     }

@@ -24,7 +24,7 @@ impl SectionViewGeometry {
         let clearance = rabbet_depth - total_stack - design.assembly_margin;
 
         // The drawing scale doesn't depend on the face width: it is fit to a
-        // moulding `reference_width` wide (1.5", more for a very wide rabbet).
+        // moulding `reference_width` wide (3", more for a very wide rabbet).
         // Narrower faces draw narrower at that scale; wider ones get an axis
         // break that shows the outer edge and the rabbet end at the reference
         // width. Fitting the scale to the true width instead shrank the stack,
@@ -81,7 +81,7 @@ impl SectionViewGeometry {
         let label_offset_left = style.label_offset();
         let depth_dim_space = style.section_depth_dim_offset + style.extension_line_overshoot.max(label_offset_left + style.label_font_size / 2.0);
 
-        // RIGHT SIDE: Material labels + stack dimension
+        // RIGHT SIDE: Material labels (the stack total is a row of this column)
         // Components (from section_svg.rs). Spline slot labels that fall back to
         // this column are deliberately NOT reserved: they can be wider than a
         // phone canvas, and reserving them shrinks the drawing to the minimum
@@ -90,9 +90,6 @@ impl SectionViewGeometry {
         //   base_offset = style.section_material_label_offset.min(scale * 0.4 + 12.0)
         //   material labels at label_base_x = material_right + base_offset
         //   max_label_width = estimated from text like "Glazing: 3/32""
-        //   stack_dim_x = label_base_x + max_label_width + style.section_stack_dim_gap
-        //   stack label at stack_dim_x + style.label_offset() + 4.0
-        //   stack label text width (rotated, so height becomes width contribution)
 
         // Estimate max material label width - format: "Material: X/X""
         // Longest material name is "Artwork" (7 chars), typical value "15/16"" (6 chars)
@@ -103,6 +100,7 @@ impl SectionViewGeometry {
             format!("Artwork: {}", format_value(design.artwork_thickness, unit)),
             format!("Backing: {}", format_value(design.backing_thickness, unit)),
             format!("Margin: {}", format_value(design.assembly_margin, unit)),
+            format!("Total: {}", format_value(total_stack, unit)),
         ];
         let fallback_label = &material_labels[0];
         let max_label_text = material_labels.iter()
@@ -110,13 +108,8 @@ impl SectionViewGeometry {
             .unwrap_or(&fallback_label);
         let max_label_width = estimate_text_width(max_label_text, style.material_label_font_size());
 
-        // Stack dimension label (e.g., "9/32"") - rotated vertically
-        let _stack_label_text = format_value(total_stack, unit);
-        let stack_label_offset = style.label_offset() + 4.0;
-        let stack_label_width = style.label_font_size; // Rotated text, so font height is the horizontal extent
-
         // Total right side space needed from material right edge
-        let labels_space = style.section_material_label_offset + max_label_width + style.section_stack_dim_gap + stack_label_offset + stack_label_width;
+        let labels_space = style.section_material_label_offset + max_label_width;
 
         // TOP: Width dimension callout
         // Components: line at frame_y - style.section_width_dim_offset, extension overshoot, label above

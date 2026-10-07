@@ -1,63 +1,59 @@
-<svg viewBox="3.25 112.93 793.50 358.13" xmlns="http://www.w3.org/2000/svg">
-    <g id="section-content" transform="translate(3.25, 0)">
+<svg viewBox="-0.00 153.23 800.00 277.53" xmlns="http://www.w3.org/2000/svg">
+    <g id="section-content" transform="translate(-0.00, 0)">
 <g id="section-geometry">
-    <rect x="262.23" y="284.80" width="270.67" height="26.85" stroke="#333333" stroke-width="0.5" fill="#B8D4E3"/>
-    <rect x="262.23" y="311.65" width="270.67" height="2.31" stroke="#333333" stroke-width="0.5" fill="#E8E8E8"/>
-    <rect x="262.23" y="313.96" width="270.67" height="36.09" stroke="#333333" stroke-width="0.5" fill="#A0A0A0"/>
-    <rect x="262.23" y="350.05" width="270.67" height="18.04" stroke="#577590" stroke-width="0.5" stroke-dasharray="4,2" fill="none" opacity="0.7"/>
-    <polygon points="153.97,176.53 370.50,176.53 370.50,284.80 262.23,284.80 262.23,393.07 153.97,393.07" stroke="#333333" stroke-width="2.5" fill="#8B6914"/>
+    <rect x="317.56" y="284.80" width="169.91" height="16.86" stroke="#333333" stroke-width="0.5" fill="#B8D4E3"/>
+    <rect x="317.56" y="301.66" width="169.91" height="1.45" stroke="#333333" stroke-width="0.5" fill="#E8E8E8"/>
+    <rect x="317.56" y="303.11" width="169.91" height="22.66" stroke="#333333" stroke-width="0.5" fill="#A0A0A0"/>
+    <rect x="317.56" y="325.76" width="169.91" height="11.33" stroke="#577590" stroke-width="0.5" stroke-dasharray="4,2" fill="none" opacity="0.7"/>
+    <polygon points="249.60,216.83 385.53,216.83 385.53,284.80 317.56,284.80 317.56,352.77 249.60,352.77" stroke="#333333" stroke-width="2.5" fill="#8B6914"/>
   </g>
   <g id="section-dimensions">
-    <line x1="147.97" y1="176.53" x2="131.97" y2="176.53" stroke="#333333" stroke-width="0.5"/>
-    <line x1="147.97" y1="393.07" x2="131.97" y2="393.07" stroke="#333333" stroke-width="0.5"/>
-    <polygon points="135.97,176.53 134.09,182.53 137.84,182.53" fill="#333333" data-arrow="true"/>
-    <line x1="135.97" y1="182.53" x2="135.97" y2="387.07" stroke="#333333" stroke-width="0.75"/>
-    <polygon points="135.97,393.07 137.84,387.07 134.09,387.07" fill="#333333" data-arrow="true"/>
-    <text x="122.77" y="284.80" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" transform="rotate(-90 122.77 284.80)">Depth: 3/4"</text>
-    <line x1="153.97" y1="170.53" x2="153.97" y2="140.53" stroke="#333333" stroke-width="0.5"/>
-    <line x1="370.50" y1="170.53" x2="370.50" y2="140.53" stroke="#333333" stroke-width="0.5"/>
-    <polygon points="153.97,144.53 159.97,146.41 159.97,142.66" fill="#333333" data-arrow="true"/>
-    <line x1="159.97" y1="144.53" x2="364.50" y2="144.53" stroke="#333333" stroke-width="0.75"/>
-    <polygon points="370.50,144.53 364.50,142.66 364.50,146.41" fill="#333333" data-arrow="true"/>
-    <text transform="translate(262.23, 131.33)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Width: 3/4"</text>
-    <rect x="262.23" y="284.80" width="108.27" height="108.27" fill="#FFFFFF" fill-opacity="0.5" stroke="none" rx="1"/>
-    <polygon points="262.23,338.93 266.43,340.25 266.43,337.62" fill="#333333" data-arrow="true"/>
-    <line x1="266.43" y1="338.93" x2="366.30" y2="338.93" stroke="#333333" stroke-width="0.5249999999999999"/>
-    <polygon points="370.50,338.93 366.30,337.62 366.30,340.25" fill="#333333" data-arrow="true"/>
-    <polygon points="316.37,284.80 315.06,289.00 317.68,289.00" fill="#333333" data-arrow="true"/>
-    <line x1="316.37" y1="289.00" x2="316.37" y2="388.87" stroke="#333333" stroke-width="0.5249999999999999"/>
-    <polygon points="316.37,393.07 317.68,388.87 315.06,388.87" fill="#333333" data-arrow="true"/>
-    <polygon points="533.80,298.23 535.90,298.93 535.90,297.53" fill="#333333" data-arrow="true"/>
-    <line x1="535.90" y1="298.23" x2="542.90" y2="298.23" stroke="#333333" stroke-width="0.35"/>
-    <line x1="542.90" y1="298.23" x2="545.90" y2="295.25" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(550.90, 299.11)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Glazing: 3/32"</text>
-    <polygon points="533.80,312.81 535.90,313.51 535.90,312.11" fill="#333333" data-arrow="true"/>
-    <line x1="535.90" y1="312.81" x2="542.90" y2="312.81" stroke="#333333" stroke-width="0.35"/>
-    <line x1="542.90" y1="312.81" x2="545.90" y2="316.05" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(550.90, 319.91)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Artwork: 0.01"</text>
-    <polygon points="533.80,332.00 535.90,332.70 535.90,331.30" fill="#333333" data-arrow="true"/>
-    <line x1="535.90" y1="332.00" x2="542.90" y2="332.00" stroke="#333333" stroke-width="0.35"/>
-    <line x1="542.90" y1="332.00" x2="545.90" y2="336.85" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(550.90, 340.71)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Backing: 1/8"</text>
-    <polygon points="533.80,359.07 535.90,359.77 535.90,358.37" fill="#333333" data-arrow="true"/>
-    <line x1="535.90" y1="359.07" x2="542.90" y2="359.07" stroke="#333333" stroke-width="0.35"/>
-    <line x1="542.90" y1="359.07" x2="545.90" y2="357.65" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(550.90, 361.51)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Margin: 1/16"</text>
-    <line x1="643.53" y1="284.80" x2="657.53" y2="284.80" stroke="#333333" stroke-width="0.5"/>
-    <line x1="643.53" y1="350.05" x2="657.53" y2="350.05" stroke="#333333" stroke-width="0.5"/>
-    <polygon points="650.53,284.80 648.66,290.80 652.41,290.80" fill="#333333" data-arrow="true"/>
-    <line x1="650.53" y1="290.80" x2="650.53" y2="344.05" stroke="#333333" stroke-width="0.75"/>
-    <polygon points="650.53,350.05 652.41,344.05 648.66,344.05" fill="#333333" data-arrow="true"/>
-    <text x="670.73" y="317.42" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" transform="rotate(-90 670.73 317.42)">0.23"</text>
-    <line x1="316.37" y1="395.07" x2="316.37" y2="403.07" stroke="#333333" stroke-width="0.5" stroke-dasharray="3,2"/>
-    <text transform="translate(316.37, 415.17)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Rabbet: 3/8"</text>
-    <text transform="translate(316.37, 430.77)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">(clearance: 0.09")</text>
+    <line x1="243.60" y1="216.83" x2="227.60" y2="216.83" stroke="#333333" stroke-width="0.5"/>
+    <line x1="243.60" y1="352.77" x2="227.60" y2="352.77" stroke="#333333" stroke-width="0.5"/>
+    <polygon points="231.60,216.83 229.72,222.83 233.47,222.83" fill="#333333" data-arrow="true"/>
+    <line x1="231.60" y1="222.83" x2="231.60" y2="346.77" stroke="#333333" stroke-width="0.75"/>
+    <polygon points="231.60,352.77 233.47,346.77 229.72,346.77" fill="#333333" data-arrow="true"/>
+    <text x="218.40" y="284.80" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle" transform="rotate(-90 218.40 284.80)">Depth: 3/4"</text>
+    <line x1="249.60" y1="210.83" x2="249.60" y2="180.83" stroke="#333333" stroke-width="0.5"/>
+    <line x1="385.53" y1="210.83" x2="385.53" y2="180.83" stroke="#333333" stroke-width="0.5"/>
+    <polygon points="249.60,184.83 255.60,186.71 255.60,182.96" fill="#333333" data-arrow="true"/>
+    <line x1="255.60" y1="184.83" x2="379.53" y2="184.83" stroke="#333333" stroke-width="0.75"/>
+    <polygon points="385.53,184.83 379.53,182.96 379.53,186.71" fill="#333333" data-arrow="true"/>
+    <text transform="translate(317.56, 171.63)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Width: 3/4"</text>
+    <rect x="317.56" y="284.80" width="67.97" height="67.97" fill="#FFFFFF" fill-opacity="0.5" stroke="none" rx="1"/>
+    <polygon points="317.56,318.78 321.76,320.10 321.76,317.47" fill="#333333" data-arrow="true"/>
+    <line x1="321.76" y1="318.78" x2="381.33" y2="318.78" stroke="#333333" stroke-width="0.5249999999999999"/>
+    <polygon points="385.53,318.78 381.33,317.47 381.33,320.10" fill="#333333" data-arrow="true"/>
+    <polygon points="351.54,284.80 350.23,289.00 352.86,289.00" fill="#333333" data-arrow="true"/>
+    <line x1="351.54" y1="289.00" x2="351.54" y2="348.57" stroke="#333333" stroke-width="0.5249999999999999"/>
+    <polygon points="351.54,352.77 352.86,348.57 350.23,348.57" fill="#333333" data-arrow="true"/>
+    <polygon points="488.37,293.23 490.47,293.93 490.47,292.53" fill="#333333" data-arrow="true"/>
+    <line x1="490.47" y1="293.23" x2="497.47" y2="293.23" stroke="#333333" stroke-width="0.35"/>
+    <line x1="497.47" y1="293.23" x2="500.47" y2="269.34" stroke="#333333" stroke-width="0.35"/>
+    <text transform="translate(505.47, 273.21)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Glazing: 3/32"</text>
+    <polygon points="488.37,302.38 490.47,303.08 490.47,301.68" fill="#333333" data-arrow="true"/>
+    <line x1="490.47" y1="302.38" x2="497.47" y2="302.38" stroke="#333333" stroke-width="0.35"/>
+    <line x1="497.47" y1="302.38" x2="500.47" y2="290.14" stroke="#333333" stroke-width="0.35"/>
+    <text transform="translate(505.47, 294.01)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Artwork: 0.01"</text>
+    <polygon points="488.37,314.43 490.47,315.13 490.47,313.73" fill="#333333" data-arrow="true"/>
+    <line x1="490.47" y1="314.43" x2="497.47" y2="314.43" stroke="#333333" stroke-width="0.35"/>
+    <line x1="497.47" y1="314.43" x2="500.47" y2="310.94" stroke="#333333" stroke-width="0.35"/>
+    <text transform="translate(505.47, 314.81)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Backing: 1/8"</text>
+    <line x1="505.47" y1="321.34" x2="588.10" y2="321.34" stroke="#577590" stroke-width="0.5"/>
+    <text transform="translate(505.47, 335.61)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px" font-weight="600">Total: 0.23"</text>
+    <polygon points="488.37,331.42 490.47,332.12 490.47,330.72" fill="#333333" data-arrow="true"/>
+    <line x1="490.47" y1="331.42" x2="497.47" y2="331.42" stroke="#333333" stroke-width="0.35"/>
+    <line x1="497.47" y1="331.42" x2="500.47" y2="352.54" stroke="#333333" stroke-width="0.35"/>
+    <text transform="translate(505.47, 356.41)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Margin: 1/16"</text>
+    <line x1="351.54" y1="354.77" x2="351.54" y2="362.77" stroke="#333333" stroke-width="0.5" stroke-dasharray="3,2"/>
+    <text transform="translate(351.54, 374.87)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Rabbet: 3/8"</text>
+    <text transform="translate(351.54, 390.47)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">(clearance: 0.09")</text>
   </g>
   </g>
   <g id="legend">
-    <rect x="243.05" y="437.47" width="12" height="12" fill="#8B6914" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(263.05, 447.47)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Frame</text>
-    <rect x="314.80" y="437.47" width="12" height="12" fill="#B8D4E3" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(334.80, 447.47)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Glazing</text>
-    <rect x="400.85" y="437.47" width="12" height="12" fill="#E8E8E8" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(420.85, 447.47)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Artwork</text>
-    <rect x="486.90" y="437.47" width="12" height="12" fill="#A0A0A0" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(506.90, 447.47)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Backing</text>
+    <rect x="243.05" y="397.17" width="12" height="12" fill="#8B6914" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(263.05, 407.17)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Frame</text>
+    <rect x="314.80" y="397.17" width="12" height="12" fill="#B8D4E3" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(334.80, 407.17)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Glazing</text>
+    <rect x="400.85" y="397.17" width="12" height="12" fill="#E8E8E8" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(420.85, 407.17)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Artwork</text>
+    <rect x="486.90" y="397.17" width="12" height="12" fill="#A0A0A0" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(506.90, 407.17)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Backing</text>
   </g>
 </svg>

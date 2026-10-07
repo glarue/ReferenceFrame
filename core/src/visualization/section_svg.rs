@@ -14,9 +14,8 @@ use super::geometry::{
 };
 use super::svg_util::*;
 
-/// Gap between the material-label column and the start of the stack
-/// dimension's extension ticks
-const STACK_TICK_LABEL_GAP: f64 = 10.0;
+/// Gap kept between the label column's last row and the legend, in label font sizes.
+const LEGEND_LABEL_CLEARANCE: f64 = 0.5;
 
 /// Minimum gap between the rabbet caption and a stack leader label beside it (px).
 const CAPTION_LABEL_GAP: f64 = 8.0;
@@ -405,6 +404,9 @@ pub(crate) fn build_section_svg(
         center_y: f64,
         right_edge: f64,
         color: String,
+        /// Dog-leg leader to its layer; the stack-total row has none (it sits
+        /// under a rule instead, summing the layers above it)
+        leader: bool,
     }
 
     let mut materials: Vec<MaterialLabel> = Vec::new();
@@ -417,6 +419,7 @@ pub(crate) fn build_section_svg(
             center_y: leader.center_y,
             right_edge: leader.right_edge,
             color: style.accent_color.clone(),
+            leader: true,
         });
     }
 
@@ -425,6 +428,7 @@ pub(crate) fn build_section_svg(
         center_y: geometry.glazing.y + geometry.glazing.height / 2.0,
         right_edge: geometry.glazing.right(),
         color: dim_color.clone(),
+        leader: true,
     });
 
     if let Some(mat) = &geometry.matboard {
@@ -433,6 +437,7 @@ pub(crate) fn build_section_svg(
             center_y: mat.y + mat.height / 2.0,
             right_edge: mat.right(),
             color: dim_color.clone(),
+            leader: true,
         });
     }
 
@@ -441,6 +446,7 @@ pub(crate) fn build_section_svg(
         center_y: geometry.artwork.y + geometry.artwork.height / 2.0,
         right_edge: geometry.artwork.right(),
         color: dim_color.clone(),
+        leader: true,
     });
 
     materials.push(MaterialLabel {
@@ -448,7 +454,22 @@ pub(crate) fn build_section_svg(
         center_y: geometry.backing.y + geometry.backing.height / 2.0,
         right_edge: geometry.backing.right(),
         color: dim_color.clone(),
+        leader: true,
     });
+
+    // Stack total (glazing through backing): a row of this column, under a rule,
+    // rather than a dimension line out to the right (that took width the
+    // drawing can use, and on a short stack its arrows had no room)
+    if let Some(callout) = callouts.iter().find(|c| c.dimension_type == DimensionType::TotalStackHeight) {
+        materials.push(MaterialLabel {
+            text: format!("Total: {}", callout.label),
+            center_y: geometry.backing.y + geometry.backing.height,
+            right_edge: geometry.backing.right(),
+            // Stands out from the layer rows: the dimension colour, semi-bold
+            color: style.dimension_color.clone(),
+            leader: false,
+        });
+    }
 
     // Only add assembly margin label if it has meaningful height
     if geometry.assembly_margin.height > 0.5 {
@@ -457,6 +478,7 @@ pub(crate) fn build_section_svg(
             center_y: geometry.assembly_margin.y + geometry.assembly_margin.height / 2.0,
             right_edge: geometry.assembly_margin.right(),
             color: dim_color.clone(),
+            leader: true,
         });
     }
 
@@ -488,115 +510,68 @@ pub(crate) fn build_section_svg(
             first_label_y + (i - spline_count) as f64 * label_spacing
         };
 
+        let stack_label_font = style.material_label_font_size();
+        if !mat.leader {
+            // Sum rule above the total, as wide as the layer labels it sums
+            let rule_w = materials[spline_count..i].iter()
+                .map(|m| estimate_text_width(&m.text, stack_label_font))
+                .fold(estimate_text_width(&mat.text, stack_label_font), f64::max);
+            let rule_y = label_y - label_spacing / 2.0;
+            svg.push_str(&format!(
+                r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
+                label_base_x, rule_y, label_base_x + rule_w, rule_y,
+                mat.color, style.extension_stroke_width
+            ));
+            svg.push('\n');
+        }
+
         // Dog-leg leader line:
         // 1. Horizontal from material edge (shorter for compact layout)
         let horiz_length = LEADER_LINE_LENGTH;
         let horiz_end_x = mat.right_edge + horiz_length;
 
-        svg.push_str(&generate_line_with_arrows(
-            mat.right_edge + 3.0, mat.center_y,
-            horiz_end_x, mat.center_y,
-            &mat.color, style.extension_stroke_width * LEADER_STROKE_RATIO,
-            true, false, true, // arrow_start only, is_leader
-        ));
+        if mat.leader {
+            svg.push_str(&generate_line_with_arrows(
+                mat.right_edge + 3.0, mat.center_y,
+                horiz_end_x, mat.center_y,
+                &mat.color, style.extension_stroke_width * LEADER_STROKE_RATIO,
+                true, false, true, // arrow_start only, is_leader
+            ));
 
-        // 2. Angled segment to label position
-        // Use label_y directly - the text below is shifted by BASELINE_SHIFT_RATIO so its
-        // visual center sits at this position
-        svg.push_str(&format!(
-            r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-            horiz_end_x, mat.center_y,
-            label_base_x - 5.0, label_y,
-            mat.color, style.extension_stroke_width * LEADER_STROKE_RATIO
-        ));
-        svg.push('\n');
+            // 2. Angled segment to label position
+            // Use label_y directly - the text below is shifted by BASELINE_SHIFT_RATIO so its
+            // visual center sits at this position
+            svg.push_str(&format!(
+                r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
+                horiz_end_x, mat.center_y,
+                label_base_x - 5.0, label_y,
+                mat.color, style.extension_stroke_width * LEADER_STROKE_RATIO
+            ));
+            svg.push('\n');
+        }
 
         // Label text — slightly smaller than primary labels (secondary/contextual role)
         // Position text so baseline is slightly below label_y (visual center)
         // This makes dog-leg line hit visual center regardless of baseline rendering
         // Same size the width estimates (below and in geometry/section.rs) assume.
-        let stack_label_font = style.material_label_font_size();
         let text_y = label_y + stack_label_font * BASELINE_SHIFT_RATIO;
-        label_boxes.push((
+        let label_box = (
             label_base_x - 5.0,
             label_y - stack_label_font * 0.6,
             label_base_x + estimate_text_width(&mat.text, stack_label_font),
             label_y + stack_label_font * 0.6,
-        ));
+        );
+        track_x!(label_box.2);
+        track_y!(label_box.1, label_box.3);
+        label_boxes.push(label_box);
         svg.push_str(&format!(
-            r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px">{}</text>"#,
+            r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px"{}>{}</text>"#,
             label_base_x, text_y,
             mat.color, style.font_family, stack_label_font,
+            if mat.leader { "" } else { r#" font-weight="600""# },
             escape_text(&mat.text)
         ));
         svg.push('\n');
-    }
-
-    // Total stack height dimension - vertical, positioned well to the right of labels
-    let stack_top = geometry.glazing.y;
-    let stack_bottom = geometry.backing.y + geometry.backing.height;
-
-    // Estimate max label width by checking each label
-    let max_label_width = materials.iter()
-        .map(|m| estimate_text_width(&m.text, style.material_label_font_size()))
-        .fold(0.0_f64, |a, b| a.max(b));
-
-    // Position stack dimension with clearance from labels
-    let stack_dim_x = label_base_x + max_label_width + style.section_stack_dim_gap;
-
-    // Find total stack callout
-    let total_stack = callouts.iter().find(|c| c.dimension_type == DimensionType::TotalStackHeight);
-    if let Some(callout) = total_stack {
-        // Extension ticks at the stack's top and bottom - start just after the
-        // label column and overshoot the dimension line slightly
-        let tick_x1 = label_base_x + max_label_width + STACK_TICK_LABEL_GAP;
-        let tick_x2 = stack_dim_x + style.extension_line_overshoot;
-        for y in [stack_top, stack_bottom] {
-            svg.push_str(&format!(
-                r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
-                tick_x1, y, tick_x2, y,
-                dim_color, style.extension_stroke_width
-            ));
-            svg.push('\n');
-        }
-        // Dimension line - centred on the ticks; arrow tips land exactly at
-        // the stack boundaries
-        let arrow_x = (tick_x1 + tick_x2) / 2.0;
-        svg.push_str(&dimension_line_between(
-            (arrow_x, stack_top), (arrow_x, stack_bottom),
-            dim_color, style.dimension_stroke_width,
-        ));
-        // Label - rotated vertically with more offset. A long label on a short
-        // stack (tape segments with a decimal, e.g. `1/4 + 1/32 (0.281")`) would
-        // sprawl far past its arrows, so it breaks before the parenthesis into
-        // two rotated lines side by side.
-        let stack_label_x = stack_dim_x + label_offset + 4.0;
-        let stack_label_y = (stack_top + stack_bottom) / 2.0;
-        let span = stack_bottom - stack_top;
-        let label_lines: Vec<&str> = match callout.label.split_once(" (") {
-            Some((value, _))
-                if estimate_text_width(&callout.label, style.label_font_size) > span + 2.0 * style.label_font_size =>
-            {
-                vec![value, &callout.label[value.len() + 1..]]
-            }
-            _ => vec![callout.label.as_str()],
-        };
-        let line_height = style.single_line_height();
-
-        // Track right extent - each rotated line extends half its height to the right of its x position
-        track_x!(stack_label_x + (label_lines.len() - 1) as f64 * line_height + style.label_font_size / 2.0);
-
-        for (i, line) in label_lines.iter().enumerate() {
-            let x = stack_label_x + i as f64 * line_height;
-            svg.push_str(&format!(
-                r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">{}</text>"#,
-                x, stack_label_y,
-                dim_color, style.font_family, style.label_font_size,
-                x, stack_label_y,
-                escape_text(line)
-            ));
-            svg.push('\n');
-        }
     }
 
     // Rabbet caption - below the frame, reached by a short dashed leader from the
@@ -715,7 +690,11 @@ pub(crate) fn build_section_svg(
     let legend_start_x = (options.canvas_width - legend.total_width) / 2.0;
     let legend_end_x = legend_start_x + legend.total_width;
 
-    let content_bottom = geometry.bounds.bottom();
+    // Below the drawing, and below the label column when that reaches lower
+    // (a short stack with a spline row and the total row)
+    let labels_bottom = label_boxes.iter().map(|b| b.3).fold(f64::MIN, f64::max)
+        + style.label_font_size * LEGEND_LABEL_CLEARANCE;
+    let content_bottom = geometry.bounds.bottom().max(labels_bottom);
     let legend_y = content_bottom + geometry.legend_gap;
     let legend_bottom = legend_y + style.single_line_height();
 
@@ -810,6 +789,7 @@ pub(crate) fn build_section_svg(
         style,
         options.canvas_width,
         Some((shifted_content_min_x, shifted_content_max_x)), // Use shifted bounds for legend centering
+        content_bottom,
     ));
 
     // Deferred interference warning: backdrop + label lines, drawn above the
@@ -1237,6 +1217,7 @@ pub(crate) fn generate_section_legend(
     style: &DiagramStyle,
     canvas_width: f64,
     content_bounds_x: Option<(f64, f64)>, // (min_x, max_x) for dynamic viewBox centering
+    content_bottom: f64,
 ) -> String {
     let mut svg = String::new();
     svg.push_str("  <g id=\"legend\">\n");
@@ -1252,7 +1233,6 @@ pub(crate) fn generate_section_legend(
     };
 
     // Position legend tightly below the content bounds
-    let content_bottom = geometry.bounds.bottom();
     let legend_y = content_bottom + geometry.legend_gap;
 
     let mut current_x = start_x;
@@ -1348,16 +1328,17 @@ mod tests {
         line.split(r#"font-size=""#).nth(1).unwrap().split("px").next().unwrap().parse().unwrap()
     }
 
-    /// A long total-stack label on a short stack breaks before its decimal into
-    /// two rotated lines instead of sprawling far past its arrows.
+    /// The stack total is a row of the label column (no dimension line out to the
+    /// right): under a rule, in the dimension colour, before the margin row.
     #[test]
-    fn long_stack_label_splits_into_two_lines() {
+    fn stack_total_is_a_label_row() {
         let svg = crowded_section(2.0);
-        let rotated: Vec<&str> = svg.lines()
-            .filter(|l| l.contains("rotate(-90") && (l.contains("1/32") || l.contains("0.281")))
-            .collect();
-        assert!(rotated.iter().any(|l| l.contains(">1/4 + 1/32<")), "{rotated:?}");
-        assert!(rotated.iter().any(|l| l.contains(">(0.281&quot;)<") || l.contains(r#">(0.281")<"#)), "{rotated:?}");
+        assert!(!svg.lines().any(|l| l.contains("rotate(-90") && l.contains("0.281")), "no rotated stack-total label");
+        let total = svg.lines().find(|l| l.contains(">Total: 1/4 + 1/32 (0.281")).expect("total row");
+        let style = crate::visualization::DiagramStyle::default();
+        assert!(total.contains(&format!(r#"fill="{}""#, style.dimension_color)) && total.contains(r#"font-weight="600""#));
+        let y = |needle: &str| translate(svg.lines().find(|l| l.contains(needle)).unwrap()).1;
+        assert!(y(">Backing:") < y(">Total:") && y(">Total:") < y(">Margin:"));
     }
 
     /// The two-line rabbet caption must not run into the stack's leader labels

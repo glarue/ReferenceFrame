@@ -52,10 +52,11 @@ const BREAK_IMPROVEMENT_THRESHOLD: f64 = 0.90;
 /// Axis break threshold for section view (both horizontal and vertical).
 const SECTION_AXIS_BREAK_THRESHOLD: f64 = 3.0;
 
-/// Moulding width the section view's scale is fit to (inches). Faces up to it draw
+/// Moulding width the section view's scale is fit to (inches), and where the width
+/// break begins (user's choice, after comparing 1.5"-3"). Faces up to it draw
 /// at their true width; wider ones get an axis break drawn at this width, so the
 /// stack and its callouts stay the same size whatever the face width.
-const SECTION_REFERENCE_WIDTH: f64 = 1.5;
+const SECTION_REFERENCE_WIDTH: f64 = 3.0;
 
 /// Width of outer edge portion shown after break (inches).
 const SECTION_OUTER_EDGE_WIDTH: f64 = 0.4;
