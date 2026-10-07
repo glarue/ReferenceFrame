@@ -18,6 +18,9 @@ use super::svg_util::*;
 /// dimension's extension ticks
 const STACK_TICK_LABEL_GAP: f64 = 10.0;
 
+/// Minimum gap between the rabbet caption and a stack leader label beside it (px).
+const CAPTION_LABEL_GAP: f64 = 8.0;
+
 /// Build SVG string for section view
 ///
 /// Shows frame L-shape profile with materials stacked vertically.
@@ -483,6 +486,9 @@ pub(crate) fn build_section_svg(
     let total_label_height = (material_count.saturating_sub(1)) as f64 * label_spacing;
     let first_label_y = stack_center - total_label_height / 2.0;
 
+    // Label boxes (x0, y0, x1, y1), so the rabbet caption below can keep clear
+    let mut label_boxes: Vec<(f64, f64, f64, f64)> = Vec::new();
+
     for (i, mat) in materials.iter().enumerate() {
         let label_y = if i < spline_count {
             first_label_y - (spline_count - i) as f64 * label_spacing
@@ -519,6 +525,12 @@ pub(crate) fn build_section_svg(
         // Same size the width estimates (below and in geometry/section.rs) assume.
         let stack_label_font = style.material_label_font_size();
         let text_y = label_y + stack_label_font * BASELINE_SHIFT_RATIO;
+        label_boxes.push((
+            label_base_x - 5.0,
+            label_y - stack_label_font * 0.6,
+            label_base_x + estimate_text_width(&mat.text, stack_label_font),
+            label_y + stack_label_font * 0.6,
+        ));
         svg.push_str(&format!(
             r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px">{}</text>"#,
             label_base_x, text_y,
@@ -565,21 +577,37 @@ pub(crate) fn build_section_svg(
             dim_color, style.dimension_stroke_width,
             true, true, false, // both arrows
         ));
-        // Label - rotated vertically with more offset
+        // Label - rotated vertically with more offset. A long label on a short
+        // stack (tape segments with a decimal, e.g. `1/4 + 1/32 (0.281")`) would
+        // sprawl far past its arrows, so it breaks before the parenthesis into
+        // two rotated lines side by side.
         let stack_label_x = stack_dim_x + label_offset + 4.0;
         let stack_label_y = (stack_top + stack_bottom) / 2.0;
-        
-        // Track right extent - the rotated label extends half its height to the right of its x position
-        track_x!(stack_label_x + style.label_font_size / 2.0);
+        let span = stack_bottom - stack_top;
+        let label_lines: Vec<&str> = match callout.label.split_once(" (") {
+            Some((value, _))
+                if estimate_text_width(&callout.label, style.label_font_size) > span + 2.0 * style.label_font_size =>
+            {
+                vec![value, &callout.label[value.len() + 1..]]
+            }
+            _ => vec![callout.label.as_str()],
+        };
+        let line_height = style.single_line_height();
 
-        svg.push_str(&format!(
-            r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">{}</text>"#,
-            stack_label_x, stack_label_y,
-            dim_color, style.font_family, style.label_font_size,
-            stack_label_x, stack_label_y,
-            escape_text(&callout.label)
-        ));
-        svg.push('\n');
+        // Track right extent - each rotated line extends half its height to the right of its x position
+        track_x!(stack_label_x + (label_lines.len() - 1) as f64 * line_height + style.label_font_size / 2.0);
+
+        for (i, line) in label_lines.iter().enumerate() {
+            let x = stack_label_x + i as f64 * line_height;
+            svg.push_str(&format!(
+                r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">{}</text>"#,
+                x, stack_label_y,
+                dim_color, style.font_family, style.label_font_size,
+                x, stack_label_y,
+                escape_text(line)
+            ));
+            svg.push('\n');
+        }
     }
 
     // Rabbet caption - below the frame, reached by a short dashed leader from the
@@ -633,7 +661,7 @@ pub(crate) fn build_section_svg(
     let estimated_text_width = estimate_text_width(&rabbet_label, style.material_label_font_size());
     let min_x_for_centering = estimated_text_width / 2.0 + 5.0; // 5px margin from edge
 
-    let (text_x, text_anchor) = if rabbet_center_x >= min_x_for_centering {
+    let (mut text_x, text_anchor) = if rabbet_center_x >= min_x_for_centering {
         (rabbet_center_x, "middle")
     } else {
         (5.0, "start") // Left-align with small margin if centering would clip
@@ -641,6 +669,25 @@ pub(crate) fn build_section_svg(
 
     // Line spacing for two-line label
     let line_height = style.single_line_height();
+
+    // Keep the caption clear of the stack's leader labels: on a short stack
+    // (wide or shallow moulding) the label column reaches down beside it, and a
+    // long clearance line (tape segments with a decimal) runs into "Margin".
+    // Slide it left just far enough.
+    let caption_w = estimate_text_width(&rabbet_label, style.label_font_size)
+        .max(estimate_text_width(&clearance_line, style.label_font_size));
+    let caption_left = |x: f64| if text_anchor == "middle" { x - caption_w / 2.0 } else { x };
+    let caption_top = rabbet_label_y - style.label_font_size;
+    let caption_bottom = rabbet_label_y + line_height + style.label_font_size * 0.35;
+    let overlap = label_boxes
+        .iter()
+        .filter(|&&(_, y0, _, y1)| y0 < caption_bottom && y1 > caption_top)
+        .map(|&(x0, ..)| caption_left(text_x) + caption_w + CAPTION_LABEL_GAP - x0)
+        .fold(0.0_f64, f64::max);
+    if overlap > 0.0 {
+        text_x -= overlap;
+        track_x!(caption_left(text_x));
+    }
 
     // Both label lines, offset by `x_off` (used verbatim inline, or shifted by
     // the centering transform when deferred past the legend).
@@ -1279,7 +1326,67 @@ pub(crate) fn generate_title_block(
 #[cfg(test)]
 mod tests {
     use crate::frame::{FrameDesign, FrameStyle};
+    use crate::visualization::geometry::estimate_text_width;
     use crate::visualization::{generate_diagram, DiagramOptions, ViewOption};
+
+    /// A wide, shallow moulding with tape-segment labels on a phone canvas: the
+    /// stack is short and the labels long (the reported crowding case).
+    fn crowded_section(face_width: f64) -> String {
+        let mut d = FrameDesign::new(8.0, 12.0);
+        (d.mat_width_top_bottom, d.mat_width_sides) = (2.0, 2.0);
+        (d.frame_material_width, d.frame_material_depth) = (face_width, 0.75);
+        (d.matboard_thickness, d.artwork_thickness) = (0.055, 0.008);
+        let o = DiagramOptions {
+            view: ViewOption::SectionOnly,
+            canvas_width: 377.0,
+            canvas_height: 260.0,
+            use_tape_segments: true,
+            ..Default::default()
+        };
+        generate_diagram(&d, &o).svg
+    }
+
+    fn translate(line: &str) -> (f64, f64) {
+        let t = line.split("translate(").nth(1).unwrap().split(')').next().unwrap();
+        let mut it = t.split(',').map(|v| v.trim().parse::<f64>().unwrap());
+        (it.next().unwrap(), it.next().unwrap())
+    }
+
+    fn font_size(line: &str) -> f64 {
+        line.split(r#"font-size=""#).nth(1).unwrap().split("px").next().unwrap().parse().unwrap()
+    }
+
+    /// A long total-stack label on a short stack breaks before its decimal into
+    /// two rotated lines instead of sprawling far past its arrows.
+    #[test]
+    fn long_stack_label_splits_into_two_lines() {
+        let svg = crowded_section(2.0);
+        let rotated: Vec<&str> = svg.lines()
+            .filter(|l| l.contains("rotate(-90") && (l.contains("1/32") || l.contains("0.281")))
+            .collect();
+        assert!(rotated.iter().any(|l| l.contains(">1/4 + 1/32<")), "{rotated:?}");
+        assert!(rotated.iter().any(|l| l.contains(">(0.281&quot;)<") || l.contains(r#">(0.281")<"#)), "{rotated:?}");
+    }
+
+    /// The two-line rabbet caption must not run into the stack's leader labels
+    /// (it collided with "Margin" once the face got wide).
+    #[test]
+    fn rabbet_caption_clears_leader_labels() {
+        for face_width in [1.0, 2.0, 3.0] {
+            let svg = crowded_section(face_width);
+            let caption = svg.lines().find(|l| l.contains("(clearance")).expect("clearance line");
+            let (cx, cy) = translate(caption);
+            let text = caption.split('>').nth(1).unwrap().split('<').next().unwrap().replace("&quot;", "\"");
+            let right = cx + estimate_text_width(&text, font_size(caption)) / 2.0; // text-anchor middle
+            for label in svg.lines().filter(|l| l.contains(">Margin:") || l.contains(">Backing:")) {
+                let (lx, ly) = translate(label);
+                let fs = font_size(label);
+                let rows_overlap = (ly - cy).abs() < fs.max(font_size(caption));
+                assert!(!rows_overlap || right <= lx - 5.0,
+                    "face {face_width}: caption ends at {right:.1}, label starts at {lx:.1} (y {ly:.1} vs {cy:.1})");
+            }
+        }
+    }
 
     /// The rabbet caption is centred on its dashed leader; the leader must end
     /// above the caption's cap height instead of running into the text.
