@@ -616,10 +616,10 @@ pub struct SectionViewGeometry {
     pub actual_frame_depth: f64,
     /// Gap between content bottom and legend (computed once, used by SVG renderer)
     pub legend_gap: f64,
-    /// Width of the drawing and its callouts for a moulding at the reference width
-    /// (px). A narrower face draws narrower at the same scale; the dynamic viewBox
-    /// is kept at least this wide so it isn't zoomed up to fill the canvas.
-    pub reference_content_width: f64,
+    /// How much narrower (px) this face draws than one at the reference width.
+    /// The dynamic viewBox is widened by exactly this, so a narrow face isn't
+    /// zoomed up to fill the canvas: every face width shows the same scale.
+    pub reference_shortfall: f64,
 }
 
 #[cfg(test)]

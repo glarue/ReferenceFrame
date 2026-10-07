@@ -732,15 +732,12 @@ pub(crate) fn build_section_svg(
     let shifted_content_min_x = content_min_x + center_offset_x;
     let shifted_content_max_x = content_max_x + center_offset_x;
 
-    // Calculate final bounds including legend, no narrower than the
-    // reference-width layout (keeps the scale constant for narrow faces)
-    let mut min_x = shifted_content_min_x.min(legend_start_x);
-    let mut max_x = shifted_content_max_x.max(legend_end_x);
-    let shortfall = geometry.reference_content_width - (max_x - min_x);
-    if shortfall > 0.0 {
-        min_x -= shortfall / 2.0;
-        max_x += shortfall / 2.0;
-    }
+    // Calculate final bounds including legend. A face narrower than the reference
+    // width draws exactly `reference_shortfall` narrower; pad the content by that
+    // so the viewBox (and so the on-screen scale) matches the reference layout.
+    let pad_half = geometry.reference_shortfall / 2.0;
+    let mut min_x = (shifted_content_min_x - pad_half).min(legend_start_x);
+    let mut max_x = (shifted_content_max_x + pad_half).max(legend_end_x);
     let mut min_y = content_min_y;
     let mut max_y = content_max_y.max(legend_bottom);
 

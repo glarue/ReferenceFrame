@@ -193,8 +193,7 @@ impl SectionViewGeometry {
         // Total horizontal content block width (including asymmetric callout spaces)
         // This is what we want to center in the canvas
         let total_content_width = depth_dim_space + drawn_content_width + labels_space;
-        let reference_content_width =
-            depth_dim_space + reference_width * scale + materials_overhang + labels_space;
+        let reference_shortfall = (reference_width - display_frame_width).max(0.0) * scale;
 
         // Horizontal centering: center the ENTIRE content block for visual balance
         // content_block_start = where the depth dimension area starts
@@ -378,7 +377,7 @@ impl SectionViewGeometry {
             axis_break_end_y,
             actual_frame_depth,
             legend_gap,
-            reference_content_width,
+            reference_shortfall,
         }
     }
 
