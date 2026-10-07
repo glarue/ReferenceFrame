@@ -14,8 +14,20 @@ use super::geometry::{
 };
 use super::svg_util::*;
 
+/// The legend's swatches start this far above its text baseline (px)
+pub(crate) const LEGEND_SWATCH_RISE: f64 = 10.0;
+
 /// Gap kept between the label column's last row and the legend, in label font sizes.
 const LEGEND_LABEL_CLEARANCE: f64 = 0.5;
+
+/// Stack label rows: spacing between rows, and the second line of a wrapped
+/// label, both in label font sizes
+const LABEL_ROW_SPACING: f64 = 1.3;
+const LABEL_SUBLINE_RATIO: f64 = 1.15;
+
+/// How far the rabbet caption may slide off its leader, as a fraction of its width
+/// (the leader must still land in its middle portion).
+const CAPTION_MAX_NUDGE: f64 = 0.3;
 
 /// Minimum gap between the rabbet caption and a stack leader label beside it (px).
 const CAPTION_LABEL_GAP: f64 = 8.0;
@@ -265,14 +277,23 @@ pub(crate) fn build_section_svg(
     } else {
         design.frame_material_depth
     };
+    let depth_text = format!("Depth: {}", fmt(depth_value));
     svg.push_str(&format!(
-        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">Depth: {}</text>"#,
+        r#"    <text x="{:.2}" y="{:.2}" fill="{}" font-family="{}" font-size="{}px" text-anchor="middle" transform="rotate(-90 {:.2} {:.2})">{}</text>"#,
         depth_label_x, depth_label_y,
         dim_color, style.font_family, style.label_font_size,
         depth_label_x, depth_label_y,
-        escape_text(&fmt(depth_value))
+        escape_text(&depth_text)
     ));
     svg.push('\n');
+    // Its box (x0, y0, x1, y1) once rotated, for the rabbet caption to keep clear of
+    let depth_text_half = estimate_text_width(&depth_text, style.label_font_size) / 2.0;
+    let depth_label_box = (
+        depth_label_x - style.label_font_size / 2.0,
+        depth_label_y - depth_text_half,
+        depth_label_x + style.label_font_size / 2.0,
+        depth_label_y + depth_text_half,
+    );
 
     // Frame width dimension (horizontal, at top)
     // Always spans from left edge to right edge (full display width)
@@ -395,7 +416,7 @@ pub(crate) fn build_section_svg(
     // on the material stack midpoint for a balanced appearance.
     let base_offset = style.section_material_label_offset.min(geometry.scale * 0.4 + 12.0);
     let label_base_x = geometry.glazing.right() + base_offset;
-    let label_spacing = style.label_font_size * 1.6; // Scale with font size (screen: ~21px, PDF: ~38px)
+    let label_spacing = style.label_font_size * LABEL_ROW_SPACING; // Scale with font size
 
     // Materials are drawn at true geometric positions - labels point to actual centers
 
@@ -496,26 +517,52 @@ pub(crate) fn build_section_svg(
     // labels (when present) stack upward from the column top, toward the
     // face band their slots live in
     let spline_count = spline_leader_labels.len();
-    let material_count = materials.len() - spline_count;
-    let total_label_height = (material_count.saturating_sub(1)) as f64 * label_spacing;
-    let first_label_y = stack_center - total_label_height / 2.0;
+    let stack_label_font = style.material_label_font_size();
+
+    // A label with a parenthetical (the decimal after a tape-segment value, a
+    // spline's "(limited by rabbet)") wraps it onto a second line, so the column
+    // is only as wide as its longest line. Rows stack by their own height.
+    // A spline label also breaks at its " · " ("Spline 1/8"" / "max 1" deep").
+    let label_lines: Vec<Vec<&str>> = materials.iter().map(|m| {
+        let (main, paren) = match m.text.split_once(" (") {
+            Some((head, _)) => (head, Some(&m.text[head.len() + 1..])),
+            None => (m.text.as_str(), None),
+        };
+        main.split(" · ").chain(paren).collect()
+    }).collect();
+    let sub_line = stack_label_font * LABEL_SUBLINE_RATIO;
+    let extra = |i: usize| (label_lines[i].len() - 1) as f64 * sub_line;
+    let row_h = |i: usize| label_spacing + extra(i);
+    let lines_width = |i: usize| label_lines[i].iter()
+        .map(|l| estimate_text_width(l, stack_label_font))
+        .fold(0.0_f64, f64::max);
+    let n = materials.len();
+
+    // Material rows centred on the stack (first line of the first row to the last
+    // line of the last); spline rows stack upward from the column top
+    let span: f64 = (spline_count..n.saturating_sub(1)).map(row_h).sum::<f64>()
+        + if n > spline_count { extra(n - 1) } else { 0.0 };
+    let first_label_y = stack_center - span / 2.0;
+    let mut row_y = vec![0.0; n];
+    let mut y = first_label_y;
+    for (i, ry) in row_y.iter_mut().enumerate().skip(spline_count) {
+        *ry = y;
+        y += row_h(i);
+    }
+    let mut y = first_label_y;
+    for i in (0..spline_count).rev() {
+        y -= row_h(i);
+        row_y[i] = y;
+    }
 
     // Label boxes (x0, y0, x1, y1), so the rabbet caption below can keep clear
     let mut label_boxes: Vec<(f64, f64, f64, f64)> = Vec::new();
 
     for (i, mat) in materials.iter().enumerate() {
-        let label_y = if i < spline_count {
-            first_label_y - (spline_count - i) as f64 * label_spacing
-        } else {
-            first_label_y + (i - spline_count) as f64 * label_spacing
-        };
-
-        let stack_label_font = style.material_label_font_size();
+        let label_y = row_y[i];
         if !mat.leader {
             // Sum rule above the total, as wide as the layer labels it sums
-            let rule_w = materials[spline_count..i].iter()
-                .map(|m| estimate_text_width(&m.text, stack_label_font))
-                .fold(estimate_text_width(&mat.text, stack_label_font), f64::max);
+            let rule_w = (spline_count..=i).map(lines_width).fold(0.0_f64, f64::max);
             let rule_y = label_y - label_spacing / 2.0;
             svg.push_str(&format!(
                 r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}"/>"#,
@@ -558,35 +605,30 @@ pub(crate) fn build_section_svg(
         let label_box = (
             label_base_x - 5.0,
             label_y - stack_label_font * 0.6,
-            label_base_x + estimate_text_width(&mat.text, stack_label_font),
-            label_y + stack_label_font * 0.6,
+            label_base_x + lines_width(i),
+            label_y + extra(i) + stack_label_font * 0.6,
         );
         track_x!(label_box.2);
         track_y!(label_box.1, label_box.3);
         label_boxes.push(label_box);
-        svg.push_str(&format!(
-            r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px"{}>{}</text>"#,
-            label_base_x, text_y,
-            mat.color, style.font_family, stack_label_font,
-            if mat.leader { "" } else { r#" font-weight="600""# },
-            escape_text(&mat.text)
-        ));
-        svg.push('\n');
+        for (k, line) in label_lines[i].iter().enumerate() {
+            svg.push_str(&format!(
+                r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{:.1}px"{}>{}</text>"#,
+                label_base_x, text_y + k as f64 * sub_line,
+                mat.color, style.font_family, stack_label_font,
+                if mat.leader { "" } else { r#" font-weight="600""# },
+                escape_text(line)
+            ));
+            svg.push('\n');
+        }
     }
 
     // Rabbet caption - below the frame, reached by a short dashed leader from the
     // rabbet area. The caption is centred on the leader, so the leader ends a
     // small gap above the caption's cap height instead of running into the text.
     let leader_top = geometry.rabbet_area.y + rabbet_h + RABBET_LEADER_START_GAP;
-    let leader_bottom = leader_top + RABBET_LEADER_LEN;
-    let rabbet_label_y = leader_bottom + RABBET_LEADER_TEXT_GAP + style.label_font_size * CAP_HEIGHT_RATIO;
-    svg.push_str(&format!(
-        r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}" stroke-dasharray="{}"/>"#,
-        rabbet_center_x, leader_top,
-        rabbet_center_x, leader_bottom,
-        dim_color, style.extension_stroke_width, DASH_CLEARANCE
-    ));
-    svg.push('\n');
+    let leader_text_gap = RABBET_LEADER_TEXT_GAP + style.label_font_size * CAP_HEIGHT_RATIO;
+    let mut rabbet_label_y = leader_top + RABBET_LEADER_LEN + leader_text_gap;
 
     // Clearance/interference indicator
     let indicator_color = if geometry.has_interference() {
@@ -621,37 +663,56 @@ pub(crate) fn build_section_svg(
         format!("(clearance: {})", fmt(geometry.clearance))
     };
 
-    // Estimate text width of rabbet label to prevent clipping at left edge
-    let estimated_text_width = estimate_text_width(&rabbet_label, style.material_label_font_size());
-    let min_x_for_centering = estimated_text_width / 2.0 + 5.0; // 5px margin from edge
-
-    let (mut text_x, text_anchor) = if rabbet_center_x >= min_x_for_centering {
-        (rabbet_center_x, "middle")
-    } else {
-        (5.0, "start") // Left-align with small margin if centering would clip
-    };
-
     // Line spacing for two-line label
     let line_height = style.single_line_height();
 
-    // Keep the caption clear of the stack's leader labels: on a short stack
-    // (wide or shallow moulding) the label column reaches down beside it, and a
-    // long clearance line (tape segments with a decimal) runs into "Margin".
-    // Slide it left just far enough.
+    // Place the caption centred on its dashed leader, nudged only as far as the
+    // free span between its neighbours allows: the rotated depth label on the
+    // left, the stack's leader labels on the right (on a narrow or shallow
+    // moulding both reach down beside it). With no room for it at all, it drops
+    // below them and the leader lengthens, so it stays centred under the rabbet.
+    let text_anchor = "middle";
     let caption_w = estimate_text_width(&rabbet_label, style.label_font_size)
         .max(estimate_text_width(&clearance_line, style.label_font_size));
-    let caption_left = |x: f64| if text_anchor == "middle" { x - caption_w / 2.0 } else { x };
-    let caption_top = rabbet_label_y - style.label_font_size;
-    let caption_bottom = rabbet_label_y + line_height + style.label_font_size * 0.35;
-    let overlap = label_boxes
-        .iter()
-        .filter(|&&(_, y0, _, y1)| y0 < caption_bottom && y1 > caption_top)
-        .map(|&(x0, ..)| caption_left(text_x) + caption_w + CAPTION_LABEL_GAP - x0)
-        .fold(0.0_f64, f64::max);
-    if overlap > 0.0 {
-        text_x -= overlap;
-        track_x!(caption_left(text_x));
-    }
+    let caption_rows = |y: f64| (y - style.label_font_size, y + line_height + style.label_font_size * 0.35);
+    let mut obstacles = label_boxes.clone();
+    obstacles.push(depth_label_box);
+    // The drawing's left edge (the depth dimension) is a wall: a caption reaching
+    // past it would widen the section and zoom the whole view out
+    obstacles.push((f64::MIN, f64::MIN, content_min_x, f64::MAX));
+    let blocking = |y: f64| {
+        let (top, bottom) = caption_rows(y);
+        obstacles.iter().copied().filter(move |&(_, y0, _, y1)| y0 < bottom && y1 > top)
+    };
+    let place = |y: f64| -> Option<f64> {
+        let left = blocking(y).filter(|b| b.2 <= rabbet_center_x).map(|b| b.2).fold(f64::MIN, f64::max);
+        let right = blocking(y).filter(|b| b.0 >= rabbet_center_x).map(|b| b.0).fold(f64::MAX, f64::min);
+        if blocking(y).any(|b| b.0 < rabbet_center_x && b.2 > rabbet_center_x) {
+            return None; // something straddles the leader itself
+        }
+        let (lo, hi) = (left + CAPTION_LABEL_GAP + caption_w / 2.0, right - CAPTION_LABEL_GAP - caption_w / 2.0);
+        let x = rabbet_center_x.clamp(lo, hi.max(lo));
+        // Fits, and the leader still lands in the caption's middle portion
+        (lo <= hi && (x - rabbet_center_x).abs() <= caption_w * CAPTION_MAX_NUDGE).then_some(x)
+    };
+    // Try the default spot, then just below each neighbour in turn (nearest first)
+    let mut candidates = vec![rabbet_label_y];
+    let mut below: Vec<f64> = obstacles.iter().map(|b| b.3 + CAPTION_LABEL_GAP + style.label_font_size)
+        .filter(|&y| y > rabbet_label_y).collect();
+    below.sort_by(f64::total_cmp);
+    candidates.extend(below);
+    let (y, text_x) = candidates.iter().find_map(|&y| place(y).map(|x| (y, x)))
+        .unwrap_or_else(|| (*candidates.last().unwrap(), rabbet_center_x));
+    rabbet_label_y = y;
+    track_x!(text_x - caption_w / 2.0, text_x + caption_w / 2.0);
+    let caption_bottom = caption_rows(rabbet_label_y).1;
+    svg.push_str(&format!(
+        r#"    <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{}" stroke-width="{}" stroke-dasharray="{}"/>"#,
+        rabbet_center_x, leader_top,
+        rabbet_center_x, rabbet_label_y - leader_text_gap,
+        dim_color, style.extension_stroke_width, DASH_CLEARANCE
+    ));
+    svg.push('\n');
 
     // Both label lines, offset by `x_off` (used verbatim inline, or shifted by
     // the centering transform when deferred past the legend).
@@ -687,16 +748,15 @@ pub(crate) fn build_section_svg(
     // =================================================================
     // Legend layout is computed once and shared with generate_section_legend
     let legend = SectionLegend::new(design, style);
-    let legend_start_x = (options.canvas_width - legend.total_width) / 2.0;
-    let legend_end_x = legend_start_x + legend.total_width;
 
     // Below the drawing, and below the label column when that reaches lower
     // (a short stack with a spline row and the total row)
     let labels_bottom = label_boxes.iter().map(|b| b.3).fold(f64::MIN, f64::max)
         + style.label_font_size * LEGEND_LABEL_CLEARANCE;
-    let content_bottom = geometry.bounds.bottom().max(labels_bottom);
-    let legend_y = content_bottom + geometry.legend_gap;
-    let legend_bottom = legend_y + style.single_line_height();
+    // Measured, not the geometry's reserve (which can sit well below the ink)
+    let content_bottom = content_max_y.max(labels_bottom).max(caption_bottom);
+    // legend_gap is measured to the swatch tops, which rise above the text baseline
+    let legend_y = content_bottom + geometry.legend_gap + LEGEND_SWATCH_RISE;
 
     // =================================================================
     // SELF-CENTERING: Calculate horizontal centering
@@ -715,6 +775,14 @@ pub(crate) fn build_section_svg(
     // width draws exactly `reference_shortfall` narrower; pad the content by that
     // so the viewBox (and so the on-screen scale) matches the reference layout.
     let pad_half = geometry.reference_shortfall / 2.0;
+    // The legend wraps into rows no wider than the drawing and its labels, so it
+    // never sets the section's width (and with it the on-screen scale)
+    let legend_rows = legend.rows(shifted_content_max_x - shifted_content_min_x + 2.0 * pad_half);
+    let legend_w = legend_rows.iter().map(|r| r.2).fold(0.0_f64, f64::max);
+    let legend_start_x = canvas_center_x - legend_w / 2.0;
+    let legend_end_x = legend_start_x + legend_w;
+    let legend_bottom = legend_y + (legend_rows.len() - 1) as f64 * style.single_line_height()
+        + style.single_line_height();
     let mut min_x = (shifted_content_min_x - pad_half).min(legend_start_x);
     let mut max_x = (shifted_content_max_x + pad_half).max(legend_end_x);
     let mut min_y = content_min_y;
@@ -785,11 +853,11 @@ pub(crate) fn build_section_svg(
     // Pass content bounds for dynamic viewBox centering
     final_svg.push_str(&generate_section_legend(
         &legend,
-        geometry,
         style,
         options.canvas_width,
         Some((shifted_content_min_x, shifted_content_max_x)), // Use shifted bounds for legend centering
-        content_bottom,
+        legend_y,
+        &legend_rows,
     ));
 
     // Deferred interference warning: backdrop + label lines, drawn above the
@@ -1180,7 +1248,6 @@ pub(crate) struct SectionLegend<'a> {
     items: Vec<(&'static str, &'a FillPattern)>,
     /// Advance per item (swatch + gap + estimated text + item gap; no gap after the last)
     item_widths: Vec<f64>,
-    total_width: f64,
 }
 
 impl<'a> SectionLegend<'a> {
@@ -1205,49 +1272,61 @@ impl<'a> SectionLegend<'a> {
             *last_width -= LEGEND_ITEM_GAP;
         }
 
-        let total_width: f64 = item_widths.iter().sum();
-        Self { items, item_widths, total_width }
+        Self { items, item_widths }
+    }
+
+    /// Items split greedily into rows no wider than `max_w` (at least one item
+    /// per row), as (start, end, row width) without a trailing item gap
+    pub(crate) fn rows(&self, max_w: f64) -> Vec<(usize, usize, f64)> {
+        let n = self.items.len();
+        let row_w = |a: usize, b: usize| {
+            self.item_widths[a..b].iter().sum::<f64>() - if b < n { LEGEND_ITEM_GAP } else { 0.0 }
+        };
+        let mut rows = Vec::new();
+        let mut start = 0;
+        while start < n {
+            let mut end = start + 1;
+            while end < n && row_w(start, end + 1) <= max_w {
+                end += 1;
+            }
+            rows.push((start, end, row_w(start, end)));
+            start = end;
+        }
+        rows
     }
 }
 
 /// Generate section view legend (horizontal layout positioned below content)
 pub(crate) fn generate_section_legend(
     legend: &SectionLegend,
-    geometry: &SectionViewGeometry,
     style: &DiagramStyle,
     canvas_width: f64,
     content_bounds_x: Option<(f64, f64)>, // (min_x, max_x) for dynamic viewBox centering
-    content_bottom: f64,
+    legend_y: f64,
+    rows: &[(usize, usize, f64)],
 ) -> String {
     let mut svg = String::new();
     svg.push_str("  <g id=\"legend\">\n");
 
-    let total_width = legend.total_width;
-
-    // Center legend relative to content bounds (for dynamic viewBox) or canvas (for fixed viewBox)
-    let start_x = if let Some((min_x, max_x)) = content_bounds_x {
-        let content_center = (min_x + max_x) / 2.0;
-        content_center - total_width / 2.0
-    } else {
-        (canvas_width - total_width) / 2.0
-    };
-
-    // Position legend tightly below the content bounds
-    let legend_y = content_bottom + geometry.legend_gap;
-
-    let mut current_x = start_x;
-    for ((name, pattern), item_width) in legend.items.iter().zip(legend.item_widths.iter()) {
-        let fill = get_fill_for_pattern(pattern);
-        svg.push_str(&format!(
-            r#"    <rect x="{:.2}" y="{:.2}" width="{}" height="{}" fill="{}" stroke="{}" stroke-width="{}"/>"#,
-            current_x, legend_y - 10.0, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE, fill, style.line_color, LEGEND_SWATCH_STROKE
-        ));
-        svg.push_str(&format!(
-            r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px">{}</text>"#,
-            current_x + LEGEND_SWATCH_SIZE + LEGEND_SWATCH_GAP, legend_y, style.dimension_color, style.font_family, style.label_font_size, name
-        ));
-        svg.push('\n');
-        current_x += item_width;
+    // Center each row on the content (dynamic viewBox) or the canvas (fixed viewBox)
+    let center_x = content_bounds_x.map_or(canvas_width / 2.0, |(min_x, max_x)| (min_x + max_x) / 2.0);
+    for (r, &(start, end, row_w)) in rows.iter().enumerate() {
+        let y = legend_y + r as f64 * style.single_line_height();
+        let mut current_x = center_x - row_w / 2.0;
+        for i in start..end {
+            let (name, pattern) = &legend.items[i];
+            let fill = get_fill_for_pattern(pattern);
+            svg.push_str(&format!(
+                r#"    <rect x="{:.2}" y="{:.2}" width="{}" height="{}" fill="{}" stroke="{}" stroke-width="{}"/>"#,
+                current_x, y - LEGEND_SWATCH_RISE, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE, fill, style.line_color, LEGEND_SWATCH_STROKE
+            ));
+            svg.push_str(&format!(
+                r#"    <text transform="translate({:.2}, {:.2})" fill="{}" font-family="{}" font-size="{}px">{}</text>"#,
+                current_x + LEGEND_SWATCH_SIZE + LEGEND_SWATCH_GAP, y, style.dimension_color, style.font_family, style.label_font_size, name
+            ));
+            svg.push('\n');
+            current_x += legend.item_widths[i];
+        }
     }
 
     svg.push_str("  </g>\n");
@@ -1334,7 +1413,10 @@ mod tests {
     fn stack_total_is_a_label_row() {
         let svg = crowded_section(2.0);
         assert!(!svg.lines().any(|l| l.contains("rotate(-90") && l.contains("0.281")), "no rotated stack-total label");
-        let total = svg.lines().find(|l| l.contains(">Total: 1/4 + 1/32 (0.281")).expect("total row");
+        // The decimal wraps onto a second line, like the other tape-segment labels
+        let total = svg.lines().find(|l| l.contains(">Total: 1/4 + 1/32<")).expect("total row");
+        let decimal = svg.lines().find(|l| l.contains(">(0.281")).expect("total's second line");
+        assert!(translate(decimal).1 > translate(total).1);
         let style = crate::visualization::DiagramStyle::default();
         assert!(total.contains(&format!(r#"fill="{}""#, style.dimension_color)) && total.contains(r#"font-weight="600""#));
         let y = |needle: &str| translate(svg.lines().find(|l| l.contains(needle)).unwrap()).1;

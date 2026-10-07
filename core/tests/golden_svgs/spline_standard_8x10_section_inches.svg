@@ -1,5 +1,5 @@
-<svg viewBox="-89.40 153.23 978.80 277.53" xmlns="http://www.w3.org/2000/svg">
-    <g id="section-content" transform="translate(-89.40, 0)">
+<svg viewBox="-11.89 153.23 823.79 281.38" xmlns="http://www.w3.org/2000/svg">
+    <g id="section-content" transform="translate(-11.89, 0)">
 <g id="section-geometry">
     <rect x="340.22" y="284.80" width="169.91" height="16.86" stroke="#333333" stroke-width="0.5" fill="#B8D4E3"/>
     <rect x="340.22" y="301.66" width="169.91" height="1.45" stroke="#333333" stroke-width="0.5" fill="#E8E8E8"/>
@@ -32,35 +32,37 @@
     <polygon points="374.20,352.77 375.51,348.57 372.89,348.57" fill="#333333" data-arrow="true"/>
     <polygon points="318.46,284.80 320.56,285.50 320.56,284.10" fill="#46af8f" data-arrow="true"/>
     <line x1="320.56" y1="284.80" x2="327.56" y2="284.80" stroke="#46af8f" stroke-width="0.35"/>
-    <line x1="327.56" y1="284.80" x2="523.13" y2="248.54" stroke="#46af8f" stroke-width="0.35"/>
-    <text transform="translate(528.13, 252.41)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Spline 1/8" · max 1/2" deep (limited by rabbet)</text>
+    <line x1="327.56" y1="284.80" x2="523.13" y2="234.83" stroke="#46af8f" stroke-width="0.35"/>
+    <text transform="translate(528.13, 238.70)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Spline 1/8"</text>
+    <text transform="translate(528.13, 251.40)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">max 1/2" deep</text>
+    <text transform="translate(528.13, 264.11)" fill="#46af8f" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">(limited by rabbet)</text>
     <polygon points="511.03,293.23 513.13,293.93 513.13,292.53" fill="#333333" data-arrow="true"/>
     <line x1="513.13" y1="293.23" x2="520.13" y2="293.23" stroke="#333333" stroke-width="0.35"/>
-    <line x1="520.13" y1="293.23" x2="523.13" y2="269.34" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(528.13, 273.21)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Glazing: 3/32"</text>
+    <line x1="520.13" y1="293.23" x2="523.13" y2="277.14" stroke="#333333" stroke-width="0.35"/>
+    <text transform="translate(528.13, 281.01)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Glazing: 3/32"</text>
     <polygon points="511.03,302.38 513.13,303.08 513.13,301.68" fill="#333333" data-arrow="true"/>
     <line x1="513.13" y1="302.38" x2="520.13" y2="302.38" stroke="#333333" stroke-width="0.35"/>
-    <line x1="520.13" y1="302.38" x2="523.13" y2="290.14" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(528.13, 294.01)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Artwork: 0.01"</text>
+    <line x1="520.13" y1="302.38" x2="523.13" y2="294.04" stroke="#333333" stroke-width="0.35"/>
+    <text transform="translate(528.13, 297.91)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Artwork: 0.01"</text>
     <polygon points="511.03,314.43 513.13,315.13 513.13,313.73" fill="#333333" data-arrow="true"/>
     <line x1="513.13" y1="314.43" x2="520.13" y2="314.43" stroke="#333333" stroke-width="0.35"/>
     <line x1="520.13" y1="314.43" x2="523.13" y2="310.94" stroke="#333333" stroke-width="0.35"/>
     <text transform="translate(528.13, 314.81)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Backing: 1/8"</text>
-    <line x1="528.13" y1="321.34" x2="610.76" y2="321.34" stroke="#577590" stroke-width="0.5"/>
-    <text transform="translate(528.13, 335.61)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px" font-weight="600">Total: 0.23"</text>
+    <line x1="528.13" y1="319.39" x2="610.76" y2="319.39" stroke="#577590" stroke-width="0.5"/>
+    <text transform="translate(528.13, 331.71)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px" font-weight="600">Total: 0.23"</text>
     <polygon points="511.03,331.42 513.13,332.12 513.13,330.72" fill="#333333" data-arrow="true"/>
     <line x1="513.13" y1="331.42" x2="520.13" y2="331.42" stroke="#333333" stroke-width="0.35"/>
-    <line x1="520.13" y1="331.42" x2="523.13" y2="352.54" stroke="#333333" stroke-width="0.35"/>
-    <text transform="translate(528.13, 356.41)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Margin: 1/16"</text>
+    <line x1="520.13" y1="331.42" x2="523.13" y2="344.74" stroke="#333333" stroke-width="0.35"/>
+    <text transform="translate(528.13, 348.61)" fill="#333333" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11.0px">Margin: 1/16"</text>
     <line x1="374.20" y1="354.77" x2="374.20" y2="362.77" stroke="#333333" stroke-width="0.5" stroke-dasharray="3,2"/>
     <text transform="translate(374.20, 374.87)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">Rabbet: 3/8"</text>
     <text transform="translate(374.20, 390.47)" fill="#90be6d" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px" text-anchor="middle">(clearance: 0.09")</text>
   </g>
   </g>
   <g id="legend">
-    <rect x="243.05" y="397.17" width="12" height="12" fill="#8B6914" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(263.05, 407.17)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Frame</text>
-    <rect x="314.80" y="397.17" width="12" height="12" fill="#B8D4E3" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(334.80, 407.17)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Glazing</text>
-    <rect x="400.85" y="397.17" width="12" height="12" fill="#E8E8E8" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(420.85, 407.17)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Artwork</text>
-    <rect x="486.90" y="397.17" width="12" height="12" fill="#A0A0A0" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(506.90, 407.17)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Backing</text>
+    <rect x="243.05" y="401.02" width="12" height="12" fill="#8B6914" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(263.05, 411.02)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Frame</text>
+    <rect x="314.80" y="401.02" width="12" height="12" fill="#B8D4E3" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(334.80, 411.02)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Glazing</text>
+    <rect x="400.85" y="401.02" width="12" height="12" fill="#E8E8E8" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(420.85, 411.02)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Artwork</text>
+    <rect x="486.90" y="401.02" width="12" height="12" fill="#A0A0A0" stroke="#333333" stroke-width="0.5"/>    <text transform="translate(506.90, 411.02)" fill="#577590" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="13px">Backing</text>
   </g>
 </svg>

@@ -496,7 +496,6 @@ fn generate_combined_view(
     // Initial rough split used only to generate the SVG content.
     // The actual zone heights are derived from viewBox aspect ratios below.
     let plan_height_init = available_height * PLAN_HEIGHT_RATIO;
-    let section_height_init = available_height * SECTION_HEIGHT_RATIO;
 
     // Use full PDF font sizes without scaling — dynamic viewBox handles fitting
     let mut plan_style = style.clone();
@@ -518,9 +517,13 @@ fn generate_combined_view(
         wood: None,
         ..options.clone()
     };
+    // The section is always laid out on a tall canvas, so its scale comes from
+    // the width alone: the fixed reference scale (same depth whatever the face
+    // width). Its dynamic viewBox crops to the content, so the extra height is free.
+    let section_canvas_h = available_height;
     let section_options = DiagramOptions {
         view: ViewOption::SectionOnly,
-        canvas_height: section_height_init,
+        canvas_height: section_canvas_h,
         ..options.clone()
     };
 
@@ -533,53 +536,30 @@ fn generate_combined_view(
     let section_viewbox_probe = extract_viewbox(&section_probe.svg);
 
     // Content-aware zone heights derived from viewBox aspect ratios.
-    // Natural height = the height each view needs to fill canvas_width with no side whitespace.
-    // Strategy:
-    // - Both fit: section = natural, clamped to [0.70, 1.05] × its initial (ratio-split)
-    //   height; plan gets the remainder.
-    // - Don't fit: section = natural, capped at 50% of available; plan gets the rest
-    //   (floored at 25% of available).
+    // Natural height = the height a view needs to fill canvas_width with no side whitespace.
     let (plan_zone_h, section_zone_h) = match (plan_viewbox_probe, section_viewbox_probe) {
         (Some((_, _, pvw, pvh)), Some((_, _, svw, svh)))
             if pvw > 0.0 && pvh > 0.0 && svw > 0.0 && svh > 0.0 =>
         {
-            let plan_natural = options.canvas_width * pvh / pvw;
             let section_natural = options.canvas_width * svh / svw;
 
-            if plan_natural + section_natural <= available_height {
-                // Both views fit at natural size. Give plan view maximum available space so the
-                // second-pass render uses more canvas height. For portrait (height-limited) frames
-                // this increases the scale, giving more room for callouts and thumbnail while
-                // shrinking the gap to MIN_GAP. For landscape frames the plan viewBox doesn't
-                // grow proportionally, so the gap stays larger — but never worse than before.
-                const SECTION_SCALE_CAP: f64 = 1.05; // section ≤ 5% above its init height
-                const SECTION_SCALE_FLOOR: f64 = 0.70; // section ≥ 70% of init height (readability)
-                let section_h = section_natural
-                    .min(section_height_init * SECTION_SCALE_CAP)
-                    .max(section_height_init * SECTION_SCALE_FLOOR);
-                let plan_h = available_height - section_h;
-                (plan_h, section_h)
-            } else {
-                // Section gets its full natural height (fills canvas_width), capped at 50% of
-                // the available height; plan gets the rest. Section content is roughly constant
-                // across frame sizes, so keeping it at natural size prevents it from being
-                // horizontally squished on portrait frames.
-                let section_h = section_natural.min(available_height * 0.50);
-                let plan_h = (available_height - section_h).max(available_height * 0.25);
-                (plan_h, section_h)
-            }
+            // The section takes its natural (width-fit) height, up to half the
+            // space; the plan gets the rest, and even spacing shares out any slack
+            let section_h = section_natural.min(available_height * SECTION_MAX_SHARE);
+            (available_height - section_h, section_h)
         }
-        _ => (plan_height_init, section_height_init), // fallback: fixed split
+        _ => (plan_height_init, available_height - plan_height_init), // fallback: fixed split
     };
 
     // Second pass: re-generate both views at their actual zone heights so geometry
     // (axis breaks, thumbnail placement, corner detail) is computed for the real
     // available space rather than the initial probe estimate.
     let resize_plan = (plan_zone_h - plan_height_init).abs() > 5.0;
+    let plan_canvas_h = if resize_plan { plan_zone_h } else { plan_height_init };
     let plan_result = if resize_plan || options.wood.is_some() {
         let plan_options_final = DiagramOptions {
             view: ViewOption::PlanOnly,
-            canvas_height: if resize_plan { plan_zone_h } else { plan_height_init },
+            canvas_height: plan_canvas_h,
             ..options.clone()
         };
         generate_plan_view(design, &plan_options_final, &plan_style)
@@ -602,20 +582,76 @@ fn generate_combined_view(
     // Dynamic gap: absorbs leftover space so combined SVG fills the canvas height.
     let gap_between_views = MIN_GAP + (available_height - plan_render_h - section_zone_h).max(0.0);
 
-    let section_result = if (section_zone_h - section_height_init).abs() > 5.0 {
-        let section_options_final = DiagramOptions {
-            view: ViewOption::SectionOnly,
-            canvas_height: section_zone_h,
-            ..options.clone()
-        };
-        generate_section_view(design, &section_options_final, &section_style)
-    } else {
-        section_probe
-    };
+    let section_result = section_probe;
     let section_viewbox = extract_viewbox(&section_result.svg);
 
-    // Combined SVG height matches actual content — eliminates dead space at bottom
-    let combined_h = title_height + plan_render_h + gap_between_views + section_zone_h;
+    // EVEN SPACING ("fill, then space evenly"). The sizes above stand: the
+    // section keeps its fixed scale and the plan takes the rest. What's left of
+    // the height is split equally between every gap -- top, plan to overlay
+    // card, card (or plan) to section, section to legend, bottom -- up to a cap,
+    // beyond which the whole stack is centred. The card and legend gaps live
+    // inside the views, so they are re-rendered with those gaps (in view units).
+    let (plan_result, plan_viewbox, section_result, section_viewbox, layout) = match (plan_viewbox, section_viewbox) {
+        (Some(pvb), Some(svb)) => {
+            let k_p = calculate_fit_transform(pvb.0, pvb.1, pvb.2, pvb.3, 0.0, 0.0, options.canvas_width, plan_render_h).2;
+            let k_s = calculate_fit_transform(svb.0, svb.1, svb.2, svb.3, 0.0, 0.0, options.canvas_width, section_zone_h).2;
+            let m = plan_style.margin; // both views pad their viewBox by this
+            // The card sits below the drawing on phone-width / portrait canvases (plan_svg)
+            let card_below = plan_result.svg.contains(r#"<g id="overlay-card">"#)
+                && (options.canvas_width < 500.0 || options.canvas_width < plan_canvas_h);
+            let (c0, l0) = (plan_style.overlay_card_gap, section_style.section_legend_gap);
+            // The legend gap is measured to its swatch tops; under the last row's
+            // swatches (2 below the baseline) the viewBox keeps the rest of a line
+            let legend_trail = section_style.single_line_height() - 2.0;
+            // Heights that aren't gaps, on screen
+            let plan_fixed = (pvb.3 - 2.0 * m - if card_below { 2.0 * c0 } else { 0.0 }) * k_p;
+            let section_fixed = (svb.3 - 2.0 * m - l0 - legend_trail) * k_s;
+            let gaps = if card_below { 5.0 } else { 4.0 };
+            let room = options.canvas_height - title_height - plan_fixed - section_fixed;
+            let g = (room / gaps).clamp(EVEN_GAP_MIN, EVEN_GAP_MAX);
+            let slack = (room - gaps * g).max(0.0) / 2.0; // centring once the gaps are capped
+
+            // Re-render with the even card / legend gaps
+            let c = (g / k_p - m).max(0.0);
+            let l = g / k_s;
+            let (plan_result, pvb) = if card_below && (c - c0).abs() > 0.05 {
+                let mut st = plan_style.clone();
+                st.overlay_card_gap = c;
+                let r = generate_plan_view(design, &DiagramOptions { view: ViewOption::PlanOnly, canvas_height: plan_canvas_h, ..options.clone() }, &st);
+                let vb = extract_viewbox(&r.svg).unwrap_or(pvb);
+                (r, vb)
+            } else {
+                (plan_result, pvb)
+            };
+            let mut st = section_style.clone();
+            st.section_legend_gap = l;
+            // The canvas grows by the extra legend gap, so the drawing keeps its scale
+            let section_result = generate_section_view(design, &DiagramOptions {
+                view: ViewOption::SectionOnly,
+                canvas_height: section_canvas_h + (l - l0),
+                ..options.clone()
+            }, &st);
+            let svb = extract_viewbox(&section_result.svg).unwrap_or(svb);
+
+            // Positions: each view's visible content starts one gap below the last
+            let plan_y = title_height + slack + g - m * k_p;
+            let plan_h = pvb.3 * k_p;
+            let plan_visible_bottom = plan_y + plan_h - if card_below { c } else { m } * k_p;
+            let section_y = plan_visible_bottom + g - m * k_s;
+            let section_h = svb.3 * k_s;
+            let bottom = section_y + section_h - (m + legend_trail) * k_s + g + slack;
+            (plan_result, Some(pvb), section_result, Some(svb), Some((plan_y, plan_h, section_y, section_h, bottom)))
+        }
+        _ => (plan_result, plan_viewbox, section_result, section_viewbox, None),
+    };
+    let (plan_y, plan_h, section_y, section_zone_h, combined_h) = layout.unwrap_or((
+        title_height,
+        plan_render_h,
+        title_height + plan_render_h + gap_between_views,
+        section_zone_h,
+        title_height + plan_render_h + gap_between_views + section_zone_h,
+    ));
+    let combined_h = combined_h.max(options.canvas_height);
 
     let mut svg = String::new();
     svg.push_str(&format!(
@@ -633,7 +669,7 @@ fn generate_combined_view(
     if let Some((vx, vy, vw, vh)) = plan_viewbox {
         let (tx, ty, scale) = calculate_fit_transform(
             vx, vy, vw, vh,
-            0.0, title_height, options.canvas_width, plan_render_h,
+            0.0, plan_y, options.canvas_width, plan_h,
         );
         svg.push_str(&format!(
             r#"  <g id="plan-view" transform="translate({:.2}, {:.2}) scale({:.4})">{}</g>"#,
@@ -645,7 +681,6 @@ fn generate_combined_view(
     svg.push('\n');
 
     // Section view — viewBox-centered (section is symmetric, frame center not needed)
-    let section_y = title_height + plan_render_h + gap_between_views;
     let section_content = extract_svg_content(&section_result.svg);
     if let Some((vx, vy, vw, vh)) = section_viewbox {
         let (tx, ty, scale) = calculate_fit_transform(
@@ -671,6 +706,14 @@ fn generate_combined_view(
 
     DiagramResult { svg, warnings }
 }
+
+/// Combined view: most of the height the section may take (it takes its natural,
+/// width-fit height up to this share; the plan gets the rest)
+const SECTION_MAX_SHARE: f64 = 0.5;
+
+/// Combined view: the even gap between its blocks stays within these (px)
+const EVEN_GAP_MIN: f64 = 4.0;
+const EVEN_GAP_MAX: f64 = 24.0;
 
 /// Calculate transform (tx, ty, scale) to fit a source rect into a target rect.
 /// Preserves aspect ratio (meet), centers horizontally (XMid), and aligns to

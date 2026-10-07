@@ -411,7 +411,8 @@ pub(crate) fn build_plan_svg(
     // callouts — right gutter or below the content (see card_pos) — so the
     // viewBox is widened/extended to make room for it. Preview mode (no
     // callouts) draws neither the card nor the overlay marks.
-    const CARD_GAP: f64 = 14.0;
+    const CARD_SIDE_GAP: f64 = 14.0;
+    let card_gap = style.overlay_card_gap;
     let overlay_card = if options.show_callouts {
         let unit = if options.unit_mm { Unit::Millimeters } else { Unit::Inches };
         let fmt = |v: f64| format_dimension(v, unit, options.use_tape_segments, options.use_decimal_display);
@@ -428,16 +429,17 @@ pub(crate) fn build_plan_svg(
             options.canvas_width < 500.0 || options.canvas_width < options.canvas_height;
         if !card_below {
             // Wide canvas (desktop / combined panels): right gutter
-            let cx = min_x + viewbox_width + CARD_GAP;
+            let cx = min_x + viewbox_width + card_gap;
             let cy = geometry.frame_outer.y;
-            viewbox_width += card.width + 2.0 * CARD_GAP;
-            viewbox_height = viewbox_height.max(cy - min_y + card.height + CARD_GAP);
+            viewbox_width += card.width + 2.0 * card_gap;
+            viewbox_height = viewbox_height.max(cy - min_y + card.height + card_gap);
             (cx, cy)
         } else {
             let cx = geometry.frame_outer.x;
-            let cy = min_y + viewbox_height + CARD_GAP;
-            viewbox_height += card.height + 2.0 * CARD_GAP;
-            viewbox_width = viewbox_width.max(cx - min_x + card.width + CARD_GAP);
+            let cy = min_y + viewbox_height + card_gap;
+            viewbox_height += card.height + 2.0 * card_gap;
+            // (the card's side gap stays fixed; only the vertical one follows card_gap)
+            viewbox_width = viewbox_width.max(cx - min_x + card.width + CARD_SIDE_GAP);
             (cx, cy)
         }
     });

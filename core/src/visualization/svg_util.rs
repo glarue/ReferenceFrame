@@ -122,7 +122,6 @@ pub(crate) const LEGEND_CHAR_WIDTH_RATIO: f64 = 0.55;   // Average character wid
 // === Combined (PDF) View Layout ===
 pub(crate) const TITLE_BLOCK_HEIGHT: f64 = 95.0;       // Height reserved for title block
 pub(crate) const PLAN_HEIGHT_RATIO: f64 = 0.58;        // Plan view share of available height
-pub(crate) const SECTION_HEIGHT_RATIO: f64 = 0.42;     // Section view share of available height
 pub(crate) const SECTION_FONT_SCALE: f64 = 0.76;       // Section font size relative to plan
 pub(crate) const SECTION_DIM_OFFSET_SCALE: f64 = 0.9;  // Section dimension offsets relative to plan
 

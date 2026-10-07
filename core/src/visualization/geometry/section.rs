@@ -116,7 +116,7 @@ impl SectionViewGeometry {
         let width_dim_space = style.section_width_dim_offset + style.extension_line_overshoot + style.label_font_size;
 
         // BOTTOM: Legend and rabbet label
-        let legend_gap = 6.0;  // Gap between section content and legend
+        let legend_gap = style.section_legend_gap;  // Gap between section content and legend
         // Rabbet label is now two lines (dimensions + clearance/interference)
         let rabbet_label_height = RABBET_LABEL_LEADER + font_size * RABBET_LABEL_FONT_MULTIPLIER;
 
@@ -204,9 +204,6 @@ impl SectionViewGeometry {
 
         // For compatibility with existing code
         let frame_depth_s = frame_depth_scaled;
-
-        // Bounds width should match actual drawn content
-        let scaled_width = drawn_content_width;
 
         // Frame profile - use display width and depth (may be truncated with axis breaks)
         // Note: frame_depth_s already calculated above for centering
@@ -345,13 +342,8 @@ impl SectionViewGeometry {
             rabbet_h_s,
         );
 
-        // Bounds height: frame depth + below-frame extension (rabbet label / material overflow).
-        // Does NOT include width_dim_space (which is ABOVE origin_y, for the top dimension line).
-        // bounds.bottom() is used to position the legend tightly below the section content.
-        let bounds = Rect::new(origin_x, origin_y, scaled_width, frame_depth_scaled + below_frame_extension);
 
         Self {
-            bounds,
             frame_profile,
             glazing,
             matboard,

@@ -579,8 +579,6 @@ pub struct PlanViewGeometry {
 /// Computed geometry for rendering a section view
 #[derive(Debug, Clone)]
 pub struct SectionViewGeometry {
-    /// Overall bounds
-    pub bounds: Rect,
     /// Frame profile rectangle
     pub frame_profile: Rect,
     /// Glazing layer

@@ -171,6 +171,11 @@ pub struct DiagramStyle {
     pub section_material_label_offset: f64,
     /// Legend height (space reserved below content for material legend)
     pub legend_height: f64,
+    /// Gap above and below the plan view's overlay card (spline/hanging) when it
+    /// sits below the drawing; the combined view sets it to its even spacing
+    pub overlay_card_gap: f64,
+    /// Gap between the section drawing and its legend; set likewise
+    pub section_legend_gap: f64,
 }
 
 impl Default for DiagramStyle {
@@ -241,6 +246,8 @@ impl Default for DiagramStyle {
             section_width_dim_offset: 32.0,
             section_material_label_offset: 18.0,
             legend_height: 25.0,
+            overlay_card_gap: 14.0,
+            section_legend_gap: 6.0,
         }
     }
 }
