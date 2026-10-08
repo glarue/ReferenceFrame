@@ -1,6 +1,6 @@
 # Wood-Grain Frame Rendering Plan
 
-> **Status (2026-10-07):** Active. **Phases 1–4 are done**, plus tones and new boards (Phase 4b, iOS; TestFlight build 53). iOS is on TestFlight (1.12.0, latest build 53; the user tested on device: "works well overall"). Not yet pushed or released: web deploy, App Store submission (see "Resume here"). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
+> **Status (2026-10-07):** Active. **Phases 1–4 are done**, plus tones and new boards (Phase 4b, iOS; TestFlight build 54). iOS is on TestFlight (1.12.0, latest build 54; the user tested on device: "works well overall"). Not yet pushed or released: web deploy, App Store submission (see "Resume here"). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
 
 **Goal:** draw the frame face with species-specific procedural wood grain, replacing today's outline-only plan view and flat brown section fill, in the plan view and live preview on both web and iOS. The species is the one users already pick for the weight estimate (`materials.woods`). The aim is "close in spirit" rather than photoreal: deterministic, vector, and one implementation in `core/` for both platforms.
 
@@ -10,9 +10,9 @@
 
 **Next steps (all need the user's go-ahead):**
 1. Delete the local branch `backup/pre-source-scrub` (old history that names the photo source; must never be pushed).
-2. ~~Move the local 1.12.0 tags~~ done 2026-10-07: `core-v1.12.0`, `app-v1.12.0`, `bridge-v1.8.0` now include Phase 4b (build 53). Move them again if anything else lands before submission.
+2. ~~Move the local 1.12.0 tags~~ done 2026-10-07: `core-v1.12.0`, `app-v1.12.0`, `bridge-v1.8.0` now include Phase 4b (build 54). Move them again if anything else lands before submission.
 3. Push the root repo (`git push --follow-tags`), which deploys the web app via CI. The mobile and wood-fit repos have no remote.
-4. App Store: `fastlane submit build:53 version:1.12.0` (or a later build); draft notes with `/release-notes`. Never name the wood photo source in notes or UI. Submit build 53 (includes Phase 4b).
+4. App Store: `fastlane submit build:54 version:1.12.0` (or a later build); draft notes with `/release-notes`. Never name the wood photo source in notes or UI. Submit build 54 (includes Phase 4b with the shared tone).
 5. Optional: photo-as-artwork preview (assessment under Phase 5).
 
 **Done:**
@@ -21,7 +21,7 @@
 - **Phase 2:** `DiagramOptions::wood` (`WoodRender`) wired into the plan view, corner-detail inset and section view, with golden cases. Reviewed by eye with the user.
 - **Phase 3 (web):** "Wood grain" toggle in the View section's layer toggles; diagram, print and PDF export. Deploys on the next push to `main`.
 - **Phase 4 (iOS):** "Wood Grain" layer switch, swatch species picker, preview/diagram/PDF. TestFlight 1.12.0 builds 48–52.
-- **Phase 4b (tones and new boards, iOS):** Lighter / Natural / Darker per species, and a "New board" shuffle (with "Original" to go back), in the wood picker. See Phase 4b below.
+- **Phase 4b (tones and new boards, iOS):** a Light / Medium / Dark tone for every wood, and a per-wood "New board" shuffle (with "Original" to go back), in the wood picker. See Phase 4b below.
 - **Section-view layout overhaul (not wood-specific, done alongside):** one fixed scale whatever the face width (3" reference, break above 3"), the stack total as a "Total" row of the label column, wrapped labels, even spacing in the combined view, collision-free rabbet caption. See ARCHITECTURE.md "Section view scale" / "Combined view layout"; commits `59ae86a`…`bcc8c8e`.
 - **Source hygiene:** no public file or commit names the reference-photo source (unpushed history was rewritten 2026-10-06; final tree verified identical). The weight-estimate density citations in `presets.json` are separate and already public.
 
@@ -241,7 +241,7 @@ Root `62078f3` (core fix below); mobile repo `edefb7a` (bridge) and the `feat(ap
 - **Status:** simulator-checked; on TestFlight (1.12.0 builds 48–52) and tried on device by the user. Release steps are under "Resume here". If the flat-to-grain settle swap ever proves slow on old devices, the fallback is a binary display list over FFI drawn by a `CustomPainter`.
 
 ### Phase 4b: tones and new boards (iOS, built 2026-10-07)
-On TestFlight 1.12.0 (53); tags moved to include it (2026-10-07).
+On TestFlight 1.12.0 (53, per-wood tones; 54, shared tone). Tags moved to include it (2026-10-08).
 - **Tones (`WoodRender.tone`, `WoodTone::{Light, Natural, Dark}`):** each species' palette comes from the "oiled" target, a 50/50 CIELAB blend of the sanded and finished photos of one sample. `tools/wood-fit/tones.py` takes the per-role change from that blend to the sanded photo (lighter: paler, less amber) and to the finished photo (darker: richer).
   - **Lightness step:** the photo's step, clamped to 6–12 L\*. A finish changes pines and birch more in chroma than in lightness, so the clamp keeps every tone visibly lighter or darker. Roles move in proportion to their headroom, which keeps the grain contrast and never clips.
   - **Chroma:** the photo's per-role ratio, applied at constant hue (adding the photo's a\*/b\* deltas turned pale woods pink or grey). It is scaled up with a boosted lightness step, so a darker pale wood doesn't just grey.
@@ -250,10 +250,11 @@ On TestFlight 1.12.0 (53); tags moved to include it (2026-10-07).
   - Reviewed by eye with `review_tones.py` (local-only sheet). Core just picks `tones.light`/`tones.dark` (`WoodAppearance::palette_for`); the section fill follows the tone.
 - **New boards (`reshuffle` ≠ 0):** `WoodAppearance::styled(tone, vary)` draws each `per_frame_range` knob uniformly within its reviewed span (integer knobs round), plus ring spacing within ±10% (`RINGS_SPREAD`), deterministically from the seed. `reshuffle` 0 is exactly the reviewed look (borrowed, byte-identical; goldens unchanged). The payload test covers reshuffles 1–3.
 - **iOS:**
-  - **Storage:** tone and reshuffle are kept **per wood key** in the `pref_wood_looks` JSON pref (`{key: {tone, reshuffle}}`). The species is itself a global preference, not part of the saved design, so the look sits next to it rather than per design.
-  - **Picker:** the sheet now opens with a panel for the selected wood: a 64 pt swatch, the name, New board / Original, a Lighter·Natural·Darker segmented control and a one-line hint. Tapping a swatch selects it and keeps the sheet open; Done closes it.
-  - **Swatches** use each wood's own tone and board (bridge `wood_swatch_svg(species, tone, reshuffle, size_px)`).
-  - **Labels and rebuilds:** the Materials row and the Layers sheet show e.g. "Black Walnut · Darker". The preview and diagram rebuild keys use `woodLookKey`.
+  - **Storage:** the tone is **one setting for every wood** (`pref_wood_tone`; user decision 2026-10-08: per-wood tones left species at different tones while experimenting, and a shared tone lets the grid compare species at the same tone). Boards stay **per wood key** (`pref_wood_boards`, `{key: reshuffle}`). The species is itself a global preference, not part of the saved design, so none of this is per design. Build 53 briefly stored both per wood (`pref_wood_looks`, now unused).
+  - **Naming:** the UI says **Light / Medium / Dark** (user: "Natural" implied the others aren't; they're just as natural). Core and the prefs keep `natural` for the middle tone.
+  - **Picker:** the sheet now opens with a panel for the selected wood: a 64 pt swatch, the name, New board / Original, a Light·Medium·Dark segmented control and a one-line hint ("For every wood · Light ≈ unfinished, Dark ≈ finished"). Tapping a swatch selects it and keeps the sheet open; Done closes it.
+  - **Swatches** use the shared tone and each wood's board (bridge `wood_swatch_svg(species, tone, reshuffle, size_px)`).
+  - **Labels and rebuilds:** the Materials row and the Layers sheet show e.g. "Black Walnut · Dark". The preview and diagram rebuild keys use `woodLookKey`.
 - Web unchanged: it sends no tone or reshuffle, so it gets the natural look.
 
 ### Phase 5: later
