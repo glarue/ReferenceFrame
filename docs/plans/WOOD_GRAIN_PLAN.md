@@ -1,6 +1,6 @@
 # Wood-Grain Frame Rendering Plan
 
-> **Status (2026-10-07):** Active. **Phases 1–4 are done**, plus tones and new boards (Phase 4b, iOS; TestFlight build 54). iOS is on TestFlight (1.12.0, latest build 54; the user tested on device: "works well overall"). Not yet pushed or released: web deploy, App Store submission (see "Resume here"). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
+> **Status (2026-10-08):** Active. **Phases 1–4 are done**, plus tones and new boards (Phase 4b, iOS; TestFlight build 54). iOS is on TestFlight (1.12.0, latest build 54; the user tested on device: "works well overall"). **Released 2026-10-08:** web deployed (root pushed with `core-v1.12.0`); iOS 1.12.0 (54) submitted for App Store review with auto-release. The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
 
 **Goal:** draw the frame face with species-specific procedural wood grain, replacing today's outline-only plan view and flat brown section fill, in the plan view and live preview on both web and iOS. The species is the one users already pick for the weight estimate (`materials.woods`). The aim is "close in spirit" rather than photoreal: deterministic, vector, and one implementation in `core/` for both platforms.
 
@@ -8,12 +8,7 @@
 
 ## Resume here (state as of 2026-10-07)
 
-**Next steps (all need the user's go-ahead):**
-1. Delete the local branch `backup/pre-source-scrub` (old history that names the photo source; must never be pushed).
-2. ~~Move the local 1.12.0 tags~~ done 2026-10-07: `core-v1.12.0`, `app-v1.12.0`, `bridge-v1.8.0` now include Phase 4b (build 54). Move them again if anything else lands before submission.
-3. Push the root repo (`git push --follow-tags`), which deploys the web app via CI. The mobile and wood-fit repos have no remote.
-4. App Store: `fastlane submit build:54 version:1.12.0` (or a later build); draft notes with `/release-notes`. Never name the wood photo source in notes or UI. Submit build 54 (includes Phase 4b with the shared tone).
-5. Optional: photo-as-artwork preview (assessment under Phase 5).
+**Next steps:** none pending. Phase 4b (tones, new boards) is done. Optional follow-ups are under Phase 5: the photo-as-artwork preview, a web species picker with tones and new boards, and species in share links. The local backup branch `backup/pre-source-scrub` was deleted 2026-10-08. Never name the wood photo source in notes or UI.
 
 **Done:**
 - **Phase 1:** the generator in core, its data file, and tests.
