@@ -1,6 +1,6 @@
 # Wood-Grain Frame Rendering Plan
 
-> **Status (2026-10-07):** Active. **Phases 1–4 are done**, plus tones and new boards (Phase 4b, iOS; not yet on TestFlight). iOS is on TestFlight (1.12.0, latest build 52; the user tested on device: "works well overall"). Not yet pushed or released: web deploy, App Store submission (see "Resume here"). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
+> **Status (2026-10-07):** Active. **Phases 1–4 are done**, plus tones and new boards (Phase 4b, iOS; TestFlight build 53). iOS is on TestFlight (1.12.0, latest build 53; the user tested on device: "works well overall"). Not yet pushed or released: web deploy, App Store submission (see "Resume here"). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
 
 **Goal:** draw the frame face with species-specific procedural wood grain, replacing today's outline-only plan view and flat brown section fill, in the plan view and live preview on both web and iOS. The species is the one users already pick for the weight estimate (`materials.woods`). The aim is "close in spirit" rather than photoreal: deterministic, vector, and one implementation in `core/` for both platforms.
 
@@ -10,9 +10,9 @@
 
 **Next steps (all need the user's go-ahead):**
 1. Delete the local branch `backup/pre-source-scrub` (old history that names the photo source; must never be pushed).
-2. Before App Store submission of 1.12.0: move the local tags `core-v1.12.0`, `app-v1.12.0`, `bridge-v1.8.0` to the current commits (they point at the build-48 commits; otherwise `release.sh` proposes 1.13.0). Nothing is pushed, so this is safe.
+2. ~~Move the local 1.12.0 tags~~ done 2026-10-07: `core-v1.12.0`, `app-v1.12.0`, `bridge-v1.8.0` now include Phase 4b (build 53). Move them again if anything else lands before submission.
 3. Push the root repo (`git push --follow-tags`), which deploys the web app via CI. The mobile and wood-fit repos have no remote.
-4. App Store: `fastlane submit build:52 version:1.12.0` (or a later build); draft notes with `/release-notes`. Never name the wood photo source in notes or UI. Phase 4b (tones, new boards) is committed after build 52: ship it as a new TestFlight build first (it's a `feat`, so `release.sh` would propose 1.13.0 unless the 1.12.0 tags are moved past it).
+4. App Store: `fastlane submit build:53 version:1.12.0` (or a later build); draft notes with `/release-notes`. Never name the wood photo source in notes or UI. Submit build 53 (includes Phase 4b).
 5. Optional: photo-as-artwork preview (assessment under Phase 5).
 
 **Done:**
@@ -241,7 +241,7 @@ Root `62078f3` (core fix below); mobile repo `edefb7a` (bridge) and the `feat(ap
 - **Status:** simulator-checked; on TestFlight (1.12.0 builds 48–52) and tried on device by the user. Release steps are under "Resume here". If the flat-to-grain settle swap ever proves slow on old devices, the fallback is a binary display list over FFI drawn by a `CustomPainter`.
 
 ### Phase 4b: tones and new boards (iOS, built 2026-10-07)
-Not yet on TestFlight.
+On TestFlight 1.12.0 (53); tags moved to include it (2026-10-07).
 - **Tones (`WoodRender.tone`, `WoodTone::{Light, Natural, Dark}`):** each species' palette comes from the "oiled" target, a 50/50 CIELAB blend of the sanded and finished photos of one sample. `tools/wood-fit/tones.py` takes the per-role change from that blend to the sanded photo (lighter: paler, less amber) and to the finished photo (darker: richer).
   - **Lightness step:** the photo's step, clamped to 6–12 L\*. A finish changes pines and birch more in chroma than in lightness, so the clamp keeps every tone visibly lighter or darker. Roles move in proportion to their headroom, which keeps the grain contrast and never clips.
   - **Chroma:** the photo's per-role ratio, applied at constant hue (adding the photo's a\*/b\* deltas turned pale woods pink or grey). It is scaled up with a boosted lightness step, so a darker pale wood doesn't just grey.
