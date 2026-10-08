@@ -88,7 +88,9 @@ bridge crates' `Cargo.lock` files are tracked; the core library's is not.
   then the stack is centred (`svg.rs::generate_combined_view`).
 - **Wood grain.** `DiagramOptions::wood` (`visualization/wood/`) draws the frame
   face as procedural vector grain from `core/data/wood_appearance.json`; off by
-  default (output unchanged). See `docs/plans/WOOD_GRAIN_PLAN.md`.
+  default (output unchanged). `tone` picks a lighter/darker palette and a nonzero
+  `reshuffle` draws a different board with knobs varied within reviewed spans.
+  See `docs/plans/WOOD_GRAIN_PLAN.md`.
 - **Assembly clearance.** `assembly_margin` undersizes the parts that drop into
   the rabbet (glazing, backing, mat outer edge) to a "cut to fit" size. The
   exact rabbet opening is still what the diagrams draw.

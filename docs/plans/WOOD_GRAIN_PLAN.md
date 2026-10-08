@@ -1,6 +1,6 @@
 # Wood-Grain Frame Rendering Plan
 
-> **Status (2026-10-07):** Active. **Phases 1–4 are done.** iOS is on TestFlight (1.12.0, latest build 52; the user tested on device: "works well overall"). Not yet pushed or released: web deploy, App Store submission (see "Resume here"). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
+> **Status (2026-10-07):** Active. **Phases 1–4 are done**, plus tones and new boards (Phase 4b, iOS; not yet on TestFlight). iOS is on TestFlight (1.12.0, latest build 52; the user tested on device: "works well overall"). Not yet pushed or released: web deploy, App Store submission (see "Resume here"). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
 
 **Goal:** draw the frame face with species-specific procedural wood grain, replacing today's outline-only plan view and flat brown section fill, in the plan view and live preview on both web and iOS. The species is the one users already pick for the weight estimate (`materials.woods`). The aim is "close in spirit" rather than photoreal: deterministic, vector, and one implementation in `core/` for both platforms.
 
@@ -12,7 +12,7 @@
 1. Delete the local branch `backup/pre-source-scrub` (old history that names the photo source; must never be pushed).
 2. Before App Store submission of 1.12.0: move the local tags `core-v1.12.0`, `app-v1.12.0`, `bridge-v1.8.0` to the current commits (they point at the build-48 commits; otherwise `release.sh` proposes 1.13.0). Nothing is pushed, so this is safe.
 3. Push the root repo (`git push --follow-tags`), which deploys the web app via CI. The mobile and wood-fit repos have no remote.
-4. App Store: `fastlane submit build:52 version:1.12.0` (or a later build); draft notes with `/release-notes`. Never name the wood photo source in notes or UI.
+4. App Store: `fastlane submit build:52 version:1.12.0` (or a later build); draft notes with `/release-notes`. Never name the wood photo source in notes or UI. Phase 4b (tones, new boards) is committed after build 52: ship it as a new TestFlight build first (it's a `feat`, so `release.sh` would propose 1.13.0 unless the 1.12.0 tags are moved past it).
 5. Optional: photo-as-artwork preview (assessment under Phase 5).
 
 **Done:**
@@ -21,6 +21,7 @@
 - **Phase 2:** `DiagramOptions::wood` (`WoodRender`) wired into the plan view, corner-detail inset and section view, with golden cases. Reviewed by eye with the user.
 - **Phase 3 (web):** "Wood grain" toggle in the View section's layer toggles; diagram, print and PDF export. Deploys on the next push to `main`.
 - **Phase 4 (iOS):** "Wood Grain" layer switch, swatch species picker, preview/diagram/PDF. TestFlight 1.12.0 builds 48–52.
+- **Phase 4b (tones and new boards, iOS):** Lighter / Natural / Darker per species, and a "New board" shuffle (with "Original" to go back), in the wood picker. See Phase 4b below.
 - **Section-view layout overhaul (not wood-specific, done alongside):** one fixed scale whatever the face width (3" reference, break above 3"), the stack total as a "Total" row of the label column, wrapped labels, even spacing in the combined view, collision-free rabbet caption. See ARCHITECTURE.md "Section view scale" / "Combined view layout"; commits `59ae86a`…`bcc8c8e`.
 - **Source hygiene:** no public file or commit names the reference-photo source (unpushed history was rewritten 2026-10-06; final tree verified identical). The weight-estimate density citations in `presets.json` are separate and already public.
 
@@ -29,7 +30,7 @@
 | What | Where |
 |---|---|
 | Generator | `core/src/visualization/wood/`: `mod.rs` (API), `grain.rs` (layers), `path.rs` (encoding), `noise.rs`, `appearance.rs` (data types and loader) |
-| Public API | `visualization::{WoodRender, WoodLod, DepthCues, seed_for, frame_face_svg, corner_face_svg, FrameFace, FrameFaceSvg, FaceDepths, wood_appearance, board_svg}` |
+| Public API | `visualization::{WoodRender, WoodLod, WoodTone, DepthCues, seed_for, frame_face_svg, corner_face_svg, wood_swatch_svg, wood_looks, FrameFace, FrameFaceSvg, FaceDepths, wood_appearance, board_svg}` |
 | Diagram wiring | `DiagramOptions::wood` (`visualization/types.rs`); plan face + corner inset in `plan_svg.rs`; section colour in `svg.rs::generate_diagram_with_style` |
 | Data (generated, don't hand-edit) | `core/data/wood_appearance.json` |
 | Dev utility | `cargo run --release --example wood_grain -- sizes \| boards <dir> [n] \| frames <dir> \| diagrams <dir>` (`diagrams` = the Phase 2 review cases, full diagrams light/dark/preview) |
@@ -129,14 +130,17 @@ This is a generated file, written by `tools/wood-fit/export_appearance.py` from 
       "palette": {"base": "#…", "late": "#…", "streak": "#…", "alt": "#…"},
       "structure": {"figure": "cathedral", "line_mode": "none", "zone_side": 1, "pores": true, "flecks": false},
       "params": {"rings_per_in": 3.9, "pore_len_in": 0.075, "…": "…"},
-      "per_frame_range": {"ring_cv": [0.38, 0.69], "…": "…"}
+      "per_frame_range": {"ring_cv": [0.38, 0.69], "…": "…"},
+      "tones": {"light": {"base": "#…", "…": "…"}, "dark": {"…": "…"}}
     },
     "white_oak": {"…": "…", "variants": {"quartersawn": {"…": "…"}}}
   }
 }
 ```
 
-- Tests check that every `materials.woods` key resolves to a look, and that every appearance key is a real wood key.
+- Tests check that every `materials.woods` key resolves to a look, that every appearance key is a real wood key, and that every look has tones.
+- **`per_frame_range`:** each knob's span over the top-3 by-eye picks. A reshuffled board (`reshuffle` ≠ 0) draws each knob within it (see Phase 4b).
+- **`tones`:** lighter and darker palettes, computed by `tools/wood-fit/tones.py` (see Phase 4b).
 - **Covered:** red oak, white oak (plain-sawn, the default for `white_oak`), white ash, black walnut, Honduran mahogany, eastern white pine, ponderosa pine, Douglas-fir, western red cedar, yellow poplar, basswood, red alder, soft maple, hard maple, black cherry, and yellow birch. White oak (quartersawn) is a figure variant.
 - **Generic wood:** a single synthetic appearance, not a real species: a neutral medium-brown palette with hard-maple-inspired texture (fine continuous lines, no visible pores, straight grain). `generic`, `generic_hardwood` and `generic_softwood` all render with it; the hardwood and softwood entries exist only for their weight densities. It is the default look for users who never pick a species.
 - **Still open:** `mdf_moulding` and `finger_jointed_pine` are usually painted (see open questions). Until that's settled, they fall back to the generic wood.
@@ -148,11 +152,11 @@ This is a generated file, written by `tools/wood-fit/export_appearance.py` from 
   - It returns three fragments in drawing order: `under` (the wall shadow), `face` (the four clipped pieces plus tone and seams), and `inner_shadow` (drawn over the mat, under the opening's stroke).
   - `board_svg` renders a reference board for validation.
   - `examples/wood_grain.rs` reports sizes and writes boards and frames.
-- **Options (done):** `DiagramOptions.wood: Option<WoodRender>`; JSON `"wood": {"species": "red_oak", "variant": null, "lod": "grain" | "flat", "depth": "none" | "inner" | "inner_and_wall", "reshuffle": 0}`, every field but `species` optional (defaults `grain`, `inner`, 0). `null` or omitted = off, byte-identical to before. `DiagramRequest` flattens the options, so the web and iOS JSON entry points take it as is.
+- **Options (done):** `DiagramOptions.wood: Option<WoodRender>`; JSON `"wood": {"species": "red_oak", "variant": null, "tone": "light" | "natural" | "dark", "lod": "grain" | "flat", "depth": "none" | "inner" | "inner_and_wall", "reshuffle": 0}`, every field but `species` optional (defaults `natural`, `grain`, `inner`, 0). `null` or omitted = off, byte-identical to before. `DiagramRequest` flattens the options, so the web and iOS JSON entry points take it as is.
 - **Plan view (done, `plan_svg.rs`):** a `<g id="wood">` layer right after the SVG header, under every stroke, overlap fill, axis-break mask and dimension: wall shadow (if `inner_and_wall`), the four clipped pieces with grain-direction tone and seams, then the inner shadow. Axis-break ribbons (background-filled) mask the grain in the gap. Clip/gradient ids get a per-diagram prefix (`wg<hash>-`, corner inset `wd<hash>-`).
 - **Corner-detail inset (done):** grain at the inset's scale via `WoodRender::corner_face` / `corner_face_svg`.
 - **Section view (done):** `generate_diagram_with_style` clones the style and sets `material_patterns.frame` to the species' base colour (profile and legend swatch). End grain comes later.
-- **Seeding (done):** `seed_for(species, variant, reshuffle)` = FNV-1a of the key (plus `/variant`) mixed with `reshuffle`; each side gets a sub-seed from its index.
+- **Seeding (done):** `seed_for(species, variant, reshuffle)` = FNV-1a of the key (plus `/variant`) mixed with `reshuffle`; each side gets a sub-seed from its index. The tone doesn't change the seed (same boards, different colour).
 - **Bindings:** the WASM layer and the mobile bridge (`api/simple.rs`) pass species and LOD into the diagram and preview calls.
 - **Web:** a toggle in the Advanced panel, reusing the existing `#wood-species` picker.
 - **iOS:**
@@ -236,6 +240,22 @@ Root `62078f3` (core fix below); mobile repo `edefb7a` (bridge) and the `feat(ap
 - **Simulator UI checks without tapping:** a temporary `integration_test` + `integration_test_driver_extended` driver (`onScreenshot` writes PNGs), run with `flutter drive -d <simulator>`; not committed.
 - **Status:** simulator-checked; on TestFlight (1.12.0 builds 48–52) and tried on device by the user. Release steps are under "Resume here". If the flat-to-grain settle swap ever proves slow on old devices, the fallback is a binary display list over FFI drawn by a `CustomPainter`.
 
+### Phase 4b: tones and new boards (iOS, built 2026-10-07)
+Not yet on TestFlight.
+- **Tones (`WoodRender.tone`, `WoodTone::{Light, Natural, Dark}`):** each species' palette comes from the "oiled" target, a 50/50 CIELAB blend of the sanded and finished photos of one sample. `tools/wood-fit/tones.py` takes the per-role change from that blend to the sanded photo (lighter: paler, less amber) and to the finished photo (darker: richer).
+  - **Lightness step:** the photo's step, clamped to 6–12 L\*. A finish changes pines and birch more in chroma than in lightness, so the clamp keeps every tone visibly lighter or darker. Roles move in proportion to their headroom, which keeps the grain contrast and never clips.
+  - **Chroma:** the photo's per-role ratio, applied at constant hue (adding the photo's a\*/b\* deltas turned pale woods pink or grey). It is scaled up with a boosted lightness step, so a darker pale wood doesn't just grey.
+  - **Saturation cap:** C\*/L\* is held to at most 1.15× the natural colour's, so dark cherry and alder stay brown instead of orange.
+  - **Other cases:** out-of-gamut colours give up chroma at constant hue. The generic wood takes the mean shift.
+  - Reviewed by eye with `review_tones.py` (local-only sheet). Core just picks `tones.light`/`tones.dark` (`WoodAppearance::palette_for`); the section fill follows the tone.
+- **New boards (`reshuffle` ≠ 0):** `WoodAppearance::styled(tone, vary)` draws each `per_frame_range` knob uniformly within its reviewed span (integer knobs round), plus ring spacing within ±10% (`RINGS_SPREAD`), deterministically from the seed. `reshuffle` 0 is exactly the reviewed look (borrowed, byte-identical; goldens unchanged). The payload test covers reshuffles 1–3.
+- **iOS:**
+  - **Storage:** tone and reshuffle are kept **per wood key** in the `pref_wood_looks` JSON pref (`{key: {tone, reshuffle}}`). The species is itself a global preference, not part of the saved design, so the look sits next to it rather than per design.
+  - **Picker:** the sheet now opens with a panel for the selected wood: a 64 pt swatch, the name, New board / Original, a Lighter·Natural·Darker segmented control and a one-line hint. Tapping a swatch selects it and keeps the sheet open; Done closes it.
+  - **Swatches** use each wood's own tone and board (bridge `wood_swatch_svg(species, tone, reshuffle, size_px)`).
+  - **Labels and rebuilds:** the Materials row and the Layers sheet show e.g. "Black Walnut · Darker". The preview and diagram rebuild keys use `woodLookKey`.
+- Web unchanged: it sends no tone or reshuffle, so it gets the natural look.
+
 ### Phase 5: later
 - **Photo-as-artwork preview** (user idea; assessed 2026-10-06, not started). A markup-free "Preview" page (frame + mat + the user's photo), optionally the photo in the live preview and a PDF page.
   - **Approach:** a core "presentation" diagram option (no dimensions/dashed lines, filled mat with bevel line, frame face, shadows) plus a bridge call returning the visible window rect. On iOS draw the photo as a native image layered under the SVG, clipped to that window (embedding base64 in the SVG would be re-parsed every animation frame). Both flutter_svg and the Dart `pdf` package do decode `data:` `<image>`s, so embedding is fine for static outputs (PDF, PNG export, web).
@@ -244,7 +264,7 @@ Root `62078f3` (core fix below); mobile repo `edefb7a` (bridge) and the `feat(ap
   - **Effort:** ~2–3 days iOS-only (pick + preview page + share), ~4–5 with web and PDF. Open: storage per design or single; mat colour picker scope; PDF page 2 vs inset.
 - **Web species picker with swatches** (iOS has one; web keeps its `<select>` for now).
 - Species in shareable URLs (format v3, appending one byte).
-- Per-frame variation within `per_frame_range`, plus a "reshuffle" button (the `reshuffle` field already exists).
+- Tones and new boards on the web (core and WASM already take `tone`/`reshuffle`).
 - Figured variants (curly, quartersawn) in the UI. The quartersawn white oak data is already in `wood_appearance.json` under `variants`.
 - End grain in the section view.
 - More species via the `tools/wood-fit` pipeline.
