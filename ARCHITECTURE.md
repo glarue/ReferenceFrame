@@ -74,6 +74,21 @@ bridge crates' `Cargo.lock` files are tracked; the core library's is not.
   policy, which fixes what can be fixed and reports each change. Validation
   then reports whatever is still out of range. Neither platform clamps on its
   own.
+- **Section view scale.** The section is drawn at one fixed scale whatever the
+  face width: it is fit to a 3" reference moulding (`SECTION_REFERENCE_WIDTH`,
+  more for a very wide rabbet). Faces up to 3" draw at true width; wider ones get
+  an axis break drawn at 3". A narrower face's viewBox is padded by exactly the
+  width it doesn't use, so the same depth always draws the same size. The stack
+  total is a summed row of the label column; labels wrap a parenthetical (or a
+  spline label's " · ") onto further lines.
+- **Combined view layout ("fill, then space evenly").** The section lays out on a
+  tall canvas (always width-fit) and takes its natural height up to half; the
+  plan gets the rest. Leftover height is split equally between every gap (top,
+  plan to overlay card, card to section, section to legend, bottom) up to a cap,
+  then the stack is centred (`svg.rs::generate_combined_view`).
+- **Wood grain.** `DiagramOptions::wood` (`visualization/wood/`) draws the frame
+  face as procedural vector grain from `core/data/wood_appearance.json`; off by
+  default (output unchanged). See `docs/plans/WOOD_GRAIN_PLAN.md`.
 - **Assembly clearance.** `assembly_margin` undersizes the parts that drop into
   the rabbet (glazing, backing, mat outer edge) to a "cut to fit" size. The
   exact rabbet opening is still what the diagrams draw.

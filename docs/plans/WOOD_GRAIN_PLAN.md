@@ -1,18 +1,28 @@
 # Wood-Grain Frame Rendering Plan
 
-> **Status (2026-10-06):** Active. **Phases 1–3 are done** (web committed, not yet deployed); **Phase 4 (iOS) is built**, pending the simulator/device check and release. The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
+> **Status (2026-10-07):** Active. **Phases 1–4 are done.** iOS is on TestFlight (1.12.0, latest build 52; the user tested on device: "works well overall"). Not yet pushed or released: web deploy, App Store submission (see "Resume here"). The generator is in `core/src/visualization/wood/`, its data (17 species plus a synthetic generic wood) is in `core/data/wood_appearance.json`, and the core diagrams draw it when `DiagramOptions::wood` is set (plan view, corner-detail inset, section colour, live-preview shape). With `wood` unset the output is unchanged. The web app has a "Wood grain" toggle; the iOS app has a "Wood Grain" layer switch. The parameters come from the private `tools/wood-fit/` repo (`chosen.json` and the `gen_fit.py` reference prototype).
 
 **Goal:** draw the frame face with species-specific procedural wood grain, replacing today's outline-only plan view and flat brown section fill, in the plan view and live preview on both web and iOS. The species is the one users already pick for the weight estimate (`materials.woods`). The aim is "close in spirit" rather than photoreal: deterministic, vector, and one implementation in `core/` for both platforms.
 
 ---
 
-## Resume here (state as of 2026-10-06)
+## Resume here (state as of 2026-10-07)
+
+**Next steps (all need the user's go-ahead):**
+1. Delete the local branch `backup/pre-source-scrub` (old history that names the photo source; must never be pushed).
+2. Before App Store submission of 1.12.0: move the local tags `core-v1.12.0`, `app-v1.12.0`, `bridge-v1.8.0` to the current commits (they point at the build-48 commits; otherwise `release.sh` proposes 1.13.0). Nothing is pushed, so this is safe.
+3. Push the root repo (`git push --follow-tags`), which deploys the web app via CI. The mobile and wood-fit repos have no remote.
+4. App Store: `fastlane submit build:52 version:1.12.0` (or a later build); draft notes with `/release-notes`. Never name the wood photo source in notes or UI.
+5. Optional: photo-as-artwork preview (assessment under Phase 5).
 
 **Done:**
 - **Phase 1:** the generator in core, its data file, and tests.
 - **Payload optimization:** compound paths.
 - **Phase 2:** `DiagramOptions::wood` (`WoodRender`) wired into the plan view, corner-detail inset and section view, with golden cases. Reviewed by eye with the user.
 - **Phase 3 (web):** "Wood grain" toggle in the View section's layer toggles; diagram, print and PDF export. Deploys on the next push to `main`.
+- **Phase 4 (iOS):** "Wood Grain" layer switch, swatch species picker, preview/diagram/PDF. TestFlight 1.12.0 builds 48–52.
+- **Section-view layout overhaul (not wood-specific, done alongside):** one fixed scale whatever the face width (3" reference, break above 3"), the stack total as a "Total" row of the label column, wrapped labels, even spacing in the combined view, collision-free rabbet caption. See ARCHITECTURE.md "Section view scale" / "Combined view layout"; commits `59ae86a`…`bcc8c8e`.
+- **Source hygiene:** no public file or commit names the reference-photo source (unpushed history was rewritten 2026-10-06; final tree verified identical). The weight-estimate density citations in `presets.json` are separate and already public.
 
 **Where things live:**
 
@@ -224,13 +234,15 @@ Root `62078f3` (core fix below); mobile repo `edefb7a` (bridge) and the `feat(ap
 - **TestFlight 1.12.0 (48)** carried the above; the user tried it on device: "works well overall".
 - **Species picker (after 1.12.0 (48)):** the wood is chosen from a bottom sheet of generated swatches (`wood_swatch_svg`, a 2" square of the species' board, grain horizontal; 5–11 KB at 192 px; cached in `DesignState`). The grid shows `wood_looks()` (generic + species with their own look); the weight-only woods (generic hardwood/softwood, MDF, finger-jointed) are listed apart under "Weight only" (user: listing them among the looks is confusing). It opens from the Materials row (swatch + name, replacing the dropdown) and from a species row under Wood Grain in Layers & Detail. Glazing and backing became chips. iOS only for now (user); the web keeps its `<select>`.
 - **Simulator UI checks without tapping:** a temporary `integration_test` + `integration_test_driver_extended` driver (`onScreenshot` writes PNGs), run with `flutter drive -d <simulator>`; not committed.
-- **Still to do:**
-  1. Simulator run (`./rebuild.sh run`) to see the real app.
-  2. **Device check** (profile mode, physical device, oldest supported class): the flat-to-grain hand-off when the morph settles, scrolling/tab-switch smoothness with grain on, PDF export time. Fallback if the settle swap is slow: a binary display list over FFI drawn by a `CustomPainter`.
-  3. **Release:** `./release.sh` (dry run), then `--apply`; `fastlane beta`, then `submit` (`platforms/mobile/RELEASING.md`). Draft App Store notes with `/release-notes`; don't name the photo source anywhere.
+- **Status:** simulator-checked; on TestFlight (1.12.0 builds 48–52) and tried on device by the user. Release steps are under "Resume here". If the flat-to-grain settle swap ever proves slow on old devices, the fallback is a binary display list over FFI drawn by a `CustomPainter`.
 
 ### Phase 5: later
-- A separate photo-style "preview" option: the user loads an image as the artwork placeholder, shown with the wood frame (user idea, TBD; this is where hiding technical overlays could make sense, as its own mode, not as a side effect of the wood toggle).
+- **Photo-as-artwork preview** (user idea; assessed 2026-10-06, not started). A markup-free "Preview" page (frame + mat + the user's photo), optionally the photo in the live preview and a PDF page.
+  - **Approach:** a core "presentation" diagram option (no dimensions/dashed lines, filled mat with bevel line, frame face, shadows) plus a bridge call returning the visible window rect. On iOS draw the photo as a native image layered under the SVG, clipped to that window (embedding base64 in the SVG would be re-parsed every animation frame). Both flutter_svg and the Dart `pdf` package do decode `data:` `<image>`s, so embedding is fine for static outputs (PDF, PNG export, web).
+  - **iOS:** `image_picker` (PHPicker: no permission prompt; native downscale + HEIC→JPEG, ~1600 px). Keep one current photo in app storage. Fill + centre-crop by default; a "Match artwork size to photo" action.
+  - **Must update:** `PRIVACY_POLICY.md` and the web privacy page (they say the app "does not access your photos"); add a photo-library usage string. Privacy label stays "no data collected" (local only).
+  - **Effort:** ~2–3 days iOS-only (pick + preview page + share), ~4–5 with web and PDF. Open: storage per design or single; mat colour picker scope; PDF page 2 vs inset.
+- **Web species picker with swatches** (iOS has one; web keeps its `<select>` for now).
 - Species in shareable URLs (format v3, appending one byte).
 - Per-frame variation within `per_frame_range`, plus a "reshuffle" button (the `reshuffle` field already exists).
 - Figured variants (curly, quartersawn) in the UI. The quartersawn white oak data is already in `wood_appearance.json` under `variants`.
