@@ -4,14 +4,15 @@
 //!   cargo run --example wood_grain -- boards <dir> [n] # 3"x6" boards @150 px/in, n seeds (default 3)
 //!   cargo run --example wood_grain -- frames <dir>     # preview-scale frames per species
 //!   cargo run --example wood_grain -- diagrams <dir>   # full diagrams with `DiagramOptions::wood`
-//!   cargo run --example wood_grain -- swatches <dir>   # picker swatches (192 px) per species with a look
+//!   cargo run --example wood_grain -- swatches <dir>   # picker swatches (192 px) per species with a look,
+//!                                                      # per tone, reshuffles 0-2
 //!
 //! Boards feed the private tools/wood-fit validation (statistics vs the prototype).
 
 use referenceframe_core::presets::get_materials;
 use referenceframe_core::visualization::{
     board_svg, frame_face_svg, generate_diagram_with_style, wood_appearance, wood_looks, wood_swatch_svg, DepthCues,
-    DiagramOptions, DiagramStyle, FaceDepths, FrameFace, ViewOption, WoodAppearance, WoodLod, WoodRender,
+    DiagramOptions, DiagramStyle, FaceDepths, FrameFace, ViewOption, WoodAppearance, WoodLod, WoodRender, WoodTone,
 };
 use referenceframe_core::{FrameDesign, FrameStyle};
 use std::path::Path;
@@ -66,7 +67,7 @@ fn diagrams(dir: &Path) {
         let options = DiagramOptions {
             view, show_callouts: callouts,
             canvas_width: if callouts { 800.0 } else { 400.0 }, canvas_height: if callouts { 600.0 } else { 500.0 },
-            wood: Some(WoodRender { species: species.into(), variant: None, lod: WoodLod::Grain, depth, reshuffle: 0 }),
+            wood: Some(WoodRender { species: species.into(), variant: None, tone: WoodTone::Natural, lod: WoodLod::Grain, depth, reshuffle: 0 }),
             ..Default::default()
         };
         let style = if dark { DiagramStyle::for_dark() } else { DiagramStyle::default() };
@@ -100,9 +101,15 @@ fn main() {
             let dir = Path::new(args.get(2).expect("output dir"));
             std::fs::create_dir_all(dir).unwrap();
             for key in wood_looks() {
-                let svg = wood_swatch_svg(key, 192.0);
-                println!("{key:<22} {:>5.1} KB", svg.len() as f64 / 1024.0);
-                std::fs::write(dir.join(format!("{key}.svg")), svg).unwrap();
+                for (tone, name) in [(WoodTone::Light, "light"), (WoodTone::Natural, "natural"), (WoodTone::Dark, "dark")] {
+                    for reshuffle in 0..3 {
+                        let svg = wood_swatch_svg(key, tone, reshuffle, 192.0);
+                        if (tone, reshuffle) == (WoodTone::Natural, 0) {
+                            println!("{key:<22} {:>5.1} KB", svg.len() as f64 / 1024.0);
+                        }
+                        std::fs::write(dir.join(format!("{key}_{name}_{reshuffle}.svg")), svg).unwrap();
+                    }
+                }
             }
         }
         Some("frames") => {

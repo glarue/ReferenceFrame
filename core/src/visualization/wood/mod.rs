@@ -12,12 +12,13 @@ mod grain;
 mod noise;
 mod path;
 
-pub use appearance::{wood_appearance, wood_looks, Figure, LineMode, WoodAppearance, WoodPalette, WoodParams, WoodStructure};
+pub use appearance::{wood_appearance, wood_looks, Figure, LineMode, WoodAppearance, WoodPalette, WoodParams, WoodStructure, WoodTone, WoodTones};
 pub use grain::GrainStats;
 
 use crate::frame::FrameDesign;
 use noise::mix32;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use path::{num, op2, poly_d};
 use std::fmt::Write;
 
@@ -69,8 +70,8 @@ impl FaceDepths {
 
 /// Wood-grain rendering for a diagram (`DiagramOptions::wood`).
 ///
-/// JSON: `{"species": "red_oak", "variant": null, "lod": "grain", "depth": "inner", "reshuffle": 0}`;
-/// every field but `species` is optional.
+/// JSON: `{"species": "red_oak", "variant": null, "tone": "natural", "lod": "grain",
+/// "depth": "inner", "reshuffle": 0}`; every field but `species` is optional.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WoodRender {
     /// A `materials.woods` key; unknown keys fall back to the generic wood
@@ -78,37 +79,42 @@ pub struct WoodRender {
     /// Figure variant, e.g. `"quartersawn"`
     #[serde(default)]
     pub variant: Option<String>,
+    /// Lighter or darker colouring (same boards)
+    #[serde(default)]
+    pub tone: WoodTone,
     #[serde(default)]
     pub lod: WoodLod,
     #[serde(default)]
     pub depth: DepthCues,
-    /// Bump to draw different boards for the same species
+    /// Nonzero draws different boards for the same species, with its knobs varied
+    /// within their reviewed spans; 0 is the reviewed look itself
     #[serde(default)]
     pub reshuffle: u32,
 }
 
 impl WoodRender {
-    pub fn appearance(&self) -> &'static WoodAppearance {
-        wood_appearance(&self.species, self.variant.as_deref())
+    /// The species look in this tone, varied when reshuffled.
+    pub fn appearance(&self) -> Cow<'static, WoodAppearance> {
+        wood_appearance(&self.species, self.variant.as_deref()).styled(self.tone, (self.reshuffle != 0).then(|| self.seed()))
     }
 
     /// Diagram face: the frame's outer rectangle in px at `scale` px/in.
     pub(crate) fn frame_face(&self, design: &FrameDesign, x: f64, y: f64, width: f64, height: f64, scale: f64) -> FrameFaceSvg {
         // ids must be unique per inline SVG on a page (web history renders several)
         let id_prefix = format!("wg{:x}-", mix32(self.seed() ^ (width * 64.0) as u32 ^ ((height * 64.0) as u32).rotate_left(16)));
-        frame_face_svg(&self.face(design, x, y, width, height, scale, &id_prefix))
+        frame_face_svg(&self.face(&self.appearance(), design, x, y, width, height, scale, &id_prefix))
     }
 
     /// The corner-detail inset's zoomed corner at `scale` px/in (see [`corner_face_svg`]).
     pub(crate) fn corner_face(&self, design: &FrameDesign, cx: f64, cy: f64, right: f64, up: f64, scale: f64) -> String {
         let id_prefix = format!("wd{:x}-", mix32(self.seed() ^ (scale * 64.0) as u32));
-        corner_face_svg(&self.face(design, 0.0, 0.0, 0.0, 0.0, scale, &id_prefix), cx, cy, right, up)
+        corner_face_svg(&self.face(&self.appearance(), design, 0.0, 0.0, 0.0, 0.0, scale, &id_prefix), cx, cy, right, up)
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn face<'a>(&self, design: &FrameDesign, x: f64, y: f64, width: f64, height: f64, scale: f64, id_prefix: &'a str) -> FrameFace<'a> {
+    fn face<'a>(&self, appearance: &'a WoodAppearance, design: &FrameDesign, x: f64, y: f64, width: f64, height: f64, scale: f64, id_prefix: &'a str) -> FrameFace<'a> {
         FrameFace {
-            appearance: self.appearance(),
+            appearance,
             x, y, width, height,
             frame_width: design.frame_material_width * scale,
             px_per_in: scale,
@@ -120,7 +126,8 @@ impl WoodRender {
         }
     }
 
-    /// Stable per species/variant: the same design always shows the same boards.
+    /// Stable per species/variant and reshuffle: the same design always shows the same
+    /// boards (the tone doesn't change them).
     pub fn seed(&self) -> u32 {
         seed_for(&self.species, self.variant.as_deref(), self.reshuffle)
     }
@@ -283,11 +290,12 @@ pub fn corner_face_svg(f: &FrameFace, cx: f64, cy: f64, right: f64, up: f64) -> 
 
 /// A square swatch of a species' board for pickers: `px` wide, showing a 2" square
 /// of plain-sawn face with the grain running horizontally, as on the top rail. Same
-/// boards as that species' frames (seed from [`seed_for`]).
-pub fn wood_swatch_svg(species: &str, px: f64) -> String {
+/// look and boards as that species' frames with the same tone and reshuffle.
+pub fn wood_swatch_svg(species: &str, tone: WoodTone, reshuffle: u32, px: f64) -> String {
     const INCHES: f64 = 2.0;
-    let a = wood_appearance(species, None);
-    let (g, _) = grain::side_grain(a, px, px, px / INCHES, seed_for(species, None, 0));
+    let wood = WoodRender { species: species.into(), variant: None, tone, lod: WoodLod::Grain, depth: DepthCues::None, reshuffle };
+    let a = wood.appearance();
+    let (g, _) = grain::side_grain(&a, px, px, px / INCHES, wood.seed());
     format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="{0}" height="{0}" viewBox="0 0 {0} {0}"><rect width="{0}" height="{0}" fill="{1}"/>{g}</svg>"#,
         num(px), a.palette.base
@@ -394,12 +402,13 @@ mod tests {
             let mut d = FrameDesign::new(aw, ah);
             (d.mat_width_top_bottom, d.mat_width_sides, d.frame_material_width) = (mat, mat, fw);
             for (species, variant, budget) in &keys {
-                for show_callouts in [true, false] {
-                    let wood = WoodRender { species: species.clone(), variant: variant.clone(), lod: WoodLod::Grain,
-                        depth: DepthCues::InnerAndWall, reshuffle: 0 };
+                // reshuffled boards vary their knobs (denser rings, more pore rows)
+                for (show_callouts, reshuffle) in [(true, 0), (false, 0), (true, 1), (true, 2), (true, 3)] {
+                    let wood = WoodRender { species: species.clone(), variant: variant.clone(), tone: WoodTone::Natural, lod: WoodLod::Grain,
+                        depth: DepthCues::InnerAndWall, reshuffle };
                     let o = DiagramOptions { show_callouts, wood: Some(wood), ..Default::default() };
                     let kb = generate_diagram(&d, &o).svg.len() as f64 / 1024.0;
-                    assert!(kb <= *budget, "{species} {variant:?} {aw}x{ah} callouts={show_callouts}: {kb:.1} KB");
+                    assert!(kb <= *budget, "{species} {variant:?} {aw}x{ah} callouts={show_callouts} reshuffle={reshuffle}: {kb:.1} KB");
                 }
             }
         }
@@ -418,12 +427,17 @@ mod tests {
     #[test]
     fn swatches_are_small_and_safe() {
         for key in wood_looks() {
-            let s = wood_swatch_svg(key, 192.0);
-            assert!(s.len() < 24 * 1024, "{key}: {} bytes", s.len());
-            assert!(!s.contains('%') && !s.contains("<filter") && !s.contains("NaN"));
-            assert_eq!(s.matches("<g ").count(), s.matches("</g>").count());
+            for (tone, reshuffle) in [(WoodTone::Natural, 0), (WoodTone::Light, 1), (WoodTone::Dark, 2)] {
+                let s = wood_swatch_svg(key, tone, reshuffle, 192.0);
+                assert!(s.len() < 24 * 1024, "{key} {tone:?} {reshuffle}: {} bytes", s.len());
+                assert!(!s.contains('%') && !s.contains("<filter") && !s.contains("NaN"));
+                assert_eq!(s.matches("<g ").count(), s.matches("</g>").count());
+            }
         }
-        assert_eq!(wood_swatch_svg("red_oak", 192.0), wood_swatch_svg("red_oak", 192.0));
+        let swatch = |tone, reshuffle| wood_swatch_svg("red_oak", tone, reshuffle, 192.0);
+        assert_eq!(swatch(WoodTone::Natural, 0), swatch(WoodTone::Natural, 0));
+        assert_ne!(swatch(WoodTone::Natural, 0), swatch(WoodTone::Dark, 0));
+        assert_ne!(swatch(WoodTone::Natural, 0), swatch(WoodTone::Natural, 1));
     }
 
     #[test]

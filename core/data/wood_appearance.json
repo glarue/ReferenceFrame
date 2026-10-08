@@ -86,6 +86,20 @@
      0.0648,
      0.0954
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#C6A681",
+     "late": "#BE966C",
+     "streak": "#CFB495",
+     "alt": "#D2B99A"
+    },
+    "dark": {
+     "base": "#AD834D",
+     "late": "#A47337",
+     "streak": "#B89160",
+     "alt": "#BD9764"
+    }
    }
   },
   "red_oak": {
@@ -168,6 +182,20 @@
      0.8,
      0.95
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#C7A888",
+     "late": "#A88564",
+     "streak": "#CDAA83",
+     "alt": "#CDB090"
+    },
+    "dark": {
+     "base": "#AA804F",
+     "late": "#855B2D",
+     "streak": "#AC8455",
+     "alt": "#B0895A"
+    }
    }
   },
   "white_ash": {
@@ -258,6 +286,20 @@
      0.5192,
      0.5529
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#E6C6A4",
+     "late": "#CCAB87",
+     "streak": "#DCBE99",
+     "alt": "#EFD8B5"
+    },
+    "dark": {
+     "base": "#C9A47A",
+     "late": "#A98459",
+     "streak": "#BC9B70",
+     "alt": "#D4BA8F"
+    }
    }
   },
   "black_walnut": {
@@ -352,6 +394,20 @@
      0.0,
      1.0
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#6E594C",
+     "late": "#57443B",
+     "streak": "#685247",
+     "alt": "#9F7F67"
+    },
+    "dark": {
+     "base": "#32241B",
+     "late": "#231813",
+     "streak": "#2D201A",
+     "alt": "#513A27"
+    }
    }
   },
   "honduran_mahogany": {
@@ -446,6 +502,20 @@
      0.0,
      1.0
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#A0703F",
+     "late": "#875A2F",
+     "streak": "#91653B",
+     "alt": "#A47848"
+    },
+    "dark": {
+     "base": "#724817",
+     "late": "#5A340D",
+     "streak": "#663E11",
+     "alt": "#794D18"
+    }
    }
   },
   "eastern_white_pine": {
@@ -527,6 +597,20 @@
      0.0831,
      0.1086
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#F3D8BB",
+     "late": "#E5C8AD",
+     "streak": "#EED6BF",
+     "alt": "#F5DEC6"
+    },
+    "dark": {
+     "base": "#D9B58C",
+     "late": "#CA9E71",
+     "streak": "#D7B189",
+     "alt": "#E1BD92"
+    }
    }
   },
   "ponderosa_pine": {
@@ -608,6 +692,20 @@
      0.413,
      0.8537
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#F6E5D0",
+     "late": "#F3D9BF",
+     "streak": "#F5E3D0",
+     "alt": "#F9E9D5"
+    },
+    "dark": {
+     "base": "#DAC2A5",
+     "late": "#D5AF88",
+     "streak": "#D9BFA1",
+     "alt": "#DFC9AB"
+    }
    }
   },
   "douglas_fir": {
@@ -689,6 +787,20 @@
      0.3005,
      0.6291
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#BC9D80",
+     "late": "#B07F50",
+     "streak": "#C09B78",
+     "alt": "#C7A98C"
+    },
+    "dark": {
+     "base": "#A87A48",
+     "late": "#955D1D",
+     "streak": "#AB7841",
+     "alt": "#B38756"
+    }
    }
   },
   "western_red_cedar": {
@@ -770,6 +882,20 @@
      0.4489,
      0.6256
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#7F5B39",
+     "late": "#5F4029",
+     "streak": "#7A5734",
+     "alt": "#7D5A36"
+    },
+    "dark": {
+     "base": "#3A2815",
+     "late": "#25170B",
+     "streak": "#382510",
+     "alt": "#3A2612"
+    }
    }
   },
   "poplar": {
@@ -851,6 +977,20 @@
      0.2198,
      0.2992
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#F0DAB3",
+     "late": "#E6CEA0",
+     "streak": "#F7E9CE",
+     "alt": "#FEEBC6"
+    },
+    "dark": {
+     "base": "#D2B886",
+     "late": "#C4A86D",
+     "streak": "#E2CC9C",
+     "alt": "#E6CFA0"
+    }
    }
   },
   "basswood": {
@@ -932,6 +1072,20 @@
      0.178,
      0.3373
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#CDB596",
+     "late": "#C1A687",
+     "streak": "#C5AC8E",
+     "alt": "#CEB89B"
+    },
+    "dark": {
+     "base": "#B7935D",
+     "late": "#AA824C",
+     "streak": "#AE8855",
+     "alt": "#B89664"
+    }
    }
   },
   "red_alder": {
@@ -1013,6 +1167,20 @@
      0.5549,
      0.7508
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#B88F60",
+     "late": "#B38557",
+     "streak": "#BC9265",
+     "alt": "#C39D72"
+    },
+    "dark": {
+     "base": "#926426",
+     "late": "#8C5B23",
+     "streak": "#96662D",
+     "alt": "#9E7034"
+    }
    }
   },
   "soft_maple": {
@@ -1094,6 +1262,20 @@
      0.1422,
      0.3312
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#AD8D67",
+     "late": "#9C7D58",
+     "streak": "#BD9C75",
+     "alt": "#C9B396"
+    },
+    "dark": {
+     "base": "#7E5D30",
+     "late": "#6E4F25",
+     "streak": "#8D6C3F",
+     "alt": "#9B8059"
+    }
    }
   },
   "black_cherry": {
@@ -1175,6 +1357,20 @@
      0.2782,
      0.4615
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#8E633A",
+     "late": "#865A32",
+     "streak": "#986C43",
+     "alt": "#AF9274"
+    },
+    "dark": {
+     "base": "#6D4213",
+     "late": "#643B0F",
+     "streak": "#774A18",
+     "alt": "#8E6B45"
+    }
    }
   },
   "yellow_birch": {
@@ -1256,6 +1452,20 @@
      0.4207,
      0.55
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#E4CAB3",
+     "late": "#DABDA7",
+     "streak": "#E1C7B2",
+     "alt": "#E7D0BB"
+    },
+    "dark": {
+     "base": "#CCA684",
+     "late": "#C29772",
+     "streak": "#CCA37E",
+     "alt": "#D2AE8B"
+    }
    }
   },
   "white_oak": {
@@ -1363,6 +1573,20 @@
      0.95
     ]
    },
+   "tones": {
+    "light": {
+     "base": "#BE9E7B",
+     "late": "#A68460",
+     "streak": "#B2916A",
+     "alt": "#C1A587"
+    },
+    "dark": {
+     "base": "#A57C4C",
+     "late": "#8B6230",
+     "streak": "#976F3C",
+     "alt": "#AA8355"
+    }
+   },
    "variants": {
     "quartersawn": {
      "palette": {
@@ -1468,6 +1692,20 @@
        0.0,
        1.0
       ]
+     },
+     "tones": {
+      "light": {
+       "base": "#9C7A55",
+       "late": "#8C6A44",
+       "streak": "#A2835F",
+       "alt": "#B19370"
+      },
+      "dark": {
+       "base": "#815A2B",
+       "late": "#704B1B",
+       "streak": "#88612F",
+       "alt": "#957145"
+      }
      }
     }
    }
@@ -1539,6 +1777,20 @@
      0.06,
      0.0648
     ]
+   },
+   "tones": {
+    "light": {
+     "base": "#9C816A",
+     "late": "#816652",
+     "streak": "#947B66",
+     "alt": "#AA937B"
+    },
+    "dark": {
+     "base": "#806246",
+     "late": "#664832",
+     "streak": "#785C42",
+     "alt": "#8F7355"
+    }
    }
   }
  }

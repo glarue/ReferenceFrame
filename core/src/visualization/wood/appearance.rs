@@ -5,7 +5,9 @@
 //! `materials.woods`; keys without their own entry resolve through `aliases`, then
 //! fall back to `default` (the synthetic generic wood).
 
+use super::noise::mix32;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
@@ -120,6 +122,30 @@ impl Default for WoodParams {
     }
 }
 
+/// Lighter or darker colouring of a species (same boards, same grain).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WoodTone {
+    /// Unfinished: toward the sanded reference photo (paler, less amber)
+    Light,
+    /// The fitted palette (between the sanded and finished photos)
+    #[default]
+    Natural,
+    /// Toward the finished reference photo (richer, deeper)
+    Dark,
+}
+
+/// Tone palettes, derived offline per species (`tools/wood-fit/tones.py`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WoodTones {
+    pub light: WoodPalette,
+    pub dark: WoodPalette,
+}
+
+/// Ring spacing varies by up to this fraction either way on a reshuffled board (it has
+/// no reviewed `per_frame_range`; held near the photo's value).
+const RINGS_SPREAD: f64 = 0.1;
+
 /// One species' look.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WoodAppearance {
@@ -127,12 +153,65 @@ pub struct WoodAppearance {
     pub structure: WoodStructure,
     #[serde(default)]
     pub params: WoodParams,
-    /// Reviewed spans per knob, for per-frame variation (not used yet)
+    /// Reviewed spans per knob (the top-3 by-eye picks); a reshuffled board draws
+    /// each knob within its span (see [`WoodAppearance::styled`])
     #[serde(default)]
     pub per_frame_range: BTreeMap<String, [f64; 2]>,
+    /// Lighter and darker palettes
+    #[serde(default)]
+    pub tones: Option<WoodTones>,
     /// Figure variants (e.g. white oak "quartersawn")
     #[serde(default)]
     pub variants: BTreeMap<String, WoodAppearance>,
+}
+
+impl WoodAppearance {
+    /// The palette for a tone (the natural one if the species has no tones).
+    pub fn palette_for(&self, tone: WoodTone) -> &WoodPalette {
+        match (tone, &self.tones) {
+            (WoodTone::Light, Some(t)) => &t.light,
+            (WoodTone::Dark, Some(t)) => &t.dark,
+            _ => &self.palette,
+        }
+    }
+
+    /// This look in `tone`, with its knobs varied when `vary` is given: each
+    /// `per_frame_range` knob is drawn within its span and the ring spacing within
+    /// +-[`RINGS_SPREAD`], deterministically from the seed. Borrowed (unchanged) for the
+    /// natural tone without variation.
+    pub fn styled(&self, tone: WoodTone, vary: Option<u32>) -> Cow<'_, WoodAppearance> {
+        if tone == WoodTone::Natural && vary.is_none() {
+            return Cow::Borrowed(self);
+        }
+        let mut params = self.params.clone();
+        if let Some(seed) = vary {
+            // a uniform draw in [0, 1) per knob, independent of the others
+            let unit = |key: &str| {
+                let h = key.bytes().fold(seed, |h, b| mix32(h ^ u32::from(b)));
+                f64::from(mix32(h) >> 8) / f64::from(1u32 << 24)
+            };
+            params.rings_per_in *= 1.0 + RINGS_SPREAD * (2.0 * unit("rings_per_in") - 1.0);
+            // through JSON so the ranges can name any knob (integer knobs stay integral)
+            if let Ok(serde_json::Value::Object(mut map)) = serde_json::to_value(&params) {
+                for (key, &[lo, hi]) in &self.per_frame_range {
+                    let v = lo + (hi - lo) * unit(key);
+                    let integral = map.get(key).is_some_and(|x| x.is_u64());
+                    map.insert(key.clone(), if integral { serde_json::json!(v.round() as u64) } else { serde_json::json!(v) });
+                }
+                if let Ok(p) = serde_json::from_value(serde_json::Value::Object(map)) {
+                    params = p;
+                }
+            }
+        }
+        Cow::Owned(WoodAppearance {
+            palette: self.palette_for(tone).clone(),
+            structure: self.structure.clone(),
+            params,
+            per_frame_range: BTreeMap::new(),
+            tones: None,
+            variants: BTreeMap::new(),
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -194,6 +273,60 @@ mod tests {
         for key in data().woods.keys().chain(data().aliases.keys()) {
             assert!(woods.contains_key(key), "{key} is not a materials.woods key");
         }
+    }
+
+    #[test]
+    fn every_look_has_tones() {
+        for key in wood_looks() {
+            let a = wood_appearance(key, None);
+            let t = a.tones.as_ref().unwrap_or_else(|| panic!("{key} has no tones"));
+            assert_ne!(t.light.base, a.palette.base, "{key}");
+            assert_ne!(t.dark.base, a.palette.base, "{key}");
+        }
+        assert!(wood_appearance("white_oak", Some("quartersawn")).tones.is_some());
+    }
+
+    #[test]
+    fn natural_unvaried_look_is_borrowed() {
+        let a = wood_appearance("red_oak", None);
+        assert!(matches!(a.styled(WoodTone::Natural, None), Cow::Borrowed(_)));
+        let dark = a.styled(WoodTone::Dark, None);
+        assert_eq!(dark.palette.base, a.tones.as_ref().unwrap().dark.base);
+        assert_eq!(dark.params.rings_per_in, a.params.rings_per_in);
+    }
+
+    #[test]
+    fn varied_knobs_stay_in_their_reviewed_spans() {
+        for key in wood_looks() {
+            let a = wood_appearance(key, None);
+            let base = serde_json::to_value(&a.params).unwrap();
+            let mut moved = 0;
+            for seed in 0..40u32 {
+                let v = a.styled(WoodTone::Natural, Some(mix32(seed)));
+                assert_eq!(v.palette.base, a.palette.base);
+                let r = v.params.rings_per_in / a.params.rings_per_in;
+                assert!((1.0 - RINGS_SPREAD..=1.0 + RINGS_SPREAD).contains(&r), "{key} rings x{r}");
+                let p = serde_json::to_value(&v.params).unwrap();
+                for (knob, &[lo, hi]) in &a.per_frame_range {
+                    let x = p[knob].as_f64().unwrap();
+                    // integer knobs round to the nearest
+                    assert!(x >= lo - 0.5 && x <= hi + 0.5, "{key} {knob}={x} not in [{lo}, {hi}]");
+                    if p[knob] != base[knob] {
+                        moved += 1;
+                    }
+                }
+            }
+            assert!(a.per_frame_range.is_empty() || moved > 0, "{key}: nothing varied");
+        }
+    }
+
+    #[test]
+    fn variation_is_deterministic() {
+        let a = wood_appearance("black_walnut", None);
+        let (x, y) = (a.styled(WoodTone::Light, Some(7)), a.styled(WoodTone::Light, Some(7)));
+        assert_eq!(serde_json::to_string(&x.params).unwrap(), serde_json::to_string(&y.params).unwrap());
+        let z = a.styled(WoodTone::Light, Some(8));
+        assert_ne!(serde_json::to_string(&x.params).unwrap(), serde_json::to_string(&z.params).unwrap());
     }
 
     #[test]

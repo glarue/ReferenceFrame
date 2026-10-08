@@ -69,7 +69,7 @@ impl DiagramRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::visualization::{generate_diagram, DepthCues, DetailMode, ViewOption, WoodLod, WoodRender};
+    use crate::visualization::{generate_diagram, DepthCues, DetailMode, ViewOption, WoodLod, WoodRender, WoodTone};
 
     const REQUIRED: &str = r#""canvas_width": 1200, "canvas_height": 700,
         "include_title_block": false, "unit_mm": false, "use_tape_segments": false,
@@ -115,15 +115,16 @@ mod tests {
     fn wood_takes_documented_defaults() {
         let r = DiagramRequest::from_json(&format!(r#"{{"view": "PlanOnly", {REQUIRED}, "wood": {{"species": "red_oak"}}}}"#))
             .unwrap();
-        let want = WoodRender { species: "red_oak".into(), variant: None, lod: WoodLod::Grain, depth: DepthCues::Inner, reshuffle: 0 };
+        let want = WoodRender { species: "red_oak".into(), variant: None, tone: WoodTone::Natural, lod: WoodLod::Grain, depth: DepthCues::Inner, reshuffle: 0 };
         assert_eq!(r.options.wood, Some(want));
         let r = DiagramRequest::from_json(&format!(
             r#"{{"view": "PlanOnly", {REQUIRED}, "wood": {{"species": "white_oak", "variant": "quartersawn",
-               "lod": "flat", "depth": "inner_and_wall", "reshuffle": 3}}}}"#
+               "tone": "dark", "lod": "flat", "depth": "inner_and_wall", "reshuffle": 3}}}}"#
         ))
         .unwrap();
         let w = r.options.wood.unwrap();
-        assert_eq!((w.variant.as_deref(), w.lod, w.depth, w.reshuffle), (Some("quartersawn"), WoodLod::Flat, DepthCues::InnerAndWall, 3));
+        assert_eq!((w.variant.as_deref(), w.tone, w.lod, w.depth, w.reshuffle),
+            (Some("quartersawn"), WoodTone::Dark, WoodLod::Flat, DepthCues::InnerAndWall, 3));
         assert!(DiagramRequest::from_json(&format!(r#"{{"view": "PlanOnly", {REQUIRED}, "wood": {{"species": "red_oak", "lod": "fine"}}}}"#)).is_err());
     }
 

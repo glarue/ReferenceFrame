@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use referenceframe_core::{FrameDesign, FrameStyle};
 use referenceframe_core::visualization::{
-    DepthCues, DiagramOptions, ViewOption, WoodLod, WoodRender, generate_diagram,
+    DepthCues, DiagramOptions, ViewOption, WoodLod, WoodRender, WoodTone, generate_diagram,
 };
 
 // ---------------------------------------------------------------------------
@@ -261,7 +261,7 @@ fn opts_plan_decimal() -> DiagramOptions {
 }
 
 fn wood(species: &str, lod: WoodLod, depth: DepthCues) -> Option<WoodRender> {
-    Some(WoodRender { species: species.into(), variant: None, lod, depth, reshuffle: 0 })
+    Some(WoodRender { species: species.into(), variant: None, tone: WoodTone::Natural, lod, depth, reshuffle: 0 })
 }
 
 /// Wood grain over the plan view (one ring-porous, one softwood); the

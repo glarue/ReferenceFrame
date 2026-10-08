@@ -32,7 +32,7 @@ pub use svg::{generate_diagram, generate_diagram_with_style};
 pub use wood::{
     board_svg, corner_face_svg, frame_face_svg, seed_for, wood_appearance, wood_looks, wood_swatch_svg, DepthCues,
     FaceDepths, Figure, FrameFace, FrameFaceSvg, GrainStats, LineMode, WoodAppearance, WoodLod, WoodPalette, WoodParams,
-    WoodRender, WoodStructure,
+    WoodRender, WoodStructure, WoodTone, WoodTones,
 };
 
 /// Shared test utilities for visualization tests.
