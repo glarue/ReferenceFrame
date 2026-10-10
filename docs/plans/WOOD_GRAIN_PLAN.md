@@ -253,11 +253,7 @@ On TestFlight 1.12.0 (53, per-wood tones; 54, shared tone). Tags moved to includ
 - Web unchanged: it sends no tone or reshuffle, so it gets the natural look.
 
 ### Phase 5: later
-- **Photo-as-artwork preview** (user idea; assessed 2026-10-06, not started). A markup-free "Preview" page (frame + mat + the user's photo), optionally the photo in the live preview and a PDF page.
-  - **Approach:** a core "presentation" diagram option (no dimensions/dashed lines, filled mat with bevel line, frame face, shadows) plus a bridge call returning the visible window rect. On iOS draw the photo as a native image layered under the SVG, clipped to that window (embedding base64 in the SVG would be re-parsed every animation frame). Both flutter_svg and the Dart `pdf` package do decode `data:` `<image>`s, so embedding is fine for static outputs (PDF, PNG export, web).
-  - **iOS:** `image_picker` (PHPicker: no permission prompt; native downscale + HEIC→JPEG, ~1600 px). Keep one current photo in app storage. Fill + centre-crop by default; a "Match artwork size to photo" action.
-  - **Must update:** `PRIVACY_POLICY.md` and the web privacy page (they say the app "does not access your photos"); add a photo-library usage string. Privacy label stays "no data collected" (local only).
-  - **Effort:** ~2–3 days iOS-only (pick + preview page + share), ~4–5 with web and PDF. Open: storage per design or single; mat colour picker scope; PDF page 2 vs inset.
+- **Photo-as-artwork preview:** moved to its own plan, `docs/plans/PHOTO_PREVIEW_PLAN.md` (scoped 2026-10-10).
 - **Web species picker with swatches** (iOS has one; web keeps its `<select>` for now).
 - Species in shareable URLs (format v3, appending one byte).
 - Tones and new boards on the web (core and WASM already take `tone`/`reshuffle`).
