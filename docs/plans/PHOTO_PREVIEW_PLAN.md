@@ -2,12 +2,27 @@
 
 Show the frame as it will look, with the user's own photo as the artwork. iOS first; web later.
 
-**Status:** scoped 2026-10-10, not started. Replaces the "Photo-as-artwork preview" item in `WOOD_GRAIN_PLAN.md` Phase 5.
+**Status:** iOS built 2026-10-10 (not yet on TestFlight); web not started. Replaces the "Photo-as-artwork preview" item in `WOOD_GRAIN_PLAN.md` Phase 5.
+
+**As built (iOS):**
+- **Core:** `generate_presentation` + `PhotoFit::place` + `preview_photo_layout` (`visualization/presentation.rs`), `mat_colors` in `presets.json`, `DesignLook` (`look.rs`) on `HistoryEntry.look` (an entry matches only with the same mat, wood and photo; a match takes the new crop). Review renders: `cargo run --example presentation -- <dir> [photo.jpg]`.
+- **Bridge:** `generate_presentation_json`, `preview_photo_layout`, `place_photo`; `add_to_history_with_unit` takes `look_json`.
+- **App:**
+  - `PhotoStore` (`photos/<id>.jpg`; picked with `image_picker`, then orientation baked, resized and re-encoded as JPEG q85 in an isolate). The photo size setting is in Settings › Data & History.
+  - `PhotoPreviewScreen` (tap the live preview, the Diagrams app bar, or Preview in either action menu): the photo is a layer under the SVG; drag/pinch, Fill/Fit, Match Artwork to Photo, mat swatches, and share as PNG.
+  - The live preview draws the photo over the diagram's window.
+  - The PDF gets a second page when the design has a photo (the JPEG sits under the render, so it stays small).
+  - Unreferenced photo files are pruned at launch and after photo or history changes.
+  - Backups embed history photos (base64) and are shared as a `.json` file.
+- **Differences from the plan:**
+  - Saved configs are frame setups without the artwork, so they keep the mat colour and wood but not the photo; the photo is per history entry.
+  - The current design's mat colour and photo persist as `pref_design_look`.
+- **Not verified on device:** the native photo picker flow (the simulator checks injected a photo).
 
 ## Decisions (user, 2026-10-10)
 
 - **Pop-up, not a tab.** A full-screen preview opened from the live preview and from the Diagrams tab.
-- **One photo per design.** The goal is a record of which photo went with which frame, so photos travel with saved configs and history entries.
+- **One photo per design.** The goal is a record of which photo went with which frame, so photos travel with history entries (saved configs keep the mat and wood only; see "As built").
 - **PDF:** the clean render goes in its own page or section; the measured diagram is unchanged.
 - **Mat colour:** a selector with preset common mat colours (no free colour picker).
 - **Wood grain:** the preview respects the Wood Grain layer switch. With it off, the frame is drawn flat (no species is forced).

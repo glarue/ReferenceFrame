@@ -91,6 +91,15 @@ bridge crates' `Cargo.lock` files are tracked; the core library's is not.
   default (output unchanged). `tone` picks a lighter/darker palette and a nonzero
   `reshuffle` draws a different board with knobs varied within reviewed spans.
   See `docs/plans/WOOD_GRAIN_PLAN.md`.
+- **Photo preview.** `generate_presentation` (`visualization/presentation.rs`)
+  draws the frame as it will look, with no markings: wood or flat face, a filled
+  mat (`presets.json` `mat_colors`) with its bevel, lip and wall shadows. Its
+  photo window is left transparent for a platform photo layer (live previews),
+  embeds the photo, or shows a placeholder; `PhotoLayout` gives the window,
+  artwork and photo rects. A design's mat colour, wood and photo are its
+  `DesignLook` (`look.rs`), kept on history entries. iOS stores photos as
+  downscaled JPEGs in the app's documents (`PhotoStore`). See
+  `docs/plans/PHOTO_PREVIEW_PLAN.md`.
 - **Assembly clearance.** `assembly_margin` undersizes the parts that drop into
   the rabbet (glazing, backing, mat outer edge) to a "cut to fit" size. The
   exact rabbet opening is still what the diagrams draw.
