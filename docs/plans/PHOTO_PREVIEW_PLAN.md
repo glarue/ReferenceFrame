@@ -37,9 +37,11 @@ Show the frame as it will look, with the user's own photo as the artwork. iOS fi
   - Bridge: `add_to_history*` takes the id.
   - History rows show a thumbnail.
 - **Cleanup:** on launch, and after a history trim or delete, remove photo files that nothing references (current design, configs or history).
-- **Backup export/import (`exportAll`):** JSON only, so photos aren't included at first (note this in the UI). Later this could become a zip.
+- **Stored resolution (user, 2026-10-10):** each photo is kept as one downscaled JPEG, sized by a setting: "Photo size" Small 800 px / Medium 1200 px (default) / Large 2000 px on the long side. That's about 80 / 180 / 450 KB.
+- **Backup export/import (`exportAll`):** embeds each referenced photo as base64 in the backup JSON, so the photo travels with its design. Import writes the files back and keeps the ids.
+- **Why files, not base64 in the records:** the history and configs live in SharedPreferences (NSUserDefaults). 50 entries × ~180 KB inline would load about 10 MB at every launch.
 - **Share links:** carry no photo.
-- **Open:** should the wood look (species, tone, board) also be stored per design, so a history entry restores the full look? Today it is a global preference.
+- **Wood look per design (user, 2026-10-10):** species, tone and board are saved with configs and history entries, and restored on load. The global preference stays as the working value.
 
 ### 3. iOS preview pop-up (~1–1.5 days)
 - **Layout:** the photo as a native `Image` under the SVG in a `Stack`, positioned and clipped to the window rect. This avoids re-parsing a base64 photo every frame.
@@ -56,7 +58,7 @@ Show the frame as it will look, with the user's own photo as the artwork. iOS fi
 
 ### 5. PDF (~0.5 day)
 - A second page (or a section), "Preview": the clean render with the photo embedded, plus a caption (size, wood, mat colour).
-- Only when the design has a photo, or always (with a placeholder)? Proposed: only with a photo.
+- Only when the design has a photo (user, 2026-10-10).
 
 ### 6. Privacy and release (~0.5 day)
 - Update `PRIVACY_POLICY.md` / `platforms/web/privacy-policy.html:85`, which currently say the app doesn't access photos. New wording: you choose photos with the system picker, and they're stored only on the device.
