@@ -149,6 +149,19 @@
       "photo_paper": { "name": "Photo/print paper", "lb_ft3": 64.0, "low": 56.0, "high": 72.0, "source": "Epson RC 260 gsm @ 10 mil (1.02 g/cm3)" }
     }
   },
+  "mat_colors": {
+    "_comment": "Mat board colours for the photo preview (approximate common shades). 'core' is the bevel colour (white-core board). First entry is the default.",
+    "colors": [
+      { "key": "bright_white", "name": "White", "hex": "#F8F8F5", "core": "#FDFCF8" },
+      { "key": "soft_white", "name": "Soft White", "hex": "#F1EEE5", "core": "#FDFCF8" },
+      { "key": "cream", "name": "Cream", "hex": "#E8E0CB", "core": "#FDFCF8" },
+      { "key": "light_grey", "name": "Light Grey", "hex": "#D5D5D2", "core": "#FDFCF8" },
+      { "key": "warm_grey", "name": "Warm Grey", "hex": "#A39E95", "core": "#FDFCF8" },
+      { "key": "navy", "name": "Navy", "hex": "#2A374D", "core": "#FDFCF8" },
+      { "key": "charcoal", "name": "Charcoal", "hex": "#47484A", "core": "#FDFCF8" },
+      { "key": "black", "name": "Black", "hex": "#1D1D1E", "core": "#FDFCF8" }
+    ]
+  },
   "validation_limits": {
     "_comment": "Default validation thresholds (ValidationConfig::default). All dimensions in inches.",
 

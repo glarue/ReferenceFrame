@@ -19,7 +19,8 @@ use crate::frame::FrameDesign;
 use noise::mix32;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use path::{num, op2, poly_d};
+use path::{op2, poly_d};
+pub(crate) use path::num;
 use std::fmt::Write;
 
 /// Level of detail. `Flat` is for animation frames: base colour, tone, seams and
@@ -179,17 +180,7 @@ pub fn frame_face_svg(f: &FrameFace) -> FrameFaceSvg {
     let (x0, y0, w, h, fw, ppi) = (f.x, f.y, f.width, f.height, f.frame_width, f.px_per_in);
     let mut stats = GrainStats::default();
 
-    let mut under = String::new();
-    if f.depth == DepthCues::InnerAndWall {
-        // soft drop shadow without filters: stacked offset rects, each minus the
-        // frame's own rectangle so nothing darkens the opening (evenodd hole)
-        let s = f.depths.frame_material_depth * DEPTH_K * ppi;
-        for k in 1..=6 {
-            let o = s * f64::from(k) / 6.0;
-            let _ = write!(under, r##"<path d="M{},{}h{}v{}h{}zM{},{}v{}h{}v{}z" fill="#000" fill-opacity="0.05" fill-rule="evenodd"/>"##,
-                num(x0 + o), num(y0 + o), num(w), num(h), num(-w), num(x0), num(y0), num(h), num(w), num(-h));
-        }
-    }
+    let under = if f.depth == DepthCues::InnerAndWall { wall_shadow_svg(x0, y0, w, h, &f.depths, ppi) } else { String::new() };
 
     // (origin, u axis, v axis, length): top, right, bottom, left; v points inward
     let sides = [
@@ -213,20 +204,40 @@ pub fn frame_face_svg(f: &FrameFace) -> FrameFaceSvg {
             num(ax), num(ay), num(bx), num(by));
     }
 
-    let mut inner_shadow = String::new();
-    if f.depth != DepthCues::None {
-        let sw = f.depths.face_above_mat() * DEPTH_K * ppi;
-        let (ix, iy, iw, ih) = (x0 + fw, y0 + fw, w - 2.0 * fw, h - 2.0 * fw);
-        let p = f.id_prefix;
-        let _ = write!(inner_shadow,
-            r##"<linearGradient id="{p}ist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.32"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>"##);
-        let _ = write!(inner_shadow,
-            r##"<linearGradient id="{p}isl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0.32"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>"##);
-        let _ = write!(inner_shadow, r#"<rect x="{}" y="{}" width="{}" height="{}" fill="url(#{p}ist)"/>"#, num(ix), num(iy), num(iw), num(sw));
-        let _ = write!(inner_shadow, r#"<rect x="{}" y="{}" width="{}" height="{}" fill="url(#{p}isl)"/>"#, num(ix), num(iy), num(sw), num(ih));
-    }
+    let inner_shadow = if f.depth != DepthCues::None {
+        inner_shadow_svg(x0 + fw, y0 + fw, w - 2.0 * fw, h - 2.0 * fw, &f.depths, ppi, f.id_prefix)
+    } else {
+        String::new()
+    };
 
     FrameFaceSvg { under, face, inner_shadow, stats }
+}
+
+/// The frame's soft shadow on the wall, bottom and right, for an outer rectangle in px.
+/// No filters: stacked offset rects, each minus the frame's own rectangle so nothing
+/// darkens the opening (evenodd hole).
+pub(crate) fn wall_shadow_svg(x0: f64, y0: f64, w: f64, h: f64, depths: &FaceDepths, ppi: f64) -> String {
+    let mut out = String::new();
+    let s = depths.frame_material_depth * DEPTH_K * ppi;
+    for k in 1..=6 {
+        let o = s * f64::from(k) / 6.0;
+        let _ = write!(out, r##"<path d="M{},{}h{}v{}h{}zM{},{}v{}h{}v{}z" fill="#000" fill-opacity="0.05" fill-rule="evenodd"/>"##,
+            num(x0 + o), num(y0 + o), num(w), num(h), num(-w), num(x0), num(y0), num(h), num(w), num(-h));
+    }
+    out
+}
+
+/// The lip's shadow inside the opening (px rect), along its top and left edges.
+pub(crate) fn inner_shadow_svg(ix: f64, iy: f64, iw: f64, ih: f64, depths: &FaceDepths, ppi: f64, p: &str) -> String {
+    let mut out = String::new();
+    let sw = depths.face_above_mat() * DEPTH_K * ppi;
+    let _ = write!(out,
+        r##"<linearGradient id="{p}ist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.32"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>"##);
+    let _ = write!(out,
+        r##"<linearGradient id="{p}isl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0.32"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>"##);
+    let _ = write!(out, r#"<rect x="{}" y="{}" width="{}" height="{}" fill="url(#{p}ist)"/>"#, num(ix), num(iy), num(iw), num(sw));
+    let _ = write!(out, r#"<rect x="{}" y="{}" width="{}" height="{}" fill="url(#{p}isl)"/>"#, num(ix), num(iy), num(sw), num(ih));
+    out
 }
 
 /// One mitered piece in local coordinates: u along the piece, v inward from its

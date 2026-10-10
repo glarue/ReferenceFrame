@@ -677,6 +677,12 @@ impl PlanViewGeometry {
         Rect::new(label_x, label_center_y - label_height / 2.0, label_width, label_height)
     }
 
+    /// Plain rects at `scale` px/in with the frame's outer corner at the origin given
+    /// (the presentation render does its own fitting).
+    pub(crate) fn from_design_at(design: &FrameDesign, scale: f64, origin_x: f64, origin_y: f64) -> Self {
+        Self::build_rects(design, scale, origin_x, origin_y, None)
+    }
+
     /// Calculate geometry for preview mode (no callouts)
     ///
     /// Scales to maximize use of available canvas space while maintaining

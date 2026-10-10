@@ -21,14 +21,19 @@ mod section_svg;
 mod plan_svg;
 mod svg;
 mod wood;
+mod presentation;
 // Layout snapshot harness (file I/O against core/tests/snapshots) — unit-test only.
 #[cfg(test)]
 mod snapshot;
 
 // Public API
-pub use types::{ViewOption, DetailMode, DiagramOptions, DiagramResult};
+pub use types::{ViewOption, DetailMode, DiagramOptions, DiagramResult, Rect};
 pub use style::{DiagramStyle, MaterialPatterns, FillPattern};
 pub use svg::{generate_diagram, generate_diagram_with_style};
+pub use presentation::{
+    generate_presentation, preview_photo_layout, FitMode, PhotoFit, PhotoLayout, PresentationOptions, PresentationPhoto,
+    PresentationResult, FLAT_FRAME_COLOR, MAX_ZOOM,
+};
 pub use wood::{
     board_svg, corner_face_svg, frame_face_svg, seed_for, wood_appearance, wood_looks, wood_swatch_svg, DepthCues,
     FaceDepths, Figure, FrameFace, FrameFaceSvg, GrainStats, LineMode, WoodAppearance, WoodLod, WoodPalette, WoodParams,

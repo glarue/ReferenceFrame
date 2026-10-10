@@ -20,6 +20,29 @@ pub struct PresetsData {
     /// Input hint ranges; deserialized straight into `validation::TypicalRanges`
     pub typical_ranges: crate::validation::TypicalRanges,
     pub presets: Presets,
+    pub mat_colors: MatColors,
+}
+
+/// Mat board colours for the photo preview (`presets.json` → `mat_colors`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MatColors {
+    pub colors: Vec<MatColor>,
+}
+
+/// One mat board colour: face `hex` and bevel `core`, both `#RRGGBB`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MatColor {
+    pub key: String,
+    pub name: String,
+    pub hex: String,
+    pub core: String,
+}
+
+impl MatColors {
+    /// The colour for `key`, or the first (default) one when the key is unknown or absent
+    pub fn get(&self, key: Option<&str>) -> &MatColor {
+        key.and_then(|k| self.colors.iter().find(|c| c.key == k)).unwrap_or(&self.colors[0])
+    }
 }
 
 // ============================================================================
@@ -177,6 +200,11 @@ pub fn get_materials() -> &'static Materials {
     &get_presets_data().materials
 }
 
+/// Get the mat board colours
+pub fn get_mat_colors() -> &'static MatColors {
+    &get_presets_data().mat_colors
+}
+
 /// Get the default validation limits
 pub fn get_validation_limits() -> &'static ValidationLimits {
     &get_presets_data().validation_limits
@@ -273,6 +301,20 @@ mod tests {
         let data = get_presets_data();
         assert!(!data.presets.frame_face_width.values.is_empty());
         assert!(!data.presets.backing.values.is_empty());
+    }
+
+    #[test]
+    fn mat_colors_resolve_with_a_default() {
+        let m = get_mat_colors();
+        assert!(m.colors.len() >= 6);
+        assert_eq!(m.get(None).key, m.colors[0].key);
+        assert_eq!(m.get(Some("nope")).key, m.colors[0].key);
+        assert_eq!(m.get(Some("black")).key, "black");
+        for c in &m.colors {
+            for h in [&c.hex, &c.core] {
+                assert!(h.len() == 7 && h.starts_with('#') && h[1..].chars().all(|ch| ch.is_ascii_hexdigit()), "{h}");
+            }
+        }
     }
 
     #[test]
