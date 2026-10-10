@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 use crate::conversions::{format_value, Unit};
 use crate::frame::FrameDesign;
+use crate::look::DesignLook;
 
 /// Default maximum number of history entries
 pub const DEFAULT_MAX_ENTRIES: usize = 50;
@@ -40,6 +41,9 @@ pub struct HistoryEntry {
     pub timestamps: Vec<i64>,
     /// User-provided or auto-generated title
     pub title: String,
+    /// Mat colour, wood and photo the design was saved with (absent in older entries)
+    #[serde(default, skip_serializing_if = "DesignLook::is_empty")]
+    pub look: DesignLook,
 }
 
 impl HistoryEntry {
@@ -49,6 +53,7 @@ impl HistoryEntry {
             design,
             timestamps: vec![timestamp],
             title,
+            look: DesignLook::default(),
         }
     }
 
@@ -129,11 +134,18 @@ impl DesignHistory {
     ///
     /// Returns true if this was a new design (or forced new), false if it was a duplicate.
     pub fn add_entry(&mut self, design: FrameDesign, timestamp: i64, title: String, force_new: bool) -> bool {
+        self.add_entry_with_look(design, DesignLook::default(), timestamp, title, force_new)
+    }
+
+    /// [`add_entry`](Self::add_entry) with the design's look. An entry matches only
+    /// with the same mat colour, wood and photo; a match takes the new photo crop.
+    pub fn add_entry_with_look(&mut self, design: FrameDesign, look: DesignLook, timestamp: i64, title: String, force_new: bool) -> bool {
         // Check for existing identical design (unless forcing new)
         if !force_new {
-            if let Some(idx) = self.find_matching_design(&design) {
+            if let Some(idx) = self.find_matching(&design, &look) {
                 // Add timestamp to existing entry
                 self.entries[idx].add_timestamp(timestamp);
+                self.entries[idx].look = look;
                 // Move to front (most recently saved)
                 let entry = self.entries.remove(idx);
                 self.entries.insert(0, entry);
@@ -142,7 +154,7 @@ impl DesignHistory {
         }
 
         // New design - create new entry
-        let entry = HistoryEntry::new(design, timestamp, title);
+        let entry = HistoryEntry { look, ..HistoryEntry::new(design, timestamp, title) };
         self.entries.insert(0, entry);
         self.enforce_limit();
         true
@@ -152,13 +164,23 @@ impl DesignHistory {
     ///
     /// Returns true if this was a new design (or forced new), false if it was a duplicate.
     pub fn add_entry_auto_title(&mut self, design: FrameDesign, timestamp: i64, force_new: bool, use_mm: bool) -> bool {
-        let title = HistoryEntry::generate_title(&design, use_mm);
-        self.add_entry(design, timestamp, title, force_new)
+        self.add_entry_auto_title_with_look(design, DesignLook::default(), timestamp, force_new, use_mm)
     }
 
-    /// Find index of entry with matching design
-    fn find_matching_design(&self, design: &FrameDesign) -> Option<usize> {
-        self.entries.iter().position(|e| &e.design == design)
+    /// [`add_entry_auto_title`](Self::add_entry_auto_title) with the design's look
+    pub fn add_entry_auto_title_with_look(&mut self, design: FrameDesign, look: DesignLook, timestamp: i64, force_new: bool, use_mm: bool) -> bool {
+        let title = HistoryEntry::generate_title(&design, use_mm);
+        self.add_entry_with_look(design, look, timestamp, title, force_new)
+    }
+
+    /// Photo ids referenced by any entry (platforms delete unreferenced photo files)
+    pub fn photo_ids(&self) -> Vec<&str> {
+        self.entries.iter().filter_map(|e| e.look.photo.as_ref().map(|p| p.id.as_str())).collect()
+    }
+
+    /// Find index of the entry with this design and the same look choices
+    fn find_matching(&self, design: &FrameDesign, look: &DesignLook) -> Option<usize> {
+        self.entries.iter().position(|e| &e.design == design && e.look.same_choices(look))
     }
 
     /// Get entry by index (0 = newest)
@@ -534,5 +556,41 @@ mod tests {
         assert_eq!(entry.save_count(), 3);
         assert_eq!(entry.latest_timestamp(), 3000);
         assert_eq!(entry.original_timestamp(), 1000);
+    }
+
+    fn look(json: &str) -> DesignLook {
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn looks_split_entries_and_crops_update_them() {
+        let design = create_test_design();
+        let mut h = DesignHistory::new();
+        let a = look(r#"{"mat_color":"cream","photo":{"id":"p1","width":10,"height":10}}"#);
+        assert!(h.add_entry_with_look(design.clone(), a.clone(), 1, "A".into(), false));
+        // same frame, different photo: new entry
+        let b = look(r#"{"mat_color":"cream","photo":{"id":"p2","width":10,"height":10}}"#);
+        assert!(h.add_entry_with_look(design.clone(), b, 2, "B".into(), false));
+        // same choices, new crop: same entry, crop updated
+        let mut a2 = a.clone();
+        a2.photo.as_mut().unwrap().fit.zoom = 2.0;
+        assert!(!h.add_entry_with_look(design.clone(), a2.clone(), 3, "A".into(), false));
+        assert_eq!(h.len(), 2);
+        assert_eq!(h.get(0).unwrap().look, a2);
+        assert_eq!(h.photo_ids(), vec!["p1", "p2"]);
+        // a look-less save is its own entry
+        assert!(h.add_entry(design, 4, "C".into(), false));
+    }
+
+    #[test]
+    fn looks_round_trip_and_old_entries_have_none() {
+        let mut h = DesignHistory::new();
+        h.add_entry_with_look(create_test_design(), look(r#"{"wood":{"species":"cherry"}}"#), 1, "A".into(), false);
+        h.add_entry(create_test_design(), 2, "B".into(), true);
+        let json = h.to_json().unwrap();
+        assert_eq!(json.matches("\"look\"").count(), 1, "empty looks aren't written");
+        let back = DesignHistory::from_json(&json).unwrap();
+        assert_eq!(back.get(1).unwrap().look.wood.as_ref().unwrap().species, "cherry");
+        assert!(back.get(0).unwrap().look.is_empty());
     }
 }

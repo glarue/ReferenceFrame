@@ -20,6 +20,7 @@ pub mod validation;
 pub mod constraints;
 pub mod input_parser;
 pub mod history;
+pub mod look;
 pub mod joinery;
 pub mod hanging;
 pub mod weight;
