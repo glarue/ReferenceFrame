@@ -388,6 +388,28 @@ mod tests {
     }
 
     #[test]
+    fn the_mat_overlap_or_the_lip_hides_the_artworks_edges() {
+        // with a mat: the full artwork is drawn; the mat overlap (plus the bevel) covers its edges
+        let d = test_design();
+        let l = generate_presentation(&d, &opts()).layout;
+        let s = l.px_per_in;
+        assert!((l.artwork.width - d.artwork_width * s).abs() < 1e-6);
+        let hidden = (l.artwork.width - l.window.width) / 2.0 / s;
+        assert!((hidden - (d.mat_overlap + d.matboard_thickness)).abs() < 1e-6, "{hidden}");
+
+        // no mat: the frame's lip over the rabbet covers them
+        let mut d = test_design();
+        d.mat_width_top_bottom = 0.0;
+        d.mat_width_sides = 0.0;
+        let l = generate_presentation(&d, &opts()).layout;
+        let s = l.px_per_in;
+        assert!((l.artwork.width - d.artwork_width * s).abs() < 1e-6);
+        let hidden = (l.artwork.width - l.window.width) / 2.0 / s;
+        assert!((hidden - d.lip_over_art()).abs() < 1e-6, "{hidden}");
+        assert!(d.lip_over_art() > 0.0);
+    }
+
+    #[test]
     fn window_fill_depends_on_the_photo() {
         let placeholder = generate_presentation(&test_design(), &opts()).svg;
         assert!(placeholder.contains(PLACEHOLDER_COLOR));
