@@ -136,7 +136,7 @@
       "douglas_fir": { "name": "Douglas-Fir", "lb_ft3": 32.0, "low": 28.0, "high": 36.0, "source": "wood-database.com (FPL SG12 0.51)" },
       "western_red_cedar": { "name": "Western Red Cedar", "lb_ft3": 23.0, "low": 21.0, "high": 25.0, "source": "wood-database.com (FPL SG12 0.37)" },
       "honduran_mahogany": { "name": "Honduran Mahogany", "lb_ft3": 37.0, "low": 33.0, "high": 41.0, "source": "wood-database.com (FPL SG12 0.59)" },
-      "mdf_moulding": { "name": "MDF Moulding", "lb_ft3": 48.0, "low": 40.0, "high": 50.0, "source": "ANSI A208.2 standard-density panel" }
+      "mdf_moulding": { "name": "MDF Molding", "lb_ft3": 48.0, "low": 40.0, "high": 50.0, "source": "ANSI A208.2 standard-density panel" }
     },
     "sheet": {
       "glass": { "name": "Glass (float)", "lb_ft3": 156.0, "low": 154.2, "high": 157.3, "source": "Pilkington ATS-129 (2.50 g/cm3)" },
@@ -155,8 +155,8 @@
       { "key": "bright_white", "name": "White", "hex": "#F8F8F5", "core": "#FDFCF8" },
       { "key": "soft_white", "name": "Soft White", "hex": "#F1EEE5", "core": "#FDFCF8" },
       { "key": "cream", "name": "Cream", "hex": "#E8E0CB", "core": "#FDFCF8" },
-      { "key": "light_grey", "name": "Light Grey", "hex": "#D5D5D2", "core": "#FDFCF8" },
-      { "key": "warm_grey", "name": "Warm Grey", "hex": "#A39E95", "core": "#FDFCF8" },
+      { "key": "light_gray", "name": "Light Gray", "hex": "#D5D5D2", "core": "#FDFCF8" },
+      { "key": "warm_gray", "name": "Warm Gray", "hex": "#A39E95", "core": "#FDFCF8" },
       { "key": "navy", "name": "Navy", "hex": "#2A374D", "core": "#FDFCF8" },
       { "key": "charcoal", "name": "Charcoal", "hex": "#47484A", "core": "#FDFCF8" },
       { "key": "black", "name": "Black", "hex": "#1D1D1E", "core": "#FDFCF8" }
