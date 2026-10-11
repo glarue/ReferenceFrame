@@ -8,7 +8,7 @@ Show the frame as it will look, with the user's own photo as the artwork. iOS fi
 - **Core:** `generate_presentation` + `PhotoFit::place` + `preview_photo_layout` (`visualization/presentation.rs`), `mat_colors` in `presets.json`, `DesignLook` (`look.rs`) on `HistoryEntry.look` (an entry matches only with the same mat, wood and photo; a match takes the new crop). Review renders: `cargo run --example presentation -- <dir> [photo.jpg]`.
 - **Bridge:** `generate_presentation_json`, `preview_photo_layout`, `place_photo`; `add_to_history_with_unit` takes `look_json`.
 - **App:**
-  - `PhotoStore` (`photos/<id>.jpg`; picked with `image_picker`, then orientation baked, resized and re-encoded as JPEG q85 in an isolate). The photo size setting is in Settings › Data & History.
+  - `PhotoStore` (`photos/<id>.jpg`; picked with `image_picker`, then orientation baked, resized and re-encoded as JPEG in an isolate). Settings › Data & History › Artwork Images sets Size (800 / 1200 / 2000 px, default 1200) and Quality (70 / 80 / 90, default 80).
   - `PhotoPreviewScreen` (tap the live preview, the Diagrams app bar, or Preview in either action menu): the photo is a layer under the SVG; drag/pinch, Fill/Fit, Match Artwork Dimensions to Image, mat swatches, and share as PNG.
   - The live preview draws the photo over the diagram's window.
   - The PDF gets a second page when the design has a photo (the JPEG sits under the render, so it stays small).
