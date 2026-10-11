@@ -16,7 +16,7 @@ Show the frame as it will look, with the user's own photo as the artwork. iOS fi
   - Backups embed history photos (base64) and are shared as a `.json` file.
 - **Differences from the plan:**
   - Saved configs are frame setups without the artwork, so they keep the mat colour and wood but not the photo; the photo is per history entry.
-  - The current design's mat colour and photo persist as `pref_design_look`.
+  - The current design's mat colour persists (`pref_design_look`). Its image lasts until the app quits; it is kept only in the history entries it's saved with (user decision 2026-10-10).
 - **Not verified on device:** the native photo picker flow (the simulator checks injected a photo).
 
 ## Decisions (user, 2026-10-10)
