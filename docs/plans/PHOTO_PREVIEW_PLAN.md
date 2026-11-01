@@ -2,7 +2,22 @@
 
 Show the frame as it will look, with the user's own photo as the artwork. iOS first; web later.
 
-**Status:** iOS built 2026-10-10 (not yet on TestFlight); web not started. Replaces the "Photo-as-artwork preview" item in `WOOD_GRAIN_PLAN.md` Phase 5.
+**Status:** iOS released. App 1.13.0 (photo preview), 1.14.0 and 1.15.0 are all live on the App Store as of 2026-11-01. Web is not started. Replaces the "Photo-as-artwork preview" item in `WOOD_GRAIN_PLAN.md` Phase 5.
+
+**Resume here:** no pending steps. Possible next work:
+- **Web port:** section 7 below.
+- **Diagrams tab:** show the artwork image in the measured plan view too (not requested yet).
+
+**Releases:**
+- **1.13.0:** the preview, artwork images, mat colours, per-design looks, PDF preview page, image size and quality settings, and backups with images.
+- **1.14.0:**
+  - a landscape side panel and a full-screen toggle in the preview
+  - an icon-only Choose Image button for small frames
+  - a one-time App Store rating request (`ReviewPrompt`: after 3 exports, saves or shares and at least 3 days; opens the write-review page) and a Rate ReferenceFrame row in Settings
+  - the app's `PrivacyInfo.xcprivacy` is now bundled (it was never in the Runner target)
+  - `NSCameraUsageDescription` added (the image picker references camera APIs)
+- **1.15.0:** a Frame row in the preview, which opens the shared wood picker and has the Wood Grain switch.
+- **Wording (user):** say "artwork image", never "photo", in the UI (the image may be any artwork). Match Artwork Dimensions to Image offers Restore Previous Dimensions until the artwork is resized another way.
 
 **As built (iOS):**
 - **Core:** `generate_presentation` + `PhotoFit::place` + `preview_photo_layout` (`visualization/presentation.rs`), `mat_colors` in `presets.json`, `DesignLook` (`look.rs`) on `HistoryEntry.look` (an entry matches only with the same mat, wood and photo; a match takes the new crop). Review renders: `cargo run --example presentation -- <dir> [photo.jpg]`.
@@ -17,7 +32,7 @@ Show the frame as it will look, with the user's own photo as the artwork. iOS fi
 - **Differences from the plan:**
   - Saved configs are frame setups without the artwork, so they keep the mat colour and wood but not the photo; the photo is per history entry.
   - The current design's mat colour persists (`pref_design_look`). Its image lasts until the app quits; it is kept only in the history entries it's saved with (user decision 2026-10-10).
-- **Not verified on device:** the native photo picker flow (the simulator checks injected a photo).
+- **Verified on device** via TestFlight by the user, including the native picker (the simulator checks injected an image).
 
 ## Decisions (user, 2026-10-10)
 

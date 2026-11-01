@@ -122,9 +122,10 @@ bridge crates' `Cargo.lock` files are tracked; the core library's is not.
 **iOS (`platforms/mobile/`).**
 - Flutter, with the `lib/` layout:
   - `state/design_state.dart`: the app state, which wraps the bridge
-  - `screens/`, `widgets/`, `services/`: export, colors, haptics
+  - `screens/`, `widgets/`, `services/`: export, colors, haptics, artwork images (`photo_store.dart`), the one-time App Store rating request (`review_prompt.dart`)
   - `lib/src/rust/`: the generated bindings (don't edit)
 - `frame_preview.dart` draws the live animated preview natively. Every other diagram comes from the core SVG.
+- `photo_preview_screen.dart` is the framed-artwork preview (core presentation SVG over a native image layer). It reuses the shared wood picker sheet and Wood Grain setting rather than duplicating them.
 
 ## Build, test, release
 
